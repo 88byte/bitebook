@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Bite Book',
     short_name: 'Bite Book',
     description: 'The digital log book for hunting and fishing guides.',
-    start_url: '/',
+    start_url: '/app',
     display: 'standalone',
     orientation: 'portrait',
     background_color: '#FAF7F2',

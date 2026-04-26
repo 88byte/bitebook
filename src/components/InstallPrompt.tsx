@@ -7,21 +7,32 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+type IOSMode = 'safari' | 'other-browser' | null
+
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [showIOS, setShowIOS] = useState(false)
+  const [iosMode, setIosMode] = useState<IOSMode>(null)
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (sessionStorage.getItem('install-dismissed')) return
 
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
-    const isInStandalone = window.matchMedia('(display-mode: standalone)').matches
-    const isIOSSafari = isIOS && !isInStandalone && !(navigator as unknown as Record<string, unknown>)['standalone']
+    const ua = navigator.userAgent
+    const nav = navigator as Navigator & { standalone?: boolean; maxTouchPoints?: number }
 
-    if (isIOSSafari) {
-      setShowIOS(true)
+    // iPadOS 13+ reports a Mac UA — detect via multi-touch.
+    const isIOSDevice =
+      /iphone|ipad|ipod/i.test(ua) ||
+      (ua.includes('Macintosh') && (nav.maxTouchPoints ?? 0) > 1)
+
+    const isInStandalone =
+      window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true
+
+    if (isIOSDevice && !isInStandalone) {
+      const isNonSafariBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|FBAN|FBAV|FB_IAB|Instagram|Line|Twitter|GSA/i.test(ua)
+      const isSafari = ua.includes('Safari') && !isNonSafariBrowser
+      setIosMode(isSafari ? 'safari' : 'other-browser')
     }
 
     const handler = (e: Event) => {
@@ -37,7 +48,7 @@ export default function InstallPrompt() {
     sessionStorage.setItem('install-dismissed', '1')
     setDismissed(true)
     setDeferredPrompt(null)
-    setShowIOS(false)
+    setIosMode(null)
   }
 
   const handleInstall = async () => {
@@ -50,6 +61,7 @@ export default function InstallPrompt() {
 
   if (dismissed) return null
 
+  // Chrome / Edge / Android — native beforeinstallprompt flow
   if (deferredPrompt) {
     return (
       <div className="fixed bottom-0 inset-x-0 z-50 p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
@@ -57,8 +69,8 @@ export default function InstallPrompt() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon-192x192.png" alt="" className="w-12 h-12 rounded-xl flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="font-display text-ink text-sm font-bold leading-tight">Add Bite Book to your home screen</p>
-            <p className="text-ink/60 text-xs mt-0.5">Works offline · Fast access</p>
+            <p className="font-display text-ink text-sm font-bold leading-tight">Install Bite Book</p>
+            <p className="text-ink/60 text-xs mt-0.5">Works offline · One tap to open</p>
           </div>
           <div className="flex flex-col gap-2 flex-shrink-0">
             <button
@@ -79,26 +91,58 @@ export default function InstallPrompt() {
     )
   }
 
-  if (showIOS) {
+  // iOS Safari — walk through Share → Add to Home Screen
+  if (iosMode === 'safari') {
     return (
       <div className="fixed bottom-0 inset-x-0 z-50 p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="rounded-2xl bg-paper border border-accent/20 shadow-lg p-4 max-w-sm mx-auto">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icon-192x192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0" />
             <p className="font-display text-ink text-sm font-bold leading-tight">Add Bite Book to your home screen</p>
-            <button onClick={handleDismiss} className="ml-auto text-ink/40 text-lg leading-none p-1">×</button>
+            <button
+              onClick={handleDismiss}
+              aria-label="Dismiss"
+              className="ml-auto text-ink/40 text-lg leading-none p-1"
+            >
+              ×
+            </button>
           </div>
           <p className="text-ink/70 text-xs leading-relaxed">
-            Tap{' '}
+            On iPhone or iPad: tap the Share button{' '}
             <span className="inline-block align-middle">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline">
-                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                <polyline points="16 6 12 2 8 6"/>
-                <line x1="12" y1="2" x2="12" y2="15"/>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                <polyline points="16 6 12 2 8 6" />
+                <line x1="12" y1="2" x2="12" y2="15" />
               </svg>
             </span>{' '}
-            then <strong>"Add to Home Screen"</strong> for the best offline experience.
+            then <strong>&ldquo;Add to Home Screen.&rdquo;</strong> Heads up: this only works in Safari — not Chrome or in-app browsers.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // iOS but the user is in Chrome iOS / Firefox iOS / a webview — they have to switch to Safari first
+  if (iosMode === 'other-browser') {
+    return (
+      <div className="fixed bottom-0 inset-x-0 z-50 p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="rounded-2xl bg-paper border border-accent/20 shadow-lg p-4 max-w-sm mx-auto">
+          <div className="flex items-center gap-3 mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon-192x192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0" />
+            <p className="font-display text-ink text-sm font-bold leading-tight">Open in Safari to install</p>
+            <button
+              onClick={handleDismiss}
+              aria-label="Dismiss"
+              className="ml-auto text-ink/40 text-lg leading-none p-1"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-ink/70 text-xs leading-relaxed">
+            On iPhone and iPad, adding Bite Book to your home screen only works in <strong>Safari</strong>. Open this page in Safari, tap the Share button, then choose <strong>&ldquo;Add to Home Screen.&rdquo;</strong>
           </p>
         </div>
       </div>
