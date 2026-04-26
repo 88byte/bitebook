@@ -23,3 +23,31 @@ body {
   font-family: var(--font-barlow), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+@keyframes bb-fade-up {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bb-fade-up {
+  opacity: 0;
+  animation: bb-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-fade-up {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.bb-tagline-clause {
+  display: block;
+}
+
+@media (min-width: 40rem) {
+  .bb-tagline-clause {
+    display: inline-block;
+    white-space: nowrap;
+  }
+}
