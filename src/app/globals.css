@@ -97,8 +97,10 @@ body {
   justify-items: center;
   font-family: var(--font-barlow), system-ui, sans-serif;
   font-weight: 500;
-  color: var(--color-forest);
-  opacity: 0.78;
+  /* Warm gray — sits in the paper family, AA-normal contrast (~5.1:1)
+     against #FAF7F2 at 18px medium. Flat color reads cleaner than a
+     compositing opacity layer. */
+  color: #6F6A60;
   letter-spacing: 0.01em;
   text-align: center;
   /* Reserve one line of vertical space for the tallest viewport size. */
