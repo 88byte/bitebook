@@ -7,16 +7,12 @@ import { REMEMBER_COOKIE, REMEMBER_MAX_AGE } from '@/lib/cookies'
 
 const SUPPORT_EMAIL = 'support@lastbite.pro'
 
-type Mode = 'password' | 'magic'
-
 export default function LoginForm({ next }: { next?: string }) {
-  const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [magicSent, setMagicSent] = useState(false)
 
   function setRememberCookie(value: boolean) {
     if (typeof document === 'undefined') return
@@ -44,48 +40,9 @@ export default function LoginForm({ next }: { next?: string }) {
     window.location.assign(next || '/app')
   }
 
-  async function sendMagicLink(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setRememberCookie(remember)
-
-    const supabase = createClient()
-    const redirectTo = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-    })
-    setLoading(false)
-    if (error) setError(humanizeError(error.message))
-    else setMagicSent(true)
-  }
-
-  if (magicSent) {
-    return (
-      <Card>
-        <div className="text-3xl mb-3">📬</div>
-        <p className="font-bold text-sm" style={{ color: 'var(--color-ink)' }}>
-          Check your email for the sign-in link
-        </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
-          Sent to <strong>{email}</strong>
-        </p>
-        <button
-          type="button"
-          onClick={() => { setMagicSent(false); setMode('password') }}
-          className="mt-4 text-xs underline"
-          style={{ color: 'var(--color-accent)' }}
-        >
-          Use a different email
-        </button>
-      </Card>
-    )
-  }
-
   return (
     <Card>
-      <form onSubmit={mode === 'password' ? signInWithPassword : sendMagicLink} className="flex flex-col gap-3 w-full">
+      <form onSubmit={signInWithPassword} className="flex flex-col gap-3 w-full">
         <Field
           type="email"
           name="email"
@@ -97,18 +54,16 @@ export default function LoginForm({ next }: { next?: string }) {
           ariaLabel="Email"
         />
 
-        {mode === 'password' && (
-          <Field
-            type="password"
-            name="current-password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={setPassword}
-            placeholder="Password"
-            ariaLabel="Password"
-          />
-        )}
+        <Field
+          type="password"
+          name="current-password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={setPassword}
+          placeholder="Password"
+          ariaLabel="Password"
+        />
 
         <label className="flex items-center gap-2 text-xs select-none" style={{ color: 'var(--color-ink)' }}>
           <input
@@ -126,7 +81,7 @@ export default function LoginForm({ next }: { next?: string }) {
 
         <button
           type="submit"
-          disabled={loading || !email || (mode === 'password' && !password)}
+          disabled={loading || !email || !password}
           className="w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-40 active:scale-[0.98]"
           style={{
             background: 'var(--color-accent)',
@@ -134,9 +89,7 @@ export default function LoginForm({ next }: { next?: string }) {
             fontFamily: 'var(--font-barlow-condensed)',
           }}
         >
-          {loading
-            ? mode === 'password' ? 'Signing in…' : 'Sending…'
-            : mode === 'password' ? 'Sign in' : 'Send sign-in link'}
+          {loading ? 'Signing in…' : 'Sign in'}
         </button>
 
         <div className="flex items-center justify-between text-xs pt-1">
@@ -147,18 +100,22 @@ export default function LoginForm({ next }: { next?: string }) {
           >
             Forgot password?
           </Link>
-          <button
-            type="button"
-            onClick={() => { setMode(mode === 'password' ? 'magic' : 'password'); setError(null) }}
-            className="underline"
-            style={{ color: 'var(--color-ink)', opacity: 0.55 }}
-          >
-            {mode === 'password' ? 'Email me a sign-in link' : 'Use password instead'}
-          </button>
         </div>
       </form>
     </Card>
   )
+}
+
+// Magic-link sign-in is intentionally retained but not surfaced in the UI.
+// Flavio asked to keep the option open for later; calling this from a future
+// UI surface is enough to re-enable the flow.
+export async function sendMagicLink(email: string, next?: string) {
+  const supabase = createClient()
+  const redirectTo = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
+  return supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+  })
 }
 
 function Card({ children }: { children: React.ReactNode }) {

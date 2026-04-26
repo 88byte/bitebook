@@ -46,27 +46,67 @@ body {
   animation: bb-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
 }
 
-/* Topo lines: each path draws on, then sits static */
+/* Topo lines: a single wave pulse from the center out, then static. */
 .bb-topo-line {
-  stroke-dasharray: 2400;
-  stroke-dashoffset: 2400;
-  animation: bb-topo-draw 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  animation: bb-topo-pulse 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-@keyframes bb-topo-draw {
-  to { stroke-dashoffset: 0; }
+@keyframes bb-topo-pulse {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-/* Tagline clauses */
-.bb-tagline-clause {
-  display: block;
+/* Rotating tagline.
+   - Container reserves the height of one line so layout never reflows.
+   - All clauses share the same grid cell; one is visible at a time via a
+     keyframed opacity cycle, offset per-clause via animation-delay.
+   - Soft forest tone, lighter weight — atmospheric, not commanding. */
+.bb-tagline {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--color-forest);
+  opacity: 0.78;
+  letter-spacing: 0.01em;
+  text-align: center;
+  /* Reserve one line of vertical space for the tallest viewport size. */
+  min-height: 1.6em;
+  font-size: 1.125rem; /* base — text-lg */
+  line-height: 1.4;
 }
 
 @media (min-width: 40rem) {
-  .bb-tagline-clause {
-    display: inline-block;
-    white-space: nowrap;
-  }
+  .bb-tagline { font-size: 1.375rem; min-height: 1.6em; }   /* ~text-[22px] */
+}
+@media (min-width: 48rem) {
+  .bb-tagline { font-size: 1.625rem; }                        /* ~text-[26px] */
+}
+@media (min-width: 64rem) {
+  .bb-tagline { font-size: 1.875rem; }                        /* text-3xl */
+}
+
+.bb-tagline-clause {
+  grid-area: 1 / 1;
+  opacity: 0;
+  animation: bb-tagline-rotate 12s ease-in-out infinite both;
+  white-space: nowrap;
+}
+
+@keyframes bb-tagline-rotate {
+  /* In a 12s cycle (3 clauses × 4s window):
+     0%–4.17%   = fade in over 0.5s
+     4.17%–29.17% = hold for 3.0s
+     29.17%–33.33% = fade out over 0.5s
+     33.33%–100% = stay hidden until the next cycle */
+  0%      { opacity: 0; }
+  4.17%   { opacity: 1; }
+  29.17%  { opacity: 1; }
+  33.33%  { opacity: 0; }
+  100%    { opacity: 0; }
 }
 
 /* State swap (form -> success card) */
@@ -90,9 +130,19 @@ body {
   }
   .bb-topo-line {
     animation: none;
-    stroke-dashoffset: 0;
+    opacity: 1;
   }
-  .bb-topo {
-    /* The grain stays, but kill any animated entrance */
+  /* Stack the clauses statically — no rotation. */
+  .bb-tagline {
+    display: block;
+    min-height: 0;
+    line-height: 1.5;
+  }
+  .bb-tagline-clause {
+    display: block;
+    grid-area: auto;
+    opacity: 1;
+    animation: none;
+    white-space: normal;
   }
 }

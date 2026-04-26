@@ -1,7 +1,23 @@
 // Faint topographic-contour SVG drawn behind the hero.
-// Lines draw on once via stroke-dashoffset, then sit static.
-// Hidden entirely under prefers-reduced-motion (it's purely decorative).
+// Lines reveal once via a wave pulse expanding outward from center: the innermost
+// ring fades in first, each subsequent ring follows with a small delay. After the
+// pulse completes, lines stay static.
+//
+// Reduced motion: lines render fully opaque immediately, no pulse.
 export default function TopoBackground() {
+  // Concentric ellipses indexed innermost → outermost. animation-delay scales
+  // with index so the wave reads as a ripple from the center.
+  const lines = [
+    'M400,300 C470,300 520,330 540,400 C560,470 510,520 400,520 C300,520 240,470 260,400 C280,330 330,300 400,300 Z',
+    'M400,260 C500,260 580,300 590,400 C600,500 510,560 400,560 C290,560 200,500 210,400 C220,300 300,260 400,260 Z',
+    'M400,220 C530,220 630,280 640,400 C650,520 530,600 400,600 C270,600 150,520 160,400 C170,280 270,220 400,220 Z',
+    'M400,180 C560,180 680,260 690,400 C700,540 560,640 400,640 C240,640 100,540 110,400 C120,260 240,180 400,180 Z',
+    'M400,140 C590,140 730,240 740,400 C750,560 590,680 400,680 C210,680 50,560 60,400 C70,240 210,140 400,140 Z',
+    'M400,100 C620,100 770,220 780,400 C790,580 620,720 400,720 C180,720 10,580 20,400 C30,220 180,100 400,100 Z',
+    'M400,60 C640,60 800,200 810,400 C820,600 640,760 400,760 C160,760 -20,600 -10,400 C0,200 160,60 400,60 Z',
+  ]
+  const STEP = 0.18 // seconds between each ring's reveal
+
   return (
     <div
       aria-hidden="true"
@@ -28,14 +44,14 @@ export default function TopoBackground() {
           strokeWidth="1"
           strokeLinecap="round"
         >
-          {/* Concentric, slightly hand-drawn topo rings centered behind the logo */}
-          <path className="bb-topo-line" style={{ animationDelay: '0.05s' }} d="M400,300 C470,300 520,330 540,400 C560,470 510,520 400,520 C300,520 240,470 260,400 C280,330 330,300 400,300 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.15s' }} d="M400,260 C500,260 580,300 590,400 C600,500 510,560 400,560 C290,560 200,500 210,400 C220,300 300,260 400,260 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.25s' }} d="M400,220 C530,220 630,280 640,400 C650,520 530,600 400,600 C270,600 150,520 160,400 C170,280 270,220 400,220 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.35s' }} d="M400,180 C560,180 680,260 690,400 C700,540 560,640 400,640 C240,640 100,540 110,400 C120,260 240,180 400,180 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.45s' }} d="M400,140 C590,140 730,240 740,400 C750,560 590,680 400,680 C210,680 50,560 60,400 C70,240 210,140 400,140 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.55s' }} d="M400,100 C620,100 770,220 780,400 C790,580 620,720 400,720 C180,720 10,580 20,400 C30,220 180,100 400,100 Z" />
-          <path className="bb-topo-line" style={{ animationDelay: '0.65s' }} d="M400,60 C640,60 800,200 810,400 C820,600 640,760 400,760 C160,760 -20,600 -10,400 C0,200 160,60 400,60 Z" />
+          {lines.map((d, i) => (
+            <path
+              key={d}
+              className="bb-topo-line"
+              style={{ animationDelay: `${(i * STEP).toFixed(2)}s` }}
+              d={d}
+            />
+          ))}
         </g>
       </svg>
       {/* Paper grain — low-opacity SVG noise via inline data URI */}

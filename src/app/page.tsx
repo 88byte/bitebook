@@ -1,48 +1,46 @@
 import Image from 'next/image'
 import LoginForm, { GuideSignupNote, HuntersInviteOnlyNote } from './login/LoginForm'
 import TopoBackground from '@/components/TopoBackground'
+import RotatingTagline from '@/components/RotatingTagline'
 import Footer from '@/components/Footer'
 
 export default function Home() {
   return (
     <main
-      className="relative flex flex-1 flex-col items-center justify-center gap-8 px-6 py-12 sm:gap-10 sm:py-16 md:gap-12 min-h-screen overflow-hidden"
+      className="relative flex flex-1 flex-col items-center px-6 pt-6 min-h-screen overflow-hidden"
       style={{ background: 'var(--color-paper)' }}
     >
       <TopoBackground />
 
-      <div className="relative z-10 bb-hero-in">
-        <Image
-          src="/bb-logo.png"
-          alt="Bite Book"
-          width={1254}
-          height={1254}
-          sizes="(min-width: 1024px) 320px, (min-width: 768px) 256px, 192px"
-          className="h-48 w-48 sm:h-56 sm:w-56 md:h-64 md:w-64 lg:h-80 lg:w-80 rounded-3xl shadow-lg"
-          priority
-        />
+      {/* Top spacer biases the hero downward toward the lower-middle band of the
+          viewport without bottom-aligning it. Floor scales up at sm so larger
+          screens get more breathing room above the logo; on tight mobile
+          viewports it can collapse to keep the form above the fold. */}
+      <div className="flex-[1.3] min-h-[2vh] sm:min-h-[8vh]" aria-hidden="true" />
+
+      <div className="relative z-10 flex flex-col items-center gap-5 sm:gap-7 md:gap-8 w-full">
+        <div className="bb-hero-in">
+          <Image
+            src="/bb-logo.png"
+            alt="Bite Book"
+            width={1254}
+            height={1254}
+            sizes="(min-width: 1024px) 288px, (min-width: 768px) 240px, 176px"
+            className="h-40 w-40 sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-64 lg:w-64 rounded-3xl shadow-lg"
+            priority
+          />
+        </div>
+
+        <RotatingTagline />
+
+        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.45s' }}>
+          <LoginForm />
+          <GuideSignupNote />
+          <HuntersInviteOnlyNote />
+        </div>
       </div>
 
-      <p
-        className="relative z-10 max-w-5xl text-center text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-5xl"
-        style={{ fontFamily: 'var(--font-barlow-condensed)', color: 'var(--color-ink)' }}
-      >
-        <span className="bb-tagline-clause bb-fade-up" style={{ animationDelay: '0.55s' }}>
-          Every trip, on the record.
-        </span>{' '}
-        <span className="bb-tagline-clause bb-fade-up" style={{ animationDelay: '0.80s' }}>
-          Built with guides.
-        </span>{' '}
-        <span className="bb-tagline-clause bb-fade-up" style={{ animationDelay: '1.05s' }}>
-          Lived by hunters.
-        </span>
-      </p>
-
-      <div className="relative z-10 w-full max-w-sm bb-fade-up" style={{ animationDelay: '1.25s' }}>
-        <LoginForm />
-        <GuideSignupNote />
-        <HuntersInviteOnlyNote />
-      </div>
+      <div className="flex-1 min-h-[2vh] sm:min-h-[4vh]" aria-hidden="true" />
 
       <Footer />
     </main>
