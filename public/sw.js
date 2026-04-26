@@ -1,10 +1,12 @@
-const CACHE_NAME = 'bitebook-v1'
+const CACHE_NAME = 'bitebook-v3'
+// HTML pages (incl. '/') are served network-first so updates always show up when online.
+// Only static assets sit in the cache-first shell list.
 const SHELL_ASSETS = [
-  '/',
   '/manifest.webmanifest',
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/apple-touch-icon.png',
+  '/bb-logo.png',
 ]
 
 self.addEventListener('install', (event) => {
@@ -12,6 +14,10 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
   )
   self.skipWaiting()
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
@@ -37,7 +43,24 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Cache-first for shell assets; network-first for everything else
+  const isNavigation = request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')
+
+  // Network-first for navigations so the freshest HTML wins, with cache fallback offline.
+  // We cache the landing page ('/') as the offline fallback for any navigation request.
+  if (isNavigation) {
+    event.respondWith(
+      fetch(request).then((res) => {
+        if (url.pathname === '/' && res.ok) {
+          const clone = res.clone()
+          caches.open(CACHE_NAME).then((c) => c.put('/', clone))
+        }
+        return res
+      }).catch(() => caches.match('/').then((cached) => cached ?? caches.match(request)))
+    )
+    return
+  }
+
+  // Cache-first for shell static assets; network-first for everything else.
   if (SHELL_ASSETS.includes(url.pathname) || url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => cached ?? fetch(request).then((res) => {

@@ -1,0 +1,62 @@
+<!--
+TEMPLATE: Invite user
+SUBJECT:  Set up your Bite Book account
+NOTE:     Only used if a guide invites a hunter via Supabase's built-in
+          inviteUserByEmail flow. Our app's primary invite path is the
+          /accept-invite page driven by the public.invitations table — that one
+          uses its own custom email (not configured here yet, follow-up).
+-->
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background:#FAF7F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2419;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF7F2;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid rgba(31,36,25,0.08);border-radius:16px;overflow:hidden;">
+            <tr>
+              <td align="center" style="padding:32px 32px 0;">
+                <img src="https://bitebook.lastbite.pro/icon-512x512.png" alt="Bite Book" width="96" height="96" style="display:block;border-radius:16px;background:#000;">
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 32px 0;">
+                <h1 style="margin:0;font-size:28px;line-height:1.2;font-weight:700;letter-spacing:-0.01em;color:#1F2419;font-family:'Barlow Condensed',Impact,Helvetica,Arial,sans-serif;">
+                  Welcome to Bite Book
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px 0;font-size:15px;line-height:1.55;color:#1F2419;">
+                <p style="margin:0;">Your guide invited you to Bite Book — every trip, on the record.</p>
+                <p style="margin:12px 0 0;">Tap the button below to set your password and get started.</p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 32px 0;">
+                <a href="{{ .ConfirmationURL }}"
+                   style="display:inline-block;background:#B45309;color:#FAF7F2;text-decoration:none;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;font-size:14px;padding:14px 28px;border-radius:12px;font-family:'Barlow Condensed',Impact,Helvetica,Arial,sans-serif;">
+                  Set up my account
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 0;font-size:13px;line-height:1.5;color:rgba(31,36,25,0.65);">
+                <p style="margin:0;">If the button doesn&rsquo;t work, copy and paste this URL into your browser:</p>
+                <p style="margin:8px 0 0;word-break:break-all;color:#B45309;">{{ .ConfirmationURL }}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 32px;font-size:12px;line-height:1.5;color:rgba(31,36,25,0.55);border-top:1px solid rgba(31,36,25,0.06);margin-top:24px;">
+                <p style="margin:24px 0 0;">Not expecting this? You can ignore the email — no account is created until you tap the link.</p>
+                <p style="margin:8px 0 0;">Need help? <a href="mailto:support@lastbite.pro" style="color:#B45309;text-decoration:underline;">support@lastbite.pro</a></p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:16px 0 0;font-size:11px;color:rgba(31,36,25,0.45);">
+            © 2026 Bite Book · Field-tested for guides and hunters
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

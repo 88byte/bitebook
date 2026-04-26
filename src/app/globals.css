@@ -24,6 +24,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* — Animations — */
+
 @keyframes bb-fade-up {
   from { opacity: 0; transform: translateY(0.5rem); }
   to   { opacity: 1; transform: translateY(0); }
@@ -34,13 +36,28 @@ body {
   animation: bb-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bb-fade-up {
-    animation: none;
-    opacity: 1;
-  }
+@keyframes bb-hero-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
+.bb-hero-in {
+  opacity: 0;
+  animation: bb-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+/* Topo lines: each path draws on, then sits static */
+.bb-topo-line {
+  stroke-dasharray: 2400;
+  stroke-dashoffset: 2400;
+  animation: bb-topo-draw 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes bb-topo-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Tagline clauses */
 .bb-tagline-clause {
   display: block;
 }
@@ -49,5 +66,33 @@ body {
   .bb-tagline-clause {
     display: inline-block;
     white-space: nowrap;
+  }
+}
+
+/* State swap (form -> success card) */
+@keyframes bb-slide-in {
+  from { opacity: 0; transform: translateY(0.75rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bb-slide-in {
+  animation: bb-slide-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* — Reduced motion: kill everything decorative — */
+@media (prefers-reduced-motion: reduce) {
+  .bb-fade-up,
+  .bb-hero-in,
+  .bb-slide-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .bb-topo-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .bb-topo {
+    /* The grain stays, but kill any animated entrance */
   }
 }
