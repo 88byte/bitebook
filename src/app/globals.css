@@ -111,7 +111,7 @@ body {
 .bb-tagline-clause {
   grid-area: 1 / 1;
   opacity: 0;
-  animation: bb-tagline-rotate 12s ease-in-out infinite both;
+  animation: bb-tagline-rotate 16s ease-in-out infinite both;
   white-space: nowrap;
 }
 
