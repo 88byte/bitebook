@@ -58,9 +58,9 @@ body {
 }
 
 @keyframes bb-topo-breathe {
-  0%   { transform: scale(1)     rotate(-0.4deg); }
-  50%  { transform: scale(1.015) rotate(0.4deg);  }
-  100% { transform: scale(1)     rotate(-0.4deg); }
+  0%   { transform: scale(1)    rotate(-1deg); }
+  50%  { transform: scale(1.04) rotate(1deg);  }
+  100% { transform: scale(1)    rotate(-1deg); }
 }
 
 .bb-topo-sheen {
@@ -70,18 +70,18 @@ body {
   /* Two soft offset blobs — forest top-left, warm amber bottom-right.
      Multiply blend mixes with the paper warmth without colorizing it. */
   background:
-    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.10) 0%, rgba(47, 82, 51, 0) 65%),
-    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.06) 0%, rgba(180, 83, 9, 0) 65%);
+    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.18) 0%, rgba(47, 82, 51, 0) 65%),
+    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.18) 0%, rgba(180, 83, 9, 0) 65%);
   mix-blend-mode: multiply;
-  animation: bb-topo-sheen-drift 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: bb-topo-sheen-drift 18s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
   will-change: transform;
 }
 
 @keyframes bb-topo-sheen-drift {
   0%   { transform: translate(0%, 0%); }
-  25%  { transform: translate(6%, -4%); }
-  50%  { transform: translate(0%, 5%); }
-  75%  { transform: translate(-7%, 2%); }
+  25%  { transform: translate(12%, -8%); }
+  50%  { transform: translate(-4%, 10%); }
+  75%  { transform: translate(-14%, 4%); }
   100% { transform: translate(0%, 0%); }
 }
 
