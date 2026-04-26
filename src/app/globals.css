@@ -46,34 +46,43 @@ body {
   animation: bb-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
 }
 
-/* Topo: rings sit static; the wave-ring overlay sweeps outward from center
-   on first paint, and each static ring briefly amplifies (stroke thickens)
-   as the wave's leading edge crosses its radius. */
-.bb-topo-line {
-  stroke-width: 1;
-  animation: bb-topo-amplify 0.55s ease-out forwards;
+/* Topo atmosphere: continuous, ambient, never one-shot.
+   - The whole SVG slowly breathes via subtle scale + rotation.
+   - A soft tinted sheen drifts diagonally across the surface.
+   Both run pure-CSS transforms on dedicated layers; near-zero CPU/GPU
+   cost on modern hardware. */
+.bb-topo-svg {
+  animation: bb-topo-breathe 26s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 
-@keyframes bb-topo-amplify {
-  0%   { stroke-width: 1; }
-  35%  { stroke-width: 2.6; }
-  100% { stroke-width: 1; }
+@keyframes bb-topo-breathe {
+  0%   { transform: scale(1)     rotate(-0.4deg); }
+  50%  { transform: scale(1.015) rotate(0.4deg);  }
+  100% { transform: scale(1)     rotate(-0.4deg); }
 }
 
-.bb-topo-wave {
-  /* r is animatable as a CSS property in modern browsers (SVG2). The eye
-     tracks a soft, brighter ring expanding outward; it fades in, sweeps,
-     and dissipates. Plays once. */
-  opacity: 0;
-  filter: blur(3px);
-  animation: bb-topo-wave 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.bb-topo-sheen {
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  /* Two soft offset blobs — forest top-left, warm amber bottom-right.
+     Multiply blend mixes with the paper warmth without colorizing it. */
+  background:
+    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.10) 0%, rgba(47, 82, 51, 0) 65%),
+    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.06) 0%, rgba(180, 83, 9, 0) 65%);
+  mix-blend-mode: multiply;
+  animation: bb-topo-sheen-drift 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
 }
 
-@keyframes bb-topo-wave {
-  0%   { r: 0;   opacity: 0; }
-  12%  { opacity: 0.5; }
-  85%  { opacity: 0.18; }
-  100% { r: 480; opacity: 0; }
+@keyframes bb-topo-sheen-drift {
+  0%   { transform: translate(0%, 0%); }
+  25%  { transform: translate(6%, -4%); }
+  50%  { transform: translate(0%, 5%); }
+  75%  { transform: translate(-7%, 2%); }
+  100% { transform: translate(0%, 0%); }
 }
 
 /* Rotating tagline.
@@ -147,9 +156,11 @@ body {
     opacity: 1;
     transform: none;
   }
-  .bb-topo-line {
+  /* Topo renders fully static — no breathing, no sheen drift. */
+  .bb-topo-svg,
+  .bb-topo-sheen {
     animation: none;
-    opacity: 1;
+    transform: none;
   }
   /* Stack the clauses statically — no rotation. */
   .bb-tagline {
