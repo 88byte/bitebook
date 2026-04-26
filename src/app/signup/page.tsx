@@ -36,7 +36,7 @@ export default async function SignupPage({
           7 days free. No card required.
         </h1>
         <p className="text-center text-xs mb-4" style={{ color: 'var(--color-ink)', opacity: 0.65 }}>
-          Built with guides. Run every trip on the record.
+          Keep track of hunts. Stay ready for the warden.
         </p>
         {canceled && (
           <p className="mb-3 text-xs text-center rounded-lg px-3 py-2" style={{ background: '#fff7ed', color: '#9a3412' }}>

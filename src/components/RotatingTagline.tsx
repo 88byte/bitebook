@@ -6,12 +6,13 @@
 // Reduced motion: the @media block in globals.css collapses the grid to a
 // stacked, statically-visible layout (still in the softer style).
 const CLAUSES = [
-  'Every trip, on the record.',
-  'Built with guides.',
-  'Lived by hunters.',
+  'Built For Organization.',
+  'Keep Track of Hunts.',
+  'Never Forget Another Tag.',
+  'Stay Ready For The Warden.',
 ]
 
-const CYCLE_SECONDS = 12 // 3 clauses × ~4s per clause
+const CYCLE_SECONDS = 16 // 4 clauses × ~4s per clause (must match keyframe in globals.css)
 
 export default function RotatingTagline() {
   return (

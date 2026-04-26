@@ -46,15 +46,34 @@ body {
   animation: bb-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
 }
 
-/* Topo lines: a single wave pulse from the center out, then static. */
+/* Topo: rings sit static; the wave-ring overlay sweeps outward from center
+   on first paint, and each static ring briefly amplifies (stroke thickens)
+   as the wave's leading edge crosses its radius. */
 .bb-topo-line {
-  opacity: 0;
-  animation: bb-topo-pulse 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  stroke-width: 1;
+  animation: bb-topo-amplify 0.55s ease-out forwards;
 }
 
-@keyframes bb-topo-pulse {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+@keyframes bb-topo-amplify {
+  0%   { stroke-width: 1; }
+  35%  { stroke-width: 2.6; }
+  100% { stroke-width: 1; }
+}
+
+.bb-topo-wave {
+  /* r is animatable as a CSS property in modern browsers (SVG2). The eye
+     tracks a soft, brighter ring expanding outward; it fades in, sweeps,
+     and dissipates. Plays once. */
+  opacity: 0;
+  filter: blur(3px);
+  animation: bb-topo-wave 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes bb-topo-wave {
+  0%   { r: 0;   opacity: 0; }
+  12%  { opacity: 0.5; }
+  85%  { opacity: 0.18; }
+  100% { r: 480; opacity: 0; }
 }
 
 /* Rotating tagline.
@@ -80,13 +99,13 @@ body {
 }
 
 @media (min-width: 40rem) {
-  .bb-tagline { font-size: 1.375rem; min-height: 1.6em; }   /* ~text-[22px] */
+  .bb-tagline { font-size: 1.25rem; min-height: 1.6em; }     /* ~text-[20px] */
 }
 @media (min-width: 48rem) {
-  .bb-tagline { font-size: 1.625rem; }                        /* ~text-[26px] */
+  .bb-tagline { font-size: 1.5rem; }                          /* ~text-[24px] */
 }
 @media (min-width: 64rem) {
-  .bb-tagline { font-size: 1.875rem; }                        /* text-3xl */
+  .bb-tagline { font-size: 1.75rem; }                         /* ~text-[28px] */
 }
 
 .bb-tagline-clause {
@@ -97,16 +116,16 @@ body {
 }
 
 @keyframes bb-tagline-rotate {
-  /* In a 12s cycle (3 clauses × 4s window):
-     0%–4.17%   = fade in over 0.5s
-     4.17%–29.17% = hold for 3.0s
-     29.17%–33.33% = fade out over 0.5s
-     33.33%–100% = stay hidden until the next cycle */
-  0%      { opacity: 0; }
-  4.17%   { opacity: 1; }
-  29.17%  { opacity: 1; }
-  33.33%  { opacity: 0; }
-  100%    { opacity: 0; }
+  /* In a 16s cycle (4 clauses × 4s window):
+     0%–3.125%    = fade in over 0.5s
+     3.125%–21.875% = hold for 3.0s
+     21.875%–25%  = fade out over 0.5s
+     25%–100%     = stay hidden until the next cycle */
+  0%       { opacity: 0; }
+  3.125%   { opacity: 1; }
+  21.875%  { opacity: 1; }
+  25%      { opacity: 0; }
+  100%     { opacity: 0; }
 }
 
 /* State swap (form -> success card) */
