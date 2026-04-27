@@ -12,10 +12,10 @@ const TABS = [
   { href: '/app/settings', label: 'Settings',  Icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
 ] as const
 
-// Mobile primary nav (shown inside AppHeader on <1024px viewports). Desktop
-// uses Sidebar instead and AppHeader is hidden via .bb-app-mobile-header.
-// 5 tabs fit by hiding the text label below 640px (icon-only) and showing
-// icon+label from sm: up.
+// v25.1: redesigned mobile nav. Each tab is now a vertical stack (icon over
+// label) with equal flex sizing, a copper underline on the active tab, and
+// a touch target that clears 44px. Labels are always visible at every
+// breakpoint to avoid the icon-only ambiguity hunters reported in v24.
 export default function AppNav() {
   const pathname = usePathname() ?? ''
   return (
@@ -30,7 +30,7 @@ export default function AppNav() {
             aria-label={label}
             aria-current={active ? 'page' : undefined}
           >
-            <Icon size={16} aria-hidden="true" />
+            <Icon size={22} aria-hidden="true" />
             <span className="bb-app-nav-label">{label}</span>
           </Link>
         )

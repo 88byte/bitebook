@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
-import { requireGuide } from '../_lib/auth'
-import { fetchTripsPage } from '../_lib/queries'
-import TripRow from '../_components/TripRow'
+import { requireHunter } from '../../_lib/auth'
+import { fetchHunterTripsPage } from '../../_lib/queries'
+import HunterTripRow from '../_components/HunterTripRow'
 import type { Database } from '@/lib/supabase/types'
 
 type TripStatus = Database['public']['Enums']['trip_status']
@@ -18,8 +17,12 @@ const STATUSES: { key: TripStatus | 'all'; label: string }[] = [
 
 type SearchParams = Promise<{ status?: string; page?: string }>
 
-export default async function TripsListPage({ searchParams }: { searchParams: SearchParams }) {
-  const { profile } = await requireGuide()
+export default async function HunterTripsListPage({
+  searchParams,
+}: {
+  searchParams: SearchParams
+}) {
+  const { profile } = await requireHunter()
   const params = await searchParams
 
   const statusParam = params.status as TripStatus | 'all' | undefined
@@ -30,43 +33,31 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  const { rows, total } = await fetchTripsPage(profile.id, { status, from, to })
+  const { rows, total } = await fetchHunterTripsPage(profile.id, { status, from, to })
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function chipHref(key: TripStatus | 'all') {
     const sp = new URLSearchParams()
     if (key !== 'all') sp.set('status', key)
-    return `/app/trips${sp.toString() ? `?${sp}` : ''}`
+    return `/app/h/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
   function pageHref(p: number) {
     const sp = new URLSearchParams()
     if (status !== 'all') sp.set('status', status)
     if (p !== 1) sp.set('page', String(p))
-    return `/app/trips${sp.toString() ? `?${sp}` : ''}`
+    return `/app/h/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="bb-page-eyebrow">All trips</p>
-          <h1 className="bb-page-title">Trips</h1>
-          <p className="bb-page-sub">
-            {total} {total === 1 ? 'trip' : 'trips'}
-            {status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''}
-          </p>
-        </div>
-        {/* v25.1: when there are zero trips, the empty-state CTA owns the
-            "create" action, so suppress the header button to avoid double CTAs.
-            Once at least one trip exists the empty state isn't rendered, so
-            the header button is the only path. */}
-        {total > 0 && (
-          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
-            <Plus size={16} aria-hidden="true" />
-            New trip
-          </Link>
-        )}
+      <header>
+        <p className="bb-page-eyebrow">Your trips</p>
+        <h1 className="bb-page-title">My trips</h1>
+        <p className="bb-page-sub">
+          {total} {total === 1 ? 'trip' : 'trips'}
+          {status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''}
+        </p>
       </header>
 
       <div className="bb-chip-row mt-4" role="tablist" aria-label="Filter by status">
@@ -89,16 +80,11 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
             <div className="bb-empty-title">No trips match this filter</div>
             <p className="bb-empty-sub">
               {status === 'all'
-                ? 'Create a trip to start logging hunters and harvests.'
+                ? 'Your guide will add you to a trip when they are ready.'
                 : 'Try another status or clear the filter.'}
             </p>
-            {status === 'all' ? (
-              <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-                <Plus size={16} aria-hidden="true" />
-                Log your first trip
-              </Link>
-            ) : (
-              <Link href="/app/trips" className="bb-btn-secondary mt-3 inline-flex">
+            {status !== 'all' && (
+              <Link href="/app/h/trips" className="bb-btn-secondary mt-3 inline-flex">
                 Show all trips
               </Link>
             )}
@@ -107,7 +93,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
           <div role="list">
             {rows.map((t) => (
               <div role="listitem" key={t.id}>
-                <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
+                <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
               </div>
             ))}
           </div>

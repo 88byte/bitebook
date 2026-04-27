@@ -478,58 +478,77 @@ body {
 .bb-app-header-inner {
   max-width: 64rem;
   margin: 0 auto;
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0;
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 0.75rem;
 }
 
+/* v25.1: mobile nav is now a row of icon+label tab columns. Equal-width
+   flex children, copper underline on the active tab via ::after, labels
+   always visible. Header brand and signout center vertically against the
+   taller nav row. */
 .bb-app-nav {
   display: flex;
-  align-items: center;
-  gap: 0.15rem;
+  align-items: stretch;
+  gap: 0;
   flex: 1;
-  justify-content: center;
+  justify-content: stretch;
+  align-self: stretch;
 }
 
 .bb-app-nav a {
-  display: inline-flex;
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.55rem;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.65rem 0.25rem 0.6rem;
   font-family: var(--font-barlow-condensed);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
   color: var(--color-callout-text);
-  border-radius: 0.5rem;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
 
 .bb-app-nav a:hover {
-  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
 }
 
 .bb-app-nav a.is-active {
-  color: #FFFFFF;
-  background: rgba(176, 108, 60, 0.22);
+  color: var(--color-copper);
 }
 
-/* On small phones (<640px) hide the label and keep just the icon to fit
-   all 5 tabs without overflow. From sm: up the label is visible again. */
-.bb-app-nav-label {
-  display: none;
+.bb-app-nav a.is-active::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-copper);
+  border-radius: 2px 2px 0 0;
 }
-@media (min-width: 40rem) {
-  .bb-app-nav { gap: 0.25rem; }
-  .bb-app-nav a { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
-  .bb-app-nav-label { display: inline; }
+
+.bb-app-nav-label {
+  display: inline;
+  line-height: 1;
+}
+
+/* Center the brand + signout against the taller nav row. */
+.bb-app-header-inner > a:first-child,
+.bb-app-header-inner > .bb-app-signout,
+.bb-app-header-inner > button.bb-app-signout {
+  align-self: center;
 }
 
 .bb-app-signout {

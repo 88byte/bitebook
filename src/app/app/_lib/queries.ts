@@ -336,3 +336,247 @@ export async function closeTrip(guideId: string, tripId: string): Promise<{ ok: 
   }
   return { ok: true }
 }
+
+// ─── v25.1: hunter-side reads ────────────────────────────────────────────────
+//
+// Hunters access trips via trip_participants where hunter_id = auth.uid().
+// The RLS policy `trips_participant_select` (SECURITY DEFINER helper
+// `_is_trip_participant`) lets a hunter read a trip row when they're on it,
+// and `harvests_hunter_select` lets them read their own harvests. So we use
+// the user-session client — no service-role escape hatch.
+//
+// Defense-in-depth analog to .eq('guide_id'): every helper here takes a
+// verified `hunterId` (from requireHunter().profile.id) and applies it
+// where the schema supports it (.eq('hunter_id', hunterId) on
+// trip_participants and harvests).
+
+function shapeHunterTripRow(t: Record<string, unknown>): TripRowWithCounts {
+  // Same fields as shapeTripWithCounts, but pulled from the embedded
+  // trips({...}) under a trip_participants row rather than the top level.
+  return shapeTripWithCounts(t)
+}
+
+export async function fetchHunterTrips(
+  hunterId: string,
+  limit = 5
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  // We pull trip_participants -> trips. Embedded select gives us each trip
+  // exactly once (a hunter only has one participant row per trip).
+  const { data, error } = await supabase
+    .from('trip_participants')
+    .select(
+      `trip:trips!inner(
+        id, title, status, starts_at, ends_at, location_name, kind,
+        trip_participants(count), harvests(count)
+      )`
+    )
+    .eq('hunter_id', hunterId)
+    .order('starts_at', { foreignTable: 'trip', ascending: false })
+    .limit(limit)
+  if (error) {
+    console.warn('[queries.fetchHunterTrips]', { hunterId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? [])
+    .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
+    .filter((t): t is Record<string, unknown> => !!t)
+    .map(shapeHunterTripRow)
+}
+
+export async function fetchHunterTripsPage(
+  hunterId: string,
+  opts: { status: TripStatus | 'all'; from: number; to: number }
+): Promise<{ rows: TripRowWithCounts[]; total: number }> {
+  const supabase = await createClient()
+  // Fetch the participant rows + embedded trip, then filter/paginate in code.
+  // We can't apply offset/limit on the embedded relation directly across the
+  // join, so we pull all the user's participant rows (typically small) and
+  // page in memory.
+  let query = supabase
+    .from('trip_participants')
+    .select(
+      `trip:trips!inner(
+        id, title, status, starts_at, ends_at, location_name, kind,
+        trip_participants(count), harvests(count)
+      )`
+    )
+    .eq('hunter_id', hunterId)
+  if (opts.status !== 'all') query = query.eq('trip.status', opts.status)
+  const { data, error } = await query
+  if (error) {
+    console.warn('[queries.fetchHunterTripsPage]', { hunterId, code: error.code, message: error.message })
+    return { rows: [], total: 0 }
+  }
+  const all = (data ?? [])
+    .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
+    .filter((t): t is Record<string, unknown> => !!t)
+    .map(shapeHunterTripRow)
+    .sort((a, b) => (a.starts_at < b.starts_at ? 1 : -1))
+  const total = all.length
+  const rows = all.slice(opts.from, opts.to + 1)
+  return { rows, total }
+}
+
+export type HunterTripDetail = {
+  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'notes'>
+  guide: { id: string; display_name: string; business_name: string | null } | null
+  participants: Array<{
+    id: string
+    role: string
+    guest_name: string | null
+    hunter_id: string | null
+    profile: { id: string; display_name: string } | null
+  }>
+  myHarvests: Array<{
+    id: string
+    kind: string
+    species_name: string | null
+    harvested_at: string
+    tag_number: string | null
+    notes: string | null
+    quantity: number
+  }>
+}
+
+export async function fetchHunterTripDetail(
+  hunterId: string,
+  tripId: string
+): Promise<HunterTripDetail | null> {
+  const supabase = await createClient()
+
+  // Defense-in-depth: confirm participant row exists for this (trip, hunter).
+  // RLS already gates, but a missing row should produce a null return rather
+  // than an empty trip render.
+  const { data: participantRow } = await supabase
+    .from('trip_participants')
+    .select('id')
+    .eq('trip_id', tripId)
+    .eq('hunter_id', hunterId)
+    .maybeSingle()
+  if (!participantRow) return null
+
+  const { data: trip, error: tripErr } = await supabase
+    .from('trips')
+    .select('id, title, kind, status, starts_at, ends_at, location_name, notes, guide_id')
+    .eq('id', tripId)
+    .maybeSingle()
+  if (tripErr || !trip) return null
+
+  const [participantsRes, harvestsRes, guideProfileRes, guideBusinessRes] = await Promise.all([
+    supabase
+      .from('trip_participants')
+      .select('id, role, guest_name, hunter_id')
+      .eq('trip_id', tripId),
+    supabase
+      .from('harvests')
+      .select('id, kind, species_name, harvested_at, tag_number, notes, quantity, hunter_id')
+      .eq('trip_id', tripId)
+      .eq('hunter_id', hunterId)
+      .order('harvested_at', { ascending: false }),
+    supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', trip.guide_id)
+      .maybeSingle(),
+    supabase
+      .from('guide_profiles')
+      .select('business_name')
+      .eq('user_id', trip.guide_id)
+      .maybeSingle(),
+  ])
+
+  // Resolve OTHER participants' display names. RLS allows hunters who share a
+  // trip to see each other's profiles via the participant policy; we still
+  // tolerate failures by falling back to guest_name / "Hunter".
+  const otherIds = Array.from(
+    new Set(
+      (participantsRes.data ?? [])
+        .map((p) => p.hunter_id)
+        .filter((v): v is string => !!v && v !== hunterId)
+    )
+  )
+  const profilesMap = new Map<string, { id: string; display_name: string }>()
+  if (otherIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', otherIds)
+    ;(profiles ?? []).forEach((p) => profilesMap.set(p.id, p))
+  }
+
+  return {
+    trip: {
+      id: trip.id,
+      title: trip.title,
+      kind: trip.kind,
+      status: trip.status,
+      starts_at: trip.starts_at,
+      ends_at: trip.ends_at,
+      location_name: trip.location_name,
+      notes: trip.notes,
+    },
+    guide: guideProfileRes.data
+      ? {
+          id: guideProfileRes.data.id,
+          display_name: guideProfileRes.data.display_name,
+          business_name: guideBusinessRes.data?.business_name ?? null,
+        }
+      : null,
+    participants: (participantsRes.data ?? []).map((p) => ({
+      id: p.id,
+      role: p.role,
+      guest_name: p.guest_name,
+      hunter_id: p.hunter_id,
+      profile: p.hunter_id ? profilesMap.get(p.hunter_id) ?? null : null,
+    })),
+    myHarvests: (harvestsRes.data ?? []).map((h) => ({
+      id: h.id,
+      kind: h.kind,
+      species_name: h.species_name,
+      harvested_at: h.harvested_at,
+      tag_number: h.tag_number,
+      notes: h.notes,
+      quantity: h.quantity,
+    })),
+  }
+}
+
+export type HunterStats = {
+  trips: number
+  harvests: number
+  guides: number
+}
+
+export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
+  const supabase = await createClient()
+  const [participantsRes, harvestsRes] = await Promise.all([
+    supabase
+      .from('trip_participants')
+      .select('trip_id, trips!inner(guide_id)')
+      .eq('hunter_id', hunterId),
+    supabase
+      .from('harvests')
+      .select('id', { count: 'exact', head: true })
+      .eq('hunter_id', hunterId),
+  ])
+
+  const tripsSet = new Set<string>()
+  const guidesSet = new Set<string>()
+  ;(participantsRes.data ?? []).forEach((row) => {
+    const r = row as { trip_id: string; trips: { guide_id: string } | { guide_id: string }[] | null }
+    tripsSet.add(r.trip_id)
+    const trips = r.trips
+    if (Array.isArray(trips)) {
+      trips.forEach((t) => t?.guide_id && guidesSet.add(t.guide_id))
+    } else if (trips && trips.guide_id) {
+      guidesSet.add(trips.guide_id)
+    }
+  })
+
+  return {
+    trips: tripsSet.size,
+    harvests: harvestsRes.count ?? 0,
+    guides: guidesSet.size,
+  }
+}

@@ -11,6 +11,7 @@ import Footer from '@/components/Footer'
 const ERROR_COPY: Record<string, string> = {
   no_profile: 'Your account is missing its profile record. Sign in again, or email support@lastbite.pro if this persists.',
   guide_only: 'The /app area is for guide accounts. Your account is set up as a hunter — ask your guide to invite you to a trip.',
+  hunter_only: 'The hunter area is for hunter accounts. Sign in with the account that received the invite.',
   profile_unavailable: 'We couldn’t load your profile. Try signing in again, or email support@lastbite.pro.',
 }
 

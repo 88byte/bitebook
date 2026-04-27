@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, UserPlus, FileText, ArrowRight } from 'lucide-react'
+import { Plus, UserPlus, Upload, FileText, ArrowRight } from 'lucide-react'
 import { requireGuide } from './_lib/auth'
 import {
   fetchRecentTrips,
@@ -26,30 +26,23 @@ export default async function DashboardPage() {
   const greetingName = guide?.business_name?.trim() || profile.display_name
   const isEmpty = recent.length === 0
   const showBanner = !isOnboarded(progress)
-  // While onboarding is incomplete AND first_trip is still pending, the
-  // OnboardingBanner is the single primary "create trip" CTA. Hide the
-  // duplicate buttons on this screen (header, Quick Actions, empty state).
-  const hideNewTripCtas =
-    showBanner && !progress.steps_completed.includes('first_trip')
+  // v25.1: the v24.1 hideNewTripCtas dedupe was an over-correction. Both the
+  // OnboardingBanner (which routes to /app/welcome — a guided checklist) and
+  // Quick Actions (which jumps straight to /app/trips/new) intentionally
+  // expose distinct paths. Restore all three quick actions and the dedicated
+  // empty-state CTA, and drop the duplicate header "+ New trip" button —
+  // Quick Actions owns that CTA on the dashboard now.
 
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="bb-page-eyebrow">Welcome back</p>
-          <h1 className="bb-page-title">{greetingName}</h1>
-          <p className="bb-page-sub">
-            {isEmpty
-              ? 'Start your first trip to begin logging hunts.'
-              : `You have ${recent.length} recent ${recent.length === 1 ? 'trip' : 'trips'}.`}
-          </p>
-        </div>
-        {!hideNewTripCtas && (
-          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
-            <Plus size={16} aria-hidden="true" />
-            New trip
-          </Link>
-        )}
+      <header>
+        <p className="bb-page-eyebrow">Welcome back</p>
+        <h1 className="bb-page-title">{greetingName}</h1>
+        <p className="bb-page-sub">
+          {isEmpty
+            ? 'Start your first trip to begin logging hunts.'
+            : `You have ${recent.length} recent ${recent.length === 1 ? 'trip' : 'trips'}.`}
+        </p>
       </header>
 
       <div className="bb-dash-grid mt-4">
@@ -62,15 +55,17 @@ export default async function DashboardPage() {
         <div className="bb-dash-cell-4" data-order-mobile="2">
           <Widget title="Quick actions">
             <div className="bb-quick-actions">
-              {!hideNewTripCtas && (
-                <Link href="/app/trips/new" className="bb-cta-sm">
-                  <Plus size={16} aria-hidden="true" />
-                  New trip
-                </Link>
-              )}
+              <Link href="/app/trips/new" className="bb-btn-secondary">
+                <Plus size={16} aria-hidden="true" />
+                Add trip
+              </Link>
               <Link href="/app/hunters" className="bb-btn-secondary">
                 <UserPlus size={16} aria-hidden="true" />
-                Invite hunter
+                Add hunter
+              </Link>
+              <Link href="/app/docs" className="bb-btn-secondary">
+                <Upload size={16} aria-hidden="true" />
+                Upload doc
               </Link>
             </div>
           </Widget>
@@ -130,12 +125,10 @@ export default async function DashboardPage() {
                   Bite Book is built around trips. Each trip ties hunters, tags, and harvests to one
                   record you can hand to a warden in a tap.
                 </p>
-                {!hideNewTripCtas && (
-                  <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-                    <Plus size={16} aria-hidden="true" />
-                    Log your first trip
-                  </Link>
-                )}
+                <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
+                  <Plus size={16} aria-hidden="true" />
+                  Log your first trip
+                </Link>
               </div>
             ) : (
               <div role="list">
