@@ -92,49 +92,6 @@ body {
   100%     { opacity: 0; }
 }
 
-/* Atmospheric hero word — huge Barlow Condensed Bold sitting behind the
-   skull. White at low opacity reads as deep architectural type, not
-   foreground content. Letter-spacing pulled tight so it feels weighty. */
-.bb-hero-word {
-  font-family: var(--font-barlow-condensed);
-  font-weight: 700;
-  color: #FFFFFF;
-  /* 16% white on #0A0908 reads as a clear ~21% gray — visible architectural
-     type without competing with the skull. */
-  opacity: 0.16;
-  letter-spacing: -0.02em;
-  /* Sized to bleed past the screen edges. At 40vw a 5-letter word like
-     FIELD spans ~110% of viewport (Barlow Condensed character ratio ~0.55);
-     7-letter INVITED bleeds further, which suits its denser silhouette. */
-  font-size: 40vw;
-  line-height: 0.85;
-  white-space: nowrap;
-  text-transform: uppercase;
-  user-select: none;
-}
-
-@media (min-width: 40rem) {
-  .bb-hero-word { font-size: 38vw; }
-}
-@media (min-width: 64rem) {
-  .bb-hero-word { font-size: 36vw; }
-}
-@media (min-width: 80rem) {
-  .bb-hero-word { font-size: 34vw; }
-}
-
-/* Paper-grain texture across the dark hero. Large noise pattern (low
-   baseFrequency) so it reads as paper grain, not TV static. Screen blend
-   only brightens — the white skull is unaffected, the dark void gets
-   tactile texture. */
-.bb-hero-grain {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 240px 240px;
-  background-repeat: repeat;
-  opacity: 0.13;
-  mix-blend-mode: screen;
-}
-
 /* Static tagline used on /signup, /forgot-password, /reset-password,
    /accept-invite — single non-rotating string in the dark hero. Same
    color/weight family as the rotating tagline. */
