@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Briefcase, User, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Briefcase, User, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 type Plan = 'monthly' | 'annual'
 
@@ -115,8 +115,15 @@ export default function SignupForm() {
 
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 
-      <button type="submit" disabled={loading} className="bb-cta mt-1">
-        {loading ? 'Starting trial…' : 'Start 7-day free trial'}
+      <button type="submit" disabled={loading} className="bb-cta mt-1" aria-busy={loading}>
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={18} className="bb-spin" aria-hidden="true" />
+            Starting trial…
+          </span>
+        ) : (
+          'Start 7-day free trial'
+        )}
       </button>
       <p className="text-center text-[10px] leading-snug" style={{ color: 'var(--color-ink-soft)' }}>
         We won&rsquo;t ask for a card. Add one any time during the trial to keep your access after day 7.

@@ -11,6 +11,18 @@ const PUBLIC_ROUTES = new Set([
   '/accept-invite',
 ])
 
+// Wraps NextResponse.redirect so any cookies Supabase wrote to `supabaseResponse`
+// during getUser()'s token rotation also land on the redirect — without this,
+// rotated access tokens are silently dropped on every redirect. Canonical
+// pitfall flagged in the @supabase/ssr docs.
+function redirectWithCookies(url: URL, supabaseResponse: NextResponse) {
+  const redirect = NextResponse.redirect(url)
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirect.cookies.set(cookie)
+  })
+  return redirect
+}
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
   const remember = request.cookies.get(REMEMBER_COOKIE)?.value === '1'
@@ -33,21 +45,31 @@ export async function proxy(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
+  const { pathname, searchParams } = request.nextUrl
 
   // Protect /app routes
   if (!user && pathname.startsWith('/app')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.search = ''
     url.searchParams.set('next', pathname)
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
-  // Already-signed-in users hitting login/signup go straight to the app
+  // Already-signed-in users hitting /login or /signup — bounce them to the app
+  // (or wherever ?next= points). Two important loop-breakers:
+  //   1. If the URL carries ?error=, a downstream gate (e.g. requireGuide)
+  //      sent them here. Bouncing back would loop. Render the page instead.
+  //   2. Honor ?next= so post-login flows don't double-redirect.
   if (user && (pathname === '/login' || pathname === '/signup')) {
+    if (searchParams.has('error')) return supabaseResponse
+
+    const next = searchParams.get('next')
+    const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/app'
     const url = request.nextUrl.clone()
-    url.pathname = '/app'
-    return NextResponse.redirect(url)
+    url.pathname = safeNext
+    url.search = ''
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   return supabaseResponse

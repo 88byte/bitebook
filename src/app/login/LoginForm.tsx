@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, Lock, Eye, EyeOff, Check } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Check, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { REMEMBER_COOKIE, REMEMBER_MAX_AGE } from '@/lib/cookies'
 
@@ -97,8 +97,16 @@ export default function LoginForm({ next }: { next?: string }) {
         type="submit"
         disabled={loading || !email || !password}
         className="bb-cta mt-2"
+        aria-busy={loading}
       >
-        {loading ? 'Signing in…' : 'Sign in'}
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={18} className="bb-spin" aria-hidden="true" />
+            Signing in…
+          </span>
+        ) : (
+          'Sign in'
+        )}
       </button>
     </form>
   )

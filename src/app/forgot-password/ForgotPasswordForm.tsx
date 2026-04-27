@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail } from 'lucide-react'
+import { Mail, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordForm({ initialEmail }: { initialEmail?: string }) {
@@ -56,8 +56,15 @@ export default function ForgotPasswordForm({ initialEmail }: { initialEmail?: st
         />
       </label>
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-      <button type="submit" disabled={loading || !email} className="bb-cta mt-1">
-        {loading ? 'Sending…' : 'Send reset link'}
+      <button type="submit" disabled={loading || !email} className="bb-cta mt-1" aria-busy={loading}>
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={18} className="bb-spin" aria-hidden="true" />
+            Sending…
+          </span>
+        ) : (
+          'Send reset link'
+        )}
       </button>
     </form>
   )

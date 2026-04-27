@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, User, Lock, Eye, EyeOff } from 'lucide-react'
+import { Mail, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AcceptInviteForm({ token, email }: { token: string; email: string }) {
@@ -105,8 +105,15 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
         />
       </label>
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-      <button type="submit" disabled={loading} className="bb-cta mt-1">
-        {loading ? 'Creating account…' : 'Create my account'}
+      <button type="submit" disabled={loading} className="bb-cta mt-1" aria-busy={loading}>
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={18} className="bb-spin" aria-hidden="true" />
+            Creating account…
+          </span>
+        ) : (
+          'Create my account'
+        )}
       </button>
     </form>
   )

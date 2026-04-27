@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Lock, Eye, EyeOff } from 'lucide-react'
+import { Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ResetPasswordForm() {
@@ -67,8 +67,15 @@ export default function ResetPasswordForm() {
         />
       </label>
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-      <button type="submit" disabled={loading} className="bb-cta mt-1">
-        {loading ? 'Saving…' : 'Set new password'}
+      <button type="submit" disabled={loading} className="bb-cta mt-1" aria-busy={loading}>
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={18} className="bb-spin" aria-hidden="true" />
+            Saving…
+          </span>
+        ) : (
+          'Set new password'
+        )}
       </button>
     </form>
   )

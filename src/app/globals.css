@@ -330,6 +330,26 @@ body {
   transform: translateY(1px) scale(0.99);
 }
 
+/* — Loading spinner used inside CTA buttons —
+   Pairs with the text-swap loading state on auth forms. Without a visible
+   moving element, sub-second auth requests felt like a no-op (Flavio hit
+   the button repeatedly during a redirect chain in v17). */
+
+@keyframes bb-spin {
+  to { transform: rotate(360deg); }
+}
+
+.bb-spin {
+  animation: bb-spin 0.8s linear infinite;
+  /* Sit cleanly inside an uppercase CTA — the icon is taller than cap-height
+     and renders slightly off-axis on Safari without this nudge. */
+  vertical-align: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-spin { animation-duration: 2.4s; }
+}
+
 /* — Account help section — */
 
 .bb-divider {
