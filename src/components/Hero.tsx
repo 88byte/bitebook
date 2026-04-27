@@ -41,8 +41,8 @@ export default function Hero({
           alt=""
           width={624}
           height={624}
-          sizes="(min-width: 768px) 160px, 130px"
-          className="h-[88px] w-auto sm:h-[104px] md:h-[120px] -mt-2"
+          sizes="(min-width: 768px) 220px, 180px"
+          className="h-[140px] w-[140px] sm:h-[170px] sm:w-[170px] md:h-[200px] md:w-[200px] -mt-2"
           aria-hidden="true"
         />
 
