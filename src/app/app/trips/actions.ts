@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from '../_lib/auth'
 import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
+import { markStepDone } from '../_lib/onboarding'
+import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 
 type Kind = Database['public']['Enums']['harvest_kind']
@@ -12,7 +14,7 @@ type Kind = Database['public']['Enums']['harvest_kind']
 // guideId from requireGuide(); RLS gates ownership on the DB side, with
 // .eq('guide_id', guideId) as defense-in-depth.
 export async function createTripAction(formData: FormData) {
-  const { profile } = await requireGuide()
+  const { user, profile } = await requireGuide()
 
   const title = String(formData.get('title') ?? '').trim()
   const kind = (String(formData.get('kind') ?? 'hunting').trim() as Kind)
@@ -52,6 +54,15 @@ export async function createTripAction(formData: FormData) {
       // guide can re-add from there.
       console.warn('[createTripAction] participants insert failed', partResult.error)
     }
+  }
+
+  // v24: mark first_trip onboarding step done. Best-effort; failure does not
+  // block the redirect since the trip itself is already saved.
+  try {
+    const sb = await createClient()
+    await markStepDone(sb, user.id, 'first_trip')
+  } catch (e) {
+    console.warn('[createTripAction] onboarding mark failed', e)
   }
 
   revalidatePath('/app')

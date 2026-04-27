@@ -979,3 +979,324 @@ body {
   }
   .bb-skel { animation: none; }
 }
+
+/* ── v24: desktop sidebar shell ──────────────────────────────────────────── */
+/* Mobile (<1024px): render single-column. AppHeader is shown via
+   .bb-app-mobile-header. Sidebar is hidden via display:none.
+   Desktop (>=1024px): two-column grid (240px sidebar + flexible content),
+   AppHeader is hidden and sidebar takes over primary nav. */
+.bb-app-shell {
+  display: block;
+  min-height: 100dvh;
+}
+
+.bb-sidebar { display: none; }
+
+@media (min-width: 1024px) {
+  .bb-app-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+  }
+  .bb-app-mobile-header { display: none; }
+  .bb-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    background: var(--color-callout-bg);
+    color: var(--color-callout-text);
+    padding: 1.25rem 1rem 1rem;
+    border-right: 1px solid rgba(0, 0, 0, 0.4);
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+  /* On desktop with sidebar, give the main content room to breathe. */
+  .bb-app-main {
+    max-width: 1180px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    padding-top: 2rem;
+    margin: 0 auto;
+  }
+}
+
+.bb-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.bb-sidebar-brand-text {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  color: #FFFFFF;
+}
+
+.bb-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.bb-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-callout-text);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bb-sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.bb-sidebar-link.is-active {
+  background: rgba(176, 108, 60, 0.18);
+  color: #FFFFFF;
+}
+
+.bb-sidebar-link.is-active svg {
+  color: var(--color-copper);
+}
+
+.bb-sidebar-foot {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.875rem;
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.bb-app-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── v24: dashboard widget grid ──────────────────────────────────────────── */
+/* Mobile: stacked cells (single column). Desktop: 12-column grid. */
+.bb-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.bb-dash-cell-12,
+.bb-dash-cell-7,
+.bb-dash-cell-5,
+.bb-dash-cell-4 {
+  grid-column: span 1 / span 1;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .bb-dash-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  .bb-dash-cell-12 { grid-column: span 12 / span 12; }
+  .bb-dash-cell-7  { grid-column: span 7  / span 7; }
+  .bb-dash-cell-5  { grid-column: span 5  / span 5; }
+  .bb-dash-cell-4  { grid-column: span 4  / span 4; }
+}
+
+.bb-widget {
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.875rem;
+  padding: 1rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  height: 100%;
+}
+
+.bb-widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bb-widget-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+
+.bb-widget-link {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.bb-widget-body { display: block; }
+
+.bb-widget-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.bb-widget-stat .bb-stat-value {
+  font-size: 2.25rem;
+}
+
+.bb-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bb-quick-actions > * { width: 100%; }
+
+.bb-doc-shelf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+/* ── v24: onboarding banner + welcome step list ──────────────────────────── */
+.bb-onboard-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  background: var(--color-callout-bg);
+  color: var(--color-callout-text);
+  border-radius: 0.875rem;
+  text-decoration: none;
+  transition: filter 0.15s;
+}
+
+.bb-onboard-banner:hover { filter: brightness(1.08); }
+
+.bb-onboard-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.bb-onboard-banner-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: var(--color-copper);
+}
+
+.bb-onboard-banner-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.125rem;
+  color: #FFFFFF;
+}
+
+.bb-onboard-banner-sub {
+  font-size: 0.82rem;
+  color: var(--color-callout-text);
+  opacity: 0.9;
+}
+
+.bb-onboard-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  color: var(--color-copper);
+  white-space: nowrap;
+}
+
+.bb-onboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bb-onboard-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.75rem;
+  background: #FFFFFF;
+}
+
+.bb-onboard-step.is-current {
+  border-color: rgba(176, 108, 60, 0.5);
+  background: #FBF7F0;
+}
+
+.bb-onboard-step.is-locked {
+  opacity: 0.7;
+}
+
+.bb-onboard-step-icon {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: #F1E9DA;
+  color: var(--color-ink-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.05rem;
+}
+
+.bb-onboard-step.is-done .bb-onboard-step-icon {
+  background: var(--color-copper);
+  color: #FFFFFF;
+}
+
+.bb-onboard-step.is-current .bb-onboard-step-icon {
+  background: var(--color-copper);
+  color: #FFFFFF;
+}
+
+.bb-onboard-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bb-onboard-step-label {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+}
+
+.bb-onboard-step.is-locked .bb-onboard-step-label {
+  color: var(--color-ink-soft);
+}

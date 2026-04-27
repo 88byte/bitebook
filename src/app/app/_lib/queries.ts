@@ -66,6 +66,44 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
   return (data ?? []).map(shapeTripWithCounts)
 }
 
+// v24: dashboard widget query — trips with starts_at >= today, ascending.
+export async function fetchUpcomingTrips(
+  guideId: string,
+  limit = 5
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const { data, error } = await supabase
+    .from('trips')
+    .select(`id, title, status, starts_at, ends_at, location_name, kind,
+             trip_participants(count), harvests(count)`)
+    .eq('guide_id', guideId)
+    .gte('starts_at', todayStart.toISOString())
+    .order('starts_at', { ascending: true })
+    .limit(limit)
+  if (error) {
+    console.warn('[queries.fetchUpcomingTrips]', { guideId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? []).map(shapeTripWithCounts)
+}
+
+// v24: count of pending invitations for the dashboard widget.
+export async function fetchPendingInviteCount(guideId: string): Promise<number> {
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from('invitations')
+    .select('id', { count: 'exact', head: true })
+    .eq('guide_id', guideId)
+    .eq('status', 'pending')
+  if (error) {
+    console.warn('[queries.fetchPendingInviteCount]', { guideId, code: error.code, message: error.message })
+    return 0
+  }
+  return count ?? 0
+}
+
 export async function fetchTripsPage(
   guideId: string,
   opts: { status: TripStatus | 'all'; from: number; to: number }
