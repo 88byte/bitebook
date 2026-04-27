@@ -99,9 +99,14 @@ body {
   font-family: var(--font-barlow-condensed);
   font-weight: 700;
   color: #FFFFFF;
-  opacity: 0.13;
+  /* 16% white on #0A0908 reads as a clear ~21% gray — visible architectural
+     type without competing with the skull. */
+  opacity: 0.16;
   letter-spacing: -0.02em;
-  font-size: 30vw;
+  /* Sized to bleed past the screen edges. At 40vw a 5-letter word like
+     FIELD spans ~110% of viewport (Barlow Condensed character ratio ~0.55);
+     7-letter INVITED bleeds further, which suits its denser silhouette. */
+  font-size: 40vw;
   line-height: 0.85;
   white-space: nowrap;
   text-transform: uppercase;
@@ -109,13 +114,13 @@ body {
 }
 
 @media (min-width: 40rem) {
-  .bb-hero-word { font-size: 22vw; opacity: 0.12; }
+  .bb-hero-word { font-size: 38vw; }
 }
 @media (min-width: 64rem) {
-  .bb-hero-word { font-size: 17vw; opacity: 0.11; }
+  .bb-hero-word { font-size: 36vw; }
 }
 @media (min-width: 80rem) {
-  .bb-hero-word { font-size: 14vw; opacity: 0.11; }
+  .bb-hero-word { font-size: 34vw; }
 }
 
 /* Paper-grain texture across the dark hero. Large noise pattern (low
