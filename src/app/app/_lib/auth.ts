@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 // every /app screen so role-gating is consistent and we always have the
 // business name / display name for the header without a second round-trip.
 //
-// As of v22 the recursive-RLS workaround is gone — profiles + guide_profiles
-// reads run on the user-session client, RLS handles them.
+// Profile and guide_profile reads run in parallel (both keyed on user.id) to
+// shave a Supabase round-trip from every /app render. We can't drop role-gate
+// short-circuiting entirely, but we can fire both queries concurrently and
+// only inspect guide if profile.role === 'guide' below.
 //
 // Loop-safety note (v18+):
 // Non-auth failures (no profile row / role !== 'guide') redirect to "/" with
@@ -19,11 +21,21 @@ export async function requireGuide() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/app')
 
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('id, display_name, role')
-    .eq('id', user.id)
-    .maybeSingle()
+  // Fire both reads in parallel — they're independent, both keyed on user.id.
+  const [profileRes, guideRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('guide_profiles')
+      .select('business_name, state, max_party_size')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const { data: profile, error: profileErr } = profileRes
 
   if (profileErr) {
     console.warn('[requireGuide] profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
@@ -32,16 +44,10 @@ export async function requireGuide() {
   if (!profile) redirect('/?error=no_profile')
   if (profile.role !== 'guide') redirect('/?error=guide_only')
 
-  const { data: guide } = await supabase
-    .from('guide_profiles')
-    .select('business_name, state, max_party_size')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
   return {
     supabase,
     user,
     profile,
-    guide: guide ?? null,
+    guide: guideRes.data ?? null,
   }
 }

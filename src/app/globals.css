@@ -941,7 +941,35 @@ body {
 
 .bb-segmented input { display: none; }
 
-/* Reduced motion: drop entrance animations. */
+/* ── Skeleton loaders (loading.tsx) ──────────────────────────────────────── */
+/* Used by app/loading.tsx + nested loading.tsx files. Shown instantly on
+   navigation while server work finishes. Tints/sizes match the real layout
+   so the swap is "skeleton becomes content" not "spinner becomes page". */
+.bb-skel {
+  background: linear-gradient(
+    100deg,
+    rgba(31, 36, 25, 0.06) 30%,
+    rgba(31, 36, 25, 0.12) 50%,
+    rgba(31, 36, 25, 0.06) 70%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: bb-skel-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes bb-skel-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.bb-skel-eyebrow      { width: 5.5rem;  height: 0.75rem; }
+.bb-skel-title        { width: 60%;     height: 1.875rem; max-width: 18rem; }
+.bb-skel-section-title{ width: 8rem;    height: 1.125rem; }
+.bb-skel-line         { width: 80%;     height: 0.875rem; max-width: 28rem; }
+.bb-skel-stat         { height: 5.5rem; border-radius: 12px; }
+.bb-skel-row          { height: 4rem;   border-radius: 12px; }
+.bb-skel-input        { height: 2.75rem; border-radius: 8px; }
+.bb-skel-button       { width: 9rem;    height: 2.75rem; border-radius: 999px; }
+
+/* Reduced motion: drop entrance animations + skeleton shimmer. */
 @media (prefers-reduced-motion: reduce) {
   .bb-fade-up,
   .bb-hero-in {
@@ -949,4 +977,5 @@ body {
     opacity: 1;
     transform: none;
   }
+  .bb-skel { animation: none; }
 }
