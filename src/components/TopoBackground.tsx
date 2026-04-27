@@ -1,11 +1,12 @@
 // Faint topographic-contour SVG drawn behind the hero.
 //
-// Ambient atmosphere only — no one-shot effects. The topo lines render
-// statically, the SVG slowly breathes (subtle scale + rotation, ~26s loop),
-// and a soft tinted sheen drifts diagonally across the surface (~22s loop).
-// Both animations are pure CSS transforms (GPU-composited, near-zero CPU).
+// Continuous ambient atmosphere — three layered motions, all looping forever:
+//   1. The topo SVG slowly breathes (translate + scale + rotate, ~26s loop).
+//   2. A soft tinted sheen drifts diagonally across the surface (~12s loop).
+//   3. A faint dashed accent ring slowly rotates (60s, SMIL — most reliable
+//      on iOS WebKit; CSS rotate origin on SVG elements is finicky there).
 //
-// Reduced motion: animations disabled, topo renders fully static.
+// Reduced motion: animations disabled, accent ring hidden, topo fully static.
 const RINGS = [
   'M400,300 C470,300 520,330 540,400 C560,470 510,520 400,520 C300,520 240,470 260,400 C280,330 330,300 400,300 Z',
   'M400,260 C500,260 580,300 590,400 C600,500 510,560 400,560 C290,560 200,500 210,400 C220,300 300,260 400,260 Z',
@@ -37,21 +38,51 @@ export default function TopoBackground() {
             <rect width="800" height="800" fill="url(#bb-topo-fade)" />
           </mask>
         </defs>
+
+        {/* Static topographic contour rings. */}
         <g
           mask="url(#bb-topo-mask)"
           fill="none"
           stroke="#1F2419"
           strokeWidth="1"
           strokeLinecap="round"
-          opacity="0.36"
+          opacity="0.42"
         >
           {RINGS.map((d) => (
             <path key={d} d={d} />
           ))}
         </g>
+
+        {/* Rotating accent ring — dashed amber, sits between the inner topo
+            rings. Rotates 360° over 60s via SMIL <animateTransform> so the
+            transform origin is anchored to the SVG coordinate system (avoids
+            CSS transform-origin / transform-box quirks on iOS Safari).
+            Hidden under prefers-reduced-motion via the .bb-topo-rotor class. */}
+        <g mask="url(#bb-topo-mask)" className="bb-topo-rotor">
+          <circle
+            cx="400"
+            cy="400"
+            r="250"
+            fill="none"
+            stroke="#b45309"
+            strokeWidth="1"
+            strokeDasharray="4 8"
+            opacity="0.18"
+          >
+            <animateTransform
+              attributeName="transform"
+              attributeType="XML"
+              type="rotate"
+              from="0 400 400"
+              to="360 400 400"
+              dur="60s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </g>
       </svg>
 
-      {/* Drifting sheen — two soft tinted blobs that slowly translate as one
+      {/* Drifting sheen — two soft tinted blobs that translate as one
           composite, like sunlight breaking through canopy. */}
       <div className="bb-topo-sheen" />
 

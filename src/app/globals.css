@@ -58,9 +58,12 @@ body {
 }
 
 @keyframes bb-topo-breathe {
-  0%   { transform: scale(1)    rotate(-2deg); }
-  50%  { transform: scale(1.07) rotate(2deg);  }
-  100% { transform: scale(1)    rotate(-2deg); }
+  /* translate first (positional drift) → scale → rotate. Order matters:
+     scaling/rotating happens around the translated origin, so the topo
+     visibly drifts AND breathes AND turns rather than just scaling in place. */
+  0%   { transform: translate(0%, 0%)    scale(1)    rotate(-3deg); }
+  50%  { transform: translate(2%, -1.5%) scale(1.10) rotate(3deg);  }
+  100% { transform: translate(0%, 0%)    scale(1)    rotate(-3deg); }
 }
 
 .bb-topo-sheen {
@@ -70,10 +73,10 @@ body {
   /* Two soft offset blobs — forest top-left, warm amber bottom-right.
      Multiply blend mixes with the paper warmth without colorizing it. */
   background:
-    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.29) 0%, rgba(47, 82, 51, 0) 65%),
-    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.29) 0%, rgba(180, 83, 9, 0) 65%);
+    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.40) 0%, rgba(47, 82, 51, 0) 65%),
+    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.40) 0%, rgba(180, 83, 9, 0) 65%);
   mix-blend-mode: multiply;
-  animation: bb-topo-sheen-drift 14s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation: bb-topo-sheen-drift 12s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
   will-change: transform;
 }
 
@@ -163,6 +166,11 @@ body {
   .bb-topo-sheen {
     animation: none;
     transform: none;
+  }
+  /* Hide the rotating accent ring entirely. SMIL animations can't be paused
+     via CSS, so display:none is the practical kill switch. */
+  .bb-topo-rotor {
+    display: none;
   }
   /* Stack the clauses statically — no rotation. */
   .bb-tagline {
