@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { requireGuide } from '../_lib/auth'
 import { markStepDone } from '../_lib/onboarding'
 import { createClient } from '@/lib/supabase/server'
+import { sendBitebookEmail } from '@/lib/email'
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -44,38 +45,25 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   const proto = h.get('x-forwarded-proto') ?? 'https'
   const inviteUrl = `${proto}://${host}/accept-invite?token=${data.token}`
 
-  // Best-effort email send via Resend. Failure does not affect the row.
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
-      const guideLabel = profile.display_name
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'Bite Book <invites@bitebook.lastbite.pro>',
-          to: [email],
-          subject: `${guideLabel} invited you to Bite Book`,
-          text: [
-            greeting,
-            '',
-            `${guideLabel} invited you to join their guide network on Bite Book.`,
-            '',
-            `Accept the invite: ${inviteUrl}`,
-            '',
-            'This link expires in 7 days.',
-          ].join('\n'),
-        }),
-      })
-    } catch (e) {
-      console.warn('[hunters] resend send failed', e)
-    }
-  } else {
-    console.log('[hunters] RESEND_API_KEY not set; invite created without email send', { inviteUrl })
-  }
+  // Best-effort email send via the shared helper. Reply-To is centralized
+  // (support@lastbite.pro) so replies land in Flavio's monitored inbox
+  // instead of the send-only bitebook subdomain. Failure does not affect
+  // the row — guide can copy the invite_url manually if email fails.
+  const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
+  const guideLabel = profile.display_name
+  await sendBitebookEmail({
+    to: email,
+    subject: `${guideLabel} invited you to Bite Book`,
+    text: [
+      greeting,
+      '',
+      `${guideLabel} invited you to join their guide network on Bite Book.`,
+      '',
+      `Accept the invite: ${inviteUrl}`,
+      '',
+      'This link expires in 7 days.',
+    ].join('\n'),
+  })
 
   // v24: mark onboarding step done.
   try {
