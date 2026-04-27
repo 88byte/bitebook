@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ResetPasswordForm from './ResetPasswordForm'
-import DarkHero from '@/components/DarkHero'
+import Hero from '@/components/Hero'
+import FormCard from '@/components/FormCard'
 import Footer from '@/components/Footer'
 import { createClient } from '@/lib/supabase/server'
 
@@ -12,10 +13,13 @@ export default async function ResetPasswordPage() {
 
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<p className="bb-tagline-static">Set a new password.</p>} />
+      <Hero
+        taglineLine1="Set a new password."
+        subtitle="Pick something strong. We&rsquo;ll keep you signed in after."
+      />
 
-      <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
-        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
+      <section className="px-6 pb-12">
+        <FormCard headerText="New password">
           {!user ? (
             <p className="text-center text-xs" style={{ color: '#dc2626' }}>
               This reset link expired or was already used.{' '}
@@ -23,13 +27,13 @@ export default async function ResetPasswordPage() {
             </p>
           ) : (
             <>
-              <p className="text-center text-xs mb-5" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
+              <p className="text-center text-xs mb-4" style={{ color: 'var(--color-ink-muted)' }}>
                 Choose a strong password for <strong>{user.email}</strong>.
               </p>
               <ResetPasswordForm />
             </>
           )}
-        </div>
+        </FormCard>
       </section>
 
       <Footer />

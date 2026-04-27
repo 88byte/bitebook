@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import AcceptInviteForm from './AcceptInviteForm'
-import DarkHero from '@/components/DarkHero'
+import Hero from '@/components/Hero'
+import FormCard from '@/components/FormCard'
 import Footer from '@/components/Footer'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -55,24 +56,23 @@ export default async function AcceptInvitePage({
 
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<p className="bb-tagline-static">You&rsquo;re in the book.</p>} />
+      <Hero
+        taglineLine1="You&rsquo;re in the book."
+        subtitle={
+          invite.ok
+            ? `${invite.guideName} invited you. Set a password to get started.`
+            : 'Set a password to get started.'
+        }
+      />
 
-      <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
-        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
+      <section className="px-6 pb-12">
+        <FormCard headerText="Set up account">
           {invite.ok ? (
-            <>
-              <h1 className="text-center text-2xl mb-1" style={{ fontFamily: 'var(--font-barlow-condensed)', color: 'var(--color-ink)' }}>
-                Welcome to Bite Book
-              </h1>
-              <p className="text-center text-xs mb-5" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
-                {invite.guideName} invited you. Set a password to get started.
-              </p>
-              <AcceptInviteForm token={invite.token} email={invite.email} />
-            </>
+            <AcceptInviteForm token={invite.token} email={invite.email} />
           ) : (
-            <ErrorCard reason={invite.reason} />
+            <ErrorBlock reason={invite.reason} />
           )}
-        </div>
+        </FormCard>
       </section>
 
       <Footer />
@@ -80,7 +80,7 @@ export default async function AcceptInvitePage({
   )
 }
 
-function ErrorCard({ reason }: { reason: 'invalid' | 'expired' | 'used' | 'misconfigured' }) {
+function ErrorBlock({ reason }: { reason: 'invalid' | 'expired' | 'used' | 'misconfigured' }) {
   const copy: Record<typeof reason, { title: string; body: React.ReactNode }> = {
     invalid: {
       title: 'Invite link not found',
@@ -92,18 +92,18 @@ function ErrorCard({ reason }: { reason: 'invalid' | 'expired' | 'used' | 'misco
     },
     used: {
       title: 'This invite was already used',
-      body: <>You&rsquo;re already set up — head to <Link href="/login" className="underline" style={{ color: 'var(--color-accent)' }}>sign in</Link>.</>,
+      body: <>You&rsquo;re already set up — head to <Link href="/login" className="underline" style={{ color: 'var(--color-copper)' }}>sign in</Link>.</>,
     },
     misconfigured: {
       title: 'Bite Book isn&rsquo;t finished setting up',
-      body: <>The admin keys for invite acceptance aren&rsquo;t configured yet. Email <a className="underline" style={{ color: 'var(--color-accent)' }} href="mailto:support@lastbite.pro">support@lastbite.pro</a> and we&rsquo;ll fix it fast.</>,
+      body: <>The admin keys for invite acceptance aren&rsquo;t configured yet. Email <a className="underline" style={{ color: 'var(--color-copper)' }} href="mailto:support@lastbite.pro">support@lastbite.pro</a> and we&rsquo;ll fix it fast.</>,
     },
   }
   const { title, body } = copy[reason]
   return (
     <div className="text-center">
       <p className="font-bold text-sm mb-2" style={{ color: 'var(--color-ink)' }}>{title}</p>
-      <p className="text-xs" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>{body}</p>
+      <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>{body}</p>
     </div>
   )
 }

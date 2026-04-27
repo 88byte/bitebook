@@ -1,15 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import { Mail, Lock, Eye, EyeOff, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { REMEMBER_COOKIE, REMEMBER_MAX_AGE } from '@/lib/cookies'
-
-const SUPPORT_EMAIL = 'support@lastbite.pro'
 
 export default function LoginForm({ next }: { next?: string }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,37 +41,53 @@ export default function LoginForm({ next }: { next?: string }) {
 
   return (
     <form onSubmit={signInWithPassword} className="flex flex-col gap-3 w-full">
-      <input
-        type="email"
-        name="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
-        aria-label="Email"
-        className="bb-input"
-      />
-
-      <input
-        type="password"
-        name="current-password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        aria-label="Password"
-        className="bb-input"
-      />
-
-      <label className="flex items-center gap-2 text-xs select-none" style={{ color: 'var(--color-ink)' }}>
+      <label className="bb-field">
+        <span className="bb-field-icon"><Mail size={18} aria-hidden="true" /></span>
         <input
-          type="checkbox"
-          checked={remember}
-          onChange={(e) => setRemember(e.target.checked)}
-          className="h-4 w-4 rounded border-[color:var(--color-ink)]/30 accent-[color:var(--color-accent)]"
+          type="email"
+          name="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email address"
+          aria-label="Email address"
+          className="bb-input bb-input-iconed"
         />
+      </label>
+
+      <label className="bb-field">
+        <span className="bb-field-icon"><Lock size={18} aria-hidden="true" /></span>
+        <input
+          type={showPassword ? 'text' : 'password'}
+          name="current-password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          aria-label="Password"
+          className="bb-input bb-input-iconed bb-input-actioned"
+        />
+        <button
+          type="button"
+          className="bb-field-action"
+          onClick={() => setShowPassword((v) => !v)}
+          aria-label={showPassword ? 'Hide password' : 'Show password'}
+        >
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </label>
+
+      <label className="bb-check-row mt-1">
+        <span className="bb-check">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+          <Check size={14} strokeWidth={3} className="bb-check-mark" aria-hidden="true" />
+        </span>
         Remember me on this device
       </label>
 
@@ -81,20 +96,10 @@ export default function LoginForm({ next }: { next?: string }) {
       <button
         type="submit"
         disabled={loading || !email || !password}
-        className="bb-cta mt-1"
+        className="bb-cta mt-2"
       >
         {loading ? 'Signing in…' : 'Sign in'}
       </button>
-
-      <div className="flex items-center justify-center text-xs pt-1">
-        <Link
-          href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
-          className="underline"
-          style={{ color: 'var(--color-accent)', opacity: 0.85 }}
-        >
-          Forgot password?
-        </Link>
-      </div>
     </form>
   )
 }
@@ -115,28 +120,4 @@ function humanizeError(msg: string): string {
   if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox.'
   if (/over.*rate/i.test(msg)) return 'Too many attempts. Try again in a minute.'
   return msg
-}
-
-export function HuntersInviteOnlyNote() {
-  return (
-    <p className="mt-5 text-center text-xs leading-relaxed" style={{ color: 'var(--color-ink)', opacity: 0.55 }}>
-      Hunter? Bite Book is invite-only — ask your guide for an invite.{' '}
-      <a href={`mailto:${SUPPORT_EMAIL}?subject=Bite%20Book%20support`} className="underline" style={{ color: 'var(--color-accent)', opacity: 0.85 }}>
-        Contact us
-      </a>{' '}
-      with any questions.
-    </p>
-  )
-}
-
-export function GuideSignupNote() {
-  return (
-    <p className="mt-3 text-center text-xs" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>
-      New here?{' '}
-      <Link href="/signup" className="underline font-semibold" style={{ color: 'var(--color-accent)' }}>
-        Sign up as a guide
-      </Link>{' '}
-      — 7-day free trial, no card.
-    </p>
-  )
 }

@@ -1,19 +1,23 @@
-import LoginForm, { GuideSignupNote, HuntersInviteOnlyNote } from './login/LoginForm'
-import DarkHero from '@/components/DarkHero'
-import RotatingTagline from '@/components/RotatingTagline'
+import LoginForm from './login/LoginForm'
+import Hero from '@/components/Hero'
+import FormCard from '@/components/FormCard'
+import AccountHelp from '@/components/AccountHelp'
 import Footer from '@/components/Footer'
 
 export default function Home() {
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<RotatingTagline />} />
+      <Hero
+        taglineLine1="Track every hunt."
+        taglineLine2="Build your history."
+        subtitle="Log harvests, preserve field details, and organize your hunts in one place."
+      />
 
-      <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
-        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
+      <section className="px-6 pb-12">
+        <FormCard headerText="Sign in">
           <LoginForm />
-          <GuideSignupNote />
-          <HuntersInviteOnlyNote />
-        </div>
+          <AccountHelp />
+        </FormCard>
       </section>
 
       <Footer />

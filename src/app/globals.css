@@ -3,16 +3,21 @@
 :root {
   --color-paper: #FAF7F2;
   --color-accent: #B45309;
+  --color-copper: #B06C3C;       /* hero tagline + antlers + helper-link tone */
   --color-forest: #2F5233;
   --color-ink: #1F2419;
-  --color-ink-muted: #1F241980;
-  --color-hero-bg: #0A0908;
-  --color-tagline-on-dark: #B8B0A4;
+  --color-ink-muted: #5C5247;
+  --color-ink-soft: #8A8378;
+  --color-card-header-bg: #F2EBDF;
+  --color-card-divider: #E5DDD0;
+  --color-callout-bg: #2F2A24;   /* hunter callout dark card */
+  --color-subtitle-on-dark: #C9C2B8;
 }
 
 @theme inline {
   --color-paper: var(--color-paper);
   --color-accent: var(--color-accent);
+  --color-copper: var(--color-copper);
   --color-forest: var(--color-forest);
   --color-ink: var(--color-ink);
   --font-display: var(--font-barlow-condensed);
@@ -26,7 +31,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* — Animations (entrance only; nothing ambient) — */
+/* — Entrance animations only — */
 
 @keyframes bb-fade-up {
   from { opacity: 0; transform: translateY(0.5rem); }
@@ -45,93 +50,156 @@ body {
 
 .bb-hero-in {
   opacity: 0;
-  animation: bb-hero-in 0.4s ease-out both;
+  animation: bb-hero-in 0.5s ease-out both;
 }
 
-/* Rotating tagline (only on / and /login). Lives inside the dark hero, so
-   the color is calibrated for the #0A0908 background — warm light gray with
-   ~9.4:1 contrast at the rendered font size (well above WCAG-AA). */
-.bb-tagline {
-  display: grid;
-  grid-template-columns: 1fr;
+/* — Hero — */
+
+.bb-hero {
+  background-image: url('/bb-hero-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-color: #0A0908;
+}
+
+/* Soft fade at the bottom so the lifted form-card landing isn't a hard line. */
+.bb-hero-fade {
+  background: linear-gradient(to bottom, transparent 0%, rgba(10,9,8,0.55) 60%, rgba(10,9,8,0.85) 100%);
+}
+
+.bb-tagline-bold {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  color: var(--color-copper);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 1.75rem;       /* 28px mobile */
+  line-height: 1.05;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 40rem) {
+  .bb-tagline-bold { font-size: 2rem; }   /* 32px */
+}
+@media (min-width: 48rem) {
+  .bb-tagline-bold { font-size: 2.25rem; } /* 36px */
+}
+@media (min-width: 64rem) {
+  .bb-tagline-bold { font-size: 2.625rem; } /* 42px */
+}
+
+.bb-subtitle {
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 400;
+  color: var(--color-subtitle-on-dark);
+  font-size: 0.8125rem;     /* 13px */
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 48rem) {
+  .bb-subtitle { font-size: 0.875rem; }   /* 14px */
+}
+
+/* — Form card (lifted on top of hero) — */
+
+.bb-card {
+  background: var(--color-paper);
+  border-radius: 1rem;
+  box-shadow:
+    0 14px 50px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.bb-card-header {
+  background: var(--color-card-header-bg);
+  border-bottom: 1px solid var(--color-card-divider);
+  text-align: center;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+  padding: 0.875rem 1rem;
+}
+
+.bb-card-body {
+  padding: 1.5rem 1.25rem;
+}
+
+@media (min-width: 40rem) {
+  .bb-card-body { padding: 1.75rem 1.5rem; }
+}
+
+/* — Form fields with leading icon — */
+
+.bb-field {
+  position: relative;
+  display: block;
+}
+
+.bb-field-icon {
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-soft);
+  pointer-events: none;
+  display: flex;
   align-items: center;
-  justify-items: center;
-  font-family: var(--font-barlow), system-ui, sans-serif;
-  font-weight: 500;
-  color: var(--color-tagline-on-dark);
-  letter-spacing: 0.01em;
-  text-align: center;
-  min-height: 1.6em;
-  font-size: 1.125rem;
-  line-height: 1.4;
+  justify-content: center;
 }
 
-@media (min-width: 40rem) {
-  .bb-tagline { font-size: 1.25rem; min-height: 1.6em; }
-}
-@media (min-width: 48rem) {
-  .bb-tagline { font-size: 1.5rem; }
-}
-@media (min-width: 64rem) {
-  .bb-tagline { font-size: 1.75rem; }
-}
-
-.bb-tagline-clause {
-  grid-area: 1 / 1;
-  opacity: 0;
-  animation: bb-tagline-rotate 16s ease-in-out infinite both;
-  white-space: nowrap;
-}
-
-@keyframes bb-tagline-rotate {
-  /* 16s cycle (4 clauses × 4s window): 0.5s in / 3s hold / 0.5s out / hidden. */
-  0%       { opacity: 0; }
-  3.125%   { opacity: 1; }
-  21.875%  { opacity: 1; }
-  25%      { opacity: 0; }
-  100%     { opacity: 0; }
+.bb-field-action {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-soft);
+  background: transparent;
+  border: 0;
+  padding: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  transition: color 0.15s, background 0.15s;
 }
 
-/* Static tagline used on /signup, /forgot-password, /reset-password,
-   /accept-invite — single non-rotating string in the dark hero. Same
-   color/weight family as the rotating tagline. */
-.bb-tagline-static {
-  font-family: var(--font-barlow), system-ui, sans-serif;
-  font-weight: 500;
-  color: var(--color-tagline-on-dark);
-  letter-spacing: 0.01em;
-  text-align: center;
-  font-size: 1.125rem;
-  line-height: 1.4;
+.bb-field-action:hover {
+  color: var(--color-ink-muted);
+  background: rgba(31,36,25,0.05);
 }
 
-@media (min-width: 40rem) {
-  .bb-tagline-static { font-size: 1.25rem; }
-}
-@media (min-width: 48rem) {
-  .bb-tagline-static { font-size: 1.5rem; }
-}
-@media (min-width: 64rem) {
-  .bb-tagline-static { font-size: 1.75rem; }
-}
-
-/* Form fields (paper section). White lift off the paper background, subtle
-   ink border. Used by all auth forms — no card wrapper anymore. */
 .bb-input {
   width: 100%;
-  border-radius: 0.75rem;
+  border-radius: 0.625rem;
   background: #FFFFFF;
-  border: 1px solid rgba(31, 36, 25, 0.15);
+  border: 1px solid rgba(31, 36, 25, 0.18);
   color: var(--color-ink);
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.95rem;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+.bb-input.bb-input-iconed {
+  padding-left: 2.5rem;
+}
+
+.bb-input.bb-input-actioned {
+  padding-right: 2.75rem;
+}
+
 .bb-input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.18);
+  border-color: var(--color-copper);
+  box-shadow: 0 0 0 3px rgba(176, 108, 60, 0.18);
 }
 
 .bb-input[readonly] {
@@ -139,31 +207,184 @@ body {
   opacity: 0.7;
 }
 
-/* Solid CTA — full-saturation accent, no transparency. */
+.bb-input::placeholder {
+  color: var(--color-ink-soft);
+}
+
+/* — Custom checkbox (Remember me) — */
+
+.bb-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+  user-select: none;
+  cursor: pointer;
+}
+
+.bb-check {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.3125rem;
+  border: 1.5px solid rgba(31, 36, 25, 0.30);
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.bb-check input[type="checkbox"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.bb-check-mark {
+  color: #FFFFFF;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.bb-check input[type="checkbox"]:checked + .bb-check-mark {
+  opacity: 1;
+}
+
+.bb-check:has(input[type="checkbox"]:checked) {
+  background: var(--color-copper);
+  border-color: var(--color-copper);
+}
+
+/* — Skinned CTA button (uses bb-button-skin.png as background) — */
+
 .bb-cta {
+  position: relative;
   width: 100%;
-  border-radius: 0.75rem;
-  background: var(--color-accent);
-  color: var(--color-paper);
-  padding: 0.875rem 1rem;
-  font-size: 0.9rem;
+  border-radius: 0.625rem;
+  background-image: url('/bb-button-skin.png');
+  background-size: cover;
+  background-position: center;
+  background-color: var(--color-copper); /* fallback if image fails */
+  color: #FFFFFF;
+  padding: 0.95rem 1rem;
+  font-size: 0.875rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.18em;
   font-family: var(--font-barlow-condensed);
-  transition: transform 0.1s, opacity 0.15s;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 6px 16px rgba(176, 108, 60, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s, opacity 0.15s, box-shadow 0.15s;
+  border: 0;
+  cursor: pointer;
 }
 
 .bb-cta:disabled {
-  /* Bumped from 0.4 → 0.75 so the empty-state CTA still reads as confident
-     orange rather than washed-out tan. The cursor + slight dimming still
-     communicate non-interactivity. */
-  opacity: 0.75;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
+.bb-cta:not(:disabled):hover {
+  box-shadow:
+    0 10px 22px rgba(176, 108, 60, 0.36),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 .bb-cta:not(:disabled):active {
-  transform: scale(0.98);
+  transform: translateY(1px) scale(0.99);
+}
+
+/* — Account help section — */
+
+.bb-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.6875rem;
+  color: var(--color-ink-soft);
+  margin: 1.5rem 0 1rem;
+}
+
+.bb-divider::before,
+.bb-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-card-divider);
+}
+
+.bb-help-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.bb-help-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.875rem 0.5rem;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.625rem;
+  background: #FFFFFF;
+  color: var(--color-copper);
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.bb-help-link:hover {
+  background: #FBF7F0;
+  border-color: rgba(176, 108, 60, 0.4);
+}
+
+/* — Hunter callout (dark card with shield) — */
+
+.bb-callout {
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  background: var(--color-callout-bg);
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  color: #E8DFD2;
+}
+
+.bb-callout-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.bb-callout-title {
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.bb-callout-link {
+  color: var(--color-copper);
+  text-decoration: underline;
+  font-weight: 600;
 }
 
 /* Reduced motion: drop entrance animations. */
@@ -173,17 +394,5 @@ body {
     animation: none;
     opacity: 1;
     transform: none;
-  }
-  .bb-tagline {
-    display: block;
-    min-height: 0;
-    line-height: 1.5;
-  }
-  .bb-tagline-clause {
-    display: block;
-    grid-area: auto;
-    opacity: 1;
-    animation: none;
-    white-space: normal;
   }
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ForgotPasswordForm from './ForgotPasswordForm'
-import DarkHero from '@/components/DarkHero'
+import Hero from '@/components/Hero'
+import FormCard from '@/components/FormCard'
 import Footer from '@/components/Footer'
 
 export const metadata = { title: 'Reset password — Bite Book' }
@@ -14,23 +15,20 @@ export default async function ForgotPasswordPage({
 
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<p className="bb-tagline-static">Reset your password.</p>} />
+      <Hero
+        taglineLine1="Reset your password."
+        subtitle="We&rsquo;ll email you a link to set a new one."
+      />
 
-      <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
-        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
-          <h1 className="text-center text-2xl mb-1" style={{ fontFamily: 'var(--font-barlow-condensed)', color: 'var(--color-ink)' }}>
-            Forgot your password?
-          </h1>
-          <p className="text-center text-xs mb-5" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
-            We&rsquo;ll email you a link to set a new one.
-          </p>
+      <section className="px-6 pb-12">
+        <FormCard headerText="Reset password">
           <ForgotPasswordForm initialEmail={email} />
           <p className="mt-4 text-center text-xs">
-            <Link href="/login" className="underline" style={{ color: 'var(--color-accent)' }}>
+            <Link href="/login" className="underline" style={{ color: 'var(--color-copper)' }}>
               Back to sign in
             </Link>
           </p>
-        </div>
+        </FormCard>
       </section>
 
       <Footer />
