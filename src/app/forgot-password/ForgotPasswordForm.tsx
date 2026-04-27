@@ -25,11 +25,11 @@ export default function ForgotPasswordForm({ initialEmail }: { initialEmail?: st
 
   if (sent) {
     return (
-      <Card>
-        <div className="flex justify-center mb-3" style={{ color: 'var(--color-accent)' }}>
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-3" style={{ color: 'var(--color-accent)' }}>
           <svg
-            width="36"
-            height="36"
+            width="40"
+            height="40"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -42,55 +42,32 @@ export default function ForgotPasswordForm({ initialEmail }: { initialEmail?: st
             <path d="m4 7 8 6 8-6" />
           </svg>
         </div>
-        <p className="font-bold text-sm text-center" style={{ color: 'var(--color-ink)' }}>
+        <p className="font-bold text-sm" style={{ color: 'var(--color-ink)' }}>
           Check your email
         </p>
-        <p className="text-xs mt-1 text-center" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
+        <p className="text-xs mt-1" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
           We sent a password-reset link to <strong>{email}</strong>. The link is good for 60 minutes.
         </p>
-      </Card>
+      </div>
     )
   }
 
   return (
-    <Card>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          aria-label="Email"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]"
-          style={{ background: 'white', border: '1px solid rgba(31,36,25,0.15)', color: 'var(--color-ink)' }}
-        />
-        {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-        <button
-          type="submit"
-          disabled={loading || !email}
-          className="w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-40 active:scale-[0.98]"
-          style={{ background: 'var(--color-accent)', color: 'var(--color-paper)', fontFamily: 'var(--font-barlow-condensed)' }}
-        >
-          {loading ? 'Sending…' : 'Send reset link'}
-        </button>
-      </form>
-    </Card>
-  )
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="rounded-2xl p-6 backdrop-blur-sm"
-      style={{
-        background: 'rgba(255,255,255,0.85)',
-        border: '1px solid rgba(31,36,25,0.08)',
-        boxShadow: '0 1px 2px rgba(31,36,25,0.04), 0 8px 24px -12px rgba(31,36,25,0.18)',
-      }}
-    >
-      {children}
-    </div>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 w-full">
+      <input
+        type="email"
+        required
+        autoComplete="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        aria-label="Email"
+        className="bb-input"
+      />
+      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
+      <button type="submit" disabled={loading || !email} className="bb-cta mt-1">
+        {loading ? 'Sending…' : 'Send reset link'}
+      </button>
+    </form>
   )
 }

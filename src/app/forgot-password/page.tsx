@@ -1,7 +1,6 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import ForgotPasswordForm from './ForgotPasswordForm'
-import TopoBackground from '@/components/TopoBackground'
+import DarkHero from '@/components/DarkHero'
 import Footer from '@/components/Footer'
 
 export const metadata = { title: 'Reset password — Bite Book' }
@@ -14,30 +13,15 @@ export default async function ForgotPasswordPage({
   const { email } = await searchParams
 
   return (
-    <main
-      className="relative flex flex-1 flex-col px-6 min-h-screen overflow-hidden"
-      style={{ background: 'var(--color-paper)' }}
-    >
-      <TopoBackground />
+    <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
+      <DarkHero tagline={<p className="bb-tagline-static">Reset your password.</p>} />
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-8 sm:gap-10 py-12 sm:py-16 w-full">
-        <Link href="/" className="bb-fade-up" style={{ animationDelay: '0.05s' }}>
-          <Image
-            src="/bb-logo.png"
-            alt="Bite Book"
-            width={1254}
-            height={1254}
-            sizes="(min-width: 1024px) 192px, (min-width: 768px) 160px, 128px"
-            className="h-32 w-32 sm:h-40 sm:w-40 md:h-44 md:w-44 lg:h-48 lg:w-48 rounded-3xl shadow-lg"
-            priority
-          />
-        </Link>
-
-        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.25s' }}>
+      <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
+        <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
           <h1 className="text-center text-2xl mb-1" style={{ fontFamily: 'var(--font-barlow-condensed)', color: 'var(--color-ink)' }}>
             Forgot your password?
           </h1>
-          <p className="text-center text-xs mb-4" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
+          <p className="text-center text-xs mb-5" style={{ color: 'var(--color-ink)', opacity: 0.6 }}>
             We&rsquo;ll email you a link to set a new one.
           </p>
           <ForgotPasswordForm initialEmail={email} />
@@ -47,7 +31,7 @@ export default async function ForgotPasswordPage({
             </Link>
           </p>
         </div>
-      </div>
+      </section>
 
       <Footer />
     </main>

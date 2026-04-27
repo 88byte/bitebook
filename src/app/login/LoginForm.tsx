@@ -41,74 +41,66 @@ export default function LoginForm({ next }: { next?: string }) {
   }
 
   return (
-    <Card>
-      <form onSubmit={signInWithPassword} className="flex flex-col gap-3 w-full">
-        <Field
-          type="email"
-          name="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={setEmail}
-          placeholder="you@example.com"
-          ariaLabel="Email"
+    <form onSubmit={signInWithPassword} className="flex flex-col gap-3 w-full">
+      <input
+        type="email"
+        name="email"
+        autoComplete="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        aria-label="Email"
+        className="bb-input"
+      />
+
+      <input
+        type="password"
+        name="current-password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        aria-label="Password"
+        className="bb-input"
+      />
+
+      <label className="flex items-center gap-2 text-xs select-none" style={{ color: 'var(--color-ink)' }}>
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => setRemember(e.target.checked)}
+          className="h-4 w-4 rounded border-[color:var(--color-ink)]/30 accent-[color:var(--color-accent)]"
         />
+        Remember me on this device
+      </label>
 
-        <Field
-          type="password"
-          name="current-password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={setPassword}
-          placeholder="Password"
-          ariaLabel="Password"
-        />
+      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 
-        <label className="flex items-center gap-2 text-xs select-none" style={{ color: 'var(--color-ink)' }}>
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="h-4 w-4 rounded border-[color:var(--color-ink)]/30 accent-[color:var(--color-accent)]"
-          />
-          Remember me on this device
-        </label>
+      <button
+        type="submit"
+        disabled={loading || !email || !password}
+        className="bb-cta mt-1"
+      >
+        {loading ? 'Signing in…' : 'Sign in'}
+      </button>
 
-        {error && (
-          <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading || !email || !password}
-          className="w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-40 active:scale-[0.98]"
-          style={{
-            background: 'var(--color-accent)',
-            color: 'var(--color-paper)',
-            fontFamily: 'var(--font-barlow-condensed)',
-          }}
+      <div className="flex items-center justify-center text-xs pt-1">
+        <Link
+          href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
+          className="underline"
+          style={{ color: 'var(--color-accent)', opacity: 0.85 }}
         >
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-
-        <div className="flex items-center justify-between text-xs pt-1">
-          <Link
-            href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
-            className="underline"
-            style={{ color: 'var(--color-accent)', opacity: 0.85 }}
-          >
-            Forgot password?
-          </Link>
-        </div>
-      </form>
-    </Card>
+          Forgot password?
+        </Link>
+      </div>
+    </form>
   )
 }
 
 // Magic-link sign-in is intentionally retained but not surfaced in the UI.
-// Flavio asked to keep the option open for later; calling this from a future
-// UI surface is enough to re-enable the flow.
+// Kept as an exported helper so a future surface can re-enable the flow.
 export async function sendMagicLink(email: string, next?: string) {
   const supabase = createClient()
   const redirectTo = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
@@ -116,51 +108,6 @@ export async function sendMagicLink(email: string, next?: string) {
     email,
     options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
   })
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="rounded-2xl p-6 backdrop-blur-sm"
-      style={{
-        background: 'rgba(255,255,255,0.85)',
-        border: '1px solid rgba(31,36,25,0.08)',
-        boxShadow: '0 1px 2px rgba(31,36,25,0.04), 0 8px 24px -12px rgba(31,36,25,0.18)',
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-function Field(props: {
-  type: string
-  name: string
-  autoComplete: string
-  required?: boolean
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-  ariaLabel: string
-}) {
-  return (
-    <input
-      type={props.type}
-      name={props.name}
-      autoComplete={props.autoComplete}
-      required={props.required}
-      value={props.value}
-      onChange={(e) => props.onChange(e.target.value)}
-      placeholder={props.placeholder}
-      aria-label={props.ariaLabel}
-      className="w-full rounded-xl px-4 py-3 text-base outline-none transition-all focus:ring-2 focus:ring-[color:var(--color-accent)] focus:border-[color:var(--color-accent)]"
-      style={{
-        background: 'white',
-        border: '1px solid rgba(31,36,25,0.15)',
-        color: 'var(--color-ink)',
-      }}
-    />
-  )
 }
 
 function humanizeError(msg: string): string {

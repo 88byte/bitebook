@@ -6,6 +6,8 @@
   --color-forest: #2F5233;
   --color-ink: #1F2419;
   --color-ink-muted: #1F241980;
+  --color-hero-bg: #0A0908;
+  --color-tagline-on-dark: #B8B0A4;
 }
 
 @theme inline {
@@ -24,7 +26,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* — Animations — */
+/* — Animations (entrance only; nothing ambient) — */
 
 @keyframes bb-fade-up {
   from { opacity: 0; transform: translateY(0.5rem); }
@@ -37,62 +39,18 @@ body {
 }
 
 @keyframes bb-hero-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(0.4rem); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .bb-hero-in {
   opacity: 0;
-  animation: bb-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+  animation: bb-hero-in 0.4s ease-out both;
 }
 
-/* Topo atmosphere: continuous, ambient, never one-shot.
-   - The whole SVG slowly breathes via subtle scale + rotation.
-   - A soft tinted sheen drifts diagonally across the surface.
-   Both run pure-CSS transforms on dedicated layers; near-zero CPU/GPU
-   cost on modern hardware. */
-.bb-topo-svg {
-  animation: bb-topo-breathe 26s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-  transform-origin: 50% 50%;
-  will-change: transform;
-}
-
-@keyframes bb-topo-breathe {
-  /* translate first (positional drift) → scale → rotate. Order matters:
-     scaling/rotating happens around the translated origin, so the topo
-     visibly drifts AND breathes AND turns rather than just scaling in place. */
-  0%   { transform: translate(0%, 0%)    scale(1)    rotate(-3deg); }
-  50%  { transform: translate(2%, -1.5%) scale(1.10) rotate(3deg);  }
-  100% { transform: translate(0%, 0%)    scale(1)    rotate(-3deg); }
-}
-
-.bb-topo-sheen {
-  position: absolute;
-  inset: -12%;
-  pointer-events: none;
-  /* Two soft offset blobs — forest top-left, warm amber bottom-right.
-     Multiply blend mixes with the paper warmth without colorizing it. */
-  background:
-    radial-gradient(ellipse 55% 45% at 30% 35%, rgba(47, 82, 51, 0.40) 0%, rgba(47, 82, 51, 0) 65%),
-    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(180, 83, 9, 0.40) 0%, rgba(180, 83, 9, 0) 65%);
-  mix-blend-mode: multiply;
-  animation: bb-topo-sheen-drift 12s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-  will-change: transform;
-}
-
-@keyframes bb-topo-sheen-drift {
-  0%   { transform: translate(0%, 0%); }
-  25%  { transform: translate(12%, -8%); }
-  50%  { transform: translate(-4%, 10%); }
-  75%  { transform: translate(-14%, 4%); }
-  100% { transform: translate(0%, 0%); }
-}
-
-/* Rotating tagline.
-   - Container reserves the height of one line so layout never reflows.
-   - All clauses share the same grid cell; one is visible at a time via a
-     keyframed opacity cycle, offset per-clause via animation-delay.
-   - Soft forest tone, lighter weight — atmospheric, not commanding. */
+/* Rotating tagline (only on / and /login). Lives inside the dark hero, so
+   the color is calibrated for the #0A0908 background — warm light gray with
+   ~9.4:1 contrast at the rendered font size (well above WCAG-AA). */
 .bb-tagline {
   display: grid;
   grid-template-columns: 1fr;
@@ -100,26 +58,22 @@ body {
   justify-items: center;
   font-family: var(--font-barlow), system-ui, sans-serif;
   font-weight: 500;
-  /* Warm gray — sits in the paper family, AA-normal contrast (~5.1:1)
-     against #FAF7F2 at 18px medium. Flat color reads cleaner than a
-     compositing opacity layer. */
-  color: #6F6A60;
+  color: var(--color-tagline-on-dark);
   letter-spacing: 0.01em;
   text-align: center;
-  /* Reserve one line of vertical space for the tallest viewport size. */
   min-height: 1.6em;
-  font-size: 1.125rem; /* base — text-lg */
+  font-size: 1.125rem;
   line-height: 1.4;
 }
 
 @media (min-width: 40rem) {
-  .bb-tagline { font-size: 1.25rem; min-height: 1.6em; }     /* ~text-[20px] */
+  .bb-tagline { font-size: 1.25rem; min-height: 1.6em; }
 }
 @media (min-width: 48rem) {
-  .bb-tagline { font-size: 1.5rem; }                          /* ~text-[24px] */
+  .bb-tagline { font-size: 1.5rem; }
 }
 @media (min-width: 64rem) {
-  .bb-tagline { font-size: 1.75rem; }                         /* ~text-[28px] */
+  .bb-tagline { font-size: 1.75rem; }
 }
 
 .bb-tagline-clause {
@@ -130,11 +84,7 @@ body {
 }
 
 @keyframes bb-tagline-rotate {
-  /* In a 16s cycle (4 clauses × 4s window):
-     0%–3.125%    = fade in over 0.5s
-     3.125%–21.875% = hold for 3.0s
-     21.875%–25%  = fade out over 0.5s
-     25%–100%     = stay hidden until the next cycle */
+  /* 16s cycle (4 clauses × 4s window): 0.5s in / 3s hold / 0.5s out / hidden. */
   0%       { opacity: 0; }
   3.125%   { opacity: 1; }
   21.875%  { opacity: 1; }
@@ -142,37 +92,85 @@ body {
   100%     { opacity: 0; }
 }
 
-/* State swap (form -> success card) */
-@keyframes bb-slide-in {
-  from { opacity: 0; transform: translateY(0.75rem); }
-  to   { opacity: 1; transform: translateY(0); }
+/* Static tagline used on /signup, /forgot-password, /reset-password,
+   /accept-invite — single non-rotating string in the dark hero. Same
+   color/weight family as the rotating tagline. */
+.bb-tagline-static {
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--color-tagline-on-dark);
+  letter-spacing: 0.01em;
+  text-align: center;
+  font-size: 1.125rem;
+  line-height: 1.4;
 }
 
-.bb-slide-in {
-  animation: bb-slide-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+@media (min-width: 40rem) {
+  .bb-tagline-static { font-size: 1.25rem; }
+}
+@media (min-width: 48rem) {
+  .bb-tagline-static { font-size: 1.5rem; }
+}
+@media (min-width: 64rem) {
+  .bb-tagline-static { font-size: 1.75rem; }
 }
 
-/* — Reduced motion: kill everything decorative — */
+/* Form fields (paper section). White lift off the paper background, subtle
+   ink border. Used by all auth forms — no card wrapper anymore. */
+.bb-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  background: #FFFFFF;
+  border: 1px solid rgba(31, 36, 25, 0.15);
+  color: var(--color-ink);
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.bb-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.18);
+}
+
+.bb-input[readonly] {
+  background: rgba(31, 36, 25, 0.04);
+  opacity: 0.7;
+}
+
+/* Solid CTA — full-saturation accent, no transparency. */
+.bb-cta {
+  width: 100%;
+  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: var(--color-paper);
+  padding: 0.875rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--font-barlow-condensed);
+  transition: transform 0.1s, opacity 0.15s;
+}
+
+.bb-cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bb-cta:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Reduced motion: drop entrance animations. */
 @media (prefers-reduced-motion: reduce) {
   .bb-fade-up,
-  .bb-hero-in,
-  .bb-slide-in {
+  .bb-hero-in {
     animation: none;
     opacity: 1;
     transform: none;
   }
-  /* Topo renders fully static — no breathing, no sheen drift. */
-  .bb-topo-svg,
-  .bb-topo-sheen {
-    animation: none;
-    transform: none;
-  }
-  /* Hide the rotating accent ring entirely. SMIL animations can't be paused
-     via CSS, so display:none is the practical kill switch. */
-  .bb-topo-rotor {
-    display: none;
-  }
-  /* Stack the clauses statically — no rotation. */
   .bb-tagline {
     display: block;
     min-height: 0;

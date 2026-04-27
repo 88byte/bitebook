@@ -18,7 +18,6 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
     if (!displayName.trim()) return setError('Please enter your name.')
     setLoading(true)
 
-    // Server creates the user (admin), accepts the invite, returns nothing on success.
     const res = await fetch('/api/accept-invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -32,7 +31,6 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
       return
     }
 
-    // User now exists. Sign them in client-side so cookies land in the browser, then bounce to /app.
     const supabase = createClient()
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
     if (signInErr) {
@@ -44,68 +42,50 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
   }
 
   return (
-    <div
-      className="rounded-2xl p-6 backdrop-blur-sm"
-      style={{
-        background: 'rgba(255,255,255,0.85)',
-        border: '1px solid rgba(31,36,25,0.08)',
-        boxShadow: '0 1px 2px rgba(31,36,25,0.04), 0 8px 24px -12px rgba(31,36,25,0.18)',
-      }}
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          type="email"
-          value={email}
-          readOnly
-          aria-label="Email"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none"
-          style={{ background: 'rgba(31,36,25,0.05)', border: '1px solid rgba(31,36,25,0.15)', color: 'var(--color-ink)', opacity: 0.7 }}
-        />
-        <input
-          type="text"
-          autoComplete="name"
-          required
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Your name"
-          aria-label="Your name"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]"
-          style={{ background: 'white', border: '1px solid rgba(31,36,25,0.15)', color: 'var(--color-ink)' }}
-        />
-        <input
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          aria-label="Password"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]"
-          style={{ background: 'white', border: '1px solid rgba(31,36,25,0.15)', color: 'var(--color-ink)' }}
-        />
-        <input
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          placeholder="Confirm password"
-          aria-label="Confirm password"
-          className="w-full rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]"
-          style={{ background: 'white', border: '1px solid rgba(31,36,25,0.15)', color: 'var(--color-ink)' }}
-        />
-        {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wide transition-all disabled:opacity-40 active:scale-[0.98]"
-          style={{ background: 'var(--color-accent)', color: 'var(--color-paper)', fontFamily: 'var(--font-barlow-condensed)' }}
-        >
-          {loading ? 'Creating account…' : 'Create my account'}
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 w-full">
+      <input
+        type="email"
+        value={email}
+        readOnly
+        aria-label="Email"
+        className="bb-input"
+      />
+      <input
+        type="text"
+        autoComplete="name"
+        required
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="Your name"
+        aria-label="Your name"
+        className="bb-input"
+      />
+      <input
+        type="password"
+        autoComplete="new-password"
+        required
+        minLength={8}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        aria-label="Password"
+        className="bb-input"
+      />
+      <input
+        type="password"
+        autoComplete="new-password"
+        required
+        minLength={8}
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        placeholder="Confirm password"
+        aria-label="Confirm password"
+        className="bb-input"
+      />
+      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
+      <button type="submit" disabled={loading} className="bb-cta mt-1">
+        {loading ? 'Creating account…' : 'Create my account'}
+      </button>
+    </form>
   )
 }
