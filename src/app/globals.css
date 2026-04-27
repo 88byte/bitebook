@@ -427,6 +427,482 @@ body {
   padding: 1.5rem 1rem 1rem;
 }
 
+/* — In-app surfaces (signed-in product UI) —
+   The auth pages live on the dark page background with a paper-card lifted
+   over a forest hero. Once signed in, the product runs on a single paper
+   surface with white cards, copper accents, and ink text. Re-uses the same
+   tokens (paper / ink / copper / divider / soft) as auth — these are layout
+   primitives for the in-app shell, not new colors. */
+
+.bb-app-bg {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  min-height: 100dvh;
+}
+
+/* Top app bar — solid dark coffee with the wordmark on the left and a thin
+   row of nav links / actions on the right. Mirrors the dark mood of the auth
+   hero so the install transition from /login → /app feels continuous. */
+.bb-app-header {
+  background: var(--color-callout-bg);
+  color: var(--color-callout-text);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.bb-app-header-inner {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0.625rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.bb-app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bb-app-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.65rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.75rem;
+  color: var(--color-callout-text);
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bb-app-nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bb-app-nav a.is-active {
+  color: #FFFFFF;
+  background: rgba(176, 108, 60, 0.22);
+}
+
+.bb-app-signout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--color-callout-text);
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.bb-app-signout:hover { background: rgba(255, 255, 255, 0.06); }
+
+/* Page container inside /app */
+.bb-app-main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
+}
+
+@media (min-width: 48rem) {
+  .bb-app-main { padding: 1.75rem 1.5rem 5rem; }
+}
+
+/* Page header within an /app screen — back link, eyebrow, title, sub. */
+.bb-page-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+}
+
+.bb-page-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.625rem;
+  line-height: 1.05;
+  color: var(--color-ink);
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 40rem) {
+  .bb-page-title { font-size: 1.875rem; }
+}
+
+.bb-page-sub {
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
+  margin-top: 0.35rem;
+}
+
+/* Section title used on dashboard & detail screens */
+.bb-section-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
+/* Plain card on the paper background. Lighter shadow than the auth FormCard
+   since the in-app surface doesn't need to lift over a dark hero. */
+.bb-tile {
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.bb-tile-body { padding: 1rem 1rem; }
+
+@media (min-width: 40rem) {
+  .bb-tile-body { padding: 1.125rem 1.25rem; }
+}
+
+/* Stat card — three across on the dashboard */
+.bb-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.bb-stat-card {
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bb-stat-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.65rem;
+  color: var(--color-ink-soft);
+}
+
+.bb-stat-value {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1.05;
+  color: var(--color-ink);
+}
+
+/* Trip row — used in dashboard's recent list and the full /app/trips list.
+   Date column on the left, body in the middle, status pill on the right. */
+.bb-trip-row {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr auto;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, transform 0.05s;
+}
+
+.bb-trip-row + .bb-trip-row { margin-top: 0.5rem; }
+
+.bb-trip-row:hover { border-color: rgba(176, 108, 60, 0.45); }
+.bb-trip-row:active { transform: translateY(1px); }
+
+.bb-trip-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-barlow-condensed);
+  color: var(--color-ink-muted);
+  line-height: 1;
+}
+
+.bb-trip-date .m {
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.bb-trip-date .d {
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--color-ink);
+  margin-top: 0.15rem;
+}
+
+.bb-trip-body { min-width: 0; }
+
+.bb-trip-title {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-trip-meta {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--color-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status pill — small uppercase chip with status-specific tinting */
+.bb-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.bb-pill-planned   { background: #F1E9DA; color: #6B5530; }
+.bb-pill-active    { background: #DDE7DD; color: #2F5233; }
+.bb-pill-completed { background: #E5DDD0; color: #5C5247; }
+.bb-pill-canceled  { background: #F2D6CE; color: #8C3C2A; }
+
+/* Filter chip row (status filters on the trip list) */
+.bb-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bb-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-divider);
+  background: #FFFFFF;
+  color: var(--color-ink-muted);
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bb-chip:hover { border-color: rgba(176, 108, 60, 0.4); color: var(--color-ink); }
+
+.bb-chip.is-active {
+  background: var(--color-copper);
+  border-color: var(--color-copper);
+  color: #FFFFFF;
+}
+
+/* Empty-state block — used on the dashboard with no trips yet */
+.bb-empty {
+  text-align: center;
+  padding: 1.75rem 1rem 1.5rem;
+  border: 1px dashed var(--color-card-divider);
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.bb-empty-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--color-ink);
+}
+
+.bb-empty-sub {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+  max-width: 24rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Inline secondary button — used for "Mark closed" / share actions */
+.bb-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.625rem;
+  border: 1px solid rgba(31, 36, 25, 0.18);
+  background: #FFFFFF;
+  color: var(--color-ink);
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.bb-btn-secondary:hover {
+  background: #FBF7F0;
+  border-color: rgba(176, 108, 60, 0.35);
+}
+
+.bb-btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Compact CTA — same copper as .bb-cta but smaller for in-app actions */
+.bb-cta-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.95rem;
+  border-radius: 0.6rem;
+  background-color: var(--color-copper);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.1s, box-shadow 0.15s;
+}
+
+.bb-cta-sm:hover { box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2); }
+.bb-cta-sm:disabled { cursor: not-allowed; filter: brightness(0.92); }
+
+/* Definition list used on the trip detail header */
+.bb-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+}
+
+.bb-meta-row .sep { color: var(--color-ink-soft); }
+
+/* Hunter / harvest list rows on the detail screen */
+.bb-detail-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.bb-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.875rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.625rem;
+}
+
+.bb-avatar {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  background: #F1E9DA;
+  color: var(--color-copper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.bb-detail-name { font-weight: 600; font-size: 0.92rem; color: var(--color-ink); }
+.bb-detail-sub  { font-size: 0.78rem; color: var(--color-ink-soft); margin-top: 0.1rem; }
+
+/* Pagination row */
+.bb-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+}
+
+/* Form row helper for new-trip form (label above input) */
+.bb-form-row { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.bb-form-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: var(--color-ink-muted);
+}
+
+.bb-form-help {
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+}
+
+.bb-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
+.bb-segmented label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 0.5rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bb-segmented label:has(input:checked) {
+  background: var(--color-copper);
+  color: #FFFFFF;
+}
+
+.bb-segmented input { display: none; }
+
 /* Reduced motion: drop entrance animations. */
 @media (prefers-reduced-motion: reduce) {
   .bb-fade-up,
