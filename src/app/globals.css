@@ -462,17 +462,26 @@ body {
 
 /* Top app bar — solid dark coffee with the wordmark on the left and a thin
    row of nav links / actions on the right. Mirrors the dark mood of the auth
-   hero so the install transition from /login → /app feels continuous. */
+   hero so the install transition from /login → /app feels continuous.
+   The dark background extends into env(safe-area-inset-top) so the iOS status
+   bar (notch / Dynamic Island region) sits on the same color and doesn't
+   eat the nav links. The status-bar style is "black-translucent" (set in
+   layout.tsx via appleWebApp), so this is required for the header to be
+   tappable on iPhone in installed-PWA mode. */
 .bb-app-header {
   background: var(--color-callout-bg);
   color: var(--color-callout-text);
   border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  padding-top: env(safe-area-inset-top);
 }
 
 .bb-app-header-inner {
   max-width: 64rem;
   margin: 0 auto;
-  padding: 0.625rem 1rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -525,15 +534,24 @@ body {
 
 .bb-app-signout:hover { background: rgba(255, 255, 255, 0.06); }
 
-/* Page container inside /app */
+/* Page container inside /app. Side padding respects safe-area for landscape
+   notches; bottom padding clears the iPhone home indicator. */
 .bb-app-main {
   max-width: 44rem;
   margin: 0 auto;
-  padding: 1.25rem 1rem 4rem;
+  padding-top: 1.25rem;
+  padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
 }
 
 @media (min-width: 48rem) {
-  .bb-app-main { padding: 1.75rem 1.5rem 5rem; }
+  .bb-app-main {
+    padding-top: 1.75rem;
+    padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom)));
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
 }
 
 /* Page header within an /app screen — back link, eyebrow, title, sub. */
