@@ -2,7 +2,6 @@
 
 import { useActionState, useState } from 'react'
 import { Mail, Lock, Eye, EyeOff, Check, Loader2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { signInAction, type SignInState } from './actions'
 
 export default function LoginForm({
@@ -91,15 +90,4 @@ export default function LoginForm({
       </button>
     </form>
   )
-}
-
-// Magic-link sign-in is intentionally retained but not surfaced in the UI.
-// Kept as an exported helper so a future surface can re-enable the flow.
-export async function sendMagicLink(email: string, next?: string) {
-  const supabase = createClient()
-  const redirectTo = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
-  return supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-  })
 }

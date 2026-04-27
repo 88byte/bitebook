@@ -1,30 +1,27 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RLS WORKAROUND — read on this carefully.
+// /app data layer.
 //
-// The Supabase RLS policies on profiles / trips / trip_participants / harvests
-// are recursive (Postgres error 42P17). Until the DB-level fix lands (see
-// supabase/migrations/<date>_fix_rls_recursion.sql), every user-session read
-// of those tables errors out and breaks /app.
+// As of v22, the recursive RLS bug (Postgres 42P17) is fixed at the DB level
+// by supabase/migrations/20260427_fix_rls_recursion.sql — SECURITY DEFINER
+// helpers replaced the cross-table EXISTS clauses, so user-session reads on
+// profiles / trips / trip_participants / harvests work natively.
 //
-// This module wraps the admin (service-role) client so /app screens can keep
-// rendering. Service role bypasses RLS, so SECURITY of these queries lives in
-// THIS FILE — every helper requires a `guideId` that the caller has proven via
-// requireGuide() (which calls Supabase auth.getUser() to verify the JWT). Each
-// query enforces .eq('guide_id', guideId) (or an equivalent ownership check)
-// in code so a guide can only see their own data.
+// All queries here use the user-session client (createClient). RLS is now the
+// primary authorization boundary.
+//
+// Defense-in-depth: every helper still takes a verified `guideId` (from
+// requireGuide() → auth.getUser()) and applies `.eq('guide_id', guideId)`
+// where applicable. RLS already enforces this; the in-code filter is a second
+// layer in case a policy is ever broken or weakened. Keep the pattern unless
+// you understand both layers and have a reason to remove it.
 //
 // Rules:
 // - Every export takes guideId: string as the FIRST argument.
-// - Every query that returns a trip-scoped row filters by guide_id, OR
-//   filters by trip_id and verifies that trip's guide_id matches first.
 // - Never accept a guide_id from request input — only from requireGuide()'s
 //   verified profile.id.
-//
-// Once the SQL fix is applied, swap createAdminClient() → createClient() and
-// the explicit .eq('guide_id') filters become redundant (RLS handles them).
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Trip = Database['public']['Tables']['trips']['Row']
@@ -37,9 +34,6 @@ export type TripRowWithCounts = Pick<
 
 const RECENT_LIMIT = 10
 
-// Aggregate-count embeds (`trip_participants(count)`) require a JOIN that
-// touches the recursive policies even with admin (PostgREST builds the JOIN
-// before RLS kicks in, but admin is fine — leaving here for the comment).
 function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
   const tp = t.trip_participants as { count: number }[] | null | undefined
   const hv = t.harvests as { count: number }[] | null | undefined
@@ -57,8 +51,8 @@ function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
 }
 
 export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCounts[]> {
-  const admin = createAdminClient()
-  const { data, error } = await admin
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from('trips')
     .select(`id, title, status, starts_at, ends_at, location_name, kind,
              trip_participants(count), harvests(count)`)
@@ -76,8 +70,8 @@ export async function fetchTripsPage(
   guideId: string,
   opts: { status: TripStatus | 'all'; from: number; to: number }
 ): Promise<{ rows: TripRowWithCounts[]; total: number }> {
-  const admin = createAdminClient()
-  let query = admin
+  const supabase = await createClient()
+  let query = supabase
     .from('trips')
     .select(
       `id, title, status, starts_at, ends_at, location_name, kind,
@@ -103,21 +97,21 @@ export type DashboardStats = {
 }
 
 export async function fetchDashboardStats(guideId: string): Promise<DashboardStats> {
-  const admin = createAdminClient()
+  const supabase = await createClient()
   const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
 
   const [{ count: tripsThisYear }, hunterRows, harvestRows] = await Promise.all([
-    admin
+    supabase
       .from('trips')
       .select('id', { count: 'exact', head: true })
       .eq('guide_id', guideId)
       .gte('starts_at', yearStart),
-    admin
+    supabase
       .from('trip_participants')
       .select('hunter_id, guest_name, trips!inner(guide_id, starts_at)')
       .eq('trips.guide_id', guideId)
       .gte('trips.starts_at', yearStart),
-    admin
+    supabase
       .from('harvests')
       .select('quantity, trips!inner(guide_id, starts_at)')
       .eq('trips.guide_id', guideId)
@@ -154,10 +148,10 @@ export type TripDetail = {
 }
 
 export async function fetchTripDetail(guideId: string, tripId: string): Promise<TripDetail | null> {
-  const admin = createAdminClient()
-  // Verify ownership BEFORE we read any related rows. With admin client we
-  // must enforce the guide_id check explicitly — RLS isn't doing it for us.
-  const { data: trip, error: tripErr } = await admin
+  const supabase = await createClient()
+  // RLS gates this on guide_id = auth.uid(); the explicit .eq('guide_id') is
+  // defense-in-depth (see file header).
+  const { data: trip, error: tripErr } = await supabase
     .from('trips')
     .select('id, title, kind, status, starts_at, ends_at, location_name, notes')
     .eq('id', tripId)
@@ -166,27 +160,27 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
   if (tripErr || !trip) return null
 
   const [participantsRes, harvestsRes] = await Promise.all([
-    admin
+    supabase
       .from('trip_participants')
       .select('id, role, guest_name, hunter_id')
       .eq('trip_id', tripId),
-    admin
+    supabase
       .from('harvests')
       .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity')
       .eq('trip_id', tripId)
       .order('harvested_at', { ascending: false }),
   ])
 
-  // Resolve participant + harvest hunter names. Doing this in code instead of
-  // an embed because the recursive RLS makes embed-joins fragile, and admin
-  // doesn't share JOIN cost meaningfully here (rows are small per trip).
+  // Resolve participant + harvest hunter names in code rather than via embed.
+  // RLS on profiles allows the trip's guide to read participant profiles via
+  // the profiles_guide_sees_participants policy.
   const hunterIds = new Set<string>()
   ;(participantsRes.data ?? []).forEach((p) => p.hunter_id && hunterIds.add(p.hunter_id))
   ;(harvestsRes.data ?? []).forEach((h) => h.hunter_id && hunterIds.add(h.hunter_id))
 
   const profilesMap = new Map<string, { id: string; display_name: string }>()
   if (hunterIds.size > 0) {
-    const { data: profiles } = await admin
+    const { data: profiles } = await supabase
       .from('profiles')
       .select('id, display_name')
       .in('id', Array.from(hunterIds))
@@ -219,10 +213,8 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
 export type HunterCandidate = { id: string; display_name: string }
 
 export async function fetchAcceptedHunters(guideId: string): Promise<HunterCandidate[]> {
-  const admin = createAdminClient()
-  // invitations is RLS-clean, so we could use the user client — but we use
-  // admin everywhere in this file for consistency. guide_id filter pinned.
-  const { data: accepted } = await admin
+  const supabase = await createClient()
+  const { data: accepted } = await supabase
     .from('invitations')
     .select('accepted_by')
     .eq('guide_id', guideId)
@@ -233,7 +225,7 @@ export async function fetchAcceptedHunters(guideId: string): Promise<HunterCandi
   )
   if (ids.length === 0) return []
 
-  const { data: profiles } = await admin
+  const { data: profiles } = await supabase
     .from('profiles')
     .select('id, display_name')
     .in('id', ids)
@@ -241,7 +233,7 @@ export async function fetchAcceptedHunters(guideId: string): Promise<HunterCandi
   return (profiles ?? []).sort((a, b) => a.display_name.localeCompare(b.display_name))
 }
 
-// Mutations — same admin-with-explicit-guide_id pattern.
+// Mutations — RLS gates ownership; explicit .eq('guide_id') is defense-in-depth.
 
 export async function insertTrip(
   guideId: string,
@@ -254,8 +246,8 @@ export async function insertTrip(
     notes: string | null
   }
 ): Promise<{ id: string } | { error: string }> {
-  const admin = createAdminClient()
-  const { data, error } = await admin
+  const supabase = await createClient()
+  const { data, error } = await supabase
     .from('trips')
     .insert({ ...input, guide_id: guideId })
     .select('id')
@@ -273,10 +265,10 @@ export async function insertTripParticipants(
   hunterIds: string[]
 ): Promise<{ ok: true } | { error: string }> {
   if (hunterIds.length === 0) return { ok: true }
-  const admin = createAdminClient()
+  const supabase = await createClient()
 
   // Reverify the trip belongs to this guide before inserting children.
-  const { data: trip } = await admin
+  const { data: trip } = await supabase
     .from('trips')
     .select('id')
     .eq('id', tripId)
@@ -285,7 +277,7 @@ export async function insertTripParticipants(
   if (!trip) return { error: 'Trip not found.' }
 
   const rows = hunterIds.map((hunter_id) => ({ trip_id: tripId, hunter_id }))
-  const { error } = await admin.from('trip_participants').insert(rows)
+  const { error } = await supabase.from('trip_participants').insert(rows)
   if (error) {
     console.warn('[queries.insertTripParticipants]', { guideId, tripId, code: error.code, message: error.message })
     return { error: error.message }
@@ -294,8 +286,8 @@ export async function insertTripParticipants(
 }
 
 export async function closeTrip(guideId: string, tripId: string): Promise<{ ok: true } | { error: string }> {
-  const admin = createAdminClient()
-  const { error } = await admin
+  const supabase = await createClient()
+  const { error } = await supabase
     .from('trips')
     .update({ status: 'completed' })
     .eq('id', tripId)

@@ -8,10 +8,9 @@ import type { Database } from '@/lib/supabase/types'
 
 type Kind = Database['public']['Enums']['harvest_kind']
 
-// All writes route through admin-client helpers in queries.ts so the RLS
-// recursion (Postgres 42P17 on profiles/trips/trip_participants) doesn't
-// take them down. Each helper takes the verified guideId from requireGuide()
-// and enforces guide_id ownership in code.
+// All writes route through helpers in queries.ts. Each takes the verified
+// guideId from requireGuide(); RLS gates ownership on the DB side, with
+// .eq('guide_id', guideId) as defense-in-depth.
 export async function createTripAction(formData: FormData) {
   const { profile } = await requireGuide()
 
