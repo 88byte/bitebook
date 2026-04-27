@@ -15,18 +15,18 @@ export default function Hero({
   subtitle: string
 }) {
   return (
-    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-8 pb-16 sm:pt-12 sm:pb-24 min-h-[68vh] sm:min-h-[62vh] md:min-h-[58vh] overflow-hidden">
-      <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-44 pointer-events-none" aria-hidden="true" />
+    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-6 pb-12 sm:pt-10 sm:pb-20 min-h-[52vh] sm:min-h-[58vh] md:min-h-[56vh] overflow-hidden">
+      <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-32 pointer-events-none" aria-hidden="true" />
 
-      <div className="bb-hero-in relative z-10 flex flex-col items-center gap-3 sm:gap-4 max-w-md w-full">
+      <div className="bb-hero-in relative z-10 flex flex-col items-center gap-2 sm:gap-3 max-w-md w-full">
         <Link href="/" aria-label="Bite Book home">
           <Image
             src="/bb-logo-mark.png"
             alt="Bite Book"
             width={1024}
             height={1024}
-            sizes="(min-width: 1024px) 380px, (min-width: 768px) 320px, 210px"
-            className="h-[210px] w-[210px] sm:h-[270px] sm:w-[270px] md:h-[320px] md:w-[320px] lg:h-[380px] lg:w-[380px]"
+            sizes="(min-width: 1024px) 360px, (min-width: 768px) 300px, 170px"
+            className="h-[170px] w-[170px] sm:h-[240px] sm:w-[240px] md:h-[300px] md:w-[300px] lg:h-[360px] lg:w-[360px]"
             priority
           />
         </Link>
@@ -43,15 +43,15 @@ export default function Hero({
 
         <p className="bb-subtitle max-w-[20rem] sm:max-w-[24rem]">{subtitle}</p>
 
-        <div className="bb-flourish-row mt-2" aria-hidden="true">
+        <div className="bb-flourish-row mt-1" aria-hidden="true">
           <FlourishLine />
           <Image
             src="/bb-antlers.png"
             alt=""
             width={624}
             height={624}
-            sizes="(min-width: 768px) 70px, 60px"
-            className="h-[60px] w-[60px] sm:h-[66px] sm:w-[66px] md:h-[70px] md:w-[70px]"
+            sizes="(min-width: 768px) 64px, 54px"
+            className="h-[54px] w-[54px] sm:h-[60px] sm:w-[60px] md:h-[64px] md:w-[64px]"
           />
           <FlourishLine />
         </div>

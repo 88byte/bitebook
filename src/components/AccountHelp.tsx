@@ -2,9 +2,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { HelpCircle, UserPlus } from 'lucide-react'
 
-const SUPPORT_EMAIL = 'support@lastbite.pro'
-const LEARN_MORE_HREF = `mailto:${SUPPORT_EMAIL}?subject=Bite%20Book%20hunter%20invite`
-
 // Footer block beneath the LoginForm: account-help divider, two side-by-side
 // helper links (Forgot password / Create guide account), and the dark hunter
 // callout card with the shield image. Used on / and /login.
@@ -37,9 +34,6 @@ export default function AccountHelp() {
         <div className="bb-callout-text">
           <span className="bb-callout-title">Hunters: Bite Book is invite-only.</span>
           <span>Ask your guide for an invite.</span>
-          <a href={LEARN_MORE_HREF} className="bb-callout-link bb-callout-learn">
-            Learn more
-          </a>
         </div>
       </div>
     </>

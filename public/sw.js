@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bitebook-v14'
+const CACHE_NAME = 'bitebook-v15'
 // HTML pages (incl. '/') are served network-first so updates always show up when online.
 // Only static assets sit in the cache-first shell list.
 const SHELL_ASSETS = [
