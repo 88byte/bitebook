@@ -44,8 +44,27 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
   const { pathname, searchParams } = request.nextUrl
+
+  // Diagnostic logs (v19) — tail in Vercel runtime logs to trace the auth
+  // chain hop-by-hop. Names only, never values, so no token leakage.
+  const incomingCookieNames = request.cookies.getAll().map((c) => c.name)
+  const sbCookies = incomingCookieNames.filter((n) => n.startsWith('sb-'))
+  console.log('[proxy] request', {
+    path: pathname,
+    search: request.nextUrl.search || '',
+    sbCookieCount: sbCookies.length,
+    sbCookies,
+    hasRemember: incomingCookieNames.includes(REMEMBER_COOKIE),
+  })
+
+  const { data: { user }, error: getUserErr } = await supabase.auth.getUser()
+  console.log('[proxy] getUser', {
+    path: pathname,
+    hasUser: !!user,
+    userId: user?.id ?? null,
+    error: getUserErr ? { code: getUserErr.code, status: getUserErr.status, message: getUserErr.message } : null,
+  })
 
   // Protect /app routes
   if (!user && pathname.startsWith('/app')) {
@@ -53,6 +72,7 @@ export async function proxy(request: NextRequest) {
     url.pathname = '/login'
     url.search = ''
     url.searchParams.set('next', pathname)
+    console.log('[proxy] redirect', { from: pathname, to: '/login', reason: 'no_user_on_app' })
     return redirectWithCookies(url, supabaseResponse)
   }
 
@@ -62,13 +82,17 @@ export async function proxy(request: NextRequest) {
   //      sent them here. Bouncing back would loop. Render the page instead.
   //   2. Honor ?next= so post-login flows don't double-redirect.
   if (user && (pathname === '/login' || pathname === '/signup')) {
-    if (searchParams.has('error')) return supabaseResponse
+    if (searchParams.has('error')) {
+      console.log('[proxy] no-bounce', { path: pathname, reason: 'has_error_param' })
+      return supabaseResponse
+    }
 
     const next = searchParams.get('next')
     const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/app'
     const url = request.nextUrl.clone()
     url.pathname = safeNext
     url.search = ''
+    console.log('[proxy] redirect', { from: pathname, to: safeNext, reason: 'signed_in_on_login' })
     return redirectWithCookies(url, supabaseResponse)
   }
 

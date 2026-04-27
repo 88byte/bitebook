@@ -13,8 +13,16 @@ import { createClient } from '@/lib/supabase/server'
 // public and never bounces signed-in users, so it's a safe terminal.
 export async function requireGuide() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login?next=/app')
+  const { data: { user }, error: getUserErr } = await supabase.auth.getUser()
+  console.log('[requireGuide] getUser', {
+    hasUser: !!user,
+    userId: user?.id ?? null,
+    error: getUserErr ? { code: getUserErr.code, status: getUserErr.status, message: getUserErr.message } : null,
+  })
+  if (!user) {
+    console.log('[requireGuide] redirect to /login', { reason: 'no_user' })
+    redirect('/login?next=/app')
+  }
 
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
@@ -22,18 +30,26 @@ export async function requireGuide() {
     .eq('id', user.id)
     .maybeSingle()
 
+  console.log('[requireGuide] profile lookup', {
+    userId: user.id,
+    found: !!profile,
+    role: profile?.role ?? null,
+    error: profileErr ? { code: profileErr.code, message: profileErr.message } : null,
+  })
+
   if (profileErr) {
     // Surfaced to Vercel logs so we can debug RLS / schema issues without
     // changing UX. The user gets a non-looping redirect to landing.
-    console.warn('requireGuide profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
+    console.warn('[requireGuide] profiles read failed → /?error=profile_unavailable', { userId: user.id, code: profileErr.code, message: profileErr.message })
     redirect('/?error=profile_unavailable')
   }
   if (!profile) {
-    console.warn('requireGuide profile missing for signed-in user', { userId: user.id })
+    console.warn('[requireGuide] profile missing → /?error=no_profile', { userId: user.id })
     redirect('/?error=no_profile')
   }
   if (profile.role !== 'guide') {
     // Hunter / admin landing on /app. Slice 1 only ships guide screens.
+    console.warn('[requireGuide] wrong role → /?error=guide_only', { userId: user.id, role: profile.role })
     redirect('/?error=guide_only')
   }
 

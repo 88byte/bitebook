@@ -1,46 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useActionState, useState } from 'react'
 import { Mail, Lock, Eye, EyeOff, Check, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { REMEMBER_COOKIE, REMEMBER_MAX_AGE } from '@/lib/cookies'
+import { signInAction, type SignInState } from './actions'
 
-export default function LoginForm({ next }: { next?: string }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+export default function LoginForm({
+  next,
+  initialError,
+}: {
+  next?: string
+  initialError?: string | null
+}) {
+  const [state, formAction, pending] = useActionState<SignInState, FormData>(
+    signInAction,
+    initialError ? { error: initialError } : null
+  )
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  function setRememberCookie(value: boolean) {
-    if (typeof document === 'undefined') return
-    const opts = `path=/; SameSite=Lax`
-    if (value) {
-      document.cookie = `${REMEMBER_COOKIE}=1; max-age=${REMEMBER_MAX_AGE}; ${opts}`
-    } else {
-      document.cookie = `${REMEMBER_COOKIE}=; max-age=0; ${opts}`
-    }
-  }
-
-  async function signInWithPassword(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setRememberCookie(remember)
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) {
-      setError(humanizeError(error.message))
-      return
-    }
-    window.location.assign(next || '/app')
-  }
 
   return (
-    <form onSubmit={signInWithPassword} className="flex flex-col gap-3 w-full">
+    <form action={formAction} className="flex flex-col gap-3 w-full">
+      <input type="hidden" name="next" value={next ?? '/app'} />
+
       <label className="bb-field">
         <span className="bb-field-icon"><Mail size={18} aria-hidden="true" /></span>
         <input
@@ -48,8 +29,6 @@ export default function LoginForm({ next }: { next?: string }) {
           name="email"
           autoComplete="email"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
           placeholder="Email address"
           aria-label="Email address"
           className="bb-input bb-input-iconed"
@@ -60,11 +39,9 @@ export default function LoginForm({ next }: { next?: string }) {
         <span className="bb-field-icon"><Lock size={18} aria-hidden="true" /></span>
         <input
           type={showPassword ? 'text' : 'password'}
-          name="current-password"
+          name="password"
           autoComplete="current-password"
           required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           aria-label="Password"
           className="bb-input bb-input-iconed bb-input-actioned"
@@ -81,25 +58,29 @@ export default function LoginForm({ next }: { next?: string }) {
 
       <label className="bb-check-row mt-1">
         <span className="bb-check">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-          />
+          <input type="checkbox" name="remember" defaultChecked />
           <Check size={14} strokeWidth={3} className="bb-check-mark" aria-hidden="true" />
         </span>
         Remember me on this device
       </label>
 
-      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
+      {state?.error && (
+        <div
+          role="alert"
+          className="rounded-lg px-3 py-2 text-xs"
+          style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+        >
+          {state.error}
+        </div>
+      )}
 
       <button
         type="submit"
-        disabled={loading || !email || !password}
+        disabled={pending}
         className="bb-cta mt-2"
-        aria-busy={loading}
+        aria-busy={pending}
       >
-        {loading ? (
+        {pending ? (
           <span className="inline-flex items-center gap-2">
             <Loader2 size={18} className="bb-spin" aria-hidden="true" />
             Signing in…
@@ -121,11 +102,4 @@ export async function sendMagicLink(email: string, next?: string) {
     email,
     options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
   })
-}
-
-function humanizeError(msg: string): string {
-  if (/invalid login credentials/i.test(msg)) return 'Email or password is incorrect.'
-  if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox.'
-  if (/over.*rate/i.test(msg)) return 'Too many attempts. Try again in a minute.'
-  return msg
 }
