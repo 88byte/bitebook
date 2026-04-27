@@ -63,7 +63,7 @@ body {
 .bb-hero {
   background-image: url('/bb-hero-bg.png');
   background-size: cover;
-  background-position: center top;
+  background-position: center center;
   background-color: var(--color-page-bg);
 }
 
