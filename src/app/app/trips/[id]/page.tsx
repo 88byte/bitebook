@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft, Plus, Share2, Lock, Pencil } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
+import { fetchTripDetail } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
 import { closeTripAction } from '../actions'
 import { tripDateRange, timeOfDay, initials, relativeOrDate } from '../../_lib/format'
@@ -10,45 +11,12 @@ type RouteParams = Promise<{ id: string }>
 
 export default async function TripDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params
-  const { supabase, profile } = await requireGuide()
+  const { profile } = await requireGuide()
 
-  const { data: trip } = await supabase
-    .from('trips')
-    .select(
-      `id, title, kind, status, starts_at, ends_at, location_name, notes,
-       trip_participants(id, role, guest_name, hunter_id,
-         profiles:hunter_id(id, display_name)
-       ),
-       harvests(id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity,
-         hunters:hunter_id(display_name)
-       )`
-    )
-    .eq('id', id)
-    .eq('guide_id', profile.id)
-    .maybeSingle()
+  const detail = await fetchTripDetail(profile.id, id)
+  if (!detail) notFound()
 
-  if (!trip) notFound()
-
-  const participants = (trip.trip_participants ?? []) as Array<{
-    id: string
-    role: string
-    guest_name: string | null
-    hunter_id: string | null
-    profiles: { id: string; display_name: string } | null
-  }>
-
-  const harvests = (trip.harvests ?? []) as Array<{
-    id: string
-    kind: string
-    species_name: string | null
-    harvested_at: string
-    tag_number: string | null
-    notes: string | null
-    hunter_id: string | null
-    quantity: number
-    hunters: { display_name: string } | null
-  }>
-
+  const { trip, participants, harvests } = detail
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
 
   return (
@@ -142,14 +110,14 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         ) : (
           <div className="bb-detail-list">
             {participants.map((p) => {
-              const name = p.profiles?.display_name ?? p.guest_name ?? 'Unnamed hunter'
+              const name = p.profile?.display_name ?? p.guest_name ?? 'Unnamed hunter'
               return (
                 <div key={p.id} className="bb-detail-row">
                   <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
                   <div className="flex-1 min-w-0">
                     <div className="bb-detail-name">{name}</div>
                     <div className="bb-detail-sub">
-                      {p.profiles ? 'Bite Book hunter' : 'Guest'} · {p.role}
+                      {p.profile ? 'Bite Book hunter' : 'Guest'} · {p.role}
                     </div>
                   </div>
                 </div>
@@ -171,7 +139,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         ) : (
           <div className="bb-detail-list">
             {harvests.map((h) => {
-              const hunterName = h.hunters?.display_name ?? 'Unknown hunter'
+              const hunterName = h.hunter_name ?? 'Unknown hunter'
               const species = h.species_name ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
               return (
                 <div key={h.id} className="bb-detail-row">

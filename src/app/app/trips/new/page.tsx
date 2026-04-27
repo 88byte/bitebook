@@ -1,28 +1,12 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
+import { fetchAcceptedHunters } from '../../_lib/queries'
 import NewTripForm from './NewTripForm'
 
 export default async function NewTripPage() {
-  const { supabase, profile } = await requireGuide()
-
-  // Build the hunter candidate list from invitations this guide has sent
-  // and that have been accepted. RLS on invitations restricts to guide_id =
-  // self, so the .eq() is belt-and-braces.
-  const { data: accepted } = await supabase
-    .from('invitations')
-    .select('accepted_by, profile:profiles!invitations_accepted_by_fkey(id, display_name)')
-    .eq('guide_id', profile.id)
-    .eq('status', 'accepted')
-
-  type HunterCandidate = { id: string; display_name: string }
-  const candidateRows = (accepted ?? []) as Array<{ profile: HunterCandidate | null }>
-  const hunters = candidateRows
-    .map((row) => row.profile)
-    .filter((p): p is HunterCandidate => !!p && !!p.id)
-    // de-dupe — a hunter might have been re-invited
-    .filter((p, idx, arr) => arr.findIndex((q) => q.id === p.id) === idx)
-    .sort((a, b) => a.display_name.localeCompare(b.display_name))
+  const { profile } = await requireGuide()
+  const hunters = await fetchAcceptedHunters(profile.id)
 
   return (
     <main className="bb-app-main">

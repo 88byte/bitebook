@@ -3,6 +3,7 @@ import Hero from '@/components/Hero'
 import FormCard from '@/components/FormCard'
 import AccountHelp from '@/components/AccountHelp'
 import Footer from '@/components/Footer'
+import { signOutAction } from './actions'
 
 export const metadata = { title: 'Sign In — Bite Book' }
 
@@ -20,10 +21,10 @@ const ERROR_COPY: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>
+  searchParams: Promise<{ next?: string; error?: string; cleared?: string }>
 }) {
-  const { next, error } = await searchParams
-  const banner = error ? (ERROR_COPY[error] ?? 'Sign in failed. Please try again or email support@lastbite.pro.') : null
+  const { next, error, cleared } = await searchParams
+  const errorBanner = error ? (ERROR_COPY[error] ?? 'Sign in failed. Please try again or email support@lastbite.pro.') : null
 
   return (
     <main className="flex flex-col min-h-screen">
@@ -35,16 +36,39 @@ export default async function LoginPage({
 
       <section className="px-6 pb-12">
         <FormCard headerText="Sign in">
-          {banner && (
+          {cleared && (
+            <p
+              role="status"
+              className="mb-3 rounded-lg px-3 py-2 text-xs text-center"
+              style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}
+            >
+              Session cleared. You can sign in fresh now.
+            </p>
+          )}
+          {errorBanner && (
             <p
               role="alert"
               className="mb-3 rounded-lg px-3 py-2 text-xs text-center"
               style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
             >
-              {banner}
+              {errorBanner}
             </p>
           )}
           <LoginForm next={next} initialError={null} />
+
+          {/* Escape hatch — if cookies got into a wedged state on a prior
+              attempt, this button hits the server action that revokes the
+              Supabase session and clears every sb-* cookie before reloading. */}
+          <form action={signOutAction} className="mt-3">
+            <button
+              type="submit"
+              className="w-full text-xs text-center underline"
+              style={{ color: 'var(--color-ink-soft)' }}
+            >
+              Stuck in a redirect loop? Clear session and try again.
+            </button>
+          </form>
+
           <AccountHelp />
         </FormCard>
       </section>

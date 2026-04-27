@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
+import { fetchTripsPage } from '../_lib/queries'
 import TripRow from '../_components/TripRow'
 import type { Database } from '@/lib/supabase/types'
 
@@ -18,7 +19,7 @@ const STATUSES: { key: TripStatus | 'all'; label: string }[] = [
 type SearchParams = Promise<{ status?: string; page?: string }>
 
 export default async function TripsListPage({ searchParams }: { searchParams: SearchParams }) {
-  const { supabase, profile } = await requireGuide()
+  const { profile } = await requireGuide()
   const params = await searchParams
 
   const statusParam = params.status as TripStatus | 'all' | undefined
@@ -29,33 +30,8 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  let query = supabase
-    .from('trips')
-    .select(
-      `id, title, status, starts_at, ends_at, location_name, kind,
-       trip_participants(count),
-       harvests(count)`,
-      { count: 'exact' }
-    )
-    .eq('guide_id', profile.id)
-    .order('starts_at', { ascending: false })
-    .range(from, to)
-
-  if (status !== 'all') query = query.eq('status', status)
-
-  const { data: trips, count } = await query
-  const total = count ?? 0
+  const { rows, total } = await fetchTripsPage(profile.id, { status, from, to })
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  const rows = (trips ?? []).map((t) => {
-    const tp = t.trip_participants as unknown as { count: number }[] | null
-    const hv = t.harvests as unknown as { count: number }[] | null
-    return {
-      ...t,
-      hunters: tp?.[0]?.count ?? 0,
-      harvests: hv?.[0]?.count ?? 0,
-    }
-  })
 
   function chipHref(key: TripStatus | 'all') {
     const sp = new URLSearchParams()

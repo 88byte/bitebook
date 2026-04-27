@@ -3,15 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from '../_lib/auth'
+import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
 import type { Database } from '@/lib/supabase/types'
 
 type Kind = Database['public']['Enums']['harvest_kind']
 
-// Create a trip + its initial trip_participants. Server-only — auth and guide
-// gating run inside requireGuide(); RLS on trips/trip_participants does the
-// final enforcement, so even a forged guide_id would be rejected.
+// All writes route through admin-client helpers in queries.ts so the RLS
+// recursion (Postgres 42P17 on profiles/trips/trip_participants) doesn't
+// take them down. Each helper takes the verified guideId from requireGuide()
+// and enforces guide_id ownership in code.
 export async function createTripAction(formData: FormData) {
-  const { supabase, profile } = await requireGuide()
+  const { profile } = await requireGuide()
 
   const title = String(formData.get('title') ?? '').trim()
   const kind = (String(formData.get('kind') ?? 'hunting').trim() as Kind)
@@ -33,50 +35,38 @@ export async function createTripAction(formData: FormData) {
     notesInput,
   ].filter(Boolean).join('\n\n') || null
 
-  const { data: trip, error: tripErr } = await supabase
-    .from('trips')
-    .insert({
-      guide_id: profile.id,
-      title,
-      kind,
-      starts_at: new Date(startsAt).toISOString(),
-      ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-      location_name: locationName || null,
-      notes,
-      // status defaults to 'planned' per schema
-    })
-    .select('id')
-    .single()
-
-  if (tripErr || !trip) throw new Error(tripErr?.message ?? 'Could not create trip.')
+  const insertResult = await insertTrip(profile.id, {
+    title,
+    kind,
+    starts_at: new Date(startsAt).toISOString(),
+    ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+    location_name: locationName || null,
+    notes,
+  })
+  if ('error' in insertResult) throw new Error(insertResult.error)
 
   if (hunterIds.length > 0) {
-    const rows = hunterIds.map((hunter_id) => ({ trip_id: trip.id, hunter_id }))
-    const { error: partErr } = await supabase.from('trip_participants').insert(rows)
-    if (partErr) {
+    const partResult = await insertTripParticipants(profile.id, insertResult.id, hunterIds)
+    if ('error' in partResult) {
       // Trip itself is committed; surface the partial-success state instead of
       // rolling back. The detail screen can show "no participants yet" and the
       // guide can re-add from there.
-      console.warn('trip_participants insert failed', partErr.message)
+      console.warn('[createTripAction] participants insert failed', partResult.error)
     }
   }
 
   revalidatePath('/app')
   revalidatePath('/app/trips')
-  redirect(`/app/trips/${trip.id}`)
+  redirect(`/app/trips/${insertResult.id}`)
 }
 
 export async function closeTripAction(formData: FormData) {
-  const { supabase, profile } = await requireGuide()
+  const { profile } = await requireGuide()
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) throw new Error('Missing trip id.')
 
-  const { error } = await supabase
-    .from('trips')
-    .update({ status: 'completed' })
-    .eq('id', tripId)
-    .eq('guide_id', profile.id)
-  if (error) throw new Error(error.message)
+  const result = await closeTrip(profile.id, tripId)
+  if ('error' in result) throw new Error(result.error)
 
   revalidatePath('/app')
   revalidatePath('/app/trips')

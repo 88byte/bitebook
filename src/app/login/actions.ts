@@ -79,3 +79,38 @@ function humanizeError(msg: string): string {
   if (/over.*rate/i.test(msg)) return 'Too many attempts. Try again in a minute.'
   return msg
 }
+
+// Escape-hatch sign-out for users stuck in a redirect loop. Calls Supabase's
+// signOut to revoke the session server-side, then explicitly deletes every
+// sb-* cookie + the remember flag. Belt-and-braces so a partial state can't
+// leave the browser still appearing "signed in" to middleware.
+export async function signOutAction() {
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  await supabase.auth.signOut().catch(() => {})
+
+  // Explicit cleanup — covers the case where signOut() partially failed.
+  cookieStore.getAll().forEach((c) => {
+    if (c.name.startsWith('sb-') || c.name === REMEMBER_COOKIE) {
+      cookieStore.delete(c.name)
+    }
+  })
+
+  console.log('[signOutAction] cleared session')
+  redirect('/login?cleared=1')
+}
