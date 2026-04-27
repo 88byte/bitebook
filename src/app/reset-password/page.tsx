@@ -12,7 +12,7 @@ export default async function ResetPasswordPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   return (
-    <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
+    <main className="flex flex-col min-h-screen">
       <Hero
         taglineLine1="Set a new password."
         subtitle="Pick something strong. We&rsquo;ll keep you signed in after."

@@ -14,7 +14,7 @@ export default async function ForgotPasswordPage({
   const { email } = await searchParams
 
   return (
-    <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
+    <main className="flex flex-col min-h-screen">
       <Hero
         taglineLine1="Reset your password."
         subtitle="We&rsquo;ll email you a link to set a new one."

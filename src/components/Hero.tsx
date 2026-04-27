@@ -1,13 +1,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
-// Hero — the dark forest scene background, large skull/wordmark on top of it,
-// antler flourish, two-line bold tagline in copper sienna, and a small light
-// subtitle. The whole composition is static (no animation beyond the initial
-// fade-in handled by .bb-hero-in).
-//
-// Tagline: pass two lines (rendered stacked, second line slightly less weight
-// emphasis through line break). Subtitle: a single sentence.
+// Hero — dark forest scene at top, large skull/wordmark, antler row with
+// gun-sight pip flourishes, two-line bold copper tagline, light subtitle.
+// Static (entrance fade only). The bottom of the section gradient-fades into
+// the unified dark page background so there's no visible seam.
 export default function Hero({
   taglineLine1,
   taglineLine2,
@@ -19,9 +16,7 @@ export default function Hero({
 }) {
   return (
     <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-12 pb-24 sm:pt-16 sm:pb-32 min-h-[78vh] sm:min-h-[72vh] md:min-h-[68vh] overflow-hidden">
-      {/* Bottom fade — softens the boundary where the form card lifts up over
-          the hero so the join feels intentional, not jarring. */}
-      <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-40 pointer-events-none" aria-hidden="true" />
+      <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-44 pointer-events-none" aria-hidden="true" />
 
       <div className="bb-hero-in relative z-10 flex flex-col items-center gap-4 sm:gap-5 max-w-md w-full">
         <Link href="/" aria-label="Bite Book home">
@@ -36,15 +31,18 @@ export default function Hero({
           />
         </Link>
 
-        <Image
-          src="/bb-antlers.png"
-          alt=""
-          width={624}
-          height={624}
-          sizes="(min-width: 768px) 220px, 180px"
-          className="h-[140px] w-[140px] sm:h-[170px] sm:w-[170px] md:h-[200px] md:w-[200px] -mt-2"
-          aria-hidden="true"
-        />
+        <div className="bb-flourish-row" aria-hidden="true">
+          <FlourishPip side="left" />
+          <Image
+            src="/bb-antlers.png"
+            alt=""
+            width={624}
+            height={624}
+            sizes="(min-width: 768px) 130px, 100px"
+            className="h-[100px] w-[100px] sm:h-[120px] sm:w-[120px] md:h-[140px] md:w-[140px]"
+          />
+          <FlourishPip side="right" />
+        </div>
 
         <h1 className="bb-tagline-bold leading-tight">
           {taglineLine1}
@@ -59,5 +57,26 @@ export default function Hero({
         <p className="bb-subtitle max-w-[20rem] sm:max-w-[24rem]">{subtitle}</p>
       </div>
     </section>
+  )
+}
+
+// Small ornament: a copper diamond pip + horizontal hash. Mirrored on each
+// side of the antler row so the antlers read as a centered emblem.
+function FlourishPip({ side }: { side: 'left' | 'right' }) {
+  const flip = side === 'right' ? { transform: 'scaleX(-1)' } : undefined
+  return (
+    <svg
+      width="44"
+      height="10"
+      viewBox="0 0 44 10"
+      fill="none"
+      style={flip}
+      aria-hidden="true"
+    >
+      {/* Long line */}
+      <line x1="14" y1="5" x2="42" y2="5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.85" />
+      {/* Diamond pip */}
+      <path d="M5 5 L9 1 L13 5 L9 9 Z" fill="currentColor" opacity="0.9" />
+    </svg>
   )
 }

@@ -6,7 +6,7 @@ import Footer from '@/components/Footer'
 
 export default function Home() {
   return (
-    <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
+    <main className="flex flex-col min-h-screen">
       <Hero
         taglineLine1="Track every hunt."
         taglineLine2="Build your history."

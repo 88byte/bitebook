@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v12'
+const BUILD_TAG = 'v13'
 
 const barlow = Barlow({
   variable: '--font-barlow',
@@ -20,7 +20,7 @@ const barlow = Barlow({
 const barlowCondensed = Barlow_Condensed({
   variable: '--font-barlow-condensed',
   subsets: ['latin'],
-  weight: ['700'],
+  weight: ['700', '800'],
   display: 'swap',
 })
 
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#B45309',
+  themeColor: '#0B0806',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',

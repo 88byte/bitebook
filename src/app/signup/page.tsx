@@ -14,7 +14,7 @@ export default async function SignupPage({
   const { canceled } = await searchParams
 
   return (
-    <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
+    <main className="flex flex-col min-h-screen">
       <Hero
         taglineLine1="Start your trial."
         subtitle="7 days free. No card required. Built with guides."
