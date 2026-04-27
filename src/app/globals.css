@@ -313,8 +313,11 @@ body {
 }
 
 .bb-cta:disabled {
-  background-color: #8C5530;
+  /* Keep the copper color identical to active so the button matches the
+     tagline at any state. Only signal non-interactivity via cursor and a
+     barely-perceptible brightness nudge — color does not shift. */
   cursor: not-allowed;
+  filter: brightness(0.92);
 }
 
 .bb-cta:not(:disabled):hover {
