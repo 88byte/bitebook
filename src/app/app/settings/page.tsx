@@ -22,20 +22,22 @@ export default async function SettingsPage() {
         <p className="bb-page-sub">Your guide profile is what hunters and wardens see when you share a trip.</p>
       </header>
 
-      <section className="bb-tile mt-4">
-        <div className="bb-tile-body">
-          <SettingsForm
-            initial={{
-              business_name: full?.business_name ?? '',
-              state: full?.state ?? '',
-              license_number: full?.license_number ?? '',
-              max_party_size: full?.max_party_size ?? 6,
-              specialties: full?.specialties ?? [],
-              bio: full?.bio ?? '',
-            }}
-          />
-        </div>
-      </section>
+      <div className="bb-form-narrow">
+        <section className="bb-tile mt-4">
+          <div className="bb-tile-body">
+            <SettingsForm
+              initial={{
+                business_name: full?.business_name ?? '',
+                state: full?.state ?? '',
+                license_number: full?.license_number ?? '',
+                max_party_size: full?.max_party_size ?? 6,
+                specialties: full?.specialties ?? [],
+                bio: full?.bio ?? '',
+              }}
+            />
+          </div>
+        </section>
+      </div>
     </main>
   )
 }

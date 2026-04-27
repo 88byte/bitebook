@@ -928,6 +928,15 @@ body {
 /* Form row helper for new-trip form (label above input) */
 .bb-form-row { display: flex; flex-direction: column; gap: 0.35rem; }
 
+/* v25.4: cap form widths on desktop so width:100% inputs don't grow huge.
+   Mobile is already capped via .bb-app-main max-width 44rem on <1024px, so
+   this only narrows the desktop case. */
+.bb-form-narrow {
+  max-width: 36rem;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .bb-form-label {
   font-family: var(--font-barlow-condensed);
   font-weight: 700;

@@ -1,6 +1,7 @@
 import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import InviteForm from './InviteForm'
+import ResendInviteButton from './ResendInviteButton'
 
 type AcceptedRow = {
   id: string
@@ -65,66 +66,69 @@ export default async function HuntersPage() {
         </div>
       </header>
 
-      <section className="bb-tile mt-4">
-        <div className="bb-tile-body">
-          <h2 className="bb-section-title" style={{ marginTop: 0 }}>Invite a hunter</h2>
-          <InviteForm />
-        </div>
-      </section>
+      <div className="bb-form-narrow">
+        <section className="bb-tile mt-4">
+          <div className="bb-tile-body">
+            <h2 className="bb-section-title" style={{ marginTop: 0 }}>Invite a hunter</h2>
+            <InviteForm />
+          </div>
+        </section>
 
-      {isEmpty ? (
-        <div className="bb-empty mt-4">
-          <div className="bb-empty-title">No hunters yet</div>
-          <p className="bb-empty-sub">
-            Invite your first hunter to get started.
-          </p>
-        </div>
-      ) : (
-        <>
-          {accepted.length > 0 && (
-            <section className="mt-4">
-              <h2 className="bb-section-title">Your hunters</h2>
-              <div className="bb-detail-list">
-                {accepted.map((h) => (
-                  <div key={h.id} className="bb-detail-row">
-                    <div className="bb-avatar" aria-hidden="true">
-                      {(h.display_name ?? h.email).slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="bb-detail-name">{h.display_name ?? h.email}</div>
-                      <div className="bb-detail-sub">
-                        Joined {fmtDate(h.created_at)}{h.display_name ? ` (${h.email})` : ''}
+        {isEmpty ? (
+          <div className="bb-empty mt-4">
+            <div className="bb-empty-title">No hunters yet</div>
+            <p className="bb-empty-sub">
+              Invite your first hunter to get started.
+            </p>
+          </div>
+        ) : (
+          <>
+            {accepted.length > 0 && (
+              <section className="mt-4">
+                <h2 className="bb-section-title">Your hunters</h2>
+                <div className="bb-detail-list">
+                  {accepted.map((h) => (
+                    <div key={h.id} className="bb-detail-row">
+                      <div className="bb-avatar" aria-hidden="true">
+                        {(h.display_name ?? h.email).slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="bb-detail-name">{h.display_name ?? h.email}</div>
+                        <div className="bb-detail-sub">
+                          Joined {fmtDate(h.created_at)}{h.display_name ? ` (${h.email})` : ''}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {pending.length > 0 && (
-            <section className="mt-4">
-              <h2 className="bb-section-title">Pending invites</h2>
-              <div className="bb-detail-list">
-                {pending.map((p) => (
-                  <div key={p.id} className="bb-detail-row">
-                    <div className="bb-avatar" aria-hidden="true">
-                      {p.email.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="bb-detail-name">{p.email}</div>
-                      <div className="bb-detail-sub">
-                        Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+            {pending.length > 0 && (
+              <section className="mt-4">
+                <h2 className="bb-section-title">Pending invites</h2>
+                <div className="bb-detail-list">
+                  {pending.map((p) => (
+                    <div key={p.id} className="bb-detail-row">
+                      <div className="bb-avatar" aria-hidden="true">
+                        {p.email.slice(0, 1).toUpperCase()}
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="bb-detail-name">{p.email}</div>
+                        <div className="bb-detail-sub">
+                          Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+                        </div>
+                      </div>
+                      <span className="bb-pill bb-pill-planned">Pending</span>
+                      <ResendInviteButton inviteId={p.id} email={p.email} />
                     </div>
-                    <span className="bb-pill bb-pill-planned">Pending</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </>
-      )}
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </main>
   )
 }

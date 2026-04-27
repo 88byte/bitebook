@@ -14,17 +14,19 @@ export default async function HunterProfilePage() {
         </p>
       </header>
 
-      <section className="bb-tile mt-4">
-        <div className="bb-tile-body">
-          <HunterProfileForm
-            initial={{
-              display_name: profile.display_name ?? '',
-              phone: profile.phone ?? '',
-              avatar_url: profile.avatar_url ?? null,
-            }}
-          />
-        </div>
-      </section>
+      <div className="bb-form-narrow">
+        <section className="bb-tile mt-4">
+          <div className="bb-tile-body">
+            <HunterProfileForm
+              initial={{
+                display_name: profile.display_name ?? '',
+                phone: profile.phone ?? '',
+                avatar_url: profile.avatar_url ?? null,
+              }}
+            />
+          </div>
+        </section>
+      </div>
     </main>
   )
 }

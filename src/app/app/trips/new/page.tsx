@@ -27,11 +27,13 @@ export default async function NewTripPage() {
         </p>
       </header>
 
-      <section className="bb-tile mt-4">
-        <div className="bb-tile-body">
-          <NewTripForm hunters={hunters} />
-        </div>
-      </section>
+      <div className="bb-form-narrow">
+        <section className="bb-tile mt-4">
+          <div className="bb-tile-body">
+            <NewTripForm hunters={hunters} />
+          </div>
+        </section>
+      </div>
     </main>
   )
 }

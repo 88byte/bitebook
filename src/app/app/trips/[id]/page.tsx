@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft, Plus, Share2, Lock, Pencil } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
-import { fetchTripDetail } from '../../_lib/queries'
+import { fetchTripDetail, fetchAcceptedHunters } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
 import { closeTripAction } from '../actions'
 import { tripDateRange, timeOfDay, initials, relativeOrDate } from '../../_lib/format'
+import AddParticipantsForm from './AddParticipantsForm'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -18,6 +19,14 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
 
   const { trip, participants, harvests } = detail
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
+  const canAddHunters = trip.status === 'planned' || trip.status === 'active'
+
+  // Only fetch the candidate list when the UI will actually render the form.
+  const availableHunters = canAddHunters
+    ? (await fetchAcceptedHunters(profile.id)).filter(
+        (h) => !participants.some((p) => p.hunter_id === h.id)
+      )
+    : []
 
   return (
     <main className="bb-app-main">
@@ -124,6 +133,10 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
               )
             })}
           </div>
+        )}
+
+        {canAddHunters && (
+          <AddParticipantsForm tripId={trip.id} availableHunters={availableHunters} />
         )}
       </section>
 
