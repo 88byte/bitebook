@@ -12,7 +12,7 @@ export default async function ResetPasswordPage() {
 
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<p className="bb-tagline-static">Set a new password.</p>} />
+      <DarkHero backgroundWord="RESET" tagline={<p className="bb-tagline-static">Set a new password.</p>} />
 
       <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
         <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>

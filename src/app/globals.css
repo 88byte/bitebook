@@ -92,6 +92,44 @@ body {
   100%     { opacity: 0; }
 }
 
+/* Atmospheric hero word — huge Barlow Condensed Bold sitting behind the
+   skull. White at low opacity reads as deep architectural type, not
+   foreground content. Letter-spacing pulled tight so it feels weighty. */
+.bb-hero-word {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  color: #FFFFFF;
+  opacity: 0.13;
+  letter-spacing: -0.02em;
+  font-size: 30vw;
+  line-height: 0.85;
+  white-space: nowrap;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+@media (min-width: 40rem) {
+  .bb-hero-word { font-size: 22vw; opacity: 0.12; }
+}
+@media (min-width: 64rem) {
+  .bb-hero-word { font-size: 17vw; opacity: 0.11; }
+}
+@media (min-width: 80rem) {
+  .bb-hero-word { font-size: 14vw; opacity: 0.11; }
+}
+
+/* Paper-grain texture across the dark hero. Large noise pattern (low
+   baseFrequency) so it reads as paper grain, not TV static. Screen blend
+   only brightens — the white skull is unaffected, the dark void gets
+   tactile texture. */
+.bb-hero-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 240px 240px;
+  background-repeat: repeat;
+  opacity: 0.13;
+  mix-blend-mode: screen;
+}
+
 /* Static tagline used on /signup, /forgot-password, /reset-password,
    /accept-invite — single non-rotating string in the dark hero. Same
    color/weight family as the rotating tagline. */
@@ -155,7 +193,10 @@ body {
 }
 
 .bb-cta:disabled {
-  opacity: 0.4;
+  /* Bumped from 0.4 → 0.75 so the empty-state CTA still reads as confident
+     orange rather than washed-out tan. The cursor + slight dimming still
+     communicate non-interactivity. */
+  opacity: 0.75;
   cursor: not-allowed;
 }
 

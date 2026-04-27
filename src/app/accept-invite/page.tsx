@@ -55,7 +55,7 @@ export default async function AcceptInvitePage({
 
   return (
     <main className="flex flex-col min-h-screen" style={{ background: 'var(--color-paper)' }}>
-      <DarkHero tagline={<p className="bb-tagline-static">You&rsquo;re in the book.</p>} />
+      <DarkHero backgroundWord="INVITED" tagline={<p className="bb-tagline-static">You&rsquo;re in the book.</p>} />
 
       <section className="flex-1 flex flex-col items-center px-6 py-10 sm:py-14">
         <div className="w-full max-w-sm bb-fade-up" style={{ animationDelay: '0.15s' }}>
