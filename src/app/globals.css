@@ -280,10 +280,11 @@ body {
   border-color: var(--color-copper);
 }
 
-/* — Flat-leather CTA button —
-   Solid copper-leather background with a very subtle SVG-noise overlay for
-   grain. No more stretched skin image (the asset's intrinsic light/dark
-   bands turned into a barrel/log effect when stretched). */
+/* — Flat copper CTA button —
+   Solid #B06C3C, exact tagline color match. No noise overlay (a white
+   noise tile washed the copper toward tan). Disabled state uses a
+   darker copper rather than reduced opacity (which compounded the wash
+   when layered with any overlay). */
 
 .bb-cta {
   position: relative;
@@ -291,10 +292,6 @@ body {
   min-height: 3.5rem;            /* ~56px */
   border-radius: 0.75rem;
   background-color: var(--color-copper); /* #B06C3C — exact tagline match */
-  /* SVG turbulence noise at ~6% white alpha — adds grain without bands. */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 180px 180px;
-  background-repeat: repeat;
   color: #FFFFFF;
   padding: 0 1rem;
   font-size: 1rem;
@@ -306,7 +303,7 @@ body {
   box-shadow:
     0 6px 14px rgba(0, 0, 0, 0.35),
     0 2px 4px rgba(0, 0, 0, 0.20);
-  transition: transform 0.1s, opacity 0.15s, box-shadow 0.15s;
+  transition: transform 0.1s, background-color 0.15s, box-shadow 0.15s;
   border: 0;
   cursor: pointer;
 }
@@ -316,7 +313,7 @@ body {
 }
 
 .bb-cta:disabled {
-  opacity: 0.6;
+  background-color: #8C5530;
   cursor: not-allowed;
 }
 
