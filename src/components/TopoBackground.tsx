@@ -43,7 +43,7 @@ export default function TopoBackground() {
           stroke="#1F2419"
           strokeWidth="1"
           strokeLinecap="round"
-          opacity="0.28"
+          opacity="0.36"
         >
           {RINGS.map((d) => (
             <path key={d} d={d} />

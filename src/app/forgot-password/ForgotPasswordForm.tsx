@@ -26,7 +26,22 @@ export default function ForgotPasswordForm({ initialEmail }: { initialEmail?: st
   if (sent) {
     return (
       <Card>
-        <div className="text-3xl mb-3 text-center">📬</div>
+        <div className="flex justify-center mb-3" style={{ color: 'var(--color-accent)' }}>
+          <svg
+            width="36"
+            height="36"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+            <path d="m4 7 8 6 8-6" />
+          </svg>
+        </div>
         <p className="font-bold text-sm text-center" style={{ color: 'var(--color-ink)' }}>
           Check your email
         </p>

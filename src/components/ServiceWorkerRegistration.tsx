@@ -6,6 +6,12 @@ export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
 
+    // Force a SW update check on every page load. Without this, installed
+    // PWAs (especially iOS) only check for new SW versions on the browser's
+    // own heuristic schedule — which can leave a phone running stale shell
+    // assets for hours after a release.
+    navigator.serviceWorker.getRegistration().then((reg) => reg?.update()).catch(() => {})
+
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {

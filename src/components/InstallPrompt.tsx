@@ -103,9 +103,12 @@ export default function InstallPrompt() {
             <button
               onClick={handleDismiss}
               aria-label="Dismiss"
-              className="ml-auto text-ink/40 text-lg leading-none p-1"
+              className="ml-auto text-ink/40 leading-none p-1"
             >
-              ×
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <p className="text-ink/70 text-xs leading-relaxed">
@@ -136,9 +139,12 @@ export default function InstallPrompt() {
             <button
               onClick={handleDismiss}
               aria-label="Dismiss"
-              className="ml-auto text-ink/40 text-lg leading-none p-1"
+              className="ml-auto text-ink/40 leading-none p-1"
             >
-              ×
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <p className="text-ink/70 text-xs leading-relaxed">

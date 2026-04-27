@@ -3,6 +3,12 @@ import { Barlow, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import InstallPrompt from '@/components/InstallPrompt'
+import RecoveryHandler from '@/components/RecoveryHandler'
+
+// Bump on each release that ships new static assets so installed PWAs
+// know to refresh. Visible in the rendered HTML as <meta name="bb-build">
+// for easy curl/view-source verification of which build a client is on.
+const BUILD_TAG = 'v7'
 
 const barlow = Barlow({
   variable: '--font-barlow',
@@ -49,9 +55,13 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}>
+      <head>
+        <meta name="bb-build" content={BUILD_TAG} />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <InstallPrompt />
+        <RecoveryHandler />
         <ServiceWorkerRegistration />
       </body>
     </html>
