@@ -491,18 +491,21 @@ body {
 .bb-app-nav {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  flex: 1;
+  justify-content: center;
 }
 
 .bb-app-nav a {
   display: inline-flex;
   align-items: center;
-  padding: 0.4rem 0.65rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
   font-family: var(--font-barlow-condensed);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-callout-text);
   border-radius: 0.5rem;
   text-decoration: none;
@@ -516,6 +519,17 @@ body {
 .bb-app-nav a.is-active {
   color: #FFFFFF;
   background: rgba(176, 108, 60, 0.22);
+}
+
+/* On small phones (<640px) hide the label and keep just the icon to fit
+   all 5 tabs without overflow. From sm: up the label is visible again. */
+.bb-app-nav-label {
+  display: none;
+}
+@media (min-width: 40rem) {
+  .bb-app-nav { gap: 0.25rem; }
+  .bb-app-nav a { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
+  .bb-app-nav-label { display: inline; }
 }
 
 .bb-app-signout {
@@ -1101,6 +1115,20 @@ body {
 .bb-dash-cell-4 {
   grid-column: span 1 / span 1;
   min-width: 0;
+}
+
+/* Mobile only: explicit cell ordering so action-oriented widgets (banner,
+   quick actions, pending invites) sit above passive widgets (stats, lists).
+   Reset to natural document order on desktop where the 12-col grid drives
+   layout. */
+@media (max-width: 1023px) {
+  .bb-dash-grid > [data-order-mobile="1"] { order: 1; }
+  .bb-dash-grid > [data-order-mobile="2"] { order: 2; }
+  .bb-dash-grid > [data-order-mobile="3"] { order: 3; }
+  .bb-dash-grid > [data-order-mobile="4"] { order: 4; }
+  .bb-dash-grid > [data-order-mobile="5"] { order: 5; }
+  .bb-dash-grid > [data-order-mobile="6"] { order: 6; }
+  .bb-dash-grid > [data-order-mobile="7"] { order: 7; }
 }
 
 @media (min-width: 1024px) {

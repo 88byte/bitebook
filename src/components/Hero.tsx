@@ -15,7 +15,7 @@ export default function Hero({
   subtitle: string
 }) {
   return (
-    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-6 pb-12 sm:pt-10 sm:pb-20 min-h-[52vh] sm:min-h-[58vh] md:min-h-[56vh] overflow-hidden">
+    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-6 pb-4 sm:pt-10 sm:pb-12 min-h-[42vh] sm:min-h-[58vh] md:min-h-[56vh] overflow-hidden">
       <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-32 pointer-events-none" aria-hidden="true" />
 
       <div className="bb-hero-in relative z-10 flex flex-col items-center gap-2 sm:gap-3 max-w-md w-full">

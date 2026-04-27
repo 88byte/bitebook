@@ -26,6 +26,11 @@ export default async function DashboardPage() {
   const greetingName = guide?.business_name?.trim() || profile.display_name
   const isEmpty = recent.length === 0
   const showBanner = !isOnboarded(progress)
+  // While onboarding is incomplete AND first_trip is still pending, the
+  // OnboardingBanner is the single primary "create trip" CTA. Hide the
+  // duplicate buttons on this screen (header, Quick Actions, empty state).
+  const hideNewTripCtas =
+    showBanner && !progress.steps_completed.includes('first_trip')
 
   return (
     <main className="bb-app-main">
@@ -39,20 +44,62 @@ export default async function DashboardPage() {
               : `You have ${recent.length} recent ${recent.length === 1 ? 'trip' : 'trips'}.`}
           </p>
         </div>
-        <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
-          <Plus size={16} aria-hidden="true" />
-          New trip
-        </Link>
+        {!hideNewTripCtas && (
+          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
+            <Plus size={16} aria-hidden="true" />
+            New trip
+          </Link>
+        )}
       </header>
 
       <div className="bb-dash-grid mt-4">
         {showBanner && (
-          <div className="bb-dash-cell-12">
+          <div className="bb-dash-cell-12" data-order-mobile="1">
             <OnboardingBanner progress={progress} />
           </div>
         )}
 
-        <section aria-labelledby="dash-stats" className="bb-dash-cell-12">
+        <div className="bb-dash-cell-4" data-order-mobile="2">
+          <Widget title="Quick actions">
+            <div className="bb-quick-actions">
+              {!hideNewTripCtas && (
+                <Link href="/app/trips/new" className="bb-cta-sm">
+                  <Plus size={16} aria-hidden="true" />
+                  New trip
+                </Link>
+              )}
+              <Link href="/app/hunters" className="bb-btn-secondary">
+                <UserPlus size={16} aria-hidden="true" />
+                Invite hunter
+              </Link>
+            </div>
+          </Widget>
+        </div>
+
+        <div className="bb-dash-cell-4" data-order-mobile="3">
+          <Widget title="Pending invites">
+            <div className="bb-widget-stat">
+              <div className="bb-stat-value">{pendingInvites}</div>
+              <div className="bb-stat-label">
+                {pendingInvites === 1 ? 'invite waiting' : 'invites waiting'}
+              </div>
+            </div>
+            <Link
+              href="/app/hunters"
+              className="bb-widget-link mt-3 inline-flex items-center gap-1"
+              style={{ color: 'var(--color-copper)' }}
+            >
+              Manage hunters
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          </Widget>
+        </div>
+
+        <section
+          aria-labelledby="dash-stats"
+          className="bb-dash-cell-12"
+          data-order-mobile="4"
+        >
           <h2 id="dash-stats" className="sr-only">Season stats</h2>
           <div className="bb-stat-grid">
             <Stat label="Trips, this year" value={stats.tripsThisYear} />
@@ -61,7 +108,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        <div className="bb-dash-cell-7">
+        <div className="bb-dash-cell-7" data-order-mobile="5">
           <Widget
             title="Recent trips"
             action={
@@ -83,10 +130,12 @@ export default async function DashboardPage() {
                   Bite Book is built around trips. Each trip ties hunters, tags, and harvests to one
                   record you can hand to a warden in a tap.
                 </p>
-                <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-                  <Plus size={16} aria-hidden="true" />
-                  Log your first trip
-                </Link>
+                {!hideNewTripCtas && (
+                  <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
+                    <Plus size={16} aria-hidden="true" />
+                    Log your first trip
+                  </Link>
+                )}
               </div>
             ) : (
               <div role="list">
@@ -100,7 +149,7 @@ export default async function DashboardPage() {
           </Widget>
         </div>
 
-        <div className="bb-dash-cell-5">
+        <div className="bb-dash-cell-5" data-order-mobile="6">
           <Widget title="Upcoming">
             {upcoming.length === 0 ? (
               <div className="bb-empty">
@@ -121,41 +170,7 @@ export default async function DashboardPage() {
           </Widget>
         </div>
 
-        <div className="bb-dash-cell-4">
-          <Widget title="Pending invites">
-            <div className="bb-widget-stat">
-              <div className="bb-stat-value">{pendingInvites}</div>
-              <div className="bb-stat-label">
-                {pendingInvites === 1 ? 'invite waiting' : 'invites waiting'}
-              </div>
-            </div>
-            <Link
-              href="/app/hunters"
-              className="bb-widget-link mt-3 inline-flex items-center gap-1"
-              style={{ color: 'var(--color-copper)' }}
-            >
-              Manage hunters
-              <ArrowRight size={14} aria-hidden="true" />
-            </Link>
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-4">
-          <Widget title="Quick actions">
-            <div className="bb-quick-actions">
-              <Link href="/app/trips/new" className="bb-cta-sm">
-                <Plus size={16} aria-hidden="true" />
-                New trip
-              </Link>
-              <Link href="/app/hunters" className="bb-btn-secondary">
-                <UserPlus size={16} aria-hidden="true" />
-                Invite hunter
-              </Link>
-            </div>
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-4">
+        <div className="bb-dash-cell-4" data-order-mobile="7">
           <Widget title="Documents">
             <div className="bb-doc-shelf">
               <FileText size={28} aria-hidden="true" style={{ color: 'var(--color-ink-soft)' }} />

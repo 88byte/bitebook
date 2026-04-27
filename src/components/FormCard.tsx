@@ -12,7 +12,7 @@ export default function FormCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="bb-card relative z-20 mx-auto -mt-8 sm:-mt-10 w-full max-w-md bb-fade-up">
+    <div className="bb-card relative z-20 mx-auto -mt-12 sm:-mt-10 w-full max-w-md bb-fade-up">
       <div className="bb-card-header">{headerText}</div>
       <div className="bb-card-body">{children}</div>
     </div>
