@@ -1,10 +1,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
-// Hero — dark forest scene at top, large skull/wordmark, antler row with
-// gun-sight pip flourishes, two-line bold copper tagline, light subtitle.
-// Static (entrance fade only). The bottom of the section gradient-fades into
-// the unified dark page background so there's no visible seam.
+// Hero — dark forest scene at top, skull/wordmark, copper bold tagline,
+// light subtitle, and a small antler flourish below the subtitle (just
+// above the form-card lift). Static (entrance fade only). Hero gradient-
+// fades into the unified dark page bg at the bottom — no visible seam.
 export default function Hero({
   taglineLine1,
   taglineLine2,
@@ -15,34 +15,21 @@ export default function Hero({
   subtitle: string
 }) {
   return (
-    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-12 pb-24 sm:pt-16 sm:pb-32 min-h-[78vh] sm:min-h-[72vh] md:min-h-[68vh] overflow-hidden">
+    <section className="bb-hero relative flex flex-col items-center justify-center text-center px-6 pt-8 pb-16 sm:pt-12 sm:pb-24 min-h-[68vh] sm:min-h-[62vh] md:min-h-[58vh] overflow-hidden">
       <div className="bb-hero-fade absolute inset-x-0 bottom-0 h-44 pointer-events-none" aria-hidden="true" />
 
-      <div className="bb-hero-in relative z-10 flex flex-col items-center gap-4 sm:gap-5 max-w-md w-full">
+      <div className="bb-hero-in relative z-10 flex flex-col items-center gap-3 sm:gap-4 max-w-md w-full">
         <Link href="/" aria-label="Bite Book home">
           <Image
             src="/bb-logo-mark.png"
             alt="Bite Book"
             width={1024}
             height={1024}
-            sizes="(min-width: 1024px) 360px, (min-width: 768px) 320px, 260px"
-            className="h-[260px] w-[260px] sm:h-[300px] sm:w-[300px] md:h-[320px] md:w-[320px] lg:h-[360px] lg:w-[360px]"
+            sizes="(min-width: 1024px) 380px, (min-width: 768px) 320px, 210px"
+            className="h-[210px] w-[210px] sm:h-[270px] sm:w-[270px] md:h-[320px] md:w-[320px] lg:h-[380px] lg:w-[380px]"
             priority
           />
         </Link>
-
-        <div className="bb-flourish-row" aria-hidden="true">
-          <FlourishPip side="left" />
-          <Image
-            src="/bb-antlers.png"
-            alt=""
-            width={624}
-            height={624}
-            sizes="(min-width: 768px) 130px, 100px"
-            className="h-[100px] w-[100px] sm:h-[120px] sm:w-[120px] md:h-[140px] md:w-[140px]"
-          />
-          <FlourishPip side="right" />
-        </div>
 
         <h1 className="bb-tagline-bold leading-tight">
           {taglineLine1}
@@ -55,28 +42,32 @@ export default function Hero({
         </h1>
 
         <p className="bb-subtitle max-w-[20rem] sm:max-w-[24rem]">{subtitle}</p>
+
+        <div className="bb-flourish-row mt-2" aria-hidden="true">
+          <FlourishLine />
+          <Image
+            src="/bb-antlers.png"
+            alt=""
+            width={624}
+            height={624}
+            sizes="(min-width: 768px) 70px, 60px"
+            className="h-[60px] w-[60px] sm:h-[66px] sm:w-[66px] md:h-[70px] md:w-[70px]"
+          />
+          <FlourishLine />
+        </div>
       </div>
     </section>
   )
 }
 
-// Small ornament: a copper diamond pip + horizontal hash. Mirrored on each
-// side of the antler row so the antlers read as a centered emblem.
-function FlourishPip({ side }: { side: 'left' | 'right' }) {
-  const flip = side === 'right' ? { transform: 'scaleX(-1)' } : undefined
+// Simple straight horizontal line, copper at low opacity. Used as a quiet
+// flanker around the small antler emblem — no diamond/pip caps.
+function FlourishLine() {
   return (
-    <svg
-      width="44"
-      height="10"
-      viewBox="0 0 44 10"
-      fill="none"
-      style={flip}
+    <span
       aria-hidden="true"
-    >
-      {/* Long line */}
-      <line x1="14" y1="5" x2="42" y2="5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.85" />
-      {/* Diamond pip */}
-      <path d="M5 5 L9 1 L13 5 L9 9 Z" fill="currentColor" opacity="0.9" />
-    </svg>
+      className="block h-px"
+      style={{ width: '50px', backgroundColor: '#B06C3C', opacity: 0.45 }}
+    />
   )
 }

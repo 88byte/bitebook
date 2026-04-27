@@ -280,20 +280,21 @@ body {
   border-color: var(--color-copper);
 }
 
-/* — Skinned CTA button (uses bb-button-skin.png) —
-   100% × 100% sizing stretches the leather skin edge-to-edge so it covers
-   the entire button surface. Tall enough (min-height) for the texture to
-   read as material rather than a thin sliver. */
+/* — Flat-leather CTA button —
+   Solid copper-leather background with a very subtle SVG-noise overlay for
+   grain. No more stretched skin image (the asset's intrinsic light/dark
+   bands turned into a barrel/log effect when stretched). */
 
 .bb-cta {
   position: relative;
   width: 100%;
   min-height: 3.5rem;            /* ~56px */
   border-radius: 0.75rem;
-  background-image: url('/bb-button-skin.png');
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  background-color: var(--color-copper); /* fallback if image fails */
+  background-color: #A86B3A;
+  /* SVG turbulence noise at ~6% white alpha — adds grain without bands. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+  background-repeat: repeat;
   color: #FFFFFF;
   padding: 0 1rem;
   font-size: 1rem;
@@ -413,6 +414,12 @@ body {
   color: var(--color-copper);
   text-decoration: underline;
   font-weight: 600;
+}
+
+.bb-callout-learn {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
 }
 
 /* — Footer — sits on the dark page, so light warm-gray text — */
