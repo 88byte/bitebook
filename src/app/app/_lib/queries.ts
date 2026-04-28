@@ -36,6 +36,8 @@ const RECENT_LIMIT = 10
 
 // v25.9.1: shared column list for the row-with-counts shape. Folded into a
 // constant so every fetcher stays in sync after the location split.
+// v26.3: row shape itself unchanged for the trip lists, but detail queries
+// pull species_targeted + method via the dedicated TRIP_DETAIL_COLS.
 const TRIP_ROW_COLS = `id, title, status, starts_at, ends_at, location_name, kind, city, state, zone, county`
 
 function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
@@ -172,7 +174,7 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
 }
 
 export type TripDetail = {
-  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'notes'>
+  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'notes' | 'species_targeted' | 'method'>
   participants: Array<{
     id: string
     role: string
@@ -189,6 +191,7 @@ export type TripDetail = {
     notes: string | null
     hunter_id: string | null
     quantity: number
+    method: string | null
     hunter_name: string | null
   }>
 }
@@ -199,7 +202,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
   // defense-in-depth (see file header).
   const { data: trip, error: tripErr } = await supabase
     .from('trips')
-    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, notes')
+    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, notes, species_targeted, method')
     .eq('id', tripId)
     .eq('guide_id', guideId)
     .maybeSingle()
@@ -212,7 +215,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
       .eq('trip_id', tripId),
     supabase
       .from('harvests')
-      .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity')
+      .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity, method')
       .eq('trip_id', tripId)
       .order('harvested_at', { ascending: false }),
   ])
@@ -251,6 +254,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
       notes: h.notes,
       hunter_id: h.hunter_id,
       quantity: h.quantity,
+      method: h.method ?? null,
       hunter_name: h.hunter_id ? profilesMap.get(h.hunter_id)?.display_name ?? null : null,
     })),
   }
@@ -293,6 +297,8 @@ export async function insertTrip(
     state: string
     zone: string | null
     county: string | null
+    species_targeted: string | null
+    method: string | null
     notes: string | null
   }
 ): Promise<{ id: string } | { error: string }> {
@@ -305,6 +311,157 @@ export async function insertTrip(
   if (error || !data) {
     console.warn('[queries.insertTrip]', { guideId, code: error?.code, message: error?.message })
     return { error: error?.message ?? 'Could not create trip.' }
+  }
+  return { id: data.id }
+}
+
+// v26.3: full trip update used by EditTripForm. RLS gates ownership; the
+// explicit .eq('guide_id') is defense-in-depth.
+export async function updateTrip(
+  guideId: string,
+  tripId: string,
+  input: {
+    title: string
+    kind: 'hunting' | 'fishing'
+    starts_at: string
+    ends_at: string | null
+    city: string | null
+    state: string
+    zone: string | null
+    county: string | null
+    species_targeted: string | null
+    method: string | null
+    notes: string | null
+  }
+): Promise<{ ok: true } | { error: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('trips')
+    .update(input)
+    .eq('id', tripId)
+    .eq('guide_id', guideId)
+  if (error) {
+    console.warn('[queries.updateTrip]', { guideId, tripId, code: error.code, message: error.message })
+    return { error: error.message }
+  }
+  return { ok: true }
+}
+
+// v26.3: replace the participant set for a trip. We compute add/remove deltas
+// in code rather than truncating-then-inserting so we don't unnecessarily
+// invalidate added_at timestamps on already-present participants. Returns ok
+// even when the delta is empty.
+export async function syncTripParticipants(
+  guideId: string,
+  tripId: string,
+  desiredHunterIds: string[]
+): Promise<{ ok: true } | { error: string }> {
+  const supabase = await createClient()
+
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('id')
+    .eq('id', tripId)
+    .eq('guide_id', guideId)
+    .maybeSingle()
+  if (!trip) return { error: 'Trip not found.' }
+
+  const { data: existing, error: readErr } = await supabase
+    .from('trip_participants')
+    .select('id, hunter_id')
+    .eq('trip_id', tripId)
+  if (readErr) {
+    console.warn('[queries.syncTripParticipants] read', { tripId, code: readErr.code, message: readErr.message })
+    return { error: readErr.message }
+  }
+
+  const existingHunterIds = new Set(
+    (existing ?? []).map((r) => r.hunter_id).filter((v): v is string => !!v)
+  )
+  const desired = new Set(desiredHunterIds)
+
+  const toAdd = Array.from(desired).filter((id) => !existingHunterIds.has(id))
+  const toRemove = (existing ?? [])
+    .filter((r) => r.hunter_id && !desired.has(r.hunter_id))
+    .map((r) => r.id)
+
+  if (toAdd.length > 0) {
+    const rows = toAdd.map((hunter_id) => ({ trip_id: tripId, hunter_id }))
+    const { error } = await supabase.from('trip_participants').insert(rows)
+    if (error) {
+      console.warn('[queries.syncTripParticipants] insert', { tripId, code: error.code, message: error.message })
+      return { error: error.message }
+    }
+  }
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from('trip_participants')
+      .delete()
+      .in('id', toRemove)
+    if (error) {
+      console.warn('[queries.syncTripParticipants] delete', { tripId, code: error.code, message: error.message })
+      return { error: error.message }
+    }
+  }
+
+  return { ok: true }
+}
+
+// v26.3: status transitions. closeTrip kept as the wrap-up path; reopenTrip
+// flips a completed/canceled trip back to active.
+export async function reopenTrip(guideId: string, tripId: string): Promise<{ ok: true } | { error: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('trips')
+    .update({ status: 'active' })
+    .eq('id', tripId)
+    .eq('guide_id', guideId)
+    .in('status', ['completed', 'canceled'])
+  if (error) {
+    console.warn('[queries.reopenTrip]', { guideId, tripId, code: error.code, message: error.message })
+    return { error: error.message }
+  }
+  return { ok: true }
+}
+
+// v26.3: insert a harvest for a trip the caller owns. Reverifies trip
+// ownership + status before inserting so a stale form submission against a
+// closed trip yields a friendly error rather than an RLS denial.
+export async function insertHarvest(
+  guideId: string,
+  input: {
+    trip_id: string
+    hunter_id: string | null
+    kind: 'hunting' | 'fishing'
+    species_name: string | null
+    method: string | null
+    quantity: number
+    tag_number: string | null
+    harvested_at: string
+    notes: string | null
+  }
+): Promise<{ id: string } | { error: string }> {
+  const supabase = await createClient()
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('id, status')
+    .eq('id', input.trip_id)
+    .eq('guide_id', guideId)
+    .maybeSingle()
+  if (!trip) return { error: 'Trip not found.' }
+  if (trip.status !== 'planned' && trip.status !== 'active') {
+    return { error: 'This trip is closed; reopen it before logging more harvests.' }
+  }
+
+  const { data, error } = await supabase
+    .from('harvests')
+    .insert(input)
+    .select('id')
+    .single()
+  if (error || !data) {
+    console.warn('[queries.insertHarvest]', { guideId, code: error?.code, message: error?.message })
+    return { error: error?.message ?? 'Could not save the harvest.' }
   }
   return { id: data.id }
 }

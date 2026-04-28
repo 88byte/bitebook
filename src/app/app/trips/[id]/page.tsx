@@ -1,15 +1,23 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, Plus, Share2, Lock, Pencil } from 'lucide-react'
+import { ChevronLeft, Pencil, Share2 } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchTripDetail, fetchAcceptedHunters } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
-import { closeTripAction } from '../actions'
 import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../_lib/format'
 import AddParticipantsForm from './AddParticipantsForm'
+import AddHarvestForm from './AddHarvestForm'
+import WrapUpTripButton from './WrapUpTripButton'
+import ReopenTripButton from './ReopenTripButton'
 
 type RouteParams = Promise<{ id: string }>
 
+// v26.3: trip detail rebuild. Sections in order:
+//   1. Hero (title, kind, dates+location+counts, status pill, Edit button)
+//   2. Trip details metadata grid (location / species / method / kind / notes)
+//   3. Hunters section (list + Add hunters affordance for open trips)
+//   4. Harvests section (list + AddHarvestForm for open trips)
+//   5. Action bar (primary CTA flips on status; Wrap up / Reopen)
 export default async function TripDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params
   const { profile } = await requireGuide()
@@ -18,15 +26,18 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants, harvests } = detail
+  const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
-  const canAddHunters = trip.status === 'planned' || trip.status === 'active'
 
-  // Only fetch the candidate list when the UI will actually render the form.
-  const availableHunters = canAddHunters
+  const availableHunters = isOpen
     ? (await fetchAcceptedHunters(profile.id)).filter(
         (h) => !participants.some((p) => p.hunter_id === h.id)
       )
     : []
+
+  const harvestParticipants = participants
+    .filter((p) => p.hunter_id && p.profile)
+    .map((p) => ({ id: p.hunter_id as string, display_name: p.profile!.display_name }))
 
   return (
     <main className="bb-app-main">
@@ -62,55 +73,43 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <StatusPill status={trip.status} />
-          <button
-            type="button"
+          <Link
+            href={`/app/trips/${trip.id}/edit`}
             className="bb-btn-secondary"
-            disabled
-            title="Trip editing ships in slice 2"
-            aria-label="Edit trip (coming soon)"
+            aria-label="Edit trip"
+            style={{ color: 'var(--color-copper)' }}
           >
             <Pencil size={14} aria-hidden="true" />
             Edit
-          </button>
+          </Link>
         </div>
       </header>
 
-      <section aria-labelledby="trip-actions">
-        <h2 id="trip-actions" className="sr-only">Trip actions</h2>
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button
-            type="button"
-            className="bb-cta-sm"
-            disabled
-            title="Harvest entry ships in slice 2"
-            aria-label="Add harvest (coming soon)"
-          >
-            <Plus size={14} aria-hidden="true" />
-            Add harvest
-          </button>
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            disabled
-            title="Warden share ships later in Sprint 2"
-            aria-label="Share with warden (coming soon)"
-          >
-            <Share2 size={14} aria-hidden="true" />
-            Share with warden
-          </button>
-          {!isClosed && (
-            <form action={closeTripAction}>
-              <input type="hidden" name="trip_id" value={trip.id} />
-              <button type="submit" className="bb-btn-secondary">
-                <Lock size={14} aria-hidden="true" />
-                Mark closed
-              </button>
-            </form>
-          )}
+      <section aria-labelledby="trip-details" className="mt-4">
+        <h2 id="trip-details" className="bb-section-title">Trip details</h2>
+        <div className="bb-tile">
+          <div className="bb-tile-body">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <DetailRow label="Location" value={formatTripLocation(trip) ?? '—'} />
+              <DetailRow label="County" value={trip.county || '—'} />
+              <DetailRow label="Species targeted" value={trip.species_targeted || '—'} />
+              <DetailRow label="Method" value={trip.method || '—'} />
+              <DetailRow label="Activity" value={trip.kind === 'fishing' ? 'Fishing' : 'Hunting'} />
+              <DetailRow label="Status" value={statusLabel(trip.status)} />
+            </dl>
+            {trip.notes && (
+              <div className="mt-4">
+                <dt className="bb-form-label" style={{ color: 'var(--color-ink-muted)' }}>Notes</dt>
+                <dd className="text-sm whitespace-pre-wrap mt-1" style={{ color: 'var(--color-ink)' }}>
+                  {trip.notes}
+                </dd>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      <section aria-labelledby="trip-hunters">
+      <section aria-labelledby="trip-hunters" className="mt-4">
         <h2 id="trip-hunters" className="bb-section-title">Hunters</h2>
         {participants.length === 0 ? (
           <div className="bb-empty">
@@ -138,18 +137,20 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           </div>
         )}
 
-        {canAddHunters && (
+        {isOpen && (
           <AddParticipantsForm tripId={trip.id} availableHunters={availableHunters} />
         )}
       </section>
 
-      <section aria-labelledby="trip-harvests">
+      <section aria-labelledby="trip-harvests" className="mt-4">
         <h2 id="trip-harvests" className="bb-section-title">Harvest log</h2>
         {harvests.length === 0 ? (
           <div className="bb-empty">
             <div className="bb-empty-title">No harvests logged</div>
             <p className="bb-empty-sub">
-              Once you&rsquo;re in the field, log harvests with photo + tag. They sync when you have signal.
+              {isOpen
+                ? 'Tap "Add harvest" below once you have one to log.'
+                : 'No harvests were logged on this trip.'}
             </p>
           </div>
         ) : (
@@ -157,6 +158,9 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             {harvests.map((h) => {
               const hunterName = h.hunter_name ?? 'Unknown hunter'
               const species = h.species_name ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
+              const subParts: string[] = [hunterName, timeOfDay(h.harvested_at), relativeOrDate(h.harvested_at)]
+              if (h.method) subParts.push(h.method)
+              if (h.quantity > 1) subParts.push(`Qty ${h.quantity}`)
               return (
                 <div key={h.id} className="bb-detail-row">
                   <span className="bb-avatar" aria-hidden="true">{initials(hunterName)}</span>
@@ -165,29 +169,76 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                       {species}
                       {h.tag_number ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number}</span> : null}
                     </div>
-                    <div className="bb-detail-sub">
-                      {hunterName} · {timeOfDay(h.harvested_at)} · {relativeOrDate(h.harvested_at)}
-                    </div>
+                    <div className="bb-detail-sub">{subParts.join(' · ')}</div>
+                    {h.notes && (
+                      <div className="bb-detail-sub" style={{ marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                        {h.notes}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
           </div>
         )}
+
+        {isOpen && (
+          <div className="mt-3">
+            <AddHarvestForm
+              tripId={trip.id}
+              tripKind={trip.kind}
+              defaultMethod={trip.method ?? null}
+              participants={harvestParticipants}
+            />
+          </div>
+        )}
       </section>
 
-      {trip.notes && (
-        <section aria-labelledby="trip-notes">
-          <h2 id="trip-notes" className="bb-section-title">Notes</h2>
-          <div className="bb-tile">
-            <div className="bb-tile-body">
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--color-ink-muted)' }}>
-                {trip.notes}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
+      <section aria-labelledby="trip-actions" className="mt-6">
+        <h2 id="trip-actions" className="sr-only">Trip actions</h2>
+        <div className="flex flex-wrap gap-2">
+          {isOpen && <WrapUpTripButton tripId={trip.id} />}
+          {isClosed && <ReopenTripButton tripId={trip.id} />}
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            disabled
+            title="Warden share ships later in Sprint 2"
+            aria-label="Share with warden (coming soon)"
+          >
+            <Share2 size={14} aria-hidden="true" />
+            Share with warden
+          </button>
+        </div>
+      </section>
     </main>
   )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <dt
+        style={{
+          fontSize: '0.72rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: 'var(--color-ink-muted)',
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </dt>
+      <dd style={{ fontSize: '0.95rem', color: 'var(--color-ink)' }}>{value}</dd>
+    </div>
+  )
+}
+
+function statusLabel(status: 'planned' | 'active' | 'completed' | 'canceled'): string {
+  switch (status) {
+    case 'planned': return 'Pre-trip'
+    case 'active': return 'In field'
+    case 'completed': return 'Wrapped'
+    case 'canceled': return 'Canceled'
+  }
 }

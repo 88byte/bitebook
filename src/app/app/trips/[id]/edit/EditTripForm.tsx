@@ -1,37 +1,70 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Calendar, MapPin, FileText, Target } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
 import { METHOD_OPTIONS } from '@/lib/methods'
-import { createTripAction } from '../actions'
-import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
+import { updateTripAction } from '../actions'
+import HuntersMultiSelect, { type HunterOption } from '../../_components/HuntersMultiSelect'
 
-export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
+type EditTripFormProps = {
+  tripId: string
+  initial: {
+    title: string
+    kind: 'hunting' | 'fishing'
+    starts_at: string
+    ends_at: string | null
+    city: string | null
+    state: string
+    zone: string | null
+    county: string | null
+    species_targeted: string | null
+    method: string | null
+    notes: string | null
+  }
+  candidates: HunterOption[]
+  initialSelectedIds: string[]
+}
+
+// Convert an ISO timestamp to the local-time string `<input type="datetime-local">`
+// expects: yyyy-MM-ddTHH:mm. We render in the browser's locale so the displayed
+// time matches what the guide saved.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+export default function EditTripForm({
+  tripId,
+  initial,
+  candidates,
+  initialSelectedIds,
+}: EditTripFormProps) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  // v26.3: keep a local copy so the inline-invite path can append entries
-  // without a full server round-trip. The canonical list refreshes when the
-  // page revalidates after submit.
-  const [hunterList, setHunterList] = useState<HunterOption[]>(hunters)
+  const [hunterList, setHunterList] = useState<HunterOption[]>(candidates)
+  const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds))
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     const fd = new FormData(e.currentTarget)
+    fd.set('trip_id', tripId)
     selected.forEach((id) => {
-      // pending: ids are placeholders for newly invited hunters whose canonical
-      // profile.id we don't have yet. Skip them on submit.
       if (!id.startsWith('pending:')) fd.append('hunter_ids', id)
     })
     startTransition(async () => {
       try {
-        await createTripAction(fd)
+        await updateTripAction(fd)
       } catch (err) {
         const e = err as Error & { digest?: string }
         if (e.digest?.startsWith('NEXT_REDIRECT')) throw err
-        setError(e.message ?? 'Could not create trip.')
+        setError(e.message ?? 'Could not update trip.')
       }
     })
   }
@@ -63,7 +96,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
             name="title"
             type="text"
             required
-            placeholder="Spring black bear · Reyes party"
+            defaultValue={initial.title}
             className="bb-input bb-input-iconed"
             autoComplete="off"
           />
@@ -74,11 +107,21 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
         <span className="bb-form-label">Activity</span>
         <div className="bb-segmented" role="radiogroup" aria-label="Activity">
           <label>
-            <input type="radio" name="kind" value="hunting" defaultChecked />
+            <input
+              type="radio"
+              name="kind"
+              value="hunting"
+              defaultChecked={initial.kind === 'hunting'}
+            />
             Hunting
           </label>
           <label>
-            <input type="radio" name="kind" value="fishing" />
+            <input
+              type="radio"
+              name="kind"
+              value="fishing"
+              defaultChecked={initial.kind === 'fishing'}
+            />
             Fishing
           </label>
         </div>
@@ -94,6 +137,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
               name="starts_at"
               type="datetime-local"
               required
+              defaultValue={toLocalInput(initial.starts_at)}
               className="bb-input bb-input-iconed"
             />
           </label>
@@ -106,6 +150,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
               id="ends_at"
               name="ends_at"
               type="datetime-local"
+              defaultValue={toLocalInput(initial.ends_at)}
               className="bb-input bb-input-iconed"
             />
           </label>
@@ -121,7 +166,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
               id="city"
               name="city"
               type="text"
-              placeholder="Mendocino"
+              defaultValue={initial.city ?? ''}
               className="bb-input bb-input-iconed"
               autoComplete="off"
             />
@@ -133,7 +178,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
             id="state"
             name="state"
             required
-            defaultValue=""
+            defaultValue={initial.state || ''}
             className="bb-input"
           >
             <option value="" disabled>Select a state</option>
@@ -151,7 +196,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
             id="zone"
             name="zone"
             type="text"
-            placeholder="D6, Zone B-2, etc."
+            defaultValue={initial.zone ?? ''}
             className="bb-input"
             autoComplete="off"
           />
@@ -162,7 +207,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
             id="county"
             name="county"
             type="text"
-            placeholder="Mendocino County"
+            defaultValue={initial.county ?? ''}
             className="bb-input"
             autoComplete="off"
           />
@@ -179,7 +224,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
               id="species_targeted"
               name="species_targeted"
               type="text"
-              placeholder="Black bear, wild pig"
+              defaultValue={initial.species_targeted ?? ''}
               className="bb-input bb-input-iconed"
               autoComplete="off"
             />
@@ -187,7 +232,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
         </div>
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <select id="method" name="method" defaultValue="" className="bb-input">
+          <select id="method" name="method" defaultValue={initial.method ?? ''} className="bb-input">
             <option value="">Select method</option>
             {METHOD_OPTIONS.map((m) => (
               <option key={m} value={m}>{m}</option>
@@ -197,7 +242,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
       </div>
 
       <div className="bb-form-row">
-        <span className="bb-form-label">Add hunters to this trip</span>
+        <span className="bb-form-label">Hunters on this trip</span>
         <HuntersMultiSelect
           hunters={hunterList}
           selected={selected}
@@ -212,8 +257,8 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
           id="notes"
           name="notes"
           rows={3}
+          defaultValue={initial.notes ?? ''}
           className="bb-input"
-          placeholder="Meet at the cabin trailhead 0530. Cold + clear forecast. Bring a layer."
         />
       </div>
 
@@ -221,7 +266,15 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={pending} className="bb-cta">
-          {pending ? 'Creating trip...' : 'Create trip'}
+          {pending ? 'Saving...' : 'Save changes'}
+        </button>
+        <button
+          type="button"
+          className="bb-btn-secondary"
+          onClick={() => router.push(`/app/trips/${tripId}`)}
+          disabled={pending}
+        >
+          Cancel
         </button>
       </div>
     </form>

@@ -7,6 +7,7 @@ import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
 import { markStepDone } from '../_lib/onboarding'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
+import { isValidMethod } from '@/lib/methods'
 
 type Kind = Database['public']['Enums']['harvest_kind']
 
@@ -25,7 +26,10 @@ export async function createTripAction(formData: FormData) {
   const stateRaw = String(formData.get('state') ?? '').trim().toUpperCase()
   const zone = String(formData.get('zone') ?? '').trim()
   const county = String(formData.get('county') ?? '').trim()
+  // v26.3: species_targeted + method are first-class columns now. Drop the
+  // notes-folding hack from v25.9.1 (the migration backfilled existing rows).
   const speciesTargeted = String(formData.get('species_targeted') ?? '').trim()
+  const methodRaw = String(formData.get('method') ?? '').trim()
   const notesInput = String(formData.get('notes') ?? '').trim()
   const hunterIds = formData.getAll('hunter_ids').map((v) => String(v)).filter(Boolean)
 
@@ -34,12 +38,8 @@ export async function createTripAction(formData: FormData) {
   if (kind !== 'hunting' && kind !== 'fishing') throw new Error('Invalid trip kind.')
   if (!stateRaw || stateRaw.length !== 2) throw new Error('State is required.')
 
-  // Schema doesn't have a species_targeted column yet; fold it into notes so
-  // the value isn't lost. When that migration lands we can split it out.
-  const notes = [
-    speciesTargeted ? `Species targeted: ${speciesTargeted}` : '',
-    notesInput,
-  ].filter(Boolean).join('\n\n') || null
+  const method = methodRaw && isValidMethod(methodRaw) ? methodRaw : null
+  const notes = notesInput || null
 
   const insertResult = await insertTrip(profile.id, {
     title,
@@ -51,6 +51,8 @@ export async function createTripAction(formData: FormData) {
     state: stateRaw,
     zone: zone || null,
     county: county || null,
+    species_targeted: speciesTargeted || null,
+    method,
     notes,
   })
   if ('error' in insertResult) throw new Error(insertResult.error)

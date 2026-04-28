@@ -70,7 +70,20 @@ export default async function HunterDashboardPage() {
         </section>
 
         <div className="bb-dash-cell-12" data-order-mobile="2">
-          <Widget title="Your guides">
+          <Widget
+            title="Your guides"
+            action={
+              guides.length > 0 ? (
+                <Link
+                  href="/app/h/guides"
+                  className="bb-widget-link"
+                  style={{ color: 'var(--color-copper)' }}
+                >
+                  View all
+                </Link>
+              ) : null
+            }
+          >
             {guides.length === 0 ? (
               <div className="bb-empty">
                 <div className="bb-empty-title">No guides yet</div>
@@ -80,7 +93,8 @@ export default async function HunterDashboardPage() {
               </div>
             ) : (
               <div className="bb-detail-list">
-                {guides.map((g) => {
+                {/* v26.3: dashboard widget is now a 3-row preview. Full list lives at /app/h/guides. */}
+                {guides.slice(0, 3).map((g) => {
                   const label = guideLabel(g)
                   return (
                     <div key={g.invite_id} className="bb-detail-row">
@@ -96,6 +110,21 @@ export default async function HunterDashboardPage() {
                     </div>
                   )
                 })}
+                {guides.length > 3 && (
+                  <Link
+                    href="/app/h/guides"
+                    className="bb-widget-link"
+                    style={{
+                      display: 'inline-block',
+                      marginTop: '0.5rem',
+                      color: 'var(--color-copper)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    View all guides
+                  </Link>
+                )}
               </div>
             )}
           </Widget>

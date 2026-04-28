@@ -178,6 +178,7 @@ export type Database = {
           length_in: number | null
           location_lat: number | null
           location_lng: number | null
+          method: string | null
           notes: string | null
           ocr_confirmed: boolean
           ocr_raw: Json | null
@@ -198,6 +199,7 @@ export type Database = {
           length_in?: number | null
           location_lat?: number | null
           location_lng?: number | null
+          method?: string | null
           notes?: string | null
           ocr_confirmed?: boolean
           ocr_raw?: Json | null
@@ -218,6 +220,7 @@ export type Database = {
           length_in?: number | null
           location_lat?: number | null
           location_lng?: number | null
+          method?: string | null
           notes?: string | null
           ocr_confirmed?: boolean
           ocr_raw?: Json | null
@@ -953,8 +956,10 @@ export type Database = {
           location_lat: number | null
           location_lng: number | null
           location_name: string | null
+          method: string | null
           notes: string | null
           signed_manifest: Json | null
+          species_targeted: string | null
           starts_at: string
           state: string
           status: Database["public"]["Enums"]["trip_status"]
@@ -973,8 +978,10 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           location_name?: string | null
+          method?: string | null
           notes?: string | null
           signed_manifest?: Json | null
+          species_targeted?: string | null
           starts_at: string
           state?: string
           status?: Database["public"]["Enums"]["trip_status"]
@@ -993,8 +1000,10 @@ export type Database = {
           location_lat?: number | null
           location_lng?: number | null
           location_name?: string | null
+          method?: string | null
           notes?: string | null
           signed_manifest?: Json | null
+          species_targeted?: string | null
           starts_at?: string
           state?: string
           status?: Database["public"]["Enums"]["trip_status"]
