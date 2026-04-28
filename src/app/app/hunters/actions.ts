@@ -76,7 +76,7 @@ async function findExistingAuthUser(emailLower: string): Promise<AdminUser | nul
 // already-accepted invitation row + send a "you've been added" email
 // pointing at /login. This avoids forcing the hunter to re-register.
 export async function inviteHunterAction(formData: FormData): Promise<InviteActionResult> {
-  const { user, profile } = await requireGuide()
+  const { user, profile, guide } = await requireGuide()
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
 
@@ -154,8 +154,21 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
       }
 
       const loginUrl = `${origin}/login`
-      const body = buildExistingHunterAddedEmail({ guideLabel, loginUrl })
-      await sendBitebookEmail({ to: email, subject: body.subject, text: body.text })
+      // v26.2.1: branded HTML body (skull logo + paper card + copper CTA +
+      // footer) instead of plaintext-only. Guide's business_name is surfaced
+      // when set so the email reads "{guide} from {business} added you...".
+      const body = buildExistingHunterAddedEmail({
+        guideLabel,
+        businessName: guide?.business_name ?? null,
+        loginUrl,
+        origin,
+      })
+      await sendBitebookEmail({
+        to: email,
+        subject: body.subject,
+        text: body.text,
+        html: body.html,
+      })
 
       try {
         await markStepDone(supabase, user.id, 'hunter_invited')
