@@ -239,12 +239,12 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
         </div>
       </fieldset>
 
-      {/* Outfitter details */}
+      {/* Guide credentials */}
       <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Outfitter details</legend>
+        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Guide credentials</legend>
 
         <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="license_number">License number</label>
+          <label className="bb-form-label" htmlFor="license_number">Guide License #</label>
           <input
             id="license_number"
             name="license_number"
