@@ -1,6 +1,5 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { LifeBuoy } from 'lucide-react'
 import HunterAppNav from './HunterAppNav'
 import SignOutButton from './SignOutButton'
 import MobileNavMenu from './MobileNavMenu'
@@ -9,8 +8,10 @@ import MobileNavMenu from './MobileNavMenu'
 // just Support + Sign Out — but the hamburger still lives here so the layout
 // stays consistent across roles and a future Settings/Privacy entry can drop
 // in without redesigning the header.
+//
+// v26.1.1: serializable iconName strings only (see AppHeader for context).
 const HUNTER_DRAWER_ITEMS = [
-  { href: '/app/h/support', label: 'Support', Icon: LifeBuoy, match: (p: string) => p.startsWith('/app/h/support') },
+  { href: '/app/h/support', label: 'Support', iconName: 'lifebuoy' as const },
 ] as const
 
 // v25.1: hunter-side mobile top bar. Same structure as AppHeader but the

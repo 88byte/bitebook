@@ -1,6 +1,5 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { FileText, Settings, LifeBuoy } from 'lucide-react'
 import AppNav from './AppNav'
 import SignOutButton from './SignOutButton'
 import MobileNavMenu from './MobileNavMenu'
@@ -10,10 +9,16 @@ import MobileNavMenu from './MobileNavMenu'
 // while Documents / Settings / Support / Sign Out stay reachable on mobile.
 // Desktop sidebar (>=1024px) still renders the full set; this header is
 // hidden via .bb-app-mobile-header on desktop.
+//
+// v26.1.1: this list contains only serializable strings (no Icon component
+// reference, no match function). React Server Components can't serialize
+// function values across the boundary into a client component, which crashed
+// /app with "Functions cannot be passed directly to Client Components". The
+// drawer now accepts a string iconName and resolves the icon internally.
 const GUIDE_DRAWER_ITEMS = [
-  { href: '/app/docs',     label: 'Documents', Icon: FileText, match: (p: string) => p.startsWith('/app/docs') },
-  { href: '/app/settings', label: 'Settings',  Icon: Settings, match: (p: string) => p.startsWith('/app/settings') },
-  { href: '/app/support',  label: 'Support',   Icon: LifeBuoy, match: (p: string) => p.startsWith('/app/support') },
+  { href: '/app/docs',     label: 'Documents', iconName: 'fileText' as const },
+  { href: '/app/settings', label: 'Settings',  iconName: 'settings' as const },
+  { href: '/app/support',  label: 'Support',   iconName: 'lifebuoy' as const },
 ] as const
 
 // Top bar shared across every /app screen. Active-state lives in the
