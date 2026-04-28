@@ -271,6 +271,66 @@ export async function cancelInviteAction(formData: FormData): Promise<CancelInvi
   return { ok: true }
 }
 
+export type RemoveHunterResult = { ok: true } | { error: string }
+
+// v25.9: soft-removes an accepted hunter from the guide's network. Flips
+// invitations.status from 'accepted' → 'removed'. Past trip_participants and
+// trip records are preserved on purpose: the audit trail of who was on which
+// trip should not silently disappear when a guide removes a hunter from their
+// network. The hunter's auth/profile rows are also untouched — they keep
+// their account and any other guide relationships.
+//
+// Filtered out of the accepted list on /app/hunters because that view only
+// renders status === 'accepted'. The guide can re-invite later, which will
+// create a fresh invitations row.
+export async function removeHunterAction(formData: FormData): Promise<RemoveHunterResult> {
+  const { profile } = await requireGuide()
+
+  const inviteId = String(formData.get('invite_id') ?? '').trim()
+  if (!inviteId) return { error: 'Missing invite id.' }
+
+  const supabase = await createClient()
+
+  // Verify ownership + status before mutating. Only allow remove on accepted
+  // invites — pending invites should be canceled instead.
+  const { data: invite, error: readError } = await supabase
+    .from('invitations')
+    .select('id, status, guide_id, accepted_by')
+    .eq('id', inviteId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+
+  if (readError) {
+    console.warn('[hunters.removeHunterAction] read failed', {
+      code: readError.code,
+      message: readError.message,
+    })
+    return { error: 'Could not load that hunter.' }
+  }
+  if (!invite) return { error: 'Hunter not found.' }
+  if (invite.status !== 'accepted') {
+    return { error: `Cannot remove a ${invite.status} invite.` }
+  }
+
+  const { error: updateError } = await supabase
+    .from('invitations')
+    .update({ status: 'removed' })
+    .eq('id', inviteId)
+    .eq('guide_id', profile.id)
+
+  if (updateError) {
+    console.warn('[hunters.removeHunterAction] update failed', {
+      code: updateError.code,
+      message: updateError.message,
+    })
+    return { error: 'Could not remove that hunter.' }
+  }
+
+  revalidatePath('/app/hunters')
+  revalidatePath('/app')
+  return { ok: true }
+}
+
 export type ResendInviteResult =
   | { ok: true }
   | { error: string; cooldown_until?: string }

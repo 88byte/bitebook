@@ -3,30 +3,30 @@
 import { useEffect, useState, useTransition } from 'react'
 import { Check } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
-import { cancelInviteAction } from './actions'
+import { removeHunterAction } from './actions'
 
-// v25.7 → v25.9: branded text-button secondary action that soft-cancels a
-// pending invite. v25.9 swaps the previous window.confirm() call for the
-// reusable ConfirmModal so the prompt feels intentional and on-brand.
-export default function CancelInviteButton({
+// v25.9: removes an accepted hunter from the guide's network. Confirms via
+// the branded ConfirmModal (destructive variant) — past trip records remain
+// untouched, the guide can re-invite the hunter later.
+export default function RemoveHunterButton({
   inviteId,
+  displayName,
   email,
 }: {
   inviteId: string
+  displayName: string | null
   email: string
 }) {
   const [error, setError] = useState<string | null>(null)
-  const [showCanceledPill, setShowCanceledPill] = useState(false)
+  const [showRemovedPill, setShowRemovedPill] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
 
-  // Auto-clear the "Canceled" pill after 4s. Page revalidation should remove
-  // the row anyway, but the pill covers the brief window before it does.
   useEffect(() => {
-    if (!showCanceledPill) return
-    const id = setTimeout(() => setShowCanceledPill(false), 4000)
+    if (!showRemovedPill) return
+    const id = setTimeout(() => setShowRemovedPill(false), 4000)
     return () => clearTimeout(id)
-  }, [showCanceledPill])
+  }, [showRemovedPill])
 
   function onClick() {
     setError(null)
@@ -37,21 +37,22 @@ export default function CancelInviteButton({
     const fd = new FormData()
     fd.set('invite_id', inviteId)
     startTransition(async () => {
-      const res = await cancelInviteAction(fd)
+      const res = await removeHunterAction(fd)
       setOpen(false)
       if ('error' in res) {
         setError(res.error)
         return
       }
-      setShowCanceledPill(true)
+      setShowRemovedPill(true)
     })
   }
 
-  const buttonTitle = `Cancel invite to ${email}`
+  const label = displayName ?? email
+  const buttonTitle = `Remove ${label} from your network`
 
   return (
     <div className="flex flex-col items-end gap-1">
-      {showCanceledPill ? (
+      {showRemovedPill ? (
         <span
           className="bb-pill bb-pill-active"
           role="status"
@@ -59,7 +60,7 @@ export default function CancelInviteButton({
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
         >
           <Check size={12} aria-hidden="true" />
-          Canceled
+          Removed
         </span>
       ) : (
         <button
@@ -70,7 +71,7 @@ export default function CancelInviteButton({
           aria-label={buttonTitle}
           title={buttonTitle}
         >
-          {isPending ? 'Canceling' : 'Cancel'}
+          {isPending ? 'Removing' : 'Remove'}
         </button>
       )}
       {error && (
@@ -80,10 +81,10 @@ export default function CancelInviteButton({
       )}
       <ConfirmModal
         open={open}
-        title="Cancel invite?"
-        body={`Cancel this invite to ${email}? They won't be able to register from the link anymore.`}
-        confirmLabel="Cancel invite"
-        cancelLabel="Keep invite"
+        title="Remove from network?"
+        body={`Remove ${label} from your network? They'll lose access to upcoming trips with you. Past trip records remain. You can invite them again later.`}
+        confirmLabel="Remove"
+        cancelLabel="Keep in network"
         destructive
         isPending={isPending}
         onConfirm={onConfirm}

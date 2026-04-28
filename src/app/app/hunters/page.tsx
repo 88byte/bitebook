@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import InviteForm from './InviteForm'
 import ResendInviteButton from './ResendInviteButton'
 import CancelInviteButton from './CancelInviteButton'
+import RemoveHunterButton from './RemoveHunterButton'
 
 type AcceptedRow = {
   id: string
@@ -105,6 +106,13 @@ export default async function HuntersPage() {
                         <div className="bb-detail-sub">
                           Joined {fmtDate(h.created_at)}{h.display_name ? ` (${h.email})` : ''}
                         </div>
+                      </div>
+                      <div className="bb-resend-wrap">
+                        <RemoveHunterButton
+                          inviteId={h.id}
+                          displayName={h.display_name ?? null}
+                          email={h.email}
+                        />
                       </div>
                     </div>
                   ))}

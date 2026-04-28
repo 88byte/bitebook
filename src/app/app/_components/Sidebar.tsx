@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, FileText, Settings, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 
 // Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS. Uses
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
   { href: '/app/docs',     label: 'Documents', icon: FileText,        match: (p: string) => p.startsWith('/app/docs') },
   { href: '/app/settings', label: 'Settings',  icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
+  { href: '/app/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
 ] as const
 
 export default function Sidebar() {

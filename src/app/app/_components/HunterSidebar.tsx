@@ -3,15 +3,16 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, User } from 'lucide-react'
+import { LayoutDashboard, Calendar, User, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 
 // v25.1: hunter-side desktop sidebar. Same shell as Sidebar.tsx but a leaner
-// nav (3 items). Hidden under 1024px via the existing .bb-sidebar CSS rule.
+// nav. Hidden under 1024px via the existing .bb-sidebar CSS rule.
 const NAV = [
   { href: '/app/h',          label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/app/h' },
   { href: '/app/h/trips',    label: 'My trips',  icon: Calendar,        match: (p: string) => p.startsWith('/app/h/trips') },
   { href: '/app/h/profile',  label: 'Profile',   icon: User,            match: (p: string) => p.startsWith('/app/h/profile') },
+  { href: '/app/h/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/h/support') },
 ] as const
 
 export default function HunterSidebar() {

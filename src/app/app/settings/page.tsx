@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import SettingsForm from './SettingsForm'
@@ -37,6 +38,11 @@ export default async function SettingsPage() {
             />
           </div>
         </section>
+
+        {/* v25.9: 1-tap support link for mobile users (sidebar is hidden <1024px). */}
+        <p className="mt-4" style={{ fontSize: '0.85rem', color: 'var(--color-ink-muted)', textAlign: 'center' }}>
+          Need a hand? <Link href="/app/support" className="bb-text-action bb-text-action-copper" style={{ display: 'inline', padding: 0 }}>Help</Link>
+        </p>
       </div>
     </main>
   )

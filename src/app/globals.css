@@ -1422,3 +1422,64 @@ body {
 .bb-onboard-step.is-locked .bb-onboard-step-label {
   color: var(--color-ink-soft);
 }
+
+/* v25.9: modal backdrop + card. Used by src/app/_components/ConfirmModal.tsx
+   to replace browser-native window.confirm for destructive actions. Backdrop
+   sits at z=50 (above sticky headers / nav). Card centers, paper bg, copper
+   shadow stack. Confirm button uses .bb-cta-sm by default; destructive flag
+   swaps to a red surface via .bb-cta-sm-destructive. */
+.bb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 8, 6, 0.55);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.bb-modal-card {
+  background: var(--color-paper);
+  border-radius: 1rem;
+  padding: 1.5rem 1.25rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.3);
+  max-width: 26rem;
+  width: 100%;
+}
+@media (min-width: 40rem) {
+  .bb-modal-card {
+    padding: 1.75rem 1.5rem;
+  }
+}
+.bb-modal-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.9375rem;
+  color: var(--color-ink);
+  margin: 0 0 0.75rem;
+}
+.bb-modal-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  margin: 0 0 1rem;
+}
+.bb-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+.bb-cta-sm-destructive {
+  background-color: #B33A2E;
+  color: #FFFFFF;
+}
+.bb-cta-sm-destructive:hover:not(:disabled) {
+  background-color: #9A302A;
+}
+.bb-cta-sm-destructive:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
