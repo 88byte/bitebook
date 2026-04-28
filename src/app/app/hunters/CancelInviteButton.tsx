@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { cancelInviteAction } from './actions'
 
-// v25.7: icon-only secondary action that soft-cancels a pending invite.
-// Confirms via window.confirm() to keep the UX simple — once confirmed the
-// server action flips status to 'canceled' and the row falls out of the
-// Pending list on the next revalidation.
+// v25.7 → v25.8: branded text-button secondary action that soft-cancels a
+// pending invite. Confirms via window.confirm() to keep the UX simple — once
+// confirmed the server action flips status to 'canceled' and the row falls
+// out of the Pending list on the next revalidation.
 export default function CancelInviteButton({
   inviteId,
   email,
@@ -64,12 +64,11 @@ export default function CancelInviteButton({
           type="button"
           onClick={onClick}
           disabled={isPending}
-          className="bb-btn-secondary"
+          className="bb-text-action bb-text-action-muted"
           aria-label={buttonTitle}
           title={buttonTitle}
-          style={{ padding: '0.4rem 0.55rem' }}
         >
-          <X size={16} aria-hidden="true" />
+          {isPending ? 'Canceling' : 'Cancel'}
         </button>
       )}
       {error && (

@@ -925,17 +925,57 @@ body {
 /* v25.6: pending-invite rows have a Resend button that pushed the email
    metadata column too narrow at <640px and made dates wrap word-by-word.
    On small viewports, allow the row to wrap and let the resend group take
-   its own line beneath the email + Pending pill. */
+   its own line beneath the email + Pending pill.
+   v25.8: bb-resend-wrap now hosts two text actions side by side (Resend +
+   Cancel), each with its own caption stack underneath. */
 .bb-detail-row-pending { flex-wrap: wrap; }
-.bb-resend-wrap { margin-left: auto; }
+.bb-resend-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
 @media (max-width: 40rem) {
   .bb-resend-wrap {
     flex-basis: 100%;
     margin-left: 0;
     margin-top: 0.4rem;
-    display: flex;
     justify-content: flex-end;
   }
+}
+
+/* v25.8: branded inline text-action buttons for secondary row actions
+   (Resend, Cancel, etc.). Replaces the icon-only pattern that read as
+   off-brand and ambiguous. Two color modifiers — copper (primary action),
+   muted (destructive secondary). Used in the hunters Pending list; reuse
+   anywhere we need a small uppercase text button beside other content. */
+.bb-text-action {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 0.35rem 0.55rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: color 0.15s, background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.bb-text-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.bb-text-action-copper { color: var(--color-copper); }
+.bb-text-action-copper:hover:not(:disabled) {
+  background: rgba(176, 108, 60, 0.08);
+}
+.bb-text-action-muted { color: var(--color-ink-muted); }
+.bb-text-action-muted:hover:not(:disabled) {
+  background: rgba(31, 36, 25, 0.05);
 }
 
 /* Pagination row */

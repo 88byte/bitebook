@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Check, RotateCcw } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { resendInviteAction } from './actions'
 
 const COOLDOWN_MS = 5 * 60 * 1000
@@ -117,12 +117,11 @@ export default function ResendInviteButton({
           type="button"
           onClick={onClick}
           disabled={isPending || inCooldown}
-          className="bb-btn-secondary"
+          className="bb-text-action bb-text-action-copper"
           aria-label={buttonTitle}
           title={buttonTitle}
-          style={{ padding: '0.4rem 0.55rem' }}
         >
-          <RotateCcw size={16} aria-hidden="true" />
+          {isPending ? 'Sending' : inCooldown ? 'Resend' : 'Resend'}
         </button>
       )}
       {inCooldown ? (
