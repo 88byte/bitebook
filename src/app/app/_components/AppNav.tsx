@@ -2,13 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Star, Settings } from 'lucide-react'
 
+// v26.0 Batch A: dropped "Docs" from mobile bottom-nav to make room for
+// "Reviews" without crushing tap targets at 360px. Docs is still reachable
+// from the desktop sidebar AND from the dashboard "Documents" widget on
+// mobile, so the route is not orphaned. If we add a 6th primary entry
+// later, the right move is a hamburger drawer rather than further
+// tightening per-tab padding.
 const TABS = [
   { href: '/app',          label: 'Dashboard', Icon: LayoutDashboard, match: (p: string) => p === '/app' },
   { href: '/app/trips',    label: 'Trips',     Icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
   { href: '/app/hunters',  label: 'Hunters',   Icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
-  { href: '/app/docs',     label: 'Docs',      Icon: FileText,        match: (p: string) => p.startsWith('/app/docs') },
+  { href: '/app/reviews',  label: 'Reviews',   Icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
   { href: '/app/settings', label: 'Settings',  Icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
 ] as const
 

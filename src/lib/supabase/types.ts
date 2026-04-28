@@ -658,6 +658,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          license_doc_id: string | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
@@ -673,6 +674,7 @@ export type Database = {
           first_name?: string
           id: string
           last_name?: string
+          license_doc_id?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -688,6 +690,7 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          license_doc_id?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -837,6 +840,61 @@ export type Database = {
             columns: ["harvest_id"]
             isOneToOne: false
             referencedRelation: "harvests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          guide_id: string
+          hunter_id: string
+          id: string
+          rating: number
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          guide_id: string
+          hunter_id: string
+          id?: string
+          rating: number
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          guide_id?: string
+          hunter_id?: string
+          id?: string
+          rating?: number
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_reviews_guide_id_fkey"
+            columns: ["guide_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_reviews_hunter_id_fkey"
+            columns: ["hunter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_reviews_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
             referencedColumns: ["id"]
           },
         ]

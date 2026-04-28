@@ -596,3 +596,139 @@ export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
     guides: guidesSet.size,
   }
 }
+
+// ─── v26.0 Batch A: reviews reads ────────────────────────────────────────────
+//
+// Reads run on the user-session client. RLS policies (added in
+// 20260427_add_trip_reviews_table.sql) gate reads:
+//   - hunter sees rows where hunter_id = auth.uid()
+//   - guide sees rows where guide_id = auth.uid()
+// Defense-in-depth: every fetcher takes a verified guideId/hunterId and
+// applies it via .eq().
+
+export type ReviewSort = 'recent' | 'oldest' | 'highest' | 'lowest'
+
+export type GuideReviewRow = {
+  id: string
+  rating: number
+  comment: string | null
+  created_at: string
+  trip: {
+    id: string
+    title: string
+    starts_at: string
+    ends_at: string | null
+  } | null
+  hunter: {
+    id: string
+    display_name: string
+    avatar_url: string | null
+  } | null
+}
+
+export async function fetchGuideReviews(
+  guideId: string,
+  sort: ReviewSort
+): Promise<GuideReviewRow[]> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('trip_reviews')
+    .select(
+      `id, rating, comment, created_at,
+       trip:trips!inner(id, title, starts_at, ends_at),
+       hunter:profiles!trip_reviews_hunter_id_fkey(id, display_name, avatar_url)`
+    )
+    .eq('guide_id', guideId)
+
+  switch (sort) {
+    case 'recent':
+      query = query.order('created_at', { ascending: false })
+      break
+    case 'oldest':
+      query = query.order('created_at', { ascending: true })
+      break
+    case 'highest':
+      query = query.order('rating', { ascending: false }).order('created_at', { ascending: false })
+      break
+    case 'lowest':
+      query = query.order('rating', { ascending: true }).order('created_at', { ascending: false })
+      break
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.warn('[queries.fetchGuideReviews]', { guideId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>
+    const trip = (row.trip ?? null) as GuideReviewRow['trip'] | null
+    const hunter = (row.hunter ?? null) as GuideReviewRow['hunter'] | null
+    return {
+      id: row.id as string,
+      rating: row.rating as number,
+      comment: (row.comment as string | null) ?? null,
+      created_at: row.created_at as string,
+      trip,
+      hunter,
+    }
+  })
+}
+
+export type GuideReviewStats = {
+  count: number
+  average: number
+  // distribution[i] = count of reviews with rating === i+1 (i ∈ 0..4)
+  distribution: [number, number, number, number, number]
+}
+
+export async function fetchGuideReviewStats(guideId: string): Promise<GuideReviewStats> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('trip_reviews')
+    .select('rating')
+    .eq('guide_id', guideId)
+  if (error) {
+    console.warn('[queries.fetchGuideReviewStats]', { guideId, code: error.code, message: error.message })
+    return { count: 0, average: 0, distribution: [0, 0, 0, 0, 0] }
+  }
+  const rows = data ?? []
+  const dist: [number, number, number, number, number] = [0, 0, 0, 0, 0]
+  let sum = 0
+  for (const r of rows) {
+    const v = r.rating
+    if (v >= 1 && v <= 5) {
+      dist[v - 1] += 1
+      sum += v
+    }
+  }
+  const count = rows.length
+  const average = count > 0 ? sum / count : 0
+  return { count, average, distribution: dist }
+}
+
+export type HunterTripReview = {
+  id: string
+  rating: number
+  comment: string | null
+  created_at: string
+  updated_at: string
+}
+
+export async function fetchHunterTripReview(
+  hunterId: string,
+  tripId: string
+): Promise<HunterTripReview | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('trip_reviews')
+    .select('id, rating, comment, created_at, updated_at')
+    .eq('trip_id', tripId)
+    .eq('hunter_id', hunterId)
+    .maybeSingle()
+  if (error) {
+    console.warn('[queries.fetchHunterTripReview]', { hunterId, tripId, code: error.code, message: error.message })
+    return null
+  }
+  return data ?? null
+}

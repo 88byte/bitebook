@@ -1,20 +1,27 @@
 import Link from 'next/link'
 import { requireHunter } from '../_lib/auth'
 import { fetchHunterTrips, fetchHunterStats } from '../_lib/queries'
+import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
 import Widget from '../_components/Widget'
 import HunterTripRow from './_components/HunterTripRow'
+import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
 
 // v25.1: hunter dashboard. Stats row + recent trips. Hunters don't create
 // trips, so there are no add-trip CTAs here — guides do that.
+//
+// v26.0 Batch A: shows a HunterOnboardingBanner at the top of the grid when
+// onboarding is incomplete (3-step checklist on /app/h/welcome).
 export default async function HunterDashboardPage() {
-  const { profile } = await requireHunter()
+  const { supabase, user, profile } = await requireHunter()
 
-  const [recent, stats] = await Promise.all([
+  const [recent, stats, progress] = await Promise.all([
     fetchHunterTrips(profile.id, 5),
     fetchHunterStats(profile.id),
+    fetchHunterOnboardingProgress(supabase, user.id),
   ])
 
   const isEmpty = recent.length === 0
+  const showBanner = !isHunterOnboarded(progress)
 
   return (
     <main className="bb-app-main">
@@ -29,6 +36,12 @@ export default async function HunterDashboardPage() {
       </header>
 
       <div className="bb-dash-grid mt-4">
+        {showBanner && (
+          <div className="bb-dash-cell-12" data-order-mobile="0">
+            <HunterOnboardingBanner progress={progress} />
+          </div>
+        )}
+
         <section
           aria-labelledby="hunter-stats"
           className="bb-dash-cell-12"

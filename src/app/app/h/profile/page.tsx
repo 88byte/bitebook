@@ -1,9 +1,23 @@
 import Link from 'next/link'
 import { requireHunter } from '../../_lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import HunterProfileForm from './HunterProfileForm'
 
+// v26.0 Batch A: pulls expanded profile fields (first/last name, address,
+// license_doc_id) for the profile form. requireHunter() returns only the
+// thin set needed for routing — we hit profiles directly here for the
+// fields the form binds.
 export default async function HunterProfilePage() {
-  const { profile } = await requireHunter()
+  const { user, profile } = await requireHunter()
+
+  const supabase = await createClient()
+  const { data: extended } = await supabase
+    .from('profiles')
+    .select(
+      'first_name, last_name, address_street, address_city, address_state, address_zip, license_doc_id'
+    )
+    .eq('id', user.id)
+    .maybeSingle()
 
   return (
     <main className="bb-app-main">
@@ -11,7 +25,7 @@ export default async function HunterProfilePage() {
         <p className="bb-page-eyebrow">Account</p>
         <h1 className="bb-page-title">Profile</h1>
         <p className="bb-page-sub">
-          Your name and phone are what your guide sees on shared trips.
+          Your name, address, and license number help your guide pre-fill state hunter logs.
         </p>
       </header>
 
@@ -21,7 +35,14 @@ export default async function HunterProfilePage() {
             <HunterProfileForm
               initial={{
                 display_name: profile.display_name ?? '',
+                first_name: extended?.first_name ?? '',
+                last_name: extended?.last_name ?? '',
                 phone: profile.phone ?? '',
+                address_street: extended?.address_street ?? '',
+                address_city: extended?.address_city ?? '',
+                address_state: extended?.address_state ?? '',
+                address_zip: extended?.address_zip ?? '',
+                license_doc_id: extended?.license_doc_id ?? '',
                 avatar_url: profile.avatar_url ?? null,
               }}
             />

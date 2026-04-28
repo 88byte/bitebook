@@ -9,7 +9,23 @@ export const ONBOARDING_STEPS = [
   { id: 'first_trip',     label: 'Log your first trip',       href: '/app/trips/new' },
 ] as const
 
-export type OnboardingStepId = (typeof ONBOARDING_STEPS)[number]['id']
+// v26.0 Batch A: hunter onboarding step list. Order matches /app/h/welcome.
+//
+// Step 2 (`wait_for_guide`) is data-driven — derived from EXISTS on
+// trip_participants on every dashboard render rather than stored in
+// onboarding_progress.steps_completed. The other two are action-driven
+// (marked done by updateHunterProfileAction and the trip-detail page).
+export const HUNTER_ONBOARDING_STEPS = [
+  { id: 'profile_set',       label: 'Set up your profile',  href: '/app/h/profile' },
+  { id: 'wait_for_guide',    label: 'Wait for your guide',  href: '/app/h/welcome' },
+  { id: 'first_trip_viewed', label: 'View your first trip', href: '/app/h/trips' },
+] as const
+
+export type HunterOnboardingStepId = (typeof HUNTER_ONBOARDING_STEPS)[number]['id']
+
+export type OnboardingStepId =
+  | (typeof ONBOARDING_STEPS)[number]['id']
+  | HunterOnboardingStepId
 
 export type OnboardingProgress = {
   steps_completed: string[]
@@ -51,6 +67,11 @@ export async function markStepDone(
   if (current.steps_completed.includes(stepId)) return
 
   const next = Array.from(new Set([...current.steps_completed, stepId]))
+  // v26.0: completed_at marks "all guide steps done". The hunter checklist
+  // (HUNTER_ONBOARDING_STEPS) overlaps on `profile_set` but uses different
+  // step ids overall and a separate isHunterOnboarded() helper that also
+  // factors in the live participant-row check, so leave completed_at as the
+  // guide-side terminal flag.
   const allDone = ONBOARDING_STEPS.every((s) => next.includes(s.id))
   const completedAt = allDone ? (current.completed_at ?? new Date().toISOString()) : current.completed_at
 
@@ -71,4 +92,65 @@ export function isOnboarded(progress: OnboardingProgress): boolean {
 export function progressLabel(progress: OnboardingProgress): string {
   const done = ONBOARDING_STEPS.filter((s) => progress.steps_completed.includes(s.id)).length
   return `${done} of ${ONBOARDING_STEPS.length} done`
+}
+
+// ─── v26.0 Batch A: hunter onboarding helpers ───────────────────────────────
+//
+// Hunter onboarding state is split across two sources:
+//   - profile_set + first_trip_viewed → onboarding_progress.steps_completed
+//     (action-driven; markStepDone fires from the relevant server action /
+//     page render).
+//   - wait_for_guide → derived from trip_participants on every render
+//     (data-driven; no row in onboarding_progress).
+//
+// Why split? wait_for_guide is gated on the GUIDE doing something (adding
+// the hunter to a trip). The hunter has no action to take. Storing it in
+// steps_completed would either require a guide-side write (RLS gymnastics
+// against another user's onboarding row) or a backfill loop. The live
+// EXISTS query is cheap and removes both.
+
+export type HunterOnboardingProgress = {
+  steps_completed: string[]
+  completed_at: string | null
+  has_participant_row: boolean
+}
+
+export async function fetchHunterOnboardingProgress(
+  supabase: Sb,
+  userId: string
+): Promise<HunterOnboardingProgress> {
+  const [progress, participantRes] = await Promise.all([
+    fetchOnboardingProgress(supabase, userId),
+    supabase
+      .from('trip_participants')
+      .select('id', { count: 'exact', head: true })
+      .eq('hunter_id', userId)
+      .limit(1),
+  ])
+  return {
+    steps_completed: progress.steps_completed,
+    completed_at: progress.completed_at,
+    has_participant_row: (participantRes.count ?? 0) > 0,
+  }
+}
+
+export function isHunterStepDone(
+  progress: HunterOnboardingProgress,
+  stepId: HunterOnboardingStepId
+): boolean {
+  if (stepId === 'wait_for_guide') return progress.has_participant_row
+  return progress.steps_completed.includes(stepId)
+}
+
+export function isHunterOnboarded(progress: HunterOnboardingProgress): boolean {
+  return HUNTER_ONBOARDING_STEPS.every((s) => isHunterStepDone(progress, s.id))
+}
+
+export function hunterProgressLabel(progress: HunterOnboardingProgress): string {
+  const done = HUNTER_ONBOARDING_STEPS.filter((s) => isHunterStepDone(progress, s.id)).length
+  return `${done} of ${HUNTER_ONBOARDING_STEPS.length} done`
+}
+
+export function hunterDoneCount(progress: HunterOnboardingProgress): number {
+  return HUNTER_ONBOARDING_STEPS.filter((s) => isHunterStepDone(progress, s.id)).length
 }

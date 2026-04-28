@@ -2,20 +2,40 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { requireHunter } from '../../../_lib/auth'
-import { fetchHunterTripDetail } from '../../../_lib/queries'
+import { fetchHunterTripDetail, fetchHunterTripReview } from '../../../_lib/queries'
 import StatusPill from '../../../_components/StatusPill'
 import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../../_lib/format'
+import { markStepDone } from '../../../_lib/onboarding'
+import ReviewForm from './ReviewForm'
 
 type RouteParams = Promise<{ id: string }>
 
 // v25.1: hunter-side read-only trip detail. No edit, no add-harvest, no
 // close-trip controls — those are guide-side actions.
+//
+// v26.0: best-effort marks the `first_trip_viewed` onboarding step done on
+// each successful render, and (for completed trips) renders ReviewForm so
+// the hunter can leave a 1-5 star review.
 export default async function HunterTripDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params
-  const { profile } = await requireHunter()
+  const { supabase, profile } = await requireHunter()
 
   const detail = await fetchHunterTripDetail(profile.id, id)
   if (!detail) notFound()
+
+  // v26.0: best-effort onboarding mark. If it fails (RLS, transient), the
+  // step will be marked the next time the hunter opens any trip detail.
+  try {
+    await markStepDone(supabase, profile.id, 'first_trip_viewed')
+  } catch (e) {
+    console.warn('[h.trips.detail] markStepDone failed', e)
+  }
+
+  const isCompleted = detail.trip.status === 'completed'
+  const existingReview = isCompleted ? await fetchHunterTripReview(profile.id, id) : null
+  const canEdit = existingReview
+    ? Date.now() - new Date(existingReview.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
+    : true
 
   const { trip, guide, participants, myHarvests } = detail
   const guideLabel = guide ? (guide.business_name?.trim() || guide.display_name) : 'Your guide'
@@ -139,6 +159,14 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
             </div>
           </div>
         </section>
+      )}
+
+      {isCompleted && (
+        <ReviewForm
+          tripId={trip.id}
+          existingReview={existingReview}
+          canEdit={canEdit}
+        />
       )}
     </main>
   )
