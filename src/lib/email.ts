@@ -83,6 +83,13 @@ export function wrapBitebookEmailHTML(opts: {
           </table>`
     : ''
 
+  // v26.3.1: dark band BEHIND the logo lives inside the inner content card,
+  // not on the body/outer-table background. Gmail (web + iOS) and Outlook
+  // sandbox the email into their own centered container with their own
+  // (often white) wrapper, which strips the page-level background-color and
+  // makes the white-skull bb-logo-mark.png invisible. Keeping the dark
+  // band as a top row of the inner card guarantees the logo sits on
+  // #0B0806 in every client.
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -96,14 +103,14 @@ export function wrapBitebookEmailHTML(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0B0806;padding:24px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;border-collapse:separate;">
           <tr>
-            <td align="center" style="padding:8px 0 24px 0;">
+            <td align="center" bgcolor="#0B0806" style="background:#0B0806;background-color:#0B0806;padding:36px 16px 28px 16px;border-radius:14px 14px 0 0;">
               <img src="${logoUrl}" alt="Bite Book" width="96" height="96" style="display:block;border:0;outline:none;text-decoration:none;width:96px;height:96px;">
             </td>
           </tr>
           <tr>
-            <td style="background:#FAF7F2;border-radius:14px;padding:28px 24px;">
+            <td bgcolor="#FAF7F2" style="background:#FAF7F2;background-color:#FAF7F2;padding:28px 24px;border-radius:0 0 14px 14px;">
               ${eyebrowHtml}
               <h1 style="margin:0 0 16px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:700;color:#1A1815;text-align:center;">${escapeHtml(headline)}</h1>
               ${paragraphsHtml}
