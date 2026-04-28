@@ -2,23 +2,21 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Star, Settings } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Star } from 'lucide-react'
 
-// v26.0 Batch A: dropped "Docs" from mobile bottom-nav to make room for
-// "Reviews" without crushing tap targets at 360px. Docs is still reachable
-// from the desktop sidebar AND from the dashboard "Documents" widget on
-// mobile, so the route is not orphaned. If we add a 6th primary entry
-// later, the right move is a hamburger drawer rather than further
-// tightening per-tab padding.
+// v26.1: 4-tab primary nav. Documents + Settings + Support + Sign Out moved
+// into the hamburger drawer (see MobileNavMenu / MobileNavDrawer) so we can
+// keep tap targets comfortable at 360px AND keep every section reachable on
+// mobile. Reviews stays in the bottom row because it's a high-frequency
+// post-trip surface for guides.
 const TABS = [
-  { href: '/app',          label: 'Dashboard', Icon: LayoutDashboard, match: (p: string) => p === '/app' },
-  { href: '/app/trips',    label: 'Trips',     Icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
-  { href: '/app/hunters',  label: 'Hunters',   Icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
-  { href: '/app/reviews',  label: 'Reviews',   Icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
-  { href: '/app/settings', label: 'Settings',  Icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
+  { href: '/app',         label: 'Dashboard', Icon: LayoutDashboard, match: (p: string) => p === '/app' },
+  { href: '/app/trips',   label: 'Trips',     Icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
+  { href: '/app/hunters', label: 'Hunters',   Icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
+  { href: '/app/reviews', label: 'Reviews',   Icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
 ] as const
 
-// v25.1: redesigned mobile nav. Each tab is now a vertical stack (icon over
+// v25.1: redesigned mobile nav. Each tab is a vertical stack (icon over
 // label) with equal flex sizing, a copper underline on the active tab, and
 // a touch target that clears 44px. Labels are always visible at every
 // breakpoint to avoid the icon-only ambiguity hunters reported in v24.

@@ -1,7 +1,20 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { FileText, Settings, LifeBuoy } from 'lucide-react'
 import AppNav from './AppNav'
 import SignOutButton from './SignOutButton'
+import MobileNavMenu from './MobileNavMenu'
+
+// v26.1: overflow nav items moved into a hamburger drawer so the bottom-tab
+// bar can hold 4 primary entries (Dashboard / Trips / Hunters / Reviews)
+// while Documents / Settings / Support / Sign Out stay reachable on mobile.
+// Desktop sidebar (>=1024px) still renders the full set; this header is
+// hidden via .bb-app-mobile-header on desktop.
+const GUIDE_DRAWER_ITEMS = [
+  { href: '/app/docs',     label: 'Documents', Icon: FileText, match: (p: string) => p.startsWith('/app/docs') },
+  { href: '/app/settings', label: 'Settings',  Icon: Settings, match: (p: string) => p.startsWith('/app/settings') },
+  { href: '/app/support',  label: 'Support',   Icon: LifeBuoy, match: (p: string) => p.startsWith('/app/support') },
+] as const
 
 // Top bar shared across every /app screen. Active-state lives in the
 // client-only <AppNav/> via usePathname(), which lets this component stay a
@@ -31,7 +44,9 @@ export default function AppHeader() {
 
         <AppNav />
 
-        <SignOutButton />
+        <MobileNavMenu items={GUIDE_DRAWER_ITEMS}>
+          <SignOutButton />
+        </MobileNavMenu>
       </div>
     </header>
   )

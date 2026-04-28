@@ -1,7 +1,17 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { LifeBuoy } from 'lucide-react'
 import HunterAppNav from './HunterAppNav'
 import SignOutButton from './SignOutButton'
+import MobileNavMenu from './MobileNavMenu'
+
+// v26.1: hunter-side mobile drawer. Smaller surface than the guide side —
+// just Support + Sign Out — but the hamburger still lives here so the layout
+// stays consistent across roles and a future Settings/Privacy entry can drop
+// in without redesigning the header.
+const HUNTER_DRAWER_ITEMS = [
+  { href: '/app/h/support', label: 'Support', Icon: LifeBuoy, match: (p: string) => p.startsWith('/app/h/support') },
+] as const
 
 // v25.1: hunter-side mobile top bar. Same structure as AppHeader but the
 // brand routes to /app/h and we render HunterAppNav. Server component so
@@ -32,7 +42,9 @@ export default function HunterAppHeader() {
 
         <HunterAppNav />
 
-        <SignOutButton />
+        <MobileNavMenu items={HUNTER_DRAWER_ITEMS}>
+          <SignOutButton />
+        </MobileNavMenu>
       </div>
     </header>
   )
