@@ -15,6 +15,7 @@ type PendingRow = {
   email: string
   created_at: string
   expires_at: string
+  last_sent_at: string
 }
 
 function fmtDate(iso: string): string {
@@ -27,7 +28,7 @@ export default async function HuntersPage() {
 
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, status, accepted_by, created_at, expires_at')
+    .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at')
     .eq('guide_id', profile.id)
     .order('created_at', { ascending: false })
 
@@ -37,7 +38,13 @@ export default async function HuntersPage() {
 
   const pending: PendingRow[] = (invites ?? [])
     .filter((i) => i.status === 'pending')
-    .map((i) => ({ id: i.id, email: i.email, created_at: i.created_at, expires_at: i.expires_at }))
+    .map((i) => ({
+      id: i.id,
+      email: i.email,
+      created_at: i.created_at,
+      expires_at: i.expires_at,
+      last_sent_at: i.last_sent_at,
+    }))
 
   // Resolve display names for accepted hunters via a single profiles lookup.
   const acceptedIds = accepted.map((a) => a.accepted_by).filter((v): v is string => !!v)
@@ -120,7 +127,11 @@ export default async function HuntersPage() {
                         </div>
                       </div>
                       <span className="bb-pill bb-pill-planned">Pending</span>
-                      <ResendInviteButton inviteId={p.id} email={p.email} />
+                      <ResendInviteButton
+                        inviteId={p.id}
+                        email={p.email}
+                        lastSentAt={p.last_sent_at}
+                      />
                     </div>
                   ))}
                 </div>

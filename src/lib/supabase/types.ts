@@ -261,6 +261,7 @@ export type Database = {
           expires_at: string
           guide_id: string
           id: string
+          last_sent_at: string
           status: Database["public"]["Enums"]["invite_status"]
           token: string
         }
@@ -271,6 +272,7 @@ export type Database = {
           expires_at?: string
           guide_id: string
           id?: string
+          last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string
         }
@@ -281,6 +283,7 @@ export type Database = {
           expires_at?: string
           guide_id?: string
           id?: string
+          last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string
         }

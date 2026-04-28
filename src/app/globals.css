@@ -161,6 +161,9 @@ body {
 .bb-field {
   position: relative;
   display: block;
+  /* v25.5: prevent flex/grid parent from forcing this child to its content
+     min-width — fixes mobile overflow from datetime-local inputs etc. */
+  min-width: 0;
 }
 
 .bb-field-icon {
@@ -199,6 +202,10 @@ body {
 
 .bb-input {
   width: 100%;
+  /* v25.5: defensive — guarantees the input never exceeds its parent box on
+     narrow viewports even if some unusual flex/grid tree gets in the way. */
+  max-width: 100%;
+  box-sizing: border-box;
   border-radius: 0.625rem;
   background: #FFFFFF;
   border: 1px solid rgba(31, 36, 25, 0.18);
@@ -926,7 +933,10 @@ body {
 }
 
 /* Form row helper for new-trip form (label above input) */
-.bb-form-row { display: flex; flex-direction: column; gap: 0.35rem; }
+/* v25.5: min-width:0 lets this row shrink below its content's intrinsic min
+   when nested in a flex/grid container — fixes mobile overflow on
+   /app/trips/new where datetime-local inputs pushed past 375px viewports. */
+.bb-form-row { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
 
 /* v25.4: cap form widths on desktop so width:100% inputs don't grow huge.
    Mobile is already capped via .bb-app-main max-width 44rem on <1024px, so

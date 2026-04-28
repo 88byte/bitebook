@@ -77,17 +77,16 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   return { ok: true, invite_url: inviteUrl }
 }
 
-export type ResendInviteResult = { ok: true } | { error: string }
+export type ResendInviteResult =
+  | { ok: true }
+  | { error: string; cooldown_until?: string }
 
 // Resends the invite email for a pending invitation. Reuses the original
 // token (no rotation) so the link the hunter received earlier still works.
 //
-// v25.4 note: the `invitations` table has no `last_sent_at` / `updated_at`
-// column, so this action does not enforce a server-side cooldown. The button
-// component (ResendInviteButton.tsx) handles immediate-double-click via
-// React state. A persistent per-invite rate-limit needs a schema change
-// (add `last_sent_at TIMESTAMPTZ` to `invitations`) before it can land here
-// — flagged in the audit doc.
+// v25.5: enforces a 5-minute server-side cooldown via invitations.last_sent_at
+// (added in migration add_invitations_last_sent_at). The button component
+// also reflects the cooldown locally for instant feedback.
 export async function resendInviteAction(formData: FormData): Promise<ResendInviteResult> {
   const { profile } = await requireGuide()
 
@@ -101,7 +100,7 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   // when the invite was already accepted or revoked.
   const { data: invite, error } = await supabase
     .from('invitations')
-    .select('id, email, token, status, expires_at, guide_id')
+    .select('id, email, token, status, expires_at, guide_id, last_sent_at')
     .eq('id', inviteId)
     .eq('guide_id', profile.id)
     .maybeSingle()
@@ -115,6 +114,18 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   if (invite.status === 'revoked') return { error: 'This invite was revoked.' }
   if (invite.status === 'expired' || new Date(invite.expires_at) < new Date()) {
     return { error: 'Invite expired. Send a new one instead.' }
+  }
+
+  // v25.5: 5-minute cooldown enforced server-side.
+  const COOLDOWN_MS = 5 * 60 * 1000
+  const lastSent = new Date(invite.last_sent_at).getTime()
+  const cooldownUntilMs = lastSent + COOLDOWN_MS
+  const remaining = cooldownUntilMs - Date.now()
+  if (remaining > 0) {
+    return {
+      error: 'cooldown',
+      cooldown_until: new Date(cooldownUntilMs).toISOString(),
+    }
   }
 
   // Same URL the original send used — token is stable.
@@ -143,6 +154,22 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   }
   // A "not sent" result with reason 'no_api_key' is a soft success in dev
   // environments without RESEND_API_KEY. We don't surface this as an error.
+
+  // v25.5: stamp the row so the cooldown is enforced for future resends. RLS
+  // allows guide to update own invitations rows, so the user-session client
+  // is sufficient — no need for the service-role admin client.
+  const { error: updateError } = await supabase
+    .from('invitations')
+    .update({ last_sent_at: new Date().toISOString() })
+    .eq('id', invite.id)
+  if (updateError) {
+    console.warn('[hunters.resendInviteAction] last_sent_at update failed', {
+      code: updateError.code,
+      message: updateError.message,
+    })
+    // Soft-fail: the email was sent. Worst case, cooldown isn't reflected
+    // until the next successful update. Don't surface to the user.
+  }
 
   revalidatePath('/app/hunters')
   return { ok: true }
