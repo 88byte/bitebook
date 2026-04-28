@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, UserPlus, Upload, FileText, ArrowRight } from 'lucide-react'
+import { Plus, UserPlus, Upload, ArrowRight } from 'lucide-react'
 import { requireGuide } from './_lib/auth'
 import {
   fetchRecentTrips,
@@ -32,6 +32,10 @@ export default async function DashboardPage() {
   // expose distinct paths. Restore all three quick actions and the dedicated
   // empty-state CTA, and drop the duplicate header "+ New trip" button —
   // Quick Actions owns that CTA on the dashboard now.
+  // v26.1.2: dashboard reordered so Upcoming Trips renders above Recent
+  // Trips — guides care more about what's NEXT than what's already done.
+  // Documents widget removed (reachable via mobile drawer / desktop sidebar
+  // / Docs nav, no longer warrants its own dashboard tile).
 
   return (
     <main className="bb-app-main">
@@ -103,7 +107,29 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        {/* v26.1.2: Upcoming above Recent on both mobile and desktop. */}
         <div className="bb-dash-cell-7" data-order-mobile="5">
+          <Widget title="Upcoming">
+            {upcoming.length === 0 ? (
+              <div className="bb-empty">
+                <div className="bb-empty-title">Nothing on the books</div>
+                <p className="bb-empty-sub">
+                  Plan a trip to see it appear here.
+                </p>
+              </div>
+            ) : (
+              <div role="list">
+                {upcoming.map((t) => (
+                  <div role="listitem" key={t.id}>
+                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Widget>
+        </div>
+
+        <div className="bb-dash-cell-5" data-order-mobile="6">
           <Widget
             title="Recent trips"
             action={
@@ -139,38 +165,6 @@ export default async function DashboardPage() {
                 ))}
               </div>
             )}
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-5" data-order-mobile="6">
-          <Widget title="Upcoming">
-            {upcoming.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">Nothing on the books</div>
-                <p className="bb-empty-sub">
-                  Plan a trip to see it appear here.
-                </p>
-              </div>
-            ) : (
-              <div role="list">
-                {upcoming.map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-4" data-order-mobile="7">
-          <Widget title="Documents">
-            <div className="bb-doc-shelf">
-              <FileText size={28} aria-hidden="true" style={{ color: 'var(--color-ink-soft)' }} />
-              <p className="bb-empty-sub mt-2" style={{ marginLeft: 0, marginRight: 0 }}>
-                Custom doc upload, hunter wallet, and warden share are coming in v25.
-              </p>
-            </div>
           </Widget>
         </div>
       </div>
