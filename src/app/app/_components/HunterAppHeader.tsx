@@ -12,13 +12,14 @@ export default function HunterAppHeader() {
     <header className="bb-app-header">
       <div className="bb-app-header-inner">
         <Link href="/app/h" aria-label="Bite Book home" className="flex items-center gap-2">
+          {/* v25.9.1: bumped mobile logo (~25%) — sm:+ keeps the original 32px treatment. */}
           <Image
             src="/bb-logo-mark.png"
             alt="Bite Book"
             width={1024}
             height={1024}
-            sizes="32px"
-            className="h-8 w-8"
+            sizes="40px"
+            className="h-10 w-10 sm:h-8 sm:w-8"
             priority
           />
           <span

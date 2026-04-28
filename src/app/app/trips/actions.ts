@@ -20,7 +20,11 @@ export async function createTripAction(formData: FormData) {
   const kind = (String(formData.get('kind') ?? 'hunting').trim() as Kind)
   const startsAt = String(formData.get('starts_at') ?? '').trim()
   const endsAt = String(formData.get('ends_at') ?? '').trim()
-  const locationName = String(formData.get('location_name') ?? '').trim()
+  // v25.9.1: split location fields. state is required (NOT NULL on trips).
+  const city = String(formData.get('city') ?? '').trim()
+  const stateRaw = String(formData.get('state') ?? '').trim().toUpperCase()
+  const zone = String(formData.get('zone') ?? '').trim()
+  const county = String(formData.get('county') ?? '').trim()
   const speciesTargeted = String(formData.get('species_targeted') ?? '').trim()
   const notesInput = String(formData.get('notes') ?? '').trim()
   const hunterIds = formData.getAll('hunter_ids').map((v) => String(v)).filter(Boolean)
@@ -28,6 +32,7 @@ export async function createTripAction(formData: FormData) {
   if (!title) throw new Error('Trip title is required.')
   if (!startsAt) throw new Error('Trip start date is required.')
   if (kind !== 'hunting' && kind !== 'fishing') throw new Error('Invalid trip kind.')
+  if (!stateRaw || stateRaw.length !== 2) throw new Error('State is required.')
 
   // Schema doesn't have a species_targeted column yet; fold it into notes so
   // the value isn't lost. When that migration lands we can split it out.
@@ -41,7 +46,11 @@ export async function createTripAction(formData: FormData) {
     kind,
     starts_at: new Date(startsAt).toISOString(),
     ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-    location_name: locationName || null,
+    location_name: null,
+    city: city || null,
+    state: stateRaw,
+    zone: zone || null,
+    county: county || null,
     notes,
   })
   if ('error' in insertResult) throw new Error(insertResult.error)

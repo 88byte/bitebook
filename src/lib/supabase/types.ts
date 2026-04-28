@@ -648,28 +648,46 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address_city: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip: string | null
           avatar_url: string | null
           created_at: string
           display_name: string
+          first_name: string
           id: string
+          last_name: string
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
         }
         Insert: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name: string
+          first_name?: string
           id: string
+          last_name?: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
         Update: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name?: string
+          first_name?: string
           id?: string
+          last_name?: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -867,6 +885,8 @@ export type Database = {
       }
       trips: {
         Row: {
+          city: string | null
+          county: string | null
           created_at: string
           ends_at: string | null
           guide_id: string
@@ -878,11 +898,15 @@ export type Database = {
           notes: string | null
           signed_manifest: Json | null
           starts_at: string
+          state: string
           status: Database["public"]["Enums"]["trip_status"]
           title: string
           updated_at: string
+          zone: string | null
         }
         Insert: {
+          city?: string | null
+          county?: string | null
           created_at?: string
           ends_at?: string | null
           guide_id: string
@@ -894,11 +918,15 @@ export type Database = {
           notes?: string | null
           signed_manifest?: Json | null
           starts_at: string
+          state?: string
           status?: Database["public"]["Enums"]["trip_status"]
           title: string
           updated_at?: string
+          zone?: string | null
         }
         Update: {
+          city?: string | null
+          county?: string | null
           created_at?: string
           ends_at?: string | null
           guide_id?: string
@@ -910,9 +938,11 @@ export type Database = {
           notes?: string | null
           signed_manifest?: Json | null
           starts_at?: string
+          state?: string
           status?: Database["public"]["Enums"]["trip_status"]
           title?: string
           updated_at?: string
+          zone?: string | null
         }
         Relationships: [
           {

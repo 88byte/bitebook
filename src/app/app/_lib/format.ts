@@ -43,3 +43,33 @@ export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2)
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'
 }
+
+// v25.9.1: render a trip's location from the structured city/state/zone
+// columns when set, with a graceful fallback to the legacy free-text
+// location_name. Examples:
+//   { city: 'Mendocino', state: 'CA', zone: 'D6' }     → "Mendocino, CA · D6"
+//   { city: null, state: 'CA', zone: 'D6' }            → "CA · D6"
+//   legacy { location_name: 'Big Sur D7', state: '' }  → "Big Sur D7"
+//   nothing set                                        → null
+export function formatTripLocation(t: {
+  city?: string | null
+  state?: string | null
+  zone?: string | null
+  county?: string | null
+  location_name?: string | null
+}): string | null {
+  const city = t.city?.trim() || ''
+  const state = t.state?.trim() || ''
+  const zone = t.zone?.trim() || ''
+
+  if (city || state || zone) {
+    let head = ''
+    if (city && state) head = `${city}, ${state}`
+    else if (city) head = city
+    else if (state) head = state
+    return zone ? (head ? `${head} · ${zone}` : zone) : (head || null)
+  }
+
+  const legacy = t.location_name?.trim()
+  return legacy || null
+}

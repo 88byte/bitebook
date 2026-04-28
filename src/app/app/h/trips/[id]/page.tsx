@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react'
 import { requireHunter } from '../../../_lib/auth'
 import { fetchHunterTripDetail } from '../../../_lib/queries'
 import StatusPill from '../../../_components/StatusPill'
-import { tripDateRange, timeOfDay, initials, relativeOrDate } from '../../../_lib/format'
+import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../../_lib/format'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -37,12 +37,15 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
           <h1 className="bb-page-title">{trip.title}</h1>
           <div className="bb-meta-row mt-1.5">
             <span>{tripDateRange(trip.starts_at, trip.ends_at)}</span>
-            {trip.location_name && (
-              <>
-                <span className="sep">·</span>
-                <span>{trip.location_name}</span>
-              </>
-            )}
+            {(() => {
+              const loc = formatTripLocation(trip)
+              return loc ? (
+                <>
+                  <span className="sep">·</span>
+                  <span>{loc}</span>
+                </>
+              ) : null
+            })()}
             <span className="sep">·</span>
             <span>{participants.length} {participants.length === 1 ? 'hunter' : 'hunters'}</span>
           </div>

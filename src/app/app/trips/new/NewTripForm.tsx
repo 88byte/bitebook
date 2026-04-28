@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Calendar, MapPin, Users, FileText, Target } from 'lucide-react'
+import { US_STATES } from '@/lib/us-states'
 import { createTripAction } from '../actions'
 
 type Hunter = { id: string; display_name: string }
@@ -98,20 +99,63 @@ export default function NewTripForm({ hunters }: { hunters: Hunter[] }) {
         </div>
       </div>
 
-      <div className="bb-form-row">
-        <label className="bb-form-label" htmlFor="location_name">Location / unit</label>
-        <label className="bb-field">
-          <span className="bb-field-icon"><MapPin size={18} aria-hidden="true" /></span>
+      {/* v25.9.1: structured location split. State is required; the rest are optional. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="city">City</label>
+          <label className="bb-field">
+            <span className="bb-field-icon"><MapPin size={18} aria-hidden="true" /></span>
+            <input
+              id="city"
+              name="city"
+              type="text"
+              placeholder="Mendocino"
+              className="bb-input bb-input-iconed"
+              autoComplete="off"
+            />
+          </label>
+        </div>
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="state">State</label>
+          <select
+            id="state"
+            name="state"
+            required
+            defaultValue=""
+            className="bb-input"
+          >
+            <option value="" disabled>Select a state</option>
+            {US_STATES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="zone">Zone <span style={{ opacity: 0.6 }}>(optional)</span></label>
           <input
-            id="location_name"
-            name="location_name"
+            id="zone"
+            name="zone"
             type="text"
-            placeholder="Mendocino · D6"
-            className="bb-input bb-input-iconed"
+            placeholder="D6, Zone B-2, etc."
+            className="bb-input"
             autoComplete="off"
           />
-        </label>
-        <p className="bb-form-help">Free text — we don&rsquo;t validate against state zones yet.</p>
+        </div>
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="county">County <span style={{ opacity: 0.6 }}>(optional)</span></label>
+          <input
+            id="county"
+            name="county"
+            type="text"
+            placeholder="Mendocino County"
+            className="bb-input"
+            autoComplete="off"
+          />
+          <p className="bb-form-help">Required for some state logs.</p>
+        </div>
       </div>
 
       <div className="bb-form-row">

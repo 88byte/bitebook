@@ -6,14 +6,24 @@ import SettingsForm from './SettingsForm'
 export default async function SettingsPage() {
   const { user } = await requireGuide()
 
-  // requireGuide() returns a slim guide projection; pull the full row here so
-  // the form can edit every column.
+  // requireGuide() returns a slim guide projection; pull both rows here so
+  // the form can edit every column. Run in parallel — they're independent.
   const supabase = await createClient()
-  const { data: full } = await supabase
-    .from('guide_profiles')
-    .select('business_name, state, license_number, max_party_size, specialties, bio')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const [profileRes, guideRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('first_name, last_name, phone, address_street, address_city, address_state, address_zip')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('guide_profiles')
+      .select('business_name, state, license_number, max_party_size, specialties, bio')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const p = profileRes.data
+  const g = guideRes.data
 
   return (
     <main className="bb-app-main">
@@ -28,12 +38,20 @@ export default async function SettingsPage() {
           <div className="bb-tile-body">
             <SettingsForm
               initial={{
-                business_name: full?.business_name ?? '',
-                state: full?.state ?? '',
-                license_number: full?.license_number ?? '',
-                max_party_size: full?.max_party_size ?? 6,
-                specialties: full?.specialties ?? [],
-                bio: full?.bio ?? '',
+                first_name: p?.first_name ?? '',
+                last_name: p?.last_name ?? '',
+                phone: p?.phone ?? '',
+                address_street: p?.address_street ?? '',
+                address_city: p?.address_city ?? '',
+                address_state: p?.address_state ?? '',
+                address_zip: p?.address_zip ?? '',
+                business_name: g?.business_name ?? '',
+                state: g?.state ?? '',
+                license_number: g?.license_number ?? '',
+                max_party_size: g?.max_party_size ?? 6,
+                specialties: g?.specialties ?? [],
+                bio: g?.bio ?? '',
+                email: user.email ?? '',
               }}
             />
           </div>

@@ -29,10 +29,14 @@ type TripStatus = Database['public']['Enums']['trip_status']
 
 export type TripRowWithCounts = Pick<
   Trip,
-  'id' | 'title' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'kind'
+  'id' | 'title' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'kind' | 'city' | 'state' | 'zone' | 'county'
 > & { hunters: number; harvests: number }
 
 const RECENT_LIMIT = 10
+
+// v25.9.1: shared column list for the row-with-counts shape. Folded into a
+// constant so every fetcher stays in sync after the location split.
+const TRIP_ROW_COLS = `id, title, status, starts_at, ends_at, location_name, kind, city, state, zone, county`
 
 function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
   const tp = t.trip_participants as { count: number }[] | null | undefined
@@ -45,6 +49,10 @@ function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
     ends_at: (t.ends_at as string | null) ?? null,
     location_name: (t.location_name as string | null) ?? null,
     kind: t.kind as 'hunting' | 'fishing',
+    city: (t.city as string | null) ?? null,
+    state: (t.state as string | null) ?? '',
+    zone: (t.zone as string | null) ?? null,
+    county: (t.county as string | null) ?? null,
     hunters: tp?.[0]?.count ?? 0,
     harvests: hv?.[0]?.count ?? 0,
   }
@@ -54,7 +62,7 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('trips')
-    .select(`id, title, status, starts_at, ends_at, location_name, kind,
+    .select(`${TRIP_ROW_COLS},
              trip_participants(count), harvests(count)`)
     .eq('guide_id', guideId)
     .order('starts_at', { ascending: false })
@@ -76,7 +84,7 @@ export async function fetchUpcomingTrips(
   todayStart.setHours(0, 0, 0, 0)
   const { data, error } = await supabase
     .from('trips')
-    .select(`id, title, status, starts_at, ends_at, location_name, kind,
+    .select(`${TRIP_ROW_COLS},
              trip_participants(count), harvests(count)`)
     .eq('guide_id', guideId)
     .gte('starts_at', todayStart.toISOString())
@@ -112,7 +120,7 @@ export async function fetchTripsPage(
   let query = supabase
     .from('trips')
     .select(
-      `id, title, status, starts_at, ends_at, location_name, kind,
+      `${TRIP_ROW_COLS},
        trip_participants(count), harvests(count)`,
       { count: 'exact' }
     )
@@ -164,7 +172,7 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
 }
 
 export type TripDetail = {
-  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'notes'>
+  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'notes'>
   participants: Array<{
     id: string
     role: string
@@ -191,7 +199,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
   // defense-in-depth (see file header).
   const { data: trip, error: tripErr } = await supabase
     .from('trips')
-    .select('id, title, kind, status, starts_at, ends_at, location_name, notes')
+    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, notes')
     .eq('id', tripId)
     .eq('guide_id', guideId)
     .maybeSingle()
@@ -281,6 +289,10 @@ export async function insertTrip(
     starts_at: string
     ends_at: string | null
     location_name: string | null
+    city: string | null
+    state: string
+    zone: string | null
+    county: string | null
     notes: string | null
   }
 ): Promise<{ id: string } | { error: string }> {
@@ -367,7 +379,7 @@ export async function fetchHunterTrips(
     .from('trip_participants')
     .select(
       `trip:trips!inner(
-        id, title, status, starts_at, ends_at, location_name, kind,
+        ${TRIP_ROW_COLS},
         trip_participants(count), harvests(count)
       )`
     )
@@ -397,7 +409,7 @@ export async function fetchHunterTripsPage(
     .from('trip_participants')
     .select(
       `trip:trips!inner(
-        id, title, status, starts_at, ends_at, location_name, kind,
+        ${TRIP_ROW_COLS},
         trip_participants(count), harvests(count)
       )`
     )
@@ -419,7 +431,7 @@ export async function fetchHunterTripsPage(
 }
 
 export type HunterTripDetail = {
-  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'notes'>
+  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'notes'>
   guide: { id: string; display_name: string; business_name: string | null } | null
   participants: Array<{
     id: string
@@ -458,7 +470,7 @@ export async function fetchHunterTripDetail(
 
   const { data: trip, error: tripErr } = await supabase
     .from('trips')
-    .select('id, title, kind, status, starts_at, ends_at, location_name, notes, guide_id')
+    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, notes, guide_id')
     .eq('id', tripId)
     .maybeSingle()
   if (tripErr || !trip) return null
@@ -514,6 +526,10 @@ export async function fetchHunterTripDetail(
       starts_at: trip.starts_at,
       ends_at: trip.ends_at,
       location_name: trip.location_name,
+      city: trip.city,
+      state: trip.state,
+      zone: trip.zone,
+      county: trip.county,
       notes: trip.notes,
     },
     guide: guideProfileRes.data
