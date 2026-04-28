@@ -28,7 +28,6 @@ type Initial = {
   address_zip: string
   // Outfitter details (guide_profiles)
   business_name: string
-  state: string
   license_number: string
   max_party_size: number
   specialties: string[]
@@ -49,7 +48,6 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
   const [addrZip, setAddrZip] = useState(initial.address_zip)
   // Outfitter
   const [businessName, setBusinessName] = useState(initial.business_name)
-  const [stateVal, setStateVal] = useState(initial.state)
   const [license, setLicense] = useState(initial.license_number)
   const [partySize, setPartySize] = useState(String(initial.max_party_size))
   const [bio, setBio] = useState(initial.bio)
@@ -244,22 +242,6 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
       {/* Outfitter details */}
       <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
         <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Outfitter details</legend>
-
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="state">Outfitter state of operation</label>
-          <select
-            id="state"
-            name="state"
-            className="bb-input"
-            value={stateVal}
-            onChange={(e) => setStateVal(e.target.value)}
-          >
-            <option value="">Select a state</option>
-            {US_STATES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
 
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="license_number">License number</label>

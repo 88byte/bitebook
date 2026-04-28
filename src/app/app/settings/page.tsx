@@ -17,7 +17,7 @@ export default async function SettingsPage() {
       .maybeSingle(),
     supabase
       .from('guide_profiles')
-      .select('business_name, state, license_number, max_party_size, specialties, bio')
+      .select('business_name, license_number, max_party_size, specialties, bio')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])
@@ -46,7 +46,6 @@ export default async function SettingsPage() {
                 address_state: p?.address_state ?? '',
                 address_zip: p?.address_zip ?? '',
                 business_name: g?.business_name ?? '',
-                state: g?.state ?? '',
                 license_number: g?.license_number ?? '',
                 max_party_size: g?.max_party_size ?? 6,
                 specialties: g?.specialties ?? [],

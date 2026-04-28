@@ -46,9 +46,12 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
 
   // Outfitter details (guide_profiles.*)
   const business_name = String(formData.get('business_name') ?? '').trim() || null
-  const stateRaw = String(formData.get('state') ?? '').trim().toUpperCase()
-  const state = stateRaw && stateRaw.length === 2 ? stateRaw : null
   const license_number = String(formData.get('license_number') ?? '').trim() || null
+  // v25.9.2: outfitter `state` field removed from the form per UX feedback —
+  // residential address state on profiles already captures where the guide is
+  // based. Existing guide_profiles.state values are preserved by NOT writing
+  // the field below. If we need to track operating regions distinct from
+  // residence later, add a multi-select rather than a single state.
 
   const partyRaw = Number(formData.get('max_party_size') ?? 6)
   const max_party_size = Number.isFinite(partyRaw)
@@ -92,7 +95,6 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
     .from('guide_profiles')
     .update({
       business_name,
-      state,
       license_number,
       max_party_size,
       specialties: specialties.length ? specialties : null,
