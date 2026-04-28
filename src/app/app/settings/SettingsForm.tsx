@@ -368,6 +368,9 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
           // Nested form — submitting here does not submit the outer profile form.
           <div className="bb-tile" style={{ padding: '0.9rem' }}>
             <form onSubmit={onSubmitEmail} className="flex flex-col gap-3">
+              <p className="bb-form-help" style={{ marginBottom: '0.25rem' }}>
+                After you confirm in your new inbox, you&rsquo;ll sign in with this new email from then on. Your current email will stop working for sign-in.
+              </p>
               <div className="bb-form-row">
                 <label className="bb-form-label" htmlFor="new_email">New email</label>
                 <input

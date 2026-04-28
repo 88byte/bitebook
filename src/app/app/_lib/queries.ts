@@ -558,6 +558,67 @@ export async function fetchHunterTripDetail(
   }
 }
 
+// v26.2: hunter-side reads of accepted invitations to surface the guides a
+// hunter is connected to. Existing-hunter auto-accept (v25.7) creates an
+// invitations row before any trip exists, so a hunter could be in a guide's
+// network with no visible signal until the guide adds them to a trip. The
+// dashboard widget on /app/h closes that gap.
+//
+// RLS: invitations.* permits hunter SELECT where accepted_by = auth.uid()
+// (existing policy). The new profiles_hunter_sees_connected_guides policy
+// (migration add_profiles_hunter_sees_connected_guides) lets the hunter read
+// the linked guide's profile row. guide_profiles.* already permits any
+// authenticated user to SELECT (existing policy `authenticated reads guide
+// profiles`).
+export type HunterGuideConnection = {
+  invite_id: string
+  guide_id: string
+  accepted_at: string
+  display_name: string
+  business_name: string | null
+}
+
+export async function fetchHunterGuides(hunterId: string): Promise<HunterGuideConnection[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('invitations')
+    .select('id, guide_id, created_at, status, accepted_by')
+    .eq('accepted_by', hunterId)
+    .eq('status', 'accepted')
+    .order('created_at', { ascending: false })
+  if (error || !data) {
+    if (error) {
+      console.warn('[queries.fetchHunterGuides] invitations', { hunterId, code: error.code, message: error.message })
+    }
+    return []
+  }
+
+  const guideIds = Array.from(new Set(data.map((r) => r.guide_id))).filter((v): v is string => !!v)
+  if (guideIds.length === 0) return []
+
+  const [profilesRes, guideProfilesRes] = await Promise.all([
+    supabase.from('profiles').select('id, display_name').in('id', guideIds),
+    supabase.from('guide_profiles').select('user_id, business_name').in('user_id', guideIds),
+  ])
+  // Soft-tolerate RLS misses — empty maps mean we fall back to the "Guide"
+  // sentinel name for that row, but the row itself still renders.
+  const profileMap = new Map(
+    (profilesRes.data ?? []).map((p) => [p.id as string, p.display_name as string])
+  )
+  const guideProfileMap = new Map(
+    (guideProfilesRes.data ?? []).map((g) => [g.user_id as string, g.business_name as string | null])
+  )
+
+  return data.map((row) => ({
+    invite_id: row.id,
+    guide_id: row.guide_id,
+    accepted_at: row.created_at,
+    display_name: profileMap.get(row.guide_id) ?? 'Guide',
+    business_name: guideProfileMap.get(row.guide_id) ?? null,
+  }))
+}
+
 export type HunterStats = {
   trips: number
   harvests: number

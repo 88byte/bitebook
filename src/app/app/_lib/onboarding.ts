@@ -113,24 +113,37 @@ export type HunterOnboardingProgress = {
   steps_completed: string[]
   completed_at: string | null
   has_participant_row: boolean
+  has_accepted_invite: boolean
 }
 
 export async function fetchHunterOnboardingProgress(
   supabase: Sb,
   userId: string
 ): Promise<HunterOnboardingProgress> {
-  const [progress, participantRes] = await Promise.all([
+  // v26.2: also derive `has_accepted_invite` from the invitations table. The
+  // existing-hunter auto-accept flow (v25.7) creates an accepted invitations
+  // row before any trip_participants row exists, so a hunter can be connected
+  // to a guide without yet being on a trip. Recognize that as completion of
+  // the wait_for_guide step.
+  const [progress, participantRes, inviteRes] = await Promise.all([
     fetchOnboardingProgress(supabase, userId),
     supabase
       .from('trip_participants')
       .select('id', { count: 'exact', head: true })
       .eq('hunter_id', userId)
       .limit(1),
+    supabase
+      .from('invitations')
+      .select('id', { count: 'exact', head: true })
+      .eq('accepted_by', userId)
+      .eq('status', 'accepted')
+      .limit(1),
   ])
   return {
     steps_completed: progress.steps_completed,
     completed_at: progress.completed_at,
     has_participant_row: (participantRes.count ?? 0) > 0,
+    has_accepted_invite: (inviteRes.count ?? 0) > 0,
   }
 }
 
@@ -138,7 +151,11 @@ export function isHunterStepDone(
   progress: HunterOnboardingProgress,
   stepId: HunterOnboardingStepId
 ): boolean {
-  if (stepId === 'wait_for_guide') return progress.has_participant_row
+  // v26.2: wait_for_guide is done if the hunter is on any trip OR has any
+  // accepted invitation (existing-hunter auto-accept path).
+  if (stepId === 'wait_for_guide') {
+    return progress.has_participant_row || progress.has_accepted_invite
+  }
   return progress.steps_completed.includes(stepId)
 }
 

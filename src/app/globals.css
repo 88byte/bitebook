@@ -1081,8 +1081,25 @@ body {
   flex-shrink: 0;
 }
 
-.bb-detail-name { font-weight: 600; font-size: 0.92rem; color: var(--color-ink); word-break: break-word; }
-.bb-detail-sub  { font-size: 0.78rem; color: var(--color-ink-soft); margin-top: 0.1rem; }
+/* v26.2: overflow-wrap: anywhere is the fallback for very long unbroken
+   strings (long emails with no separators). word-break: break-word handles
+   the common case; anywhere lets the browser break at any character when no
+   break point exists. Avoid word-break: break-all (breaks every word, even
+   short ones), which caused the v26.2 char-by-char wrap bug. */
+.bb-detail-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--color-ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.bb-detail-sub  {
+  font-size: 0.78rem;
+  color: var(--color-ink-soft);
+  margin-top: 0.1rem;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
 /* v25.6: pending-invite rows have a Resend button that pushed the email
    metadata column too narrow at <640px and made dates wrap word-by-word.
@@ -1098,6 +1115,9 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
+  /* v26.2: never let the action wrapper shrink — a long email in the name
+     column should wrap, not push the action buttons into a sliver. */
+  flex-shrink: 0;
 }
 @media (max-width: 40rem) {
   .bb-resend-wrap {

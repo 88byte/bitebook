@@ -79,7 +79,6 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   const { user, profile } = await requireGuide()
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const firstName = String(formData.get('first_name') ?? '').trim()
 
   if (!email || !EMAIL_RX.test(email)) {
     return { error: 'Enter a valid email address.' }
@@ -191,12 +190,15 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   // (support@lastbite.pro) so replies land in Flavio's monitored inbox
   // instead of the send-only bitebook subdomain. Failure does not affect
   // the row — guide can copy the invite_url manually if email fails.
-  const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
+  //
+  // v26.2: dropped the optional first_name field from InviteForm. Greeting is
+  // now a generic "Hi there," — no personalization data is collected at invite
+  // time. The hunter sets first_name themselves when they complete onboarding.
   await sendBitebookEmail({
     to: email,
     subject: `${guideLabel} invited you to Bite Book`,
     text: [
-      greeting,
+      'Hi there,',
       '',
       `${guideLabel} invited you to join their guide network on Bite Book.`,
       '',

@@ -1,10 +1,23 @@
 import Link from 'next/link'
 import { requireHunter } from '../_lib/auth'
-import { fetchHunterTrips, fetchHunterStats } from '../_lib/queries'
+import {
+  fetchHunterTrips,
+  fetchHunterStats,
+  fetchHunterGuides,
+  type HunterGuideConnection,
+} from '../_lib/queries'
 import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
 import Widget from '../_components/Widget'
 import HunterTripRow from './_components/HunterTripRow'
 import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function guideLabel(g: HunterGuideConnection): string {
+  return g.business_name ?? g.display_name
+}
 
 // v25.1: hunter dashboard. Stats row + recent trips. Hunters don't create
 // trips, so there are no add-trip CTAs here — guides do that.
@@ -14,10 +27,11 @@ import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
 export default async function HunterDashboardPage() {
   const { supabase, user, profile } = await requireHunter()
 
-  const [recent, stats, progress] = await Promise.all([
+  const [recent, stats, progress, guides] = await Promise.all([
     fetchHunterTrips(profile.id, 5),
     fetchHunterStats(profile.id),
     fetchHunterOnboardingProgress(supabase, user.id),
+    fetchHunterGuides(profile.id),
   ])
 
   const isEmpty = recent.length === 0
@@ -56,6 +70,38 @@ export default async function HunterDashboardPage() {
         </section>
 
         <div className="bb-dash-cell-12" data-order-mobile="2">
+          <Widget title="Your guides">
+            {guides.length === 0 ? (
+              <div className="bb-empty">
+                <div className="bb-empty-title">No guides yet</div>
+                <p className="bb-empty-sub">
+                  When a guide adds you to their network, they&rsquo;ll appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="bb-detail-list">
+                {guides.map((g) => {
+                  const label = guideLabel(g)
+                  return (
+                    <div key={g.invite_id} className="bb-detail-row">
+                      <div className="bb-avatar" aria-hidden="true">
+                        {label.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="bb-detail-name">{label}</div>
+                        <div className="bb-detail-sub">
+                          Connected since {fmtDate(g.accepted_at)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Widget>
+        </div>
+
+        <div className="bb-dash-cell-12" data-order-mobile="3">
           <Widget
             title="Recent trips"
             action={

@@ -8,7 +8,6 @@ type SuccessMode = 'existing_hunter' | 'new_user'
 
 export default function InviteForm() {
   const [email, setEmail] = useState('')
-  const [firstName, setFirstName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
@@ -32,7 +31,6 @@ export default function InviteForm() {
       setMode(res.mode)
       setSentEmail(submittedEmail)
       setEmail('')
-      setFirstName('')
     })
   }
 
@@ -52,20 +50,6 @@ export default function InviteForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           maxLength={200}
-        />
-      </div>
-
-      <div className="bb-form-row">
-        <label className="bb-form-label" htmlFor="invite_first_name">First name (optional)</label>
-        <input
-          id="invite_first_name"
-          name="first_name"
-          type="text"
-          className="bb-input"
-          placeholder="Used in the invite email"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          maxLength={60}
         />
       </div>
 
