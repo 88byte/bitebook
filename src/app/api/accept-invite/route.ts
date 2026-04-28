@@ -33,6 +33,7 @@ export async function POST(request: Request) {
   if (!invite) return NextResponse.json({ error: 'Invite not found.' }, { status: 404 })
   if (invite.status === 'accepted') return NextResponse.json({ error: 'Invite already used.' }, { status: 409 })
   if (invite.status === 'revoked') return NextResponse.json({ error: 'Invite revoked.' }, { status: 410 })
+  if (invite.status === 'canceled') return NextResponse.json({ error: 'Invite canceled.' }, { status: 410 })
   if (new Date(invite.expires_at) < new Date()) {
     await admin.from('invitations').update({ status: 'expired' }).eq('id', invite.id)
     return NextResponse.json({ error: 'Invite expired.' }, { status: 410 })

@@ -4,18 +4,23 @@ import { useState, useTransition } from 'react'
 import { Check, UserPlus } from 'lucide-react'
 import { inviteHunterAction } from './actions'
 
+type SuccessMode = 'existing_hunter' | 'new_user'
+
 export default function InviteForm() {
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [mode, setMode] = useState<SuccessMode | null>(null)
+  const [sentEmail, setSentEmail] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     const fd = new FormData(e.currentTarget)
+    const submittedEmail = email
     startTransition(async () => {
       const res = await inviteHunterAction(fd)
       if ('error' in res) {
@@ -24,6 +29,8 @@ export default function InviteForm() {
       }
       setSentAt(Date.now())
       setShareUrl(res.invite_url ?? null)
+      setMode(res.mode)
+      setSentEmail(submittedEmail)
       setEmail('')
       setFirstName('')
     })
@@ -79,12 +86,23 @@ export default function InviteForm() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
           >
             <Check size={12} aria-hidden="true" />
-            Invite created
+            {mode === 'existing_hunter' ? 'Hunter added' : 'Invite created'}
           </span>
         )}
       </div>
 
-      {showSent && shareUrl && (
+      {showSent && mode === 'existing_hunter' && sentEmail && (
+        <div className="bb-form-help">
+          {sentEmail} already has a Bite Book account. Added them to your network. They will see new trips at sign-in.
+          {shareUrl && (
+            <div style={{ marginTop: '0.25rem', wordBreak: 'break-all', color: 'var(--color-ink-soft)' }}>
+              Sign-in URL: <a href={shareUrl} className="bb-callout-link">{shareUrl}</a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showSent && mode === 'new_user' && shareUrl && (
         <div className="bb-form-help" style={{ wordBreak: 'break-all' }}>
           Share link: <a href={shareUrl} className="bb-callout-link">{shareUrl}</a>
         </div>

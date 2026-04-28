@@ -934,7 +934,7 @@ export type Database = {
     Enums: {
       feedback_sentiment: "positive" | "neutral" | "negative"
       harvest_kind: "hunting" | "fishing"
-      invite_status: "pending" | "accepted" | "expired" | "revoked"
+      invite_status: "pending" | "accepted" | "expired" | "revoked" | "canceled"
       media_kind: "photo" | "video"
       subscription_interval: "month" | "year"
       subscription_status: "trialing" | "active" | "past_due" | "canceled" | "incomplete"
@@ -1037,7 +1037,7 @@ export const Constants = {
     Enums: {
       feedback_sentiment: ["positive", "neutral", "negative"],
       harvest_kind: ["hunting", "fishing"],
-      invite_status: ["pending", "accepted", "expired", "revoked"],
+      invite_status: ["pending", "accepted", "expired", "revoked", "canceled"],
       media_kind: ["photo", "video"],
       subscription_interval: ["month", "year"],
       subscription_status: ["trialing", "active", "past_due", "canceled", "incomplete"],

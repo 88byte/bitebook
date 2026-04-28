@@ -22,6 +22,27 @@
 const FROM_DEFAULT = 'Bite Book <invites@bitebook.lastbite.pro>'
 const REPLY_TO = 'support@lastbite.pro'
 
+// Body builder for the v25.7 "existing hunter added" email — used when a
+// guide invites someone whose email already belongs to a Bite Book hunter
+// account. We skip token-based registration entirely and just point them at
+// /login. Kept as a constant so future actions (e.g. party invites that hit
+// the same path) can reuse it.
+export function buildExistingHunterAddedEmail(opts: {
+  guideLabel: string
+  loginUrl: string
+}): { subject: string; text: string } {
+  return {
+    subject: `${opts.guideLabel} added you to Bite Book`,
+    text: [
+      'Hi,',
+      '',
+      `${opts.guideLabel} added you to their Bite Book network. Sign in to see your trips.`,
+      '',
+      `Sign in: ${opts.loginUrl}`,
+    ].join('\n'),
+  }
+}
+
 export type EmailResult =
   | { sent: true; id?: string }
   | {

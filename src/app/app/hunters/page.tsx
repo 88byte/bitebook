@@ -2,6 +2,7 @@ import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import InviteForm from './InviteForm'
 import ResendInviteButton from './ResendInviteButton'
+import CancelInviteButton from './CancelInviteButton'
 
 type AcceptedRow = {
   id: string
@@ -133,6 +134,7 @@ export default async function HuntersPage() {
                           email={p.email}
                           lastSentAt={p.last_sent_at}
                         />
+                        <CancelInviteButton inviteId={p.id} email={p.email} />
                       </div>
                     </div>
                   ))}
