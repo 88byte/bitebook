@@ -51,7 +51,11 @@ export function wrapBitebookEmailHTML(opts: {
     ctaUrl,
   } = opts
 
-  const logoUrl = `${origin}/icon-512x512.png`
+  // v26.2.2: use the canonical transparent-skull mark that the live site
+  // uses (AppHeader, Hero, Sidebar all reference this). The earlier
+  // icon-512x512.png is the PWA maskable, which carries a rounded-square
+  // wrapper that doesn't match the brand treatment in-app.
+  const logoUrl = `${origin}/bb-logo-mark.png`
 
   // Hidden preheader snippet for the email-client preview line.
   const preheaderHtml = preheader
@@ -65,7 +69,7 @@ export function wrapBitebookEmailHTML(opts: {
   const paragraphsHtml = paragraphs
     .map(
       (p) =>
-        `<p style="margin:0 0 16px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.55;color:#1F2419;">${escapeHtml(p)}</p>`,
+        `<p style="margin:0 0 16px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.55;color:#1A1815;">${escapeHtml(p)}</p>`,
     )
     .join('\n')
 
@@ -87,7 +91,7 @@ export function wrapBitebookEmailHTML(opts: {
   <meta name="x-apple-disable-message-reformatting">
   <title>Bite Book</title>
 </head>
-<body style="margin:0;padding:0;background:#0B0806;font-family:'Helvetica Neue',Arial,sans-serif;color:#1F2419;">
+<body style="margin:0;padding:0;background:#0B0806;font-family:'Helvetica Neue',Arial,sans-serif;color:#1A1815;">
   ${preheaderHtml}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0B0806;padding:24px 12px;">
     <tr>
@@ -95,13 +99,13 @@ export function wrapBitebookEmailHTML(opts: {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;">
           <tr>
             <td align="center" style="padding:8px 0 24px 0;">
-              <img src="${logoUrl}" alt="Bite Book" width="64" height="64" style="display:block;border:0;outline:none;text-decoration:none;width:64px;height:64px;border-radius:50%;">
+              <img src="${logoUrl}" alt="Bite Book" width="96" height="96" style="display:block;border:0;outline:none;text-decoration:none;width:96px;height:96px;">
             </td>
           </tr>
           <tr>
             <td style="background:#FAF7F2;border-radius:14px;padding:28px 24px;">
               ${eyebrowHtml}
-              <h1 style="margin:0 0 16px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:700;color:#1F2419;text-align:center;">${escapeHtml(headline)}</h1>
+              <h1 style="margin:0 0 16px 0;font-family:'Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:700;color:#1A1815;text-align:center;">${escapeHtml(headline)}</h1>
               ${paragraphsHtml}
               ${ctaHtml}
             </td>
