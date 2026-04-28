@@ -150,7 +150,21 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   })
 
   if (!result.sent && result.reason === 'send_failed') {
-    return { error: 'Email send failed. Please try again in a minute.' }
+    // v25.6: surface the actual Resend error so the guide knows what's wrong
+    // (domain not verified, API key invalid, rate-limited, etc.) instead of
+    // the misleading "try again in a minute" generic. Log the full diagnostic
+    // server-side; show a clean truncation to the user.
+    console.warn('[hunters.resendInviteAction] email send failed', {
+      code: result.code,
+      status: result.status,
+      message: result.error,
+      inviteId: invite.id,
+    })
+    const detail = (result.error ?? '').trim()
+    const friendly = detail.length > 0 && detail.length <= 240
+      ? `Email service: ${detail}`
+      : 'Email service rejected the send.'
+    return { error: `${friendly} Contact support@lastbite.pro if this persists.` }
   }
   // A "not sent" result with reason 'no_api_key' is a soft success in dev
   // environments without RESEND_API_KEY. We don't surface this as an error.

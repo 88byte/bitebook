@@ -116,7 +116,7 @@ export default async function HuntersPage() {
                 <h2 className="bb-section-title">Pending invites</h2>
                 <div className="bb-detail-list">
                   {pending.map((p) => (
-                    <div key={p.id} className="bb-detail-row">
+                    <div key={p.id} className="bb-detail-row bb-detail-row-pending">
                       <div className="bb-avatar" aria-hidden="true">
                         {p.email.slice(0, 1).toUpperCase()}
                       </div>
@@ -127,11 +127,13 @@ export default async function HuntersPage() {
                         </div>
                       </div>
                       <span className="bb-pill bb-pill-planned">Pending</span>
-                      <ResendInviteButton
-                        inviteId={p.id}
-                        email={p.email}
-                        lastSentAt={p.last_sent_at}
-                      />
+                      <div className="bb-resend-wrap">
+                        <ResendInviteButton
+                          inviteId={p.id}
+                          email={p.email}
+                          lastSentAt={p.last_sent_at}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -24,7 +24,16 @@ const REPLY_TO = 'support@lastbite.pro'
 
 export type EmailResult =
   | { sent: true; id?: string }
-  | { sent: false; reason: 'no_api_key' | 'send_failed'; error?: string }
+  | {
+      sent: false
+      reason: 'no_api_key' | 'send_failed'
+      /** Cleaned-up Resend error message ("Domain not found", "API key is invalid", etc.). */
+      error?: string
+      /** Resend error name like 'validation_error' / 'not_found' / 'invalid_api_key'. */
+      code?: string
+      /** HTTP status from Resend (when applicable). */
+      status?: number
+    }
 
 export async function sendBitebookEmail(opts: {
   to: string | string[]
@@ -63,14 +72,34 @@ export async function sendBitebookEmail(opts: {
     })
 
     if (!res.ok) {
+      // Resend errors come back as JSON like:
+      //   { name: 'validation_error', message: 'The bitebook.lastbite.pro domain is not verified.', statusCode: 403 }
+      // Parse the JSON when possible; fall back to the raw text body.
       const errText = await res.text().catch(() => '<unreadable>')
+      let code: string | undefined
+      let message: string | undefined
+      try {
+        const parsed = JSON.parse(errText) as { name?: string; message?: string }
+        code = parsed.name
+        message = parsed.message
+      } catch {
+        message = errText
+      }
       console.warn('[email] resend non-2xx', {
         status: res.status,
+        code,
+        message,
         body: errText,
         to,
         subject: opts.subject,
       })
-      return { sent: false, reason: 'send_failed', error: `${res.status}: ${errText}` }
+      return {
+        sent: false,
+        reason: 'send_failed',
+        status: res.status,
+        code,
+        error: message ?? `${res.status}`,
+      }
     }
 
     const json = (await res.json().catch(() => ({}))) as { id?: string }
