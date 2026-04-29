@@ -655,7 +655,7 @@ export async function fetchHunterTripsPage(
 }
 
 export type HunterTripDetail = {
-  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'notes'>
+  trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'species_targeted' | 'method' | 'notes'>
   guide: { id: string; display_name: string; business_name: string | null } | null
   participants: Array<{
     id: string
@@ -694,7 +694,7 @@ export async function fetchHunterTripDetail(
 
   const { data: trip, error: tripErr } = await supabase
     .from('trips')
-    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, notes, guide_id')
+    .select('id, title, kind, status, starts_at, ends_at, location_name, city, state, zone, county, species_targeted, method, notes, guide_id')
     .eq('id', tripId)
     .maybeSingle()
   if (tripErr || !trip) return null
@@ -754,6 +754,8 @@ export async function fetchHunterTripDetail(
       state: trip.state,
       zone: trip.zone,
       county: trip.county,
+      species_targeted: trip.species_targeted,
+      method: trip.method,
       notes: trip.notes,
     },
     guide: guideProfileRes.data
