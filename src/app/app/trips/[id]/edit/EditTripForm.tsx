@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, FileText, Target } from 'lucide-react'
+import { FileText, Building, Map, Mountain, TreeDeciduous, PawPrint, Crosshair } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
 import { METHOD_OPTIONS } from '@/lib/methods'
 import { updateTripAction } from '../actions'
@@ -171,7 +171,7 @@ export default function EditTripForm({
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="city">City <span style={{ opacity: 0.6 }}>(optional)</span></label>
               <label className="bb-field">
-                <span className="bb-field-icon"><MapPin size={18} aria-hidden="true" /></span>
+                <span className="bb-field-icon"><Building size={18} aria-hidden="true" /></span>
                 <input
                   id="city"
                   name="city"
@@ -184,42 +184,51 @@ export default function EditTripForm({
             </div>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="state">State</label>
-              <select
-                id="state"
-                name="state"
-                required
-                defaultValue={initial.state || ''}
-                className="bb-input"
-              >
-                <option value="" disabled>Select a state</option>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <label className="bb-field">
+                <span className="bb-field-icon"><Map size={18} aria-hidden="true" /></span>
+                <select
+                  id="state"
+                  name="state"
+                  required
+                  defaultValue={initial.state || ''}
+                  className="bb-input bb-input-iconed"
+                >
+                  <option value="" disabled>Select a state</option>
+                  {US_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
           <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="zone">Zone <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <input
-                id="zone"
-                name="zone"
-                type="text"
-                defaultValue={initial.zone ?? ''}
-                className="bb-input"
-                autoComplete="off"
-              />
+              <label className="bb-field">
+                <span className="bb-field-icon"><Mountain size={18} aria-hidden="true" /></span>
+                <input
+                  id="zone"
+                  name="zone"
+                  type="text"
+                  defaultValue={initial.zone ?? ''}
+                  className="bb-input bb-input-iconed"
+                  autoComplete="off"
+                />
+              </label>
             </div>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="county">County <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <input
-                id="county"
-                name="county"
-                type="text"
-                defaultValue={initial.county ?? ''}
-                className="bb-input"
-                autoComplete="off"
-              />
+              <label className="bb-field">
+                <span className="bb-field-icon"><TreeDeciduous size={18} aria-hidden="true" /></span>
+                <input
+                  id="county"
+                  name="county"
+                  type="text"
+                  defaultValue={initial.county ?? ''}
+                  className="bb-input bb-input-iconed"
+                  autoComplete="off"
+                />
+              </label>
               <p className="bb-form-help">Required for some state logs.</p>
             </div>
           </div>
@@ -234,7 +243,7 @@ export default function EditTripForm({
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
               <label className="bb-field">
-                <span className="bb-field-icon"><Target size={18} aria-hidden="true" /></span>
+                <span className="bb-field-icon"><PawPrint size={18} aria-hidden="true" /></span>
                 <input
                   id="species_targeted"
                   name="species_targeted"
@@ -247,12 +256,20 @@ export default function EditTripForm({
             </div>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <select id="method" name="method" defaultValue={initial.method ?? ''} className="bb-input">
-                <option value="">Select method</option>
-                {METHOD_OPTIONS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+              <label className="bb-field">
+                <span className="bb-field-icon"><Crosshair size={18} aria-hidden="true" /></span>
+                <select
+                  id="method"
+                  name="method"
+                  defaultValue={initial.method ?? ''}
+                  className="bb-input bb-input-iconed"
+                >
+                  <option value="">Select method</option>
+                  {METHOD_OPTIONS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
         </div>

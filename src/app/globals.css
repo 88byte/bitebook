@@ -866,7 +866,9 @@ body {
   transition: border-color 0.15s, transform 0.05s;
 }
 
-.bb-trip-row + .bb-trip-row { margin-top: 0.5rem; }
+/* v26.5.5: bumped from 0.5rem to 0.75rem (+50%) per Flavio: "the cards
+   look great but need a little bit of spacing between them." */
+.bb-trip-row + .bb-trip-row { margin-top: 0.75rem; }
 
 .bb-trip-row:hover { border-color: rgba(176, 108, 60, 0.45); }
 .bb-trip-row:active { transform: translateY(1px); }

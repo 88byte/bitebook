@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v26.5.4-trip-cards-icons'
+const BUILD_TAG = 'v26.5.5-form-icons-restore'
 
 const barlow = Barlow({
   variable: '--font-barlow',
