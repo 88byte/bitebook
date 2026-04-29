@@ -732,11 +732,13 @@ body {
 }
 
 /* Page container inside /app. Side padding respects safe-area for landscape
-   notches; bottom padding clears the iPhone home indicator. */
+   notches; bottom padding clears the iPhone home indicator.
+   v26.4: top padding now respects env(safe-area-inset-top) so the page title
+   doesn't bump into the iPhone status bar/notch on edge-to-edge devices. */
 .bb-app-main {
   max-width: 44rem;
   margin: 0 auto;
-  padding-top: 1.25rem;
+  padding-top: max(1.25rem, calc(0.75rem + env(safe-area-inset-top)));
   padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
@@ -744,7 +746,7 @@ body {
 
 @media (min-width: 48rem) {
   .bb-app-main {
-    padding-top: 1.75rem;
+    padding-top: max(1.75rem, calc(1.25rem + env(safe-area-inset-top)));
     padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom)));
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
@@ -842,10 +844,12 @@ body {
 
 /* Trip row — used in dashboard's recent list and the full /app/trips list.
    Date column on the left, body in the middle, status pill on the right. */
+/* v26.4: align-items flipped to flex-start so multi-line meta stacks cleanly
+   alongside the date column without vertically centering against it. */
 .bb-trip-row {
   display: grid;
-  grid-template-columns: 3.25rem 1fr auto;
-  align-items: center;
+  grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+  align-items: flex-start;
   gap: 0.875rem;
   padding: 0.875rem 1rem;
   background: #FFFFFF;
@@ -886,23 +890,41 @@ body {
 
 .bb-trip-body { min-width: 0; }
 
+/* v26.4: titles wrap onto a 2nd line instead of truncating; the row is
+   tap-target generous enough that an extra line is fine. */
 .bb-trip-title {
   font-weight: 600;
   color: var(--color-ink);
   font-size: 0.95rem;
   line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
+/* v26.4: multi-line trip card metadata. Each datapoint gets its own line so
+   "0 harvests" never truncates to "0 harve…". The truncation came from the
+   prior single-line ellipsis pattern; we drop white-space:nowrap and stack
+   the lines instead. .bb-trip-meta-counts is the small muted footer line. */
 .bb-trip-meta {
-  margin-top: 0.2rem;
-  font-size: 0.78rem;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.8rem;
   color: var(--color-ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+}
+
+.bb-trip-meta-line {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bb-trip-meta-counts {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--color-ink-soft);
+  letter-spacing: 0.02em;
 }
 
 /* Status pill — small uppercase chip with status-specific tinting */
@@ -1177,6 +1199,36 @@ body {
    when nested in a flex/grid container — fixes mobile overflow on
    /app/trips/new where datetime-local inputs pushed past 375px viewports. */
 .bb-form-row { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+
+/* v26.4: standardized 2-col form grid. Tailwind grid columns default to
+   min-width:auto, which lets datetime-local inputs blow past their column
+   on mobile (the v25.5 fix only covered the row, not the grid cell). This
+   class forces both the grid and its children to min-width:0 so the inputs
+   honor the column width. Use in place of `grid grid-cols-1 sm:grid-cols-2 gap-3`
+   for any 2-up form pair. */
+.bb-form-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
+.bb-form-grid-2 > * { min-width: 0; }
+@media (min-width: 40rem) {
+  .bb-form-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* v26.4: stack of form sections within a single page. Each section is a
+   .bb-tile with its own header. */
+.bb-form-section + .bb-form-section { margin-top: 1rem; }
+.bb-form-section-head {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  margin: 0 0 0.65rem;
+}
 
 /* v25.4: cap form widths on desktop so width:100% inputs don't grow huge.
    Mobile is already capped via .bb-app-main max-width 44rem on <1024px, so

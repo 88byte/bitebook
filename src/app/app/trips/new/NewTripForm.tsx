@@ -7,6 +7,11 @@ import { METHOD_OPTIONS } from '@/lib/methods'
 import { createTripAction } from '../actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 
+// v26.4: structured-section layout. Form now renders its own .bb-tile
+// wrappers (one per section: Basics / Dates / Location / Hunt details /
+// Hunters / Notes) so the parent page no longer wraps in a single tile.
+// Mobile overflow is fixed by .bb-form-grid-2 (min-width:0 on grid + cells)
+// instead of raw Tailwind grid which leaves cells at min-width:auto.
 export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -54,168 +59,201 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="bb-form-row">
-        <label className="bb-form-label" htmlFor="title">Trip name</label>
-        <label className="bb-field">
-          <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            required
-            placeholder="Spring black bear · Reyes party"
-            className="bb-input bb-input-iconed"
-            autoComplete="off"
-          />
-        </label>
-      </div>
+      {/* BASICS */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Basics</h2>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="title">Trip name</label>
+            <label className="bb-field">
+              <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
+              <input
+                id="title"
+                name="title"
+                type="text"
+                required
+                placeholder="Spring black bear · Reyes party"
+                className="bb-input bb-input-iconed"
+                autoComplete="off"
+              />
+            </label>
+          </div>
 
-      <div className="bb-form-row">
-        <span className="bb-form-label">Activity</span>
-        <div className="bb-segmented" role="radiogroup" aria-label="Activity">
-          <label>
-            <input type="radio" name="kind" value="hunting" defaultChecked />
-            Hunting
-          </label>
-          <label>
-            <input type="radio" name="kind" value="fishing" />
-            Fishing
-          </label>
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <span className="bb-form-label">Activity</span>
+            <div className="bb-segmented" role="radiogroup" aria-label="Activity">
+              <label>
+                <input type="radio" name="kind" value="hunting" defaultChecked />
+                Hunting
+              </label>
+              <label>
+                <input type="radio" name="kind" value="fishing" />
+                Fishing
+              </label>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="starts_at">Start</label>
-          <label className="bb-field">
-            <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
-            <input
-              id="starts_at"
-              name="starts_at"
-              type="datetime-local"
-              required
-              className="bb-input bb-input-iconed"
+      {/* DATES */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Dates</h2>
+          <div className="bb-form-grid-2">
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="starts_at">Start</label>
+              <label className="bb-field">
+                <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
+                <input
+                  id="starts_at"
+                  name="starts_at"
+                  type="datetime-local"
+                  required
+                  className="bb-input bb-input-iconed"
+                />
+              </label>
+            </div>
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="ends_at">End <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <label className="bb-field">
+                <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
+                <input
+                  id="ends_at"
+                  name="ends_at"
+                  type="datetime-local"
+                  className="bb-input bb-input-iconed"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* LOCATION */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Location</h2>
+          <div className="bb-form-grid-2">
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="city">City <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <label className="bb-field">
+                <span className="bb-field-icon"><MapPin size={18} aria-hidden="true" /></span>
+                <input
+                  id="city"
+                  name="city"
+                  type="text"
+                  placeholder="Mendocino"
+                  className="bb-input bb-input-iconed"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="state">State</label>
+              <select
+                id="state"
+                name="state"
+                required
+                defaultValue=""
+                className="bb-input"
+              >
+                <option value="" disabled>Select a state</option>
+                {US_STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="zone">Zone <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <input
+                id="zone"
+                name="zone"
+                type="text"
+                placeholder="D6, Zone B-2, etc."
+                className="bb-input"
+                autoComplete="off"
+              />
+            </div>
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="county">County <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <input
+                id="county"
+                name="county"
+                type="text"
+                placeholder="Mendocino County"
+                className="bb-input"
+                autoComplete="off"
+              />
+              <p className="bb-form-help">Required for some state logs.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* HUNT DETAILS */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Hunt details</h2>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
+            <label className="bb-field">
+              <span className="bb-field-icon"><Target size={18} aria-hidden="true" /></span>
+              <input
+                id="species_targeted"
+                name="species_targeted"
+                type="text"
+                placeholder="Black bear, wild pig"
+                className="bb-input bb-input-iconed"
+                autoComplete="off"
+              />
+            </label>
+          </div>
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
+            <select id="method" name="method" defaultValue="" className="bb-input">
+              <option value="">Select method</option>
+              {METHOD_OPTIONS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* HUNTERS */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Hunters</h2>
+          <div className="bb-form-row">
+            <span className="bb-form-label">Add hunters to this trip</span>
+            <HuntersMultiSelect
+              hunters={hunterList}
+              selected={selected}
+              onToggle={toggleHunter}
+              onAddHunter={addHunter}
             />
-          </label>
+          </div>
         </div>
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="ends_at">End <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <label className="bb-field">
-            <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
-            <input
-              id="ends_at"
-              name="ends_at"
-              type="datetime-local"
-              className="bb-input bb-input-iconed"
+      </section>
+
+      {/* NOTES */}
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Notes</h2>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="notes">Notes <span style={{ opacity: 0.6 }}>(optional)</span></label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows={3}
+              className="bb-input"
+              placeholder="Meet at the cabin trailhead 0530. Cold + clear forecast. Bring a layer."
             />
-          </label>
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="city">City</label>
-          <label className="bb-field">
-            <span className="bb-field-icon"><MapPin size={18} aria-hidden="true" /></span>
-            <input
-              id="city"
-              name="city"
-              type="text"
-              placeholder="Mendocino"
-              className="bb-input bb-input-iconed"
-              autoComplete="off"
-            />
-          </label>
-        </div>
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="state">State</label>
-          <select
-            id="state"
-            name="state"
-            required
-            defaultValue=""
-            className="bb-input"
-          >
-            <option value="" disabled>Select a state</option>
-            {US_STATES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="zone">Zone <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <input
-            id="zone"
-            name="zone"
-            type="text"
-            placeholder="D6, Zone B-2, etc."
-            className="bb-input"
-            autoComplete="off"
-          />
-        </div>
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="county">County <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <input
-            id="county"
-            name="county"
-            type="text"
-            placeholder="Mendocino County"
-            className="bb-input"
-            autoComplete="off"
-          />
-          <p className="bb-form-help">Required for some state logs.</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <label className="bb-field">
-            <span className="bb-field-icon"><Target size={18} aria-hidden="true" /></span>
-            <input
-              id="species_targeted"
-              name="species_targeted"
-              type="text"
-              placeholder="Black bear, wild pig"
-              className="bb-input bb-input-iconed"
-              autoComplete="off"
-            />
-          </label>
-        </div>
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
-          <select id="method" name="method" defaultValue="" className="bb-input">
-            <option value="">Select method</option>
-            {METHOD_OPTIONS.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="bb-form-row">
-        <span className="bb-form-label">Add hunters to this trip</span>
-        <HuntersMultiSelect
-          hunters={hunterList}
-          selected={selected}
-          onToggle={toggleHunter}
-          onAddHunter={addHunter}
-        />
-      </div>
-
-      <div className="bb-form-row">
-        <label className="bb-form-label" htmlFor="notes">Notes <span style={{ opacity: 0.6 }}>(optional)</span></label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          className="bb-input"
-          placeholder="Meet at the cabin trailhead 0530. Cold + clear forecast. Bring a layer."
-        />
-      </div>
+      </section>
 
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 

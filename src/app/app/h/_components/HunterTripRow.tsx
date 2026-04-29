@@ -10,6 +10,7 @@ type Trip = Pick<
 
 // v25.1: hunter-side trip row. Same visuals as the guide TripRow but the
 // href targets /app/h/trips/[id] (read-only hunter detail).
+// v26.4: multi-line metadata to mirror TripRow.
 export default function HunterTripRow({
   trip,
   hunters,
@@ -20,13 +21,8 @@ export default function HunterTripRow({
   harvests: number
 }) {
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
-  const locLabel = formatTripLocation(trip)
-  const meta = [
-    dateLabel,
-    locLabel || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting'),
-    `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`,
-    `${harvests} ${harvests === 1 ? 'harvest' : 'harvests'}`,
-  ].join(' · ')
+  const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
+  const counts = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'} · ${harvests} ${harvests === 1 ? 'harvest' : 'harvests'}`
 
   return (
     <Link href={`/app/h/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
@@ -36,7 +32,11 @@ export default function HunterTripRow({
       </div>
       <div className="bb-trip-body">
         <div className="bb-trip-title">{trip.title}</div>
-        <div className="bb-trip-meta">{meta}</div>
+        <div className="bb-trip-meta">
+          <span className="bb-trip-meta-line">{dateLabel}</span>
+          <span className="bb-trip-meta-line">{locLabel}</span>
+          <span className="bb-trip-meta-counts">{counts}</span>
+        </div>
       </div>
       <StatusPill status={trip.status} />
     </Link>

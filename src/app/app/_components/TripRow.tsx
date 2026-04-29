@@ -8,6 +8,10 @@ type Trip = Pick<
   'id' | 'title' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'kind' | 'city' | 'state' | 'zone' | 'county'
 >
 
+// v26.4: multi-line trip card metadata. The previous single-line layout
+// truncated the harvest count on narrow screens ("0 harve…"). Now each
+// datapoint stacks: date / location / counts. The counts line carries both
+// hunters and harvests as a single muted footer.
 export default function TripRow({
   trip,
   hunters,
@@ -18,13 +22,8 @@ export default function TripRow({
   harvests: number
 }) {
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
-  const locLabel = formatTripLocation(trip)
-  const meta = [
-    dateLabel,
-    locLabel || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting'),
-    `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`,
-    `${harvests} ${harvests === 1 ? 'harvest' : 'harvests'}`,
-  ].join(' · ')
+  const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
+  const counts = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'} · ${harvests} ${harvests === 1 ? 'harvest' : 'harvests'}`
 
   return (
     <Link href={`/app/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
@@ -34,7 +33,11 @@ export default function TripRow({
       </div>
       <div className="bb-trip-body">
         <div className="bb-trip-title">{trip.title}</div>
-        <div className="bb-trip-meta">{meta}</div>
+        <div className="bb-trip-meta">
+          <span className="bb-trip-meta-line">{dateLabel}</span>
+          <span className="bb-trip-meta-line">{locLabel}</span>
+          <span className="bb-trip-meta-counts">{counts}</span>
+        </div>
       </div>
       <StatusPill status={trip.status} />
     </Link>

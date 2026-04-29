@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../../_lib/auth'
 import { fetchTripDetail, fetchAcceptedHunters } from '../../../_lib/queries'
 import EditTripForm from './EditTripForm'
@@ -48,7 +48,7 @@ export default async function EditTripPage({ params }: { params: RouteParams }) 
         className="inline-flex items-center gap-1 text-sm font-semibold mb-1"
         style={{ color: 'var(--color-copper)' }}
       >
-        <ChevronLeft size={16} aria-hidden="true" />
+        <ArrowLeft size={16} aria-hidden="true" />
         Back to trip
       </Link>
 
@@ -58,29 +58,25 @@ export default async function EditTripPage({ params }: { params: RouteParams }) 
         <p className="bb-page-sub">Update trip details, hunters, or notes.</p>
       </header>
 
-      <div className="bb-form-narrow">
-        <section className="bb-tile mt-4">
-          <div className="bb-tile-body">
-            <EditTripForm
-              tripId={id}
-              initial={{
-                title: detail.trip.title,
-                kind: detail.trip.kind,
-                starts_at: detail.trip.starts_at,
-                ends_at: detail.trip.ends_at,
-                city: detail.trip.city,
-                state: detail.trip.state,
-                zone: detail.trip.zone,
-                county: detail.trip.county,
-                species_targeted: detail.trip.species_targeted,
-                method: detail.trip.method,
-                notes: detail.trip.notes,
-              }}
-              candidates={candidates}
-              initialSelectedIds={initialSelectedIds}
-            />
-          </div>
-        </section>
+      <div className="bb-form-narrow mt-4">
+        <EditTripForm
+          tripId={id}
+          initial={{
+            title: detail.trip.title,
+            kind: detail.trip.kind,
+            starts_at: detail.trip.starts_at,
+            ends_at: detail.trip.ends_at,
+            city: detail.trip.city,
+            state: detail.trip.state,
+            zone: detail.trip.zone,
+            county: detail.trip.county,
+            species_targeted: detail.trip.species_targeted,
+            method: detail.trip.method,
+            notes: detail.trip.notes,
+          }}
+          candidates={candidates}
+          initialSelectedIds={initialSelectedIds}
+        />
       </div>
     </main>
   )
