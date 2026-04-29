@@ -30,7 +30,17 @@ type TripStatus = Database['public']['Enums']['trip_status']
 export type TripRowWithCounts = Pick<
   Trip,
   'id' | 'title' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'kind' | 'city' | 'state' | 'zone' | 'county'
-> & { hunters: number; harvests: number }
+> & {
+  hunters: number
+  harvests: number
+  // v26.5.9: trip card ratings. Guide queries set rating = AVG across all
+  // trip_reviews on this trip + reviewCount = total reviews. Hunter queries
+  // set rating = the hunter's OWN review (1-5) + reviewCount = 0|1. Null
+  // rating means "not reviewed yet" (or the trip isn't wrapped, in which
+  // case the card shouldn't render the row anyway).
+  rating: number | null
+  reviewCount: number
+}
 
 const RECENT_LIMIT = 10
 
@@ -57,7 +67,51 @@ function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
     county: (t.county as string | null) ?? null,
     hunters: tp?.[0]?.count ?? 0,
     harvests: hv?.[0]?.count ?? 0,
+    rating: null,
+    reviewCount: 0,
   }
+}
+
+// v26.5.9: attach trip-review ratings to a list of trips. We fetch reviews
+// in a single IN(tripIds) query and merge in code rather than a Postgres
+// view, so the schema stays simple. Wrapped trips that have zero reviews
+// keep `rating: null` and the card renders the empty state.
+//
+// `mode === 'guide-avg'` aggregates across all reviewers on a trip.
+// `mode === 'hunter-own'` only fetches the calling hunter's own review.
+async function attachRatings<T extends { id: string; status: TripStatus }>(
+  rows: T[],
+  mode: { kind: 'guide-avg' } | { kind: 'hunter-own'; hunterId: string }
+): Promise<(T & { rating: number | null; reviewCount: number })[]> {
+  const tripIds = rows.map((r) => r.id)
+  if (tripIds.length === 0) {
+    return rows.map((r) => ({ ...r, rating: null, reviewCount: 0 }))
+  }
+  const supabase = await createClient()
+  let query = supabase
+    .from('trip_reviews')
+    .select('trip_id, rating')
+    .in('trip_id', tripIds)
+  if (mode.kind === 'hunter-own') {
+    query = query.eq('hunter_id', mode.hunterId)
+  }
+  const { data, error } = await query
+  if (error) {
+    console.warn('[queries.attachRatings]', { mode: mode.kind, code: error.code, message: error.message })
+    return rows.map((r) => ({ ...r, rating: null, reviewCount: 0 }))
+  }
+  const acc = new Map<string, { sum: number; count: number }>()
+  for (const r of data ?? []) {
+    const e = acc.get(r.trip_id) ?? { sum: 0, count: 0 }
+    e.sum += r.rating
+    e.count += 1
+    acc.set(r.trip_id, e)
+  }
+  return rows.map((r) => {
+    const e = acc.get(r.id)
+    if (!e || e.count === 0) return { ...r, rating: null, reviewCount: 0 }
+    return { ...r, rating: e.sum / e.count, reviewCount: e.count }
+  })
 }
 
 // v26.4.1: "Recent" now means trips that have actually wrapped — completed
@@ -80,7 +134,8 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
     console.warn('[queries.fetchRecentTrips]', { guideId, code: error.code, message: error.message })
     return []
   }
-  return (data ?? []).map(shapeTripWithCounts)
+  const shaped = (data ?? []).map(shapeTripWithCounts)
+  return attachRatings(shaped, { kind: 'guide-avg' })
 }
 
 // v24/v26.4.1: dashboard widget query — trips that haven't been wrapped
@@ -144,7 +199,9 @@ export async function fetchTripsPage(
     console.warn('[queries.fetchTripsPage]', { guideId, code: error.code, message: error.message })
     return { rows: [], total: 0 }
   }
-  return { rows: (data ?? []).map(shapeTripWithCounts), total: count ?? 0 }
+  const shaped = (data ?? []).map(shapeTripWithCounts)
+  const rows = await attachRatings(shaped, { kind: 'guide-avg' })
+  return { rows, total: count ?? 0 }
 }
 
 export type DashboardStats = {
@@ -614,10 +671,11 @@ export async function fetchHunterRecentTrips(
     console.warn('[queries.fetchHunterRecentTrips]', { hunterId, code: error.code, message: error.message })
     return []
   }
-  return (data ?? [])
+  const shaped = (data ?? [])
     .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
     .filter((t): t is Record<string, unknown> => !!t)
     .map(shapeHunterTripRow)
+  return attachRatings(shaped, { kind: 'hunter-own', hunterId })
 }
 
 export async function fetchHunterTripsPage(
@@ -650,7 +708,7 @@ export async function fetchHunterTripsPage(
     .map(shapeHunterTripRow)
     .sort((a, b) => (a.starts_at < b.starts_at ? 1 : -1))
   const total = all.length
-  const rows = all.slice(opts.from, opts.to + 1)
+  const rows = await attachRatings(all.slice(opts.from, opts.to + 1), { kind: 'hunter-own', hunterId })
   return { rows, total }
 }
 

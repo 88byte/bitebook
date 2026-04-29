@@ -121,7 +121,7 @@ export default async function DashboardPage() {
               <div role="list" className="flex flex-col gap-4">
                 {upcoming.map((t) => (
                   <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
+                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} reviewCount={t.reviewCount} />
                   </div>
                 ))}
               </div>
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
               <div role="list" className="flex flex-col gap-4">
                 {recent.slice(0, 5).map((t) => (
                   <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
+                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} reviewCount={t.reviewCount} />
                   </div>
                 ))}
               </div>
