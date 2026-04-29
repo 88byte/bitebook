@@ -1232,11 +1232,18 @@ body {
 
 /* v25.4: cap form widths on desktop so width:100% inputs don't grow huge.
    Mobile is already capped via .bb-app-main max-width 44rem on <1024px, so
-   this only narrows the desktop case. */
+   this only narrows the desktop case.
+   v26.4.2: center the form (margin: 0 auto) instead of pinning it left, and
+   bump the cap to 48rem. The previous left-aligned 36rem treatment looked
+   "super thin" on any viewport wider than 576px because the form sat hard
+   against the left edge of bb-app-main with significant empty space on the
+   right. Centered + 48rem reads as a comfortable single-column form on
+   tablet and desktop. Mobile is still 100% of bb-app-main content width
+   since the cap never triggers below 768px viewport. */
 .bb-form-narrow {
-  max-width: 36rem;
-  margin-left: 0;
-  margin-right: 0;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .bb-form-label {
