@@ -140,7 +140,7 @@ export default function EditTripForm({
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Dates</h2>
-          <div className="bb-form-grid-2">
+          <div className="bb-form-grid-dates">
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="starts_at">Start</label>
               <label className="bb-field">

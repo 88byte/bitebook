@@ -734,11 +734,16 @@ body {
 /* Page container inside /app. Side padding respects safe-area for landscape
    notches; bottom padding clears the iPhone home indicator.
    v26.4: top padding now respects env(safe-area-inset-top) so the page title
-   doesn't bump into the iPhone status bar/notch on edge-to-edge devices. */
+   doesn't bump into the iPhone status bar/notch on edge-to-edge devices.
+   v26.5.1: tightened top padding floor. The previous floor of 1.25rem + the
+   safe-area inset added too much whitespace between the AppHeader and the
+   page title on mobile (Flavio: "the spacing is excessive"). Now the inset
+   alone covers the iOS status bar / notch and the floor is just 0.5rem of
+   breathing room. Desktop floor is 1rem. */
 .bb-app-main {
   max-width: 44rem;
   margin: 0 auto;
-  padding-top: max(1.25rem, calc(0.75rem + env(safe-area-inset-top)));
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
   padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
@@ -746,7 +751,7 @@ body {
 
 @media (min-width: 48rem) {
   .bb-app-main {
-    padding-top: max(1.75rem, calc(1.25rem + env(safe-area-inset-top)));
+    padding-top: calc(1rem + env(safe-area-inset-top));
     padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom)));
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
@@ -1220,6 +1225,23 @@ body {
   min-width: 0;
 }
 .bb-form-grid-2 > * { min-width: 0; }
+
+/* v26.5.1: DATES needs more horizontal room than the other 2-col pairs because
+   the native datetime-local control renders its value as `M/D/YYYY h:mm AM`
+   in browser-locale format and that string is too wide for a 50% column at
+   375px iPhone (clipped "Apr 28, 2026 at 11:45 A..." per Flavio's IMG_6604).
+   Drop DATES to single-col on phones and only go 2-col on tablet+ where each
+   column has enough room for the full date string. */
+.bb-form-grid-dates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
+.bb-form-grid-dates > * { min-width: 0; }
+@media (min-width: 32rem) {
+  .bb-form-grid-dates { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
 
 /* v26.4: stack of form sections within a single page. Each section is a
    .bb-tile with its own header. */
