@@ -60,6 +60,12 @@ function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
   }
 }
 
+// v26.4.1: "Recent" now means trips that have actually wrapped — completed
+// or canceled. The previous query returned every trip ordered by starts_at
+// desc, which caused the same trip to show up in BOTH the Upcoming widget
+// (status=planned/active by date) AND the Recent widget (any status). Now
+// the two widgets are a clean status partition. Order by updated_at desc so
+// most recently wrapped tops the list.
 export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCounts[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -67,7 +73,8 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
     .select(`${TRIP_ROW_COLS},
              trip_participants(count), harvests(count)`)
     .eq('guide_id', guideId)
-    .order('starts_at', { ascending: false })
+    .in('status', ['completed', 'canceled'])
+    .order('updated_at', { ascending: false })
     .limit(RECENT_LIMIT)
   if (error) {
     console.warn('[queries.fetchRecentTrips]', { guideId, code: error.code, message: error.message })
@@ -76,20 +83,22 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
   return (data ?? []).map(shapeTripWithCounts)
 }
 
-// v24: dashboard widget query — trips with starts_at >= today, ascending.
+// v24/v26.4.1: dashboard widget query — trips that haven't been wrapped
+// yet (status in {planned, active}). Date no longer matters; a planned trip
+// whose starts_at has already passed (guide forgot to activate or wrap) is
+// still "upcoming" until the guide closes it out. Order by starts_at asc so
+// the soonest next trip tops the list.
 export async function fetchUpcomingTrips(
   guideId: string,
   limit = 5
 ): Promise<TripRowWithCounts[]> {
   const supabase = await createClient()
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
   const { data, error } = await supabase
     .from('trips')
     .select(`${TRIP_ROW_COLS},
              trip_participants(count), harvests(count)`)
     .eq('guide_id', guideId)
-    .gte('starts_at', todayStart.toISOString())
+    .in('status', ['planned', 'active'])
     .order('starts_at', { ascending: true })
     .limit(limit)
   if (error) {
