@@ -21,7 +21,11 @@ export default async function HunterGuidesPage() {
         </p>
       </header>
 
-      <div className="bb-form-narrow mt-4">
+      {/* v26.5.7: dropped bb-form-narrow wrapper — was the only Hunter page
+          artificially capped at 48rem inside the 1180px desktop main, made the
+          column look thin vs. /app/h/trips and /app/h dashboard which flow at
+          full bb-app-main width (max 44rem mobile, 1180px desktop). */}
+      <div className="mt-4">
         <MyGuidesList guides={guides} />
       </div>
     </main>

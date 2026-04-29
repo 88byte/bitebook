@@ -1,40 +1,36 @@
 import Link from 'next/link'
 import { requireHunter } from '../_lib/auth'
 import {
-  fetchHunterTrips,
+  fetchHunterUpcomingTrips,
+  fetchHunterRecentTrips,
   fetchHunterStats,
-  fetchHunterGuides,
-  type HunterGuideConnection,
 } from '../_lib/queries'
 import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
 import Widget from '../_components/Widget'
 import HunterTripRow from './_components/HunterTripRow'
 import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function guideLabel(g: HunterGuideConnection): string {
-  return g.business_name ?? g.display_name
-}
-
 // v25.1: hunter dashboard. Stats row + recent trips. Hunters don't create
 // trips, so there are no add-trip CTAs here — guides do that.
 //
 // v26.0 Batch A: shows a HunterOnboardingBanner at the top of the grid when
 // onboarding is incomplete (3-step checklist on /app/h/welcome).
+//
+// v26.5.7: matched to the guide dashboard structure — Upcoming widget
+// (planned/active by date) AND Recent widget (wrapped trips by updated_at).
+// Dropped the "Your guides" widget per Flavio: guides remain accessible via
+// the dedicated /app/h/guides tab.
 export default async function HunterDashboardPage() {
   const { supabase, user, profile } = await requireHunter()
 
-  const [recent, stats, progress, guides] = await Promise.all([
-    fetchHunterTrips(profile.id, 5),
+  const [upcoming, recent, stats, progress] = await Promise.all([
+    fetchHunterUpcomingTrips(profile.id),
+    fetchHunterRecentTrips(profile.id),
     fetchHunterStats(profile.id),
     fetchHunterOnboardingProgress(supabase, user.id),
-    fetchHunterGuides(profile.id),
   ])
 
-  const isEmpty = recent.length === 0
+  const isEmpty = upcoming.length === 0 && recent.length === 0
   const showBanner = !isHunterOnboarded(progress)
 
   return (
@@ -71,70 +67,9 @@ export default async function HunterDashboardPage() {
 
         <div className="bb-dash-cell-12" data-order-mobile="2">
           <Widget
-            title="Your guides"
+            title="Upcoming trips"
             action={
-              guides.length > 0 ? (
-                <Link
-                  href="/app/h/guides"
-                  className="bb-widget-link"
-                  style={{ color: 'var(--color-copper)' }}
-                >
-                  View all
-                </Link>
-              ) : null
-            }
-          >
-            {guides.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No guides yet</div>
-                <p className="bb-empty-sub">
-                  When a guide adds you to their network, they&rsquo;ll appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="bb-detail-list">
-                {/* v26.3: dashboard widget is now a 3-row preview. Full list lives at /app/h/guides. */}
-                {guides.slice(0, 3).map((g) => {
-                  const label = guideLabel(g)
-                  return (
-                    <div key={g.invite_id} className="bb-detail-row">
-                      <div className="bb-avatar" aria-hidden="true">
-                        {label.slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="bb-detail-name">{label}</div>
-                        <div className="bb-detail-sub">
-                          Connected since {fmtDate(g.accepted_at)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {guides.length > 3 && (
-                  <Link
-                    href="/app/h/guides"
-                    className="bb-widget-link"
-                    style={{
-                      display: 'inline-block',
-                      marginTop: '0.5rem',
-                      color: 'var(--color-copper)',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                    }}
-                  >
-                    View all guides
-                  </Link>
-                )}
-              </div>
-            )}
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-12" data-order-mobile="3">
-          <Widget
-            title="Recent trips"
-            action={
-              !isEmpty ? (
+              upcoming.length > 0 ? (
                 <Link
                   href="/app/h/trips"
                   className="bb-widget-link"
@@ -145,11 +80,45 @@ export default async function HunterDashboardPage() {
               ) : null
             }
           >
-            {isEmpty ? (
+            {upcoming.length === 0 ? (
               <div className="bb-empty">
-                <div className="bb-empty-title">No trips yet</div>
+                <div className="bb-empty-title">No upcoming trips</div>
                 <p className="bb-empty-sub">
                   Your guide will add you to a trip when they are ready. You will get an email when they do.
+                </p>
+              </div>
+            ) : (
+              <div role="list" className="flex flex-col gap-4">
+                {upcoming.map((t) => (
+                  <div role="listitem" key={t.id}>
+                    <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Widget>
+        </div>
+
+        <div className="bb-dash-cell-12" data-order-mobile="3">
+          <Widget
+            title="Recent trips"
+            action={
+              recent.length > 0 ? (
+                <Link
+                  href="/app/h/trips?status=completed"
+                  className="bb-widget-link"
+                  style={{ color: 'var(--color-copper)' }}
+                >
+                  See all
+                </Link>
+              ) : null
+            }
+          >
+            {recent.length === 0 ? (
+              <div className="bb-empty">
+                <div className="bb-empty-title">No wrapped trips yet</div>
+                <p className="bb-empty-sub">
+                  Once your guide wraps a hunt, it will show up here so you can leave a review.
                 </p>
               </div>
             ) : (

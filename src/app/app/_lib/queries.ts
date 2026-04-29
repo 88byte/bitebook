@@ -562,6 +562,64 @@ export async function fetchHunterTrips(
     .map(shapeHunterTripRow)
 }
 
+// v26.5.7: hunter-side Upcoming/Recent split, mirroring the v26.4.1 guide
+// dashboard pattern. Upcoming = planned/active by starts_at ASC, Recent =
+// completed/canceled by updated_at DESC. Clean status partition so a trip
+// can't appear in both widgets.
+export async function fetchHunterUpcomingTrips(
+  hunterId: string,
+  limit = 5
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('trip_participants')
+    .select(
+      `trip:trips!inner(
+        ${TRIP_ROW_COLS},
+        trip_participants(count), harvests(count)
+      )`
+    )
+    .eq('hunter_id', hunterId)
+    .in('trip.status', ['planned', 'active'])
+    .order('starts_at', { foreignTable: 'trip', ascending: true })
+    .limit(limit)
+  if (error) {
+    console.warn('[queries.fetchHunterUpcomingTrips]', { hunterId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? [])
+    .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
+    .filter((t): t is Record<string, unknown> => !!t)
+    .map(shapeHunterTripRow)
+}
+
+export async function fetchHunterRecentTrips(
+  hunterId: string,
+  limit = 5
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('trip_participants')
+    .select(
+      `trip:trips!inner(
+        ${TRIP_ROW_COLS},
+        trip_participants(count), harvests(count)
+      )`
+    )
+    .eq('hunter_id', hunterId)
+    .in('trip.status', ['completed', 'canceled'])
+    .order('updated_at', { foreignTable: 'trip', ascending: false })
+    .limit(limit)
+  if (error) {
+    console.warn('[queries.fetchHunterRecentTrips]', { hunterId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? [])
+    .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
+    .filter((t): t is Record<string, unknown> => !!t)
+    .map(shapeHunterTripRow)
+}
+
 export async function fetchHunterTripsPage(
   hunterId: string,
   opts: { status: TripStatus | 'all'; from: number; to: number }
