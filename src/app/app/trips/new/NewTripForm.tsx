@@ -6,6 +6,7 @@ import { US_STATES } from '@/lib/us-states'
 import { METHOD_OPTIONS } from '@/lib/methods'
 import { createTripAction } from '../actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
+import DateTimeField from '../../_components/DateTimeField'
 
 // v26.4: structured-section layout. Form now renders its own .bb-tile
 // wrappers (one per section: Basics / Dates / Location / Hunt details /
@@ -101,23 +102,12 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
           <h2 className="bb-form-section-head">Dates</h2>
           <div className="bb-form-grid-2">
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="starts_at">Start</label>
-              <input
-                id="starts_at"
-                name="starts_at"
-                type="datetime-local"
-                required
-                className="bb-input"
-              />
+              <span className="bb-form-label">Start</span>
+              <DateTimeField name="starts_at" required ariaLabel="Start date and time" />
             </div>
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="ends_at">End <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <input
-                id="ends_at"
-                name="ends_at"
-                type="datetime-local"
-                className="bb-input"
-              />
+              <span className="bb-form-label">End <span style={{ opacity: 0.6 }}>(optional)</span></span>
+              <DateTimeField name="ends_at" ariaLabel="End date and time" />
             </div>
           </div>
         </div>
@@ -239,13 +229,13 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Notes</h2>
           <div className="bb-form-row">
-            <label className="bb-form-label" htmlFor="notes">Notes <span style={{ opacity: 0.6 }}>(optional)</span></label>
             <textarea
               id="notes"
               name="notes"
               rows={3}
               className="bb-input"
               placeholder="Meet at the cabin trailhead 0530. Cold + clear forecast. Bring a layer."
+              aria-label="Notes (optional)"
             />
           </div>
         </div>

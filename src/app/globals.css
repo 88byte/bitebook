@@ -733,14 +733,18 @@ body {
 
 /* Page container inside /app. Side padding respects safe-area for landscape
    notches; bottom padding clears the iPhone home indicator.
-   v26.5.2: top padding is the safe-area inset only (no extra floor) on mobile
-   so the AppHeader-to-page-content gap is as tight as the OS notch demands
-   and nothing more. Flavio: "Make it less of a gap" (twice). Desktop adds
-   a tiny 0.5rem because there's no notch to absorb. */
+   v26.5.3: corrects the v26.5.2 over-correction. v26.5.2 dropped the
+   padding-top floor entirely (`env(safe-area-inset-top)` only) so on a phone
+   in non-standalone Safari (where env() resolves to 0) the page title
+   collided with the iOS status bar — IMG_6607 showed "Spring [10:38] Black
+   Bear..." with the time stamp rendering inside the title. Restore a small
+   floor (max(0.75rem, env(...))): the larger of 12px or the OS notch height,
+   so installed-PWA gets exactly the notch coverage and browser-mode gets a
+   tight 12px gap. Desktop floor 1rem. */
 .bb-app-main {
   max-width: 44rem;
   margin: 0 auto;
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(0.75rem, env(safe-area-inset-top));
   padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
@@ -748,7 +752,7 @@ body {
 
 @media (min-width: 48rem) {
   .bb-app-main {
-    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    padding-top: max(1rem, env(safe-area-inset-top));
     padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom)));
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
@@ -1160,6 +1164,7 @@ body {
 .bb-text-action {
   display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
   background: transparent;
   border: 0;
   padding: 0.35rem 0.55rem;
@@ -1223,15 +1228,30 @@ body {
 }
 .bb-form-grid-2 > * { min-width: 0; }
 
-/* v26.5.2: DATES reverted from v26.5.1's `.bb-form-grid-dates` (which stacked
-   on phones) back onto `.bb-form-grid-2` always-2-col. Flavio: "The start and
-   end date should be side by side and they are currently stacked and the
-   input fields are running over again." Overflow is fixed by dropping the
-   leading calendar icon prefix on the datetime-local inputs (saves ~36px of
-   left padding) and shortening the JS-formatted value display where we
-   control rendering (read-only trip detail). The datetime-local form input
-   is left without an icon prefix so iOS Safari's native locale-rendered
-   value has the full column width to lay out. */
+/* v26.5.3: DateTimeField — styled <button> overlay that shows our short
+   "Apr 28, 11:45 AM" format, with a hidden <input type="datetime-local">
+   behind it that handles picking via showPicker(). Native iOS Safari
+   locale-rendered datetime-local was "Apr 28, 2026 at 11:45 AM" which
+   overflowed the 2-col grid at 375px (Flavio flagged this 3 times). The
+   button uses .bb-input + .bb-input-iconed for shape parity with the rest
+   of the form, plus .bb-datetime-display to align text + ensure the inner
+   value doesn't wrap. */
+.bb-datetime-display {
+  display: inline-flex;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  background: #FFFFFF;
+}
+.bb-datetime-value {
+  display: inline-block;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.95rem;
+}
 
 /* v26.4: stack of form sections within a single page. Each section is a
    .bb-tile with its own header. */

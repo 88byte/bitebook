@@ -7,6 +7,7 @@ import { US_STATES } from '@/lib/us-states'
 import { METHOD_OPTIONS } from '@/lib/methods'
 import { updateTripAction } from '../actions'
 import HuntersMultiSelect, { type HunterOption } from '../../_components/HuntersMultiSelect'
+import DateTimeField from '../../../_components/DateTimeField'
 
 type EditTripFormProps = {
   tripId: string
@@ -142,24 +143,20 @@ export default function EditTripForm({
           <h2 className="bb-form-section-head">Dates</h2>
           <div className="bb-form-grid-2">
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="starts_at">Start</label>
-              <input
-                id="starts_at"
+              <span className="bb-form-label">Start</span>
+              <DateTimeField
                 name="starts_at"
-                type="datetime-local"
-                required
                 defaultValue={toLocalInput(initial.starts_at)}
-                className="bb-input"
+                required
+                ariaLabel="Start date and time"
               />
             </div>
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="ends_at">End <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <input
-                id="ends_at"
+              <span className="bb-form-label">End <span style={{ opacity: 0.6 }}>(optional)</span></span>
+              <DateTimeField
                 name="ends_at"
-                type="datetime-local"
                 defaultValue={toLocalInput(initial.ends_at)}
-                className="bb-input"
+                ariaLabel="End date and time"
               />
             </div>
           </div>
@@ -282,12 +279,13 @@ export default function EditTripForm({
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Notes</h2>
           <div className="bb-form-row">
-            <label className="bb-form-label" htmlFor="notes">Notes <span style={{ opacity: 0.6 }}>(optional)</span></label>
             <textarea
               id="notes"
               name="notes"
               rows={3}
               defaultValue={initial.notes ?? ''}
+              placeholder="Trip notes, observations, conditions…"
+              aria-label="Notes (optional)"
               className="bb-input"
             />
           </div>

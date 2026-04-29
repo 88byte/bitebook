@@ -331,22 +331,16 @@ function DetailCell({
   )
 }
 
-// Compact date+time renderer for read-only Start/End cells. We control the
-// rendering here (unlike datetime-local on the edit form) so we can stack
-// date over time and drop the "at" connector. Each line wraps independently
-// so a 3-col grid at 375px iPhone still fits "Apr 29, 2026" + "1:45 AM"
-// without overflowing the column.
+// v26.5.3: short single-line "Apr 28, 11:45 AM" format for read-only
+// Start/End cells. Year dropped (rarely needed inline; full date is in the
+// Range cell beside Start/End anyway), "at" connector dropped, comma keeps
+// month-day legible. This matches Flavio's spec for the dates display.
 function DateTimeStack({ iso }: { iso: string }) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) {
     return <span className="bb-detail-cell-value">{iso}</span>
   }
-  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  return (
-    <div>
-      <div className="bb-detail-cell-value">{date}</div>
-      <div className="bb-detail-cell-value" style={{ color: 'var(--color-ink-muted)', fontSize: '0.85rem' }}>{time}</div>
-    </div>
-  )
+  return <div className="bb-detail-cell-value">{`${date}, ${time}`}</div>
 }
