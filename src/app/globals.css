@@ -1205,17 +1205,21 @@ body {
    on mobile (the v25.5 fix only covered the row, not the grid cell). This
    class forces both the grid and its children to min-width:0 so the inputs
    honor the column width. Use in place of `grid grid-cols-1 sm:grid-cols-2 gap-3`
-   for any 2-up form pair. */
+   for any 2-up form pair.
+   v26.5: 2-col always-on. Mockup shows DATES Start|End, LOCATION City|State,
+   Zone|County, and HUNT DETAILS Species|Method side-by-side at all widths,
+   including 375px iPhone. The previous @media (min-width: 40rem) gate caused
+   single-column stacking on mobile, which is what Flavio kept flagging as
+   "looks the same / not like the mockup". The min-width:0 guards on grid +
+   cells + .bb-form-row + .bb-input still handle datetime-local overflow at
+   375px. */
 .bb-form-grid-2 {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
   min-width: 0;
 }
 .bb-form-grid-2 > * { min-width: 0; }
-@media (min-width: 40rem) {
-  .bb-form-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
 
 /* v26.4: stack of form sections within a single page. Each section is a
    .bb-tile with its own header. */

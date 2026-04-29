@@ -196,28 +196,30 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Hunt details</h2>
-          <div className="bb-form-row">
-            <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
-            <label className="bb-field">
-              <span className="bb-field-icon"><Target size={18} aria-hidden="true" /></span>
-              <input
-                id="species_targeted"
-                name="species_targeted"
-                type="text"
-                placeholder="Black bear, wild pig"
-                className="bb-input bb-input-iconed"
-                autoComplete="off"
-              />
-            </label>
-          </div>
-          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
-            <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
-            <select id="method" name="method" defaultValue="" className="bb-input">
-              <option value="">Select method</option>
-              {METHOD_OPTIONS.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+          <div className="bb-form-grid-2">
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <label className="bb-field">
+                <span className="bb-field-icon"><Target size={18} aria-hidden="true" /></span>
+                <input
+                  id="species_targeted"
+                  name="species_targeted"
+                  type="text"
+                  placeholder="Black bear, wild pig"
+                  className="bb-input bb-input-iconed"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            <div className="bb-form-row">
+              <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
+              <select id="method" name="method" defaultValue="" className="bb-input">
+                <option value="">Select method</option>
+                {METHOD_OPTIONS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </section>
