@@ -23,7 +23,7 @@ import {
   type StatusGroup,
   type WalletItemType,
   type WalletItemWithStatus,
-} from '../../_lib/wallet'
+} from '../../_lib/wallet-utils'
 
 const TAB_ICONS: Record<WalletItemType, LucideIcon> = {
   license: IdCard,

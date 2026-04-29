@@ -13,7 +13,7 @@ import {
   updateWalletItemAction,
   archiveWalletItemAction,
 } from '../../_lib/wallet-actions'
-import type { WalletItemType } from '../../_lib/wallet'
+import type { WalletItemType } from '../../_lib/wallet-utils'
 
 type Initial = {
   id?: string
