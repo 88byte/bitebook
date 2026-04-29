@@ -3,17 +3,16 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Star, FileText, Settings, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 
-// Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS. Uses
-// usePathname for active state so this is a client component.
-//
-// v26.0 Batch A: Reviews added between Hunters and Documents.
+// Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS.
+// v27.0a: Wallet added between Hunters and Reviews.
 const NAV = [
   { href: '/app',          label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/app' },
   { href: '/app/trips',    label: 'Trips',     icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
   { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
+  { href: '/app/wallet',   label: 'Wallet',    icon: Wallet,          match: (p: string) => p.startsWith('/app/wallet') },
   { href: '/app/reviews',  label: 'Reviews',   icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
   { href: '/app/docs',     label: 'Documents', icon: FileText,        match: (p: string) => p.startsWith('/app/docs') },
   { href: '/app/settings', label: 'Settings',  icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },

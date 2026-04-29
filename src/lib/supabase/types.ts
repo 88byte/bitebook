@@ -1021,12 +1021,87 @@ export type Database = {
           },
         ]
       }
+      wallet_items: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          document_mime: string | null
+          document_url: string | null
+          extras: Json | null
+          id: string
+          identifier: string
+          issue_date: string | null
+          jurisdiction: Database["public"]["Enums"]["wallet_jurisdiction"]
+          notes: string | null
+          season_year: number | null
+          species: string | null
+          state: string | null
+          type: Database["public"]["Enums"]["wallet_item_type"]
+          updated_at: string
+          user_id: string
+          valid_from: string
+          valid_to: string
+          zone: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          document_mime?: string | null
+          document_url?: string | null
+          extras?: Json | null
+          id?: string
+          identifier: string
+          issue_date?: string | null
+          jurisdiction: Database["public"]["Enums"]["wallet_jurisdiction"]
+          notes?: string | null
+          season_year?: number | null
+          species?: string | null
+          state?: string | null
+          type: Database["public"]["Enums"]["wallet_item_type"]
+          updated_at?: string
+          user_id: string
+          valid_from: string
+          valid_to: string
+          zone?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          document_mime?: string | null
+          document_url?: string | null
+          extras?: Json | null
+          id?: string
+          identifier?: string
+          issue_date?: string | null
+          jurisdiction?: Database["public"]["Enums"]["wallet_jurisdiction"]
+          notes?: string | null
+          season_year?: number | null
+          species?: string | null
+          state?: string | null
+          type?: Database["public"]["Enums"]["wallet_item_type"]
+          updated_at?: string
+          user_id?: string
+          valid_from?: string
+          valid_to?: string
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      _is_trip_owner: { Args: { _trip_id: string; _user_id: string }; Returns: boolean }
+      _is_trip_participant: { Args: { _trip_id: string; _user_id: string }; Returns: boolean }
     }
     Enums: {
       feedback_sentiment: "positive" | "neutral" | "negative"
@@ -1037,6 +1112,16 @@ export type Database = {
       subscription_status: "trialing" | "active" | "past_due" | "canceled" | "incomplete"
       trip_status: "planned" | "active" | "completed" | "canceled"
       user_role: "guide" | "hunter" | "admin"
+      wallet_item_type:
+        | "license"
+        | "tag"
+        | "permit"
+        | "stamp"
+        | "harvest_report_card"
+        | "guide_license"
+        | "insurance"
+        | "business_credential"
+      wallet_jurisdiction: "federal" | "state"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1140,6 +1225,17 @@ export const Constants = {
       subscription_status: ["trialing", "active", "past_due", "canceled", "incomplete"],
       trip_status: ["planned", "active", "completed", "canceled"],
       user_role: ["guide", "hunter", "admin"],
+      wallet_item_type: [
+        "license",
+        "tag",
+        "permit",
+        "stamp",
+        "harvest_report_card",
+        "guide_license",
+        "insurance",
+        "business_credential",
+      ],
+      wallet_jurisdiction: ["federal", "state"],
     },
   },
 } as const

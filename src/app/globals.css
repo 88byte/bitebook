@@ -1904,3 +1904,68 @@ body {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* ── v27.0a: wallet tabs + status group head ─────────────────────────────── */
+.bb-wallet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bb-wallet-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  color: var(--color-ink-muted);
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.bb-wallet-tab:hover {
+  border-color: rgba(176, 108, 60, 0.45);
+}
+
+.bb-wallet-tab.is-active {
+  background: var(--color-copper);
+  border-color: var(--color-copper);
+  color: #FFFFFF;
+}
+
+.bb-wallet-tab-count {
+  display: inline-flex;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(31, 36, 25, 0.08);
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+.bb-wallet-tab.is-active .bb-wallet-tab-count {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.bb-wallet-status-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}

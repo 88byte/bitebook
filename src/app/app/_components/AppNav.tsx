@@ -2,17 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Star } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wallet, Star } from 'lucide-react'
 
-// v26.1: 4-tab primary nav. Documents + Settings + Support + Sign Out moved
-// into the hamburger drawer (see MobileNavMenu / MobileNavDrawer) so we can
-// keep tap targets comfortable at 360px AND keep every section reachable on
-// mobile. Reviews stays in the bottom row because it's a high-frequency
-// post-trip surface for guides.
+// v26.1: primary mobile nav with overflow items in the hamburger drawer.
+// v27.0a: Wallet added between Hunters and Reviews — 5 tabs total.
 const TABS = [
   { href: '/app',         label: 'Dashboard', Icon: LayoutDashboard, match: (p: string) => p === '/app' },
   { href: '/app/trips',   label: 'Trips',     Icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
   { href: '/app/hunters', label: 'Hunters',   Icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
+  { href: '/app/wallet',  label: 'Wallet',    Icon: Wallet,          match: (p: string) => p.startsWith('/app/wallet') },
   { href: '/app/reviews', label: 'Reviews',   Icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
 ] as const
 

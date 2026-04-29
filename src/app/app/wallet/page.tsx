@@ -1,0 +1,15 @@
+import { requireGuide } from '../_lib/auth'
+import { fetchWallet, groupByType, visibleTabs } from '../_lib/wallet'
+import WalletPage from '../_components/wallet/WalletPage'
+
+// v27.0a: guide wallet route. Same shared component as hunter side; visible
+// tabs adapt to role + present items. Pure guide sees Guide License /
+// Insurance / Credentials. If they also hunt personally on someone else's
+// trip, hunter tabs (Licenses/Tags/etc.) auto-reveal once items exist.
+export default async function GuideWalletPage() {
+  const { profile } = await requireGuide()
+  const items = await fetchWallet(profile.id)
+  const groups = groupByType(items)
+  const tabs = visibleTabs('guide', groups)
+  return <WalletPage basePath="/app/wallet" tabs={tabs} groups={groups} />
+}

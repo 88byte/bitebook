@@ -3,16 +3,15 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, User, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, Calendar, Wallet, Users, User, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 
-// v25.1: hunter-side desktop sidebar. Same shell as Sidebar.tsx but a leaner
-// nav. Hidden under 1024px via the existing .bb-sidebar CSS rule.
-//
-// v26.3: Guides promoted to its own nav entry between My trips and Profile.
+// v25.1: hunter-side desktop sidebar. Same shell as Sidebar.tsx but a leaner nav.
+// v27.0a: Wallet added between My trips and Guides.
 const NAV = [
   { href: '/app/h',          label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/app/h' },
   { href: '/app/h/trips',    label: 'My trips',  icon: Calendar,        match: (p: string) => p.startsWith('/app/h/trips') },
+  { href: '/app/h/wallet',   label: 'Wallet',    icon: Wallet,          match: (p: string) => p.startsWith('/app/h/wallet') },
   { href: '/app/h/guides',   label: 'Guides',    icon: Users,           match: (p: string) => p.startsWith('/app/h/guides') },
   { href: '/app/h/profile',  label: 'Profile',   icon: User,            match: (p: string) => p.startsWith('/app/h/profile') },
   { href: '/app/h/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/h/support') },
