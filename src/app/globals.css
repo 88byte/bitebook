@@ -733,17 +733,14 @@ body {
 
 /* Page container inside /app. Side padding respects safe-area for landscape
    notches; bottom padding clears the iPhone home indicator.
-   v26.4: top padding now respects env(safe-area-inset-top) so the page title
-   doesn't bump into the iPhone status bar/notch on edge-to-edge devices.
-   v26.5.1: tightened top padding floor. The previous floor of 1.25rem + the
-   safe-area inset added too much whitespace between the AppHeader and the
-   page title on mobile (Flavio: "the spacing is excessive"). Now the inset
-   alone covers the iOS status bar / notch and the floor is just 0.5rem of
-   breathing room. Desktop floor is 1rem. */
+   v26.5.2: top padding is the safe-area inset only (no extra floor) on mobile
+   so the AppHeader-to-page-content gap is as tight as the OS notch demands
+   and nothing more. Flavio: "Make it less of a gap" (twice). Desktop adds
+   a tiny 0.5rem because there's no notch to absorb. */
 .bb-app-main {
   max-width: 44rem;
   margin: 0 auto;
-  padding-top: calc(0.5rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
@@ -751,7 +748,7 @@ body {
 
 @media (min-width: 48rem) {
   .bb-app-main {
-    padding-top: calc(1rem + env(safe-area-inset-top));
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
     padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom)));
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
@@ -1226,22 +1223,15 @@ body {
 }
 .bb-form-grid-2 > * { min-width: 0; }
 
-/* v26.5.1: DATES needs more horizontal room than the other 2-col pairs because
-   the native datetime-local control renders its value as `M/D/YYYY h:mm AM`
-   in browser-locale format and that string is too wide for a 50% column at
-   375px iPhone (clipped "Apr 28, 2026 at 11:45 A..." per Flavio's IMG_6604).
-   Drop DATES to single-col on phones and only go 2-col on tablet+ where each
-   column has enough room for the full date string. */
-.bb-form-grid-dates {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  min-width: 0;
-}
-.bb-form-grid-dates > * { min-width: 0; }
-@media (min-width: 32rem) {
-  .bb-form-grid-dates { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-}
+/* v26.5.2: DATES reverted from v26.5.1's `.bb-form-grid-dates` (which stacked
+   on phones) back onto `.bb-form-grid-2` always-2-col. Flavio: "The start and
+   end date should be side by side and they are currently stacked and the
+   input fields are running over again." Overflow is fixed by dropping the
+   leading calendar icon prefix on the datetime-local inputs (saves ~36px of
+   left padding) and shortening the JS-formatted value display where we
+   control rendering (read-only trip detail). The datetime-local form input
+   is left without an icon prefix so iOS Safari's native locale-rendered
+   value has the full column width to lay out. */
 
 /* v26.4: stack of form sections within a single page. Each section is a
    .bb-tile with its own header. */
@@ -1255,6 +1245,84 @@ body {
   color: var(--color-ink-muted);
   margin: 0 0 0.65rem;
 }
+
+/* v26.5.2: section header with circular copper icon on the left + label,
+   matched to Flavio's IMG_6605 trip detail mockup. The icon is a 36px
+   solid copper disc with a white lucide glyph centered. The hairline
+   under the label provides the underline visible in the mockup. */
+.bb-section-head-iconed {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--color-card-divider);
+}
+.bb-section-head-icon {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bb-section-head-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.85rem;
+  color: var(--color-copper);
+}
+
+/* v26.5.2: read-only field cell used inside trip detail sections. Layout
+   is icon (left) + label (uppercase eyebrow) + value, matching the
+   mockup's Basics / Dates / Location / Hunt details rows. */
+.bb-detail-cell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  min-width: 0;
+}
+.bb-detail-cell-icon {
+  flex: 0 0 auto;
+  color: var(--color-ink-muted);
+  margin-top: 0.15rem;
+}
+.bb-detail-cell-body { min-width: 0; }
+.bb-detail-cell-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  color: var(--color-ink-muted);
+  margin: 0 0 0.15rem;
+}
+.bb-detail-cell-value {
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
+/* Multi-column grid for the detail-cell variants. 2- and 3-col always-on,
+   like .bb-form-grid-2 — min-width:0 on grid + cells so long values like
+   "Apr 29, 2026 1:45 AM" wrap without overflowing the column. */
+.bb-detail-grid-2,
+.bb-detail-grid-3 {
+  display: grid;
+  gap: 0.85rem 0.65rem;
+  min-width: 0;
+}
+.bb-detail-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.bb-detail-grid-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
+.bb-detail-grid-2 > *,
+.bb-detail-grid-3 > * { min-width: 0; }
 
 /* v25.4: cap form widths on desktop so width:100% inputs don't grow huge.
    Mobile is already capped via .bb-app-main max-width 44rem on <1024px, so

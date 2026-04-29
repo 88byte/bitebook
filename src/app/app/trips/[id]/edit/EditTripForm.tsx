@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Calendar, MapPin, FileText, Target } from 'lucide-react'
+import { MapPin, FileText, Target } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
 import { METHOD_OPTIONS } from '@/lib/methods'
 import { updateTripAction } from '../actions'
@@ -140,33 +140,27 @@ export default function EditTripForm({
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Dates</h2>
-          <div className="bb-form-grid-dates">
+          <div className="bb-form-grid-2">
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="starts_at">Start</label>
-              <label className="bb-field">
-                <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
-                <input
-                  id="starts_at"
-                  name="starts_at"
-                  type="datetime-local"
-                  required
-                  defaultValue={toLocalInput(initial.starts_at)}
-                  className="bb-input bb-input-iconed"
-                />
-              </label>
+              <input
+                id="starts_at"
+                name="starts_at"
+                type="datetime-local"
+                required
+                defaultValue={toLocalInput(initial.starts_at)}
+                className="bb-input"
+              />
             </div>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="ends_at">End <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <label className="bb-field">
-                <span className="bb-field-icon"><Calendar size={18} aria-hidden="true" /></span>
-                <input
-                  id="ends_at"
-                  name="ends_at"
-                  type="datetime-local"
-                  defaultValue={toLocalInput(initial.ends_at)}
-                  className="bb-input bb-input-iconed"
-                />
-              </label>
+              <input
+                id="ends_at"
+                name="ends_at"
+                type="datetime-local"
+                defaultValue={toLocalInput(initial.ends_at)}
+                className="bb-input"
+              />
             </div>
           </div>
         </div>

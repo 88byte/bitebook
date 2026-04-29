@@ -1,6 +1,24 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Pencil, Share2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Pencil,
+  Share2,
+  ClipboardList,
+  Calendar,
+  Clock,
+  MapPin,
+  Building,
+  Map,
+  Mountain,
+  TreeDeciduous,
+  Crosshair,
+  PawPrint,
+  FileText,
+  Users,
+  Activity,
+  type LucideIcon,
+} from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchTripDetail, fetchAcceptedHunters } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
@@ -12,11 +30,17 @@ import ReopenTripButton from './ReopenTripButton'
 
 type RouteParams = Promise<{ id: string }>
 
-// v26.4: trip detail layout matched to the EditTripForm section structure
-// (Basics / Dates / Location / Hunt details / Hunters / Harvests). Each
-// section is its own .bb-tile so the read view and the edit view feel
-// consistent. Header gets the small ArrowLeft back link + uppercase eyebrow
-// + title pattern so the visual rhythm matches /app/trips/new and /edit.
+// v26.5.2: rebuilt to match Flavio's mockup IMG_6605. Each section card now
+// has a circular copper section icon on the left of its header (Clipboard,
+// Calendar, MapPin, Crosshair) with a hairline divider underneath. Inside
+// each section the read-only fields render as DetailCell with their own
+// per-field lucide glyphs in a 2- or 3-col grid:
+//   BASICS:        Trip name | Activity | Status                  (3-col)
+//   DATES:         Start | End | Range                            (3-col)
+//   LOCATION:      City | State | Zone, then County alone         (3-col + 1)
+//   HUNT DETAILS:  Species targeted | Method                      (2-col)
+// Per Flavio's spec: Zone uses Mountain, Species uses PawPrint,
+// Method uses Crosshair.
 export default async function TripDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params
   const { profile } = await requireGuide()
@@ -76,44 +100,71 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         {/* BASICS */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-basics">
           <div className="bb-tile-body">
-            <h2 id="td-basics" className="bb-form-section-head">Basics</h2>
-            <DetailRow label="Trip name" value={trip.title} />
-            <DetailRow label="Activity" value={trip.kind === 'fishing' ? 'Fishing' : 'Hunting'} />
-            <DetailRow label="Status" value={statusLabel(trip.status)} />
+            <SectionHead id="td-basics" icon={ClipboardList} label="Basics" />
+            <div className="bb-detail-grid-3">
+              <DetailCell icon={FileText} label="Trip name" value={trip.title} />
+              <DetailCell
+                icon={trip.kind === 'fishing' ? Activity : PawPrint}
+                label="Activity"
+                value={trip.kind === 'fishing' ? 'Fishing' : 'Hunting'}
+              />
+              <DetailCell
+                icon={Activity}
+                label="Status"
+                node={<StatusPill status={trip.status} />}
+              />
+            </div>
           </div>
         </section>
 
         {/* DATES */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-dates">
           <div className="bb-tile-body">
-            <h2 id="td-dates" className="bb-form-section-head">Dates</h2>
-            <DetailRow label="Start" value={new Date(trip.starts_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} />
-            <DetailRow
-              label="End"
-              value={trip.ends_at ? new Date(trip.ends_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'}
-            />
-            <DetailRow label="Range" value={dateRange} />
+            <SectionHead id="td-dates" icon={Calendar} label="Dates" />
+            <div className="bb-detail-grid-3">
+              <DetailCell
+                icon={Calendar}
+                label="Start"
+                node={<DateTimeStack iso={trip.starts_at} />}
+              />
+              <DetailCell
+                icon={Calendar}
+                label="End"
+                node={trip.ends_at ? <DateTimeStack iso={trip.ends_at} /> : <span className="bb-detail-cell-value">Not set</span>}
+              />
+              <DetailCell icon={Clock} label="Range" value={dateRange} />
+            </div>
           </div>
         </section>
 
         {/* LOCATION */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-location">
           <div className="bb-tile-body">
-            <h2 id="td-location" className="bb-form-section-head">Location</h2>
-            <DetailRow label="City" value={trip.city || 'Not set'} />
-            <DetailRow label="State" value={trip.state || 'Not set'} />
-            <DetailRow label="Zone" value={trip.zone || 'Not set'} />
-            <DetailRow label="County" value={trip.county || 'Not set'} />
-            {locLabel && <DetailRow label="Summary" value={locLabel} />}
+            <SectionHead id="td-location" icon={MapPin} label="Location" />
+            <div className="bb-detail-grid-3">
+              <DetailCell icon={Building} label="City" value={trip.city || 'Not set'} />
+              <DetailCell icon={Map} label="State" value={trip.state || 'Not set'} />
+              <DetailCell icon={Mountain} label="Zone" value={trip.zone || 'Not set'} />
+            </div>
+            <div className="bb-detail-grid-3" style={{ marginTop: '0.85rem' }}>
+              <DetailCell icon={TreeDeciduous} label="County" value={trip.county || 'Not set'} />
+              {locLabel && (
+                <div style={{ gridColumn: 'span 2' }}>
+                  <DetailCell icon={MapPin} label="Summary" value={locLabel} />
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
         {/* HUNT DETAILS */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-hunt">
           <div className="bb-tile-body">
-            <h2 id="td-hunt" className="bb-form-section-head">Hunt details</h2>
-            <DetailRow label="Species targeted" value={trip.species_targeted || 'Not set'} />
-            <DetailRow label="Method" value={trip.method || 'Not set'} />
+            <SectionHead id="td-hunt" icon={Crosshair} label="Hunt details" />
+            <div className="bb-detail-grid-2">
+              <DetailCell icon={PawPrint} label="Species targeted" value={trip.species_targeted || 'Not set'} />
+              <DetailCell icon={Crosshair} label="Method" value={trip.method || 'Not set'} />
+            </div>
           </div>
         </section>
 
@@ -121,7 +172,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         {trip.notes && (
           <section className="bb-tile bb-form-section" aria-labelledby="td-notes">
             <div className="bb-tile-body">
-              <h2 id="td-notes" className="bb-form-section-head">Notes</h2>
+              <SectionHead id="td-notes" icon={FileText} label="Notes" />
               <p className="text-sm" style={{ color: 'var(--color-ink)', whiteSpace: 'pre-wrap' }}>
                 {trip.notes}
               </p>
@@ -132,7 +183,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         {/* HUNTERS */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-hunters">
           <div className="bb-tile-body">
-            <h2 id="td-hunters" className="bb-form-section-head">Hunters</h2>
+            <SectionHead id="td-hunters" icon={Users} label="Hunters" />
             {participants.length === 0 ? (
               <div className="bb-empty">
                 <div className="bb-empty-title">No hunters yet</div>
@@ -170,7 +221,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         {/* HARVEST LOG */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-harvests">
           <div className="bb-tile-body">
-            <h2 id="td-harvests" className="bb-form-section-head">Harvest log</h2>
+            <SectionHead id="td-harvests" icon={Activity} label="Harvest log" />
             {harvests.length === 0 ? (
               <div className="bb-empty">
                 <div className="bb-empty-title">No harvests logged</div>
@@ -245,31 +296,57 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function SectionHead({ id, icon: Icon, label }: { id: string; icon: LucideIcon; label: string }) {
   return (
-    <div className="flex flex-col gap-0.5 min-w-0" style={{ paddingTop: '0.45rem', paddingBottom: '0.45rem' }}>
-      <dt
-        style={{
-          fontFamily: 'var(--font-barlow-condensed)',
-          fontSize: '0.7rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.12em',
-          color: 'var(--color-ink-muted)',
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </dt>
-      <dd style={{ fontSize: '0.95rem', color: 'var(--color-ink)', overflowWrap: 'anywhere' }}>{value}</dd>
+    <h2 id={id} className="bb-section-head-iconed">
+      <span className="bb-section-head-icon" aria-hidden="true">
+        <Icon size={18} strokeWidth={2.2} />
+      </span>
+      <span className="bb-section-head-label">{label}</span>
+    </h2>
+  )
+}
+
+function DetailCell({
+  icon: Icon,
+  label,
+  value,
+  node,
+}: {
+  icon: LucideIcon
+  label: string
+  value?: string
+  node?: React.ReactNode
+}) {
+  return (
+    <div className="bb-detail-cell">
+      <span className="bb-detail-cell-icon" aria-hidden="true">
+        <Icon size={18} strokeWidth={1.9} />
+      </span>
+      <div className="bb-detail-cell-body">
+        <div className="bb-detail-cell-label">{label}</div>
+        {node ? <div>{node}</div> : <div className="bb-detail-cell-value">{value}</div>}
+      </div>
     </div>
   )
 }
 
-function statusLabel(status: 'planned' | 'active' | 'completed' | 'canceled'): string {
-  switch (status) {
-    case 'planned': return 'Pre-trip'
-    case 'active': return 'In field'
-    case 'completed': return 'Wrapped'
-    case 'canceled': return 'Canceled'
+// Compact date+time renderer for read-only Start/End cells. We control the
+// rendering here (unlike datetime-local on the edit form) so we can stack
+// date over time and drop the "at" connector. Each line wraps independently
+// so a 3-col grid at 375px iPhone still fits "Apr 29, 2026" + "1:45 AM"
+// without overflowing the column.
+function DateTimeStack({ iso }: { iso: string }) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    return <span className="bb-detail-cell-value">{iso}</span>
   }
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  return (
+    <div>
+      <div className="bb-detail-cell-value">{date}</div>
+      <div className="bb-detail-cell-value" style={{ color: 'var(--color-ink-muted)', fontSize: '0.85rem' }}>{time}</div>
+    </div>
+  )
 }
