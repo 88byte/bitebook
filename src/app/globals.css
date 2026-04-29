@@ -907,30 +907,42 @@ body {
   word-break: break-word;
 }
 
-/* v26.4: multi-line trip card metadata. Each datapoint gets its own line so
-   "0 harvests" never truncates to "0 harve…". The truncation came from the
-   prior single-line ellipsis pattern; we drop white-space:nowrap and stack
-   the lines instead. .bb-trip-meta-counts is the small muted footer line. */
+/* v26.5.4: trip card metadata is a 2x2 grid with icons, matching Flavio's
+   IMG_6597 trip-cards mockup:
+     Calendar + date-range  |  MapPin + location
+     Users    + N hunters   |  Trophy + N harvested
+   Each cell is icon (left) + text (right) on a single line. The previous
+   v26.4 column-flex layout (3 stacked lines) is replaced. Icons stay in
+   the same family locked on the trip-detail rebuild — Calendar / MapPin
+   / Users / Trophy — so the cards feel consistent with the detail view. */
 .bb-trip-meta {
-  margin-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  font-size: 0.8rem;
+  margin-top: 0.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  font-size: 0.82rem;
   color: var(--color-ink-soft);
   min-width: 0;
 }
 
-.bb-trip-meta-line {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.bb-trip-meta-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
-.bb-trip-meta-counts {
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
-  color: var(--color-ink-soft);
-  letter-spacing: 0.02em;
+.bb-trip-meta-cell-icon {
+  flex: 0 0 auto;
+  color: var(--color-ink-muted);
+  display: inline-flex;
+}
+
+.bb-trip-meta-cell-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Status pill — small uppercase chip with status-specific tinting */
