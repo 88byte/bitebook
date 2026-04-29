@@ -741,15 +741,19 @@ body {
    floor (max(0.75rem, env(...))): the larger of 12px or the OS notch height,
    so installed-PWA gets exactly the notch coverage and browser-mode gets a
    tight 12px gap. Desktop floor 1rem. */
-/* v26.5.8: dropped the unconditional `max-width: 44rem` (~704px) on mobile
-   and tablet. That cap was the real cause of the "narrow column" Flavio
-   kept flagging on /app/h/guides — at iPad portrait / iPhone Pro Max
-   widths the cap kicks in and centers content with significant whitespace
-   each side. v26.5.7 dropped `.bb-form-narrow` but `.bb-app-main` still
-   capped at 44rem, so it didn't change anything visible. Now content
-   flows full viewport width minus side padding on every viewport <1024px,
-   and the desktop @media block below still pins to 1180px on >=1024px. */
+/* v26.5.10: ROOT CAUSE for the "narrow guides column" Flavio flagged across
+   v26.5.7 / v26.5.8 / v26.5.9: parent `.bb-app-content` is
+   `display: flex; flex-direction: column`. In flex layout, a flex item with
+   `auto` cross-axis margins (here: `margin: 0 auto` for centering) does NOT
+   stretch to fill the container — it shrinks to its content's intrinsic
+   width AND the auto margins absorb the leftover free space, producing the
+   exact centered-narrow rendering Flavio saw. We need `width: 100%` so the
+   element ignores intrinsic-width sizing and the auto margins compute to 0.
+   v26.5.7 (drop bb-form-narrow) and v26.5.8 (drop max-width:44rem) were
+   correct fixes for related but different issues — the actual width-killer
+   was the flex+auto-margin interaction, surfaced via Chrome MCP probe. */
 .bb-app-main {
+  width: 100%;
   margin: 0 auto;
   padding-top: max(0.75rem, env(safe-area-inset-top));
   padding-bottom: max(4rem, calc(2.5rem + env(safe-area-inset-bottom)));
