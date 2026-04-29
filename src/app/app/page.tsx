@@ -118,7 +118,7 @@ export default async function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div role="list">
+              <div role="list" className="flex flex-col gap-4">
                 {upcoming.map((t) => (
                   <div role="listitem" key={t.id}>
                     <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />
@@ -157,7 +157,7 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <div role="list">
+              <div role="list" className="flex flex-col gap-4">
                 {recent.slice(0, 5).map((t) => (
                   <div role="listitem" key={t.id}>
                     <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />

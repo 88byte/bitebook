@@ -153,7 +153,7 @@ export default async function HunterDashboardPage() {
                 </p>
               </div>
             ) : (
-              <div role="list">
+              <div role="list" className="flex flex-col gap-4">
                 {recent.map((t) => (
                   <div role="listitem" key={t.id}>
                     <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} />

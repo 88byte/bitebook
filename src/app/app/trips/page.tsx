@@ -104,7 +104,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
             )}
           </div>
         ) : (
-          <div role="list">
+          <div role="list" className="flex flex-col gap-4">
             {rows.map((t) => (
               <div role="listitem" key={t.id}>
                 <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} />

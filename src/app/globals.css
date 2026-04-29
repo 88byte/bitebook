@@ -866,9 +866,14 @@ body {
   transition: border-color 0.15s, transform 0.05s;
 }
 
-/* v26.5.5: bumped from 0.5rem to 0.75rem (+50%) per Flavio: "the cards
-   look great but need a little bit of spacing between them." */
-.bb-trip-row + .bb-trip-row { margin-top: 0.75rem; }
+/* v26.5.6: dropped the .bb-trip-row + .bb-trip-row rule entirely. It never
+   fired in production: the trips list pages wrap each TripRow in a
+   <div role="listitem">, so the actual adjacent siblings are the wrapper
+   divs, not the .bb-trip-row anchors. Spacing now lives on the list parent
+   via Tailwind `flex flex-col gap-4` (1rem) — set in JSX on
+   /app/trips/page.tsx, /app/h/trips/page.tsx, and /app/page.tsx (Upcoming +
+   Recent widgets). One rule, one place, decoupled from the .bb-form-section
+   spacing on the trip detail view. */
 
 .bb-trip-row:hover { border-color: rgba(176, 108, 60, 0.45); }
 .bb-trip-row:active { transform: translateY(1px); }
@@ -1268,8 +1273,12 @@ body {
 }
 
 /* v26.4: stack of form sections within a single page. Each section is a
-   .bb-tile with its own header. */
-.bb-form-section + .bb-form-section { margin-top: 1rem; }
+   .bb-tile with its own header.
+   v26.5.6: removed the `.bb-form-section + .bb-form-section { margin-top: 1rem }`
+   rule. It was double-stacking with the parent's `flex flex-col gap-4`
+   (1rem flex-gap + 1rem margin-top = 2rem total). Flavio: "the card
+   spacing in the trip is too much." Spacing is now exclusively the parent
+   flex-gap (1rem) on EditTripForm + NewTripForm + TripDetail. */
 .bb-form-section-head {
   font-family: var(--font-barlow-condensed);
   font-weight: 700;
