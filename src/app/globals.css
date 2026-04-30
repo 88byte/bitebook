@@ -1969,3 +1969,373 @@ body {
   cursor: pointer;
   text-align: left;
 }
+
+/* ── v27.0a.5: wallet mockup rebuild — hero banner + stats + cards ─────── */
+
+/* Hero banner with bg image, eyebrow + title + subtitle + Add CTA */
+.bb-wallet-hero {
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 32vw, 280px);
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--color-paper);
+  /* pull banner flush with the .bb-app-main edge so it feels full-bleed
+     against the inner padding of the page */
+  margin-top: 0.25rem;
+}
+
+.bb-wallet-hero-img {
+  object-fit: cover;
+  object-position: right center;
+  z-index: 0;
+}
+
+.bb-wallet-hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to right,
+    rgba(250, 247, 242, 0.92) 0%,
+    rgba(250, 247, 242, 0.78) 35%,
+    rgba(250, 247, 242, 0.35) 65%,
+    rgba(250, 247, 242, 0.05) 100%
+  );
+}
+
+.bb-wallet-hero-inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+}
+
+.bb-wallet-hero-text {
+  min-width: 0;
+  max-width: 70%;
+}
+
+.bb-wallet-hero-title {
+  font-size: clamp(2.2rem, 9vw, 3rem);
+  line-height: 1;
+  margin: 0.2rem 0 0.3rem;
+}
+
+.bb-wallet-hero-add {
+  flex-shrink: 0;
+}
+
+/* Stats grid — paper cards in a row, scroll if too many */
+.bb-wallet-stats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(58px, 1fr);
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.bb-wallet-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.65rem 0.4rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+  text-align: center;
+  min-height: 72px;
+}
+
+.bb-wallet-stat-card:hover {
+  border-color: rgba(176, 108, 60, 0.45);
+}
+
+.bb-wallet-stat-card.is-active {
+  border-color: var(--color-copper);
+  box-shadow: 0 0 0 1px var(--color-copper) inset;
+}
+
+.bb-wallet-stat-count {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.bb-wallet-stat-card.is-active .bb-wallet-stat-count {
+  color: var(--color-copper);
+}
+
+.bb-wallet-stat-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Section head — "ACTIVE (n)" + View all */
+.bb-wallet-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.bb-wallet-section-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-muted);
+}
+
+/* Carousel of hero cards — horizontal scroll-snap */
+.bb-wallet-carousel {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+  /* hide scrollbar visually on mobile, keep functional */
+  scrollbar-width: none;
+}
+.bb-wallet-carousel::-webkit-scrollbar { display: none; }
+
+/* Hero wallet card — leather/forest gradient + watermark + content */
+.bb-wallet-card {
+  position: relative;
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-height: 200px;
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(176, 108, 60, 0.18) 0%, transparent 60%),
+    linear-gradient(135deg, #1F2419 0%, #0E1410 100%);
+  color: #F4EFE5;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: 0 10px 24px rgba(11, 8, 6, 0.18);
+}
+
+.bb-wallet-card-watermark {
+  position: absolute;
+  right: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(176, 108, 60, 0.18);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bb-wallet-card-top,
+.bb-wallet-card-bottom {
+  position: relative;
+  z-index: 1;
+}
+
+.bb-wallet-card-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-copper);
+  margin: 0;
+}
+
+.bb-wallet-card-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.7rem;
+  line-height: 1.05;
+  color: #FFFFFF;
+  margin: 0.25rem 0 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.bb-wallet-card-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.85rem;
+  color: rgba(244, 239, 229, 0.7);
+  margin: 0;
+}
+
+.bb-wallet-card-state {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: #F4EFE5;
+  margin: 0.3rem 0 0;
+}
+
+.bb-wallet-card-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.bb-wallet-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: rgba(255, 255, 255, 0.1);
+  color: #F4EFE5;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.bb-wallet-card-status-active {
+  background: rgba(106, 152, 89, 0.22);
+  color: #BFE0A8;
+  border-color: rgba(106, 152, 89, 0.4);
+}
+
+.bb-wallet-card-status-expired {
+  background: rgba(179, 58, 46, 0.22);
+  color: #F2B8B0;
+  border-color: rgba(179, 58, 46, 0.4);
+}
+
+.bb-wallet-card-status-used {
+  background: rgba(176, 108, 60, 0.22);
+  color: #F2C9A6;
+  border-color: rgba(176, 108, 60, 0.4);
+}
+
+.bb-wallet-card-validity {
+  text-align: right;
+}
+
+.bb-wallet-card-validity-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-copper);
+  margin: 0;
+}
+
+.bb-wallet-card-validity-date {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--color-copper);
+  margin: 0.1rem 0 0;
+}
+
+/* Pagination dots below carousel */
+.bb-wallet-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.bb-wallet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(31, 36, 25, 0.18);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.bb-wallet-dot.is-active {
+  background: var(--color-copper);
+  transform: scale(1.25);
+}
+
+/* Empty state inside a section */
+.bb-wallet-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.25rem 0.75rem;
+  background: #FFFFFF;
+  border: 1px dashed var(--color-card-divider);
+  border-radius: 14px;
+  color: var(--color-ink-muted);
+}
+
+.bb-wallet-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.1);
+  color: var(--color-copper);
+  margin-bottom: 0.5rem;
+}
+
+.bb-wallet-empty-title {
+  font-family: var(--font-barlow);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.bb-wallet-empty-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  margin: 0.15rem 0 0;
+}
+
+/* Tablet+ — give cards more peek of the next */
+@media (min-width: 480px) {
+  .bb-wallet-card {
+    flex: 0 0 calc(100% - 1.5rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .bb-wallet-card {
+    flex: 0 0 calc(60% - 0.5rem);
+    min-height: 220px;
+  }
+  .bb-wallet-stats {
+    grid-auto-columns: minmax(80px, 1fr);
+  }
+}

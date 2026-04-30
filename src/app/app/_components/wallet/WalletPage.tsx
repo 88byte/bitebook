@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useState } from 'react'
 import {
   IdCard,
@@ -12,15 +13,14 @@ import {
   ShieldCheck,
   Award,
   Plus,
-  ChevronDown,
-  ChevronRight,
+  CalendarCheck,
+  CircleCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   TYPE_LABEL,
   TYPE_LABEL_SINGULAR,
   bucketByStatus,
-  type StatusGroup,
   type WalletItemType,
   type WalletItemWithStatus,
 } from '../../_lib/wallet-utils'
@@ -36,6 +36,18 @@ const TAB_ICONS: Record<WalletItemType, LucideIcon> = {
   business_credential: Award,
 }
 
+// Eyebrow on the hero card, uppercase per mockup.
+const TYPE_EYEBROW: Record<WalletItemType, string> = {
+  license: 'Hunting License',
+  tag: 'Tag',
+  permit: 'Permit',
+  stamp: 'Stamp',
+  harvest_report_card: 'Harvest Report Card',
+  guide_license: 'Guide License',
+  insurance: 'Insurance',
+  business_credential: 'Business Credential',
+}
+
 type Props = {
   /** Path prefix for "Add new" / edit links — '/app/h/wallet' or '/app/wallet'. */
   basePath: '/app/h/wallet' | '/app/wallet'
@@ -45,13 +57,6 @@ type Props = {
   groups: Map<WalletItemType, WalletItemWithStatus[]>
 }
 
-const STATUS_LABEL: Record<StatusGroup, string> = {
-  active: 'Active',
-  tagged_out: 'Tagged out',
-  expired: 'Expired',
-  archived: 'Archived',
-}
-
 export default function WalletPage({ basePath, tabs, groups }: Props) {
   const [activeTab, setActiveTab] = useState<WalletItemType>(tabs[0] ?? 'license')
 
@@ -59,44 +64,51 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
   const buckets = bucketByStatus(items)
   const Icon = TAB_ICONS[activeTab]
 
-  // Tagged-out only renders for tags. v27.0a: empty until v27.0b adds harvest consumption.
-  const groupOrder: StatusGroup[] =
-    activeTab === 'tag'
-      ? ['active', 'tagged_out', 'expired', 'archived']
-      : ['active', 'expired', 'archived']
+  // Counts shown on stats grid + pill chips. Excludes archived from the
+  // primary count to match the mockup (archived hidden from main view).
+  function countFor(type: WalletItemType): number {
+    return (groups.get(type) ?? []).filter((i) => i.status !== 'archived').length
+  }
 
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="bb-page-eyebrow">Your wallet</p>
-          <h1 className="bb-page-title">Wallet</h1>
-          <p className="bb-page-sub">Licenses, tags, and credentials in one place.</p>
-        </div>
-        <Link
-          href={`${basePath}/new?type=${activeTab}`}
-          className="bb-cta-sm"
-          aria-label={`Add ${TYPE_LABEL_SINGULAR[activeTab]}`}
-        >
-          <Plus size={16} aria-hidden="true" />
-          Add
-        </Link>
-      </header>
+      <WalletHero basePath={basePath} activeTab={activeTab} />
 
-      <div className="bb-wallet-tabs mt-4" role="tablist" aria-label="Wallet item type">
+      {/* Stats grid — paper cards, one per visible type, copper border on active */}
+      <div className="bb-wallet-stats mt-3" role="tablist" aria-label="Wallet category counts">
         {tabs.map((t) => {
-          const TabIcon = TAB_ICONS[t]
-          const count = (groups.get(t) ?? []).filter((i) => i.status !== 'archived').length
+          const isActive = activeTab === t
           return (
             <button
-              key={t}
+              key={`stat-${t}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(t)}
+              className={`bb-wallet-stat-card ${isActive ? 'is-active' : ''}`}
+            >
+              <span className="bb-wallet-stat-count">{countFor(t)}</span>
+              <span className="bb-wallet-stat-label">{TYPE_LABEL[t]}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Pill chips — same selection model, more compact, wraps */}
+      <div className="bb-wallet-tabs mt-3" role="tablist" aria-label="Wallet item type">
+        {tabs.map((t) => {
+          const TabIcon = TAB_ICONS[t]
+          const count = countFor(t)
+          return (
+            <button
+              key={`pill-${t}`}
               type="button"
               role="tab"
               aria-selected={activeTab === t}
               onClick={() => setActiveTab(t)}
               className={`bb-wallet-tab ${activeTab === t ? 'is-active' : ''}`}
             >
-              <TabIcon size={16} aria-hidden="true" />
+              <TabIcon size={14} aria-hidden="true" />
               <span>{TYPE_LABEL[t]}</span>
               {count > 0 && <span className="bb-wallet-tab-count">{count}</span>}
             </button>
@@ -104,150 +116,266 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
         })}
       </div>
 
-      <section className="mt-4 flex flex-col gap-4">
-        {items.length === 0 ? (
-          <EmptyState type={activeTab} basePath={basePath} icon={Icon} />
-        ) : (
-          groupOrder.map((g) => {
-            const list = buckets[g]
-            if (list.length === 0 && g !== 'active') return null
-            return (
-              <StatusGroupSection
-                key={g}
-                group={g}
-                items={list}
-                basePath={basePath}
-                showBulkArchive={g === 'expired' && list.length > 1}
-              />
-            )
-          })
-        )}
-      </section>
+      {/* ACTIVE section */}
+      <WalletStatusSection
+        title="Active"
+        count={buckets.active.length}
+        items={buckets.active}
+        basePath={basePath}
+        type={activeTab}
+        emptyIcon={Icon}
+        emptyTitle={`No active ${TYPE_LABEL[activeTab].toLowerCase()}`}
+        emptySub="When you add one, it'll show up here."
+      />
+
+      {/* TAGGED OUT — only render for tags */}
+      {activeTab === 'tag' && buckets.tagged_out.length > 0 && (
+        <WalletStatusSection
+          title="Tagged out"
+          count={buckets.tagged_out.length}
+          items={buckets.tagged_out}
+          basePath={basePath}
+          type={activeTab}
+          emptyIcon={Icon}
+          emptyTitle="None tagged out"
+          emptySub=""
+        />
+      )}
+
+      {/* EXPIRED section */}
+      <WalletStatusSection
+        title="Expired"
+        count={buckets.expired.length}
+        items={buckets.expired}
+        basePath={basePath}
+        type={activeTab}
+        emptyIcon={CalendarCheck}
+        emptyTitle={`No expired ${TYPE_LABEL[activeTab].toLowerCase()}`}
+        emptySub="You're all caught up."
+      />
+
+      {/* Archived — small text link to view archived (deferred full surface) */}
+      {buckets.archived.length > 0 && (
+        <p className="mt-4" style={{ textAlign: 'center' }}>
+          <span className="bb-form-help">
+            {buckets.archived.length} archived item{buckets.archived.length === 1 ? '' : 's'}
+          </span>
+        </p>
+      )}
     </main>
   )
 }
 
-function EmptyState({
-  type,
+function WalletHero({
   basePath,
-  icon: Icon,
+  activeTab,
 }: {
-  type: WalletItemType
   basePath: string
-  icon: LucideIcon
+  activeTab: WalletItemType
 }) {
   return (
-    <div className="bb-empty">
-      <div
-        style={{
-          width: '3rem',
-          height: '3rem',
-          borderRadius: '999px',
-          background: 'rgba(176, 108, 60, 0.1)',
-          color: 'var(--color-copper)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 0.75rem',
-        }}
-      >
-        <Icon size={24} aria-hidden="true" />
+    <section className="bb-wallet-hero">
+      <Image
+        src="/bb-wallet-hero.png"
+        alt=""
+        fill
+        priority
+        sizes="(max-width: 1024px) 100vw, 64rem"
+        className="bb-wallet-hero-img"
+      />
+      <div className="bb-wallet-hero-overlay" />
+      <div className="bb-wallet-hero-inner">
+        <div className="bb-wallet-hero-text">
+          <p className="bb-page-eyebrow">Your wallet</p>
+          <h1 className="bb-page-title bb-wallet-hero-title">Wallet</h1>
+          <p className="bb-page-sub">Licenses, tags, and credentials in one place.</p>
+        </div>
+        <Link
+          href={`${basePath}/new?type=${activeTab}`}
+          className="bb-cta-sm bb-wallet-hero-add"
+          aria-label={`Add ${TYPE_LABEL_SINGULAR[activeTab]}`}
+        >
+          <Plus size={16} aria-hidden="true" />
+          Add
+        </Link>
       </div>
-      <div className="bb-empty-title">No {TYPE_LABEL[type].toLowerCase()} yet</div>
-      <p className="bb-empty-sub">
-        Add your {TYPE_LABEL_SINGULAR[type].toLowerCase()} so it&rsquo;s ready when you need it.
-      </p>
-      <Link href={`${basePath}/new?type=${type}`} className="bb-cta-sm mt-3 inline-flex">
-        <Plus size={16} aria-hidden="true" />
-        Add {TYPE_LABEL_SINGULAR[type].toLowerCase()}
-      </Link>
-    </div>
+    </section>
   )
 }
 
-function StatusGroupSection({
-  group,
+function WalletStatusSection({
+  title,
+  count,
   items,
   basePath,
-  showBulkArchive,
+  type,
+  emptyIcon,
+  emptyTitle,
+  emptySub,
 }: {
-  group: StatusGroup
+  title: string
+  count: number
   items: WalletItemWithStatus[]
   basePath: string
-  showBulkArchive: boolean
+  type: WalletItemType
+  emptyIcon: LucideIcon
+  emptyTitle: string
+  emptySub: string
 }) {
-  const [open, setOpen] = useState(group !== 'archived')
+  const [pageIndex, setPageIndex] = useState(0)
 
   return (
-    <div className="bb-tile bb-form-section">
-      <div className="bb-tile-body">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="bb-wallet-status-head"
-          aria-expanded={open}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className="bb-form-section-head" style={{ margin: 0 }}>
-              {STATUS_LABEL[group]} ({items.length})
-            </span>
-          </span>
-          {showBulkArchive && open && (
-            <button
-              type="button"
-              className="bb-text-action bb-text-action-copper"
-              onClick={(e) => {
-                e.stopPropagation()
-                // Bulk archive — wired in a follow-up commit; UI placeholder for now
-                console.log('TODO: bulk archive expired')
-              }}
-            >
-              Archive all
-            </button>
-          )}
-        </button>
-
-        {open && (
-          <div className="bb-detail-list mt-2">
-            {items.length === 0 ? (
-              <p className="bb-form-help">No {STATUS_LABEL[group].toLowerCase()} items.</p>
-            ) : (
-              items.map((item) => <WalletRow key={item.id} item={item} basePath={basePath} />)
-            )}
-          </div>
+    <section className="bb-wallet-section mt-4">
+      <div className="bb-wallet-section-head">
+        <span className="bb-wallet-section-title">
+          {title} ({count})
+        </span>
+        {items.length > 1 && (
+          <button
+            type="button"
+            className="bb-text-action bb-text-action-copper"
+            onClick={() => {
+              // Stub for v27.0a.5 — full list view comes with future expansion.
+              // For now scroll to first card.
+              setPageIndex(0)
+            }}
+          >
+            View all
+          </button>
         )}
       </div>
-    </div>
+
+      {items.length === 0 ? (
+        <EmptyState icon={emptyIcon} title={emptyTitle} sub={emptySub} />
+      ) : (
+        <>
+          <div
+            className="bb-wallet-carousel"
+            onScroll={(e) => {
+              const el = e.currentTarget
+              const w = el.clientWidth
+              if (w > 0) setPageIndex(Math.round(el.scrollLeft / w))
+            }}
+          >
+            {items.map((item) => (
+              <WalletHeroCard
+                key={item.id}
+                item={item}
+                basePath={basePath}
+                eyebrow={TYPE_EYEBROW[type]}
+              />
+            ))}
+          </div>
+          {items.length > 1 && (
+            <div className="bb-wallet-dots" aria-hidden="true">
+              {items.map((_, i) => (
+                <span
+                  key={i}
+                  className={`bb-wallet-dot ${i === pageIndex ? 'is-active' : ''}`}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 
-function WalletRow({ item, basePath }: { item: WalletItemWithStatus; basePath: string }) {
-  const subParts = [
+function WalletHeroCard({
+  item,
+  basePath,
+  eyebrow,
+}: {
+  item: WalletItemWithStatus
+  basePath: string
+  eyebrow: string
+}) {
+  const validToFmt = item.valid_to
+    ? new Date(item.valid_to).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '—'
+  const stateLine = [
     item.state ?? null,
-    item.species ?? null,
-    item.zone ? `Zone ${item.zone}` : null,
     item.season_year ? `${item.season_year}` : null,
-  ].filter(Boolean)
-  const validToFmt = new Date(item.valid_to).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  ].filter(Boolean).join(' · ')
+  const statusLabel =
+    item.status === 'active' ? 'Active'
+    : item.status === 'used' ? 'Tagged out'
+    : item.status === 'expired' ? 'Expired'
+    : 'Archived'
+
   return (
-    <Link href={`${basePath}/${item.id}/edit`} className="bb-detail-row" style={{ textDecoration: 'none' }}>
-      <div className="flex-1 min-w-0">
-        <div className="bb-detail-name" style={{ overflowWrap: 'anywhere' }}>
-          {item.identifier}
-        </div>
-        <div className="bb-detail-sub" style={{ overflowWrap: 'anywhere' }}>
-          {subParts.length > 0 ? subParts.join(' · ') : TYPE_LABEL_SINGULAR[item.type]}
-        </div>
-        <div className="bb-detail-sub" style={{ marginTop: '0.15rem' }}>
-          Valid through {validToFmt}
-          {item.jurisdiction === 'federal' && ' · Federal'}
+    <Link
+      href={`${basePath}/${item.id}/edit`}
+      className="bb-wallet-card"
+      aria-label={`${eyebrow} ${item.identifier}`}
+    >
+      <div className="bb-wallet-card-watermark" aria-hidden="true">
+        <Crosshair size={140} strokeWidth={1.2} />
+      </div>
+      <div className="bb-wallet-card-top">
+        <p className="bb-wallet-card-eyebrow">{eyebrow}</p>
+        <h3 className="bb-wallet-card-title">{item.identifier || 'Untitled'}</h3>
+        {stateLine && <p className="bb-wallet-card-sub">{stateLine}</p>}
+        {item.state && (
+          <p className="bb-wallet-card-state">
+            {expandStateLabel(item.state)}
+          </p>
+        )}
+      </div>
+      <div className="bb-wallet-card-bottom">
+        <span
+          className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}
+        >
+          <CircleCheck size={12} aria-hidden="true" />
+          {statusLabel}
+        </span>
+        <div className="bb-wallet-card-validity">
+          <p className="bb-wallet-card-validity-eyebrow">Valid through</p>
+          <p className="bb-wallet-card-validity-date">{validToFmt}</p>
         </div>
       </div>
     </Link>
   )
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  sub,
+}: {
+  icon: LucideIcon
+  title: string
+  sub: string
+}) {
+  return (
+    <div className="bb-wallet-empty">
+      <span className="bb-wallet-empty-icon" aria-hidden="true">
+        <Icon size={24} />
+      </span>
+      <p className="bb-wallet-empty-title">{title}</p>
+      {sub && <p className="bb-wallet-empty-sub">{sub}</p>}
+    </div>
+  )
+}
+
+// 2-letter US state code → "FULL NAME". Falls back to the raw value.
+function expandStateLabel(state: string): string {
+  const map: Record<string, string> = {
+    AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+    CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+    HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+    KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+    MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+    MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+    NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+    OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+    SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+    VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  }
+  return (map[state.toUpperCase()] ?? state).toUpperCase()
 }
