@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Plus, Check } from 'lucide-react'
 import { METHOD_OPTIONS } from '@/lib/methods'
 import { addHarvestAction } from './actions'
@@ -60,6 +60,12 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
   const [isPending, startTransition] = useTransition()
   const [hunterId, setHunterId] = useState<string>('')
   const [tagId, setTagId] = useState<string>('')
+  // v27.0a.24: tag selection drives species_name + tag_number. These two
+  // fields become controlled (vs. uncontrolled defaultValue) so a
+  // selection change can rewrite them. Trip-level defaultSpecies stays
+  // as the initial fallback when no tag is bound.
+  const [speciesName, setSpeciesName] = useState<string>(defaultSpecies ?? '')
+  const [tagNumber, setTagNumber] = useState<string>('')
 
   const opts: TagOptions = hunterId
     ? tagOptionsByHunter[hunterId] ?? { tags: [], default_tag_id: null }
@@ -68,6 +74,30 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
   const needsTagPick = tagOptions.length > 1
   const noTags = !!hunterId && tagOptions.length === 0
   const autoBoundTagId = tagOptions.length === 1 ? tagOptions[0].id : null
+  const boundTagId = autoBoundTagId ?? tagId
+
+  // v27.0a.24: when the bound tag changes, pull species + tag_number
+  // forward from the wallet item. Predictable rule: tag selection always
+  // wins — switching to a new tag overwrites whatever was in those fields.
+  // Manual edits between tag changes survive (no re-application unless the
+  // tag id actually changes). When the bound tag clears (no hunter, or
+  // hunter with no tags), fall back to the trip-level species default.
+  const lastAppliedTagRef = useRef<string>('')
+  useEffect(() => {
+    if (boundTagId && boundTagId !== lastAppliedTagRef.current) {
+      const tag = tagOptions.find((t) => t.id === boundTagId)
+      if (tag) {
+        setSpeciesName(tag.species ?? defaultSpecies ?? '')
+        setTagNumber(tag.identifier ?? '')
+        lastAppliedTagRef.current = boundTagId
+      }
+    } else if (!boundTagId && lastAppliedTagRef.current !== '') {
+      // Tag cleared — reset to trip default for species, blank for tag #.
+      setSpeciesName(defaultSpecies ?? '')
+      setTagNumber('')
+      lastAppliedTagRef.current = ''
+    }
+  }, [boundTagId, tagOptions, defaultSpecies])
 
   function nowLocal(): string {
     const d = new Date()
@@ -83,7 +113,6 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
     // v27.0b.2: bind the consumed tag explicitly. Single-tag hunters get
     // auto-bound; multi-tag hunters use the picker; no-tag hunters are
     // blocked client-side here (server validates too).
-    const boundTagId = autoBoundTagId ?? tagId
     if (hunterId && tagOptions.length > 0 && !boundTagId) {
       setError('Pick which tag this harvest used.')
       return
@@ -99,6 +128,9 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
       setOpen(false)
       setHunterId('')
       setTagId('')
+      setSpeciesName(defaultSpecies ?? '')
+      setTagNumber('')
+      lastAppliedTagRef.current = ''
       ;(e.target as HTMLFormElement).reset()
     })
   }
@@ -174,7 +206,8 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
             name="species_name"
             type="text"
             required
-            defaultValue={defaultSpecies ?? ''}
+            value={speciesName}
+            onChange={(e) => setSpeciesName(e.target.value)}
             placeholder={tripKind === 'fishing' ? 'Rainbow trout' : 'Black bear'}
             className="bb-input"
             autoComplete="off"
@@ -264,6 +297,8 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
             id="harvest_tag"
             name="tag_number"
             type="text"
+            value={tagNumber}
+            onChange={(e) => setTagNumber(e.target.value)}
             className="bb-input"
             autoComplete="off"
             maxLength={40}
