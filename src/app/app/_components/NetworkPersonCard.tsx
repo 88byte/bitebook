@@ -1,11 +1,10 @@
-import MountainsArt from './MountainsArt'
 import type { ReactNode } from 'react'
 
-// v27.0a.12: shared person card used on /app/hunters (guide-side) and
+// v27.0a.13: shared person card used on /app/hunters (guide-side) and
 // /app/h/guides (hunter-side). Big circular avatar + name + sub-line +
-// optional bottom-right action (e.g. Remove). Faded mountains+pine art
-// sits in the bottom-right of the card; subtle topo-line pattern is
-// applied via the parent class so the card has a textured paper feel.
+// optional bottom-right action (e.g. Remove). Watermark is now the
+// Drive-supplied bb-card-watermark.png image (was inline MountainsArt
+// SVG in v27.0a.12 — kept the SVG file in case it's reused).
 export default function NetworkPersonCard({
   avatarLetter,
   name,
@@ -20,7 +19,12 @@ export default function NetworkPersonCard({
   return (
     <div className="bb-net-card bb-net-person">
       <div className="bb-net-watermark" aria-hidden="true">
-        <MountainsArt width={170} height={70} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/bb-card-watermark.png"
+          alt=""
+          className="bb-net-watermark-img"
+        />
       </div>
       <div className="bb-net-person-row">
         <div className="bb-person-avatar-lg" aria-hidden="true">

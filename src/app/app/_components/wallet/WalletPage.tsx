@@ -51,15 +51,15 @@ const TYPE_EYEBROW: Record<WalletItemType, string> = {
   business_credential: 'Business Credential',
 }
 
-// Per-type watermark images (Flavio-supplied via Drive). v27.0a.8 mapping:
-// each type has a distinct file except guide_license which shares the
-// insurance art per Flavio. Stamps + harvest report cards still have no
-// image — fall through to the lucide icon below so they remain visually
-// distinct (obvious "awaiting image" placeholder).
+// Per-type watermark images (Flavio-supplied via Drive). v27.0a.13: every
+// wallet type now has a real image — stamps and harvest_report_card
+// added, no more lucide fallbacks anywhere.
 const WATERMARK_IMG: Partial<Record<WalletItemType, string>> = {
   license: '/bb-watermark-license.png',
   tag: '/bb-watermark-tag.png',
   permit: '/bb-watermark-permit.png',
+  stamp: '/bb-watermark-stamp.png',
+  harvest_report_card: '/bb-watermark-harvest-report.png',
   insurance: '/bb-watermark-insurance.png',
   guide_license: '/bb-watermark-insurance.png',
   business_credential: '/bb-watermark-credentials.png',

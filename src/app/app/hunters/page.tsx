@@ -76,6 +76,9 @@ export default async function HuntersPage() {
         eyebrow="Your network"
         title="Hunters"
         subtitle="Invite hunters by email. Once they accept, you can add them to trips and shared records."
+        bgImage="/bb-network-hero.png"
+        eyebrowColor="copper"
+        showShield={false}
       />
 
       {/* Invite-a-hunter card */}

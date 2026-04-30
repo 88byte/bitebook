@@ -2895,3 +2895,23 @@ body {
   justify-content: flex-end;
   margin-top: 0.55rem;
 }
+
+/* v27.0a.13: copper eyebrow variant on dark hero (network + trips pages) */
+.bb-dash-hero-eyebrow-copper {
+  color: var(--color-copper);
+}
+
+/* v27.0a.13: bb-card-watermark.png replaces the inline MountainsArt SVG
+   on NetworkPersonCard. Sized to fill the bottom-right with a low-opacity
+   bleed; pointer-events disabled (already on the parent .bb-net-watermark). */
+.bb-net-watermark-img {
+  display: block;
+  width: 220px;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: right bottom;
+  opacity: 0.18;
+  margin-right: -16px;
+  margin-bottom: -8px;
+}

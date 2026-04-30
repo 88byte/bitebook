@@ -19,6 +19,9 @@ export default async function HunterGuidesPage() {
         eyebrow="Your network"
         title="Guides"
         subtitle="Guides you're connected with on past or upcoming trips."
+        bgImage="/bb-network-hero.png"
+        eyebrowColor="copper"
+        showShield={false}
       />
 
       <div className="bb-net-section-head">
