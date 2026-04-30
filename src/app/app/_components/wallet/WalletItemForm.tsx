@@ -15,7 +15,6 @@ import {
   deleteWalletItemAction,
 } from '../../_lib/wallet-actions'
 import type { WalletItemType, WalletJurisdiction } from '../../_lib/wallet-utils'
-import DateField from '../DateField'
 
 // Per-type fields are sourced from
 // /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md
@@ -485,11 +484,14 @@ export default function WalletItemForm({
           <div className="bb-tile-body">
             <h2 className="bb-form-section-head">Reporting</h2>
             <div className="bb-form-row">
-              <span className="bb-form-label">Report due by</span>
-              <DateField
+              <label className="bb-form-label" htmlFor="extras_report_due_date">Report due by</label>
+              <input
+                id="extras_report_due_date"
                 name="extras_report_due_date"
+                type="date"
+                className="bb-input"
                 defaultValue={e.report_due_date ?? ''}
-                ariaLabel="Report due date"
+                aria-label="Report due date"
               />
               <p className="bb-form-help">
                 Different from the hunt window. CA HRC is due Jan 31 the year after the season.
@@ -655,35 +657,42 @@ export default function WalletItemForm({
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Validity</h2>
-          <div className="bb-form-grid-2">
-            <div className="bb-form-row">
-              <span className="bb-form-label">Valid from</span>
-              <DateField
-                name="valid_from"
-                required
-                defaultValue={initial.valid_from || ''}
-                ariaLabel="Valid from date"
-              />
-            </div>
-            <div className="bb-form-row">
-              <span className="bb-form-label">Valid to</span>
-              <DateField
-                name="valid_to"
-                required
-                defaultValue={initial.valid_to || ''}
-                ariaLabel="Valid to date"
-              />
-            </div>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="valid_from">Valid from</label>
+            <input
+              id="valid_from"
+              name="valid_from"
+              type="date"
+              required
+              className="bb-input"
+              defaultValue={initial.valid_from || ''}
+              aria-label="Valid from date"
+            />
+          </div>
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor="valid_to">Valid to</label>
+            <input
+              id="valid_to"
+              name="valid_to"
+              type="date"
+              required
+              className="bb-input"
+              defaultValue={initial.valid_to || ''}
+              aria-label="Valid to date"
+            />
           </div>
           {(SHOW.issueDate(type) || SHOW.seasonYear(type)) && (
             <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
               {SHOW.issueDate(type) && (
                 <div className="bb-form-row">
-                  <span className="bb-form-label">Issue date <span style={{ opacity: 0.6 }}>(optional)</span></span>
-                  <DateField
+                  <label className="bb-form-label" htmlFor="issue_date">Issue date <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                  <input
+                    id="issue_date"
                     name="issue_date"
+                    type="date"
+                    className="bb-input"
                     defaultValue={initial.issue_date ?? ''}
-                    ariaLabel="Issue date"
+                    aria-label="Issue date"
                   />
                 </div>
               )}
