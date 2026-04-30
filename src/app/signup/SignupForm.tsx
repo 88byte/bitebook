@@ -51,16 +51,16 @@ export default function SignupForm() {
       <div className="grid grid-cols-2 gap-2">
         <PlanCard
           label="Monthly"
-          price="$19"
+          price="$9"
           period="/mo"
           selected={plan === 'monthly'}
           onClick={() => setPlan('monthly')}
         />
         <PlanCard
           label="Annual"
-          price="$204"
+          price="$90"
           period="/yr"
-          badge="Save $24"
+          badge="Save $18"
           selected={plan === 'annual'}
           onClick={() => setPlan('annual')}
         />

@@ -15,9 +15,13 @@ export function getStripe(): Stripe {
   return _stripe
 }
 
+// v27.0a.22: pricing dropped from $19/$204 to $9/$90. Lookup keys bumped
+// to _v2 so existing $19/$204 prices stay active in Stripe (existing
+// trialing accounts may reference them) while new signups create + use
+// the new $9/$90 prices via the lazy ensure call.
 export const PRICE_LOOKUP_KEYS = {
-  monthly: 'bitebook_guide_monthly',
-  annual: 'bitebook_guide_annual',
+  monthly: 'bitebook_guide_monthly_v2',
+  annual: 'bitebook_guide_annual_v2',
 } as const
 
 export const PRODUCT_NAME = 'Bite Book Guide'
@@ -56,7 +60,7 @@ export async function ensureBitebookGuidePrices(): Promise<{ monthly: string; an
   if (!byKey[PRICE_LOOKUP_KEYS.monthly]) {
     const monthly = await stripe.prices.create({
       product: product.id,
-      unit_amount: 1900,
+      unit_amount: 900,
       currency: 'usd',
       recurring: { interval: 'month' },
       lookup_key: PRICE_LOOKUP_KEYS.monthly,
@@ -67,7 +71,7 @@ export async function ensureBitebookGuidePrices(): Promise<{ monthly: string; an
   if (!byKey[PRICE_LOOKUP_KEYS.annual]) {
     const annual = await stripe.prices.create({
       product: product.id,
-      unit_amount: 20400,
+      unit_amount: 9000,
       currency: 'usd',
       recurring: { interval: 'year' },
       lookup_key: PRICE_LOOKUP_KEYS.annual,
