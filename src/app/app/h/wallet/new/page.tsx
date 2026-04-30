@@ -15,7 +15,7 @@ export default async function HunterWalletNewPage({
 }: {
   searchParams: SearchParams
 }) {
-  await requireHunter()
+  const { profile } = await requireHunter()
   const sp = await searchParams
   const initialType = (sp.type && VALID_TYPES.includes(sp.type as WalletItemType))
     ? (sp.type as WalletItemType)
@@ -40,6 +40,7 @@ export default async function HunterWalletNewPage({
       <div className="bb-form-narrow mt-4">
         <WalletItemForm
           basePath="/app/h/wallet"
+          userId={profile.id}
           initial={{
             type: initialType,
             jurisdiction: 'state',
@@ -54,6 +55,7 @@ export default async function HunterWalletNewPage({
             notes: null,
             archived_at: null,
             extras: null,
+            document_url: null,
           }}
         />
       </div>

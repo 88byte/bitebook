@@ -140,6 +140,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
   }
 
   const extras = readExtras(formData)
+  const documentUrl = get('document_url') || null
   const insertPayload: WalletInsert = {
     user_id: profile.id,
     type: parsed.type,
@@ -154,6 +155,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
     valid_to: parsed.valid_to,
     notes: get('notes'),
     extras,
+    document_url: documentUrl,
   }
   const sb = await createClient()
   const { data, error } = await sb
@@ -188,6 +190,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
   }
 
   const extras = readExtras(formData)
+  const documentUrl = get('document_url') || null
   const updatePayload: WalletUpdate = {
     type: parsed.type,
     jurisdiction: parsed.jurisdiction,
@@ -201,6 +204,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     valid_to: parsed.valid_to,
     notes: get('notes'),
     extras,
+    document_url: documentUrl,
   }
   const sb = await createClient()
   const { error } = await sb

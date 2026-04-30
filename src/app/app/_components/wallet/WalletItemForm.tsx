@@ -16,6 +16,7 @@ import {
 } from '../../_lib/wallet-actions'
 import { WALLET_TYPES_HUNTER, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
 import DateField from '../DateField'
+import WalletPhotoField from './WalletPhotoField'
 
 // Per-type fields are sourced from
 // /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md
@@ -40,6 +41,7 @@ type Initial = {
   notes: string | null
   archived_at: string | null
   extras: ExtrasShape
+  document_url?: string | null
 }
 
 const TYPE_OPTIONS: { value: WalletItemType; label: string }[] = [
@@ -101,9 +103,11 @@ const IDENTIFIER_PLACEHOLDER: Record<WalletItemType, string> = {
 
 export default function WalletItemForm({
   basePath,
+  userId,
   initial,
 }: {
   basePath: '/app/h/wallet' | '/app/wallet'
+  userId: string
   initial: Initial
 }) {
   const router = useRouter()
@@ -111,6 +115,10 @@ export default function WalletItemForm({
   const [error, setError] = useState<string | null>(null)
   const [type, setType] = useState<WalletItemType>(initial.type)
   const [jurisdiction, setJurisdiction] = useState<WalletJurisdiction>(initial.jurisdiction)
+  // v27.0a.15: photo state. Persisted on form submit via the hidden
+  // document_url input below — the actual upload happens out-of-band
+  // (already in Supabase Storage) by the time we reach submit.
+  const [documentUrl, setDocumentUrl] = useState<string | null>(initial.document_url ?? null)
 
   const isArchived = !!initial.archived_at
   const e = initial.extras ?? {}
@@ -132,6 +140,7 @@ export default function WalletItemForm({
     fd.set('type', type)
     fd.set('jurisdiction', SHOW.jurisdiction(type) ? jurisdiction : 'state')
     if (initial.id) fd.set('item_id', initial.id)
+    fd.set('document_url', documentUrl ?? '')
 
     startTransition(async () => {
       const action = initial.id ? updateWalletItemAction : addWalletItemAction
@@ -161,6 +170,19 @@ export default function WalletItemForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {/* PHOTO — emphasized above Basics for stamps + permits where the
+          photo nudge is strongest (warden visibility); for other types
+          the field appears at the bottom (see below). */}
+      {SHOW.photoNudge(type) && (
+        <WalletPhotoField
+          userId={userId}
+          walletItemId={initial.id ?? null}
+          initialUrl={documentUrl}
+          emphasize
+          onChange={setDocumentUrl}
+        />
+      )}
+
       {/* TYPE + IDENTIFIER + STATE/JURISDICTION */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
@@ -717,15 +739,10 @@ export default function WalletItemForm({
         </div>
       </section>
 
-      {/* PHOTO NUDGE for stamps/permits + NOTES */}
+      {/* NOTES */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Notes</h2>
-          {SHOW.photoNudge(type) && (
-            <p className="bb-form-help" style={{ marginBottom: '0.5rem' }}>
-              Recommended: upload a photo of the physical document — wardens often check it. Upload coming in a follow-up.
-            </p>
-          )}
           <div className="bb-form-row">
             <textarea
               id="notes"
@@ -739,6 +756,18 @@ export default function WalletItemForm({
           </div>
         </div>
       </section>
+
+      {/* PHOTO — quiet-optional position for non-stamp/permit types
+          (stamps + permits get the emphasized treatment above Basics). */}
+      {!SHOW.photoNudge(type) && (
+        <WalletPhotoField
+          userId={userId}
+          walletItemId={initial.id ?? null}
+          initialUrl={documentUrl}
+          emphasize={false}
+          onChange={setDocumentUrl}
+        />
+      )}
 
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 

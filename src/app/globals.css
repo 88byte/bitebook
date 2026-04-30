@@ -2946,3 +2946,74 @@ body {
   position: relative;
   z-index: 1;
 }
+
+/* ── v27.0a.15: wallet item photo field ────────────────────────────────── */
+
+.bb-photo-emphasize { border: 1px solid rgba(176, 108, 60, 0.5); }
+
+.bb-photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 140px;
+  background: #FFFFFF;
+  border: 1px dashed var(--color-card-divider);
+  border-radius: 12px;
+  padding: 1.2rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  color: var(--color-ink-muted);
+  font: inherit;
+  transition: border-color 0.12s, background 0.12s;
+}
+.bb-photo-empty:hover:not(:disabled) {
+  border-color: rgba(176, 108, 60, 0.55);
+  background: rgba(176, 108, 60, 0.04);
+}
+.bb-photo-empty:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.bb-photo-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.12);
+  color: var(--color-copper);
+  margin-bottom: 0.2rem;
+}
+
+.bb-photo-empty-title {
+  font-family: var(--font-barlow);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.bb-photo-empty-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+}
+
+.bb-photo-preview { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.bb-photo-img {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid var(--color-card-divider);
+  background: #1F2419;
+}
+
+.bb-photo-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}

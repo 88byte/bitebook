@@ -37,6 +37,7 @@ export default async function GuideWalletEditPage({ params }: { params: RoutePar
       <div className="bb-form-narrow mt-4">
         <WalletItemForm
           basePath="/app/wallet"
+          userId={profile.id}
           initial={{
             id: item.id,
             type: item.type,
@@ -52,6 +53,7 @@ export default async function GuideWalletEditPage({ params }: { params: RoutePar
             notes: item.notes,
             archived_at: item.archived_at,
             extras: (item.extras as Record<string, string> | null) ?? null,
+            document_url: item.document_url,
           }}
         />
       </div>

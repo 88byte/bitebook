@@ -16,7 +16,7 @@ export default async function GuideWalletNewPage({
 }: {
   searchParams: SearchParams
 }) {
-  await requireGuide()
+  const { profile } = await requireGuide()
   const sp = await searchParams
   const initialType = (sp.type && VALID_TYPES.includes(sp.type as WalletItemType))
     ? (sp.type as WalletItemType)
@@ -41,6 +41,7 @@ export default async function GuideWalletNewPage({
       <div className="bb-form-narrow mt-4">
         <WalletItemForm
           basePath="/app/wallet"
+          userId={profile.id}
           initial={{
             type: initialType,
             jurisdiction: 'state',
@@ -55,6 +56,7 @@ export default async function GuideWalletNewPage({
             notes: null,
             archived_at: null,
             extras: null,
+            document_url: null,
           }}
         />
       </div>
