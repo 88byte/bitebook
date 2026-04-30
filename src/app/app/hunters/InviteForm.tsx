@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Check, UserPlus } from 'lucide-react'
+import { Check, UserPlus, Mail } from 'lucide-react'
 import { inviteHunterAction } from './actions'
 
 type SuccessMode = 'existing_hunter' | 'new_user'
@@ -40,40 +40,42 @@ export default function InviteForm() {
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <div className="bb-form-row">
         <label className="bb-form-label" htmlFor="invite_email">Email</label>
-        <input
-          id="invite_email"
-          name="email"
-          type="email"
-          className="bb-input"
-          required
-          placeholder="hunter@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          maxLength={200}
-        />
+        <label className="bb-field">
+          <span className="bb-field-icon"><Mail size={18} aria-hidden="true" /></span>
+          <input
+            id="invite_email"
+            name="email"
+            type="email"
+            className="bb-input bb-input-iconed"
+            required
+            placeholder="hunter@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={200}
+          />
+        </label>
       </div>
 
       {error && (
         <p role="alert" style={{ color: '#8C3C2A', fontSize: '0.85rem' }}>{error}</p>
       )}
 
-      <div className="flex items-center gap-3">
-        <button type="submit" className="bb-cta-sm" disabled={isPending}>
-          <UserPlus size={16} aria-hidden="true" />
-          {isPending ? 'Sending...' : 'Send invite'}
-        </button>
-        {showSent && (
-          <span
-            className="bb-pill bb-pill-active"
-            role="status"
-            aria-live="polite"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-          >
-            <Check size={12} aria-hidden="true" />
-            {mode === 'existing_hunter' ? 'Hunter added' : 'Invite created'}
-          </span>
-        )}
-      </div>
+      <button type="submit" className="bb-cta-block" disabled={isPending}>
+        <UserPlus size={18} aria-hidden="true" />
+        {isPending ? 'Sending...' : 'Send invite'}
+      </button>
+
+      {showSent && (
+        <div
+          className="bb-pill bb-pill-active"
+          role="status"
+          aria-live="polite"
+          style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+        >
+          <Check size={12} aria-hidden="true" />
+          {mode === 'existing_hunter' ? 'Hunter added' : 'Invite created'}
+        </div>
+      )}
 
       {showSent && mode === 'existing_hunter' && sentEmail && (
         <div className="bb-form-help">

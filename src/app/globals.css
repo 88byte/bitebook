@@ -2718,3 +2718,180 @@ body {
   color: var(--color-ink);
   opacity: 0.18;
 }
+
+/* ── v27.0a.12: hunters/guides "Your network" page ────────────────────────── */
+
+/* Card surface — paper bg with very subtle topo-line texture (radial gradient
+   stack standing in for engraved lines; cheap and works on any background). */
+.bb-net-card {
+  position: relative;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(176, 108, 60, 0.06) 0, transparent 45%),
+    radial-gradient(circle at 0% 100%, rgba(11, 8, 6, 0.04) 0, transparent 50%),
+    #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.bb-net-card-pad { padding: 1rem 1.1rem; }
+
+/* Mountains+pine watermark — bottom-right of the card */
+.bb-net-watermark {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  color: var(--color-ink);
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+/* Section header — small copper-tint icon + uppercase title */
+.bb-net-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 1.25rem 0 0.6rem;
+}
+
+.bb-net-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.12);
+  color: var(--color-copper);
+}
+
+.bb-net-section-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-ink);
+}
+
+/* Invite-a-hunter card */
+.bb-net-invite { padding: 1rem 1.1rem 1.1rem; }
+
+.bb-net-invite-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.bb-net-invite-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.14);
+  color: var(--color-copper);
+  flex-shrink: 0;
+}
+
+.bb-net-invite-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+/* Full-width copper send-invite button */
+.bb-cta-block {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 4px 10px rgba(176, 108, 60, 0.28);
+  transition: filter 0.12s, transform 0.05s;
+}
+.bb-cta-block:hover { filter: brightness(1.05); }
+.bb-cta-block:active { transform: translateY(1px); }
+.bb-cta-block:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+/* Person card — avatar + text + optional action */
+.bb-net-person { padding: 1rem 1.1rem; }
+
+.bb-net-person-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bb-person-avatar-lg {
+  flex-shrink: 0;
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 999px;
+  background: #3F4B3A;
+  color: var(--color-copper);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.7rem;
+  border: 3px solid #FFFFFF;
+  box-shadow: 0 0 0 1px var(--color-card-divider);
+}
+
+.bb-net-person-text { min-width: 0; flex: 1; }
+
+.bb-net-person-name {
+  font-family: var(--font-barlow);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.bb-net-person-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.bb-net-divider {
+  position: relative;
+  z-index: 1;
+  height: 1px;
+  background: var(--color-card-divider);
+  margin-top: 0.85rem;
+}
+
+.bb-net-person-action {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
+}

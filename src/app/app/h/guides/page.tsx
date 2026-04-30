@@ -1,33 +1,34 @@
+import { UserCheck } from 'lucide-react'
 import { requireHunter } from '../../_lib/auth'
 import { fetchHunterGuides } from '../../_lib/queries'
+import DashboardHero from '../../_components/DashboardHero'
 import MyGuidesList from './MyGuidesList'
 
-// v26.3: hunter's My Guides list. Promoted from a 3-row dashboard widget into
-// its own route so a hunter who works with multiple outfitters can scan,
-// search, and (eventually) message any guide they're connected to.
+// v27.0a.12: Guides page (hunter-side) mirrors the Hunters page rebuild.
+// Hero banner reuses the dashboard image. Guide cards use the shared
+// NetworkPersonCard via MyGuidesList. NO invite form (hunters can't invite
+// guides) and NO remove action (hunter can't drop a guide directly — that
+// stays guide-side via removeHunterAction).
 export default async function HunterGuidesPage() {
   const { profile } = await requireHunter()
   const guides = await fetchHunterGuides(profile.id)
 
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Your network</p>
-        <h1 className="bb-page-title">Your guides</h1>
-        <p className="bb-page-sub">
-          {guides.length === 0
-            ? 'No guides yet. Once a guide adds you to their network, they show up here.'
-            : `You're connected to ${guides.length} ${guides.length === 1 ? 'guide' : 'guides'}.`}
-        </p>
-      </header>
+      <DashboardHero
+        eyebrow="Your network"
+        title="Guides"
+        subtitle="Guides you're connected with on past or upcoming trips."
+      />
 
-      {/* v26.5.7: dropped bb-form-narrow wrapper — was the only Hunter page
-          artificially capped at 48rem inside the 1180px desktop main, made the
-          column look thin vs. /app/h/trips and /app/h dashboard which flow at
-          full bb-app-main width (max 44rem mobile, 1180px desktop). */}
-      <div className="mt-4">
-        <MyGuidesList guides={guides} />
+      <div className="bb-net-section-head">
+        <span className="bb-net-section-icon" aria-hidden="true">
+          <UserCheck size={14} />
+        </span>
+        <span className="bb-net-section-title">Your guides</span>
       </div>
+
+      <MyGuidesList guides={guides} />
     </main>
   )
 }

@@ -1,5 +1,8 @@
+import { Mail, Users } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import DashboardHero from '../_components/DashboardHero'
+import NetworkPersonCard from '../_components/NetworkPersonCard'
 import InviteForm from './InviteForm'
 import ResendInviteButton from './ResendInviteButton'
 import CancelInviteButton from './CancelInviteButton'
@@ -24,6 +27,13 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// v27.0a.12: Hunters page (guide-side) rebuilt to Flavio's mockup. Hero
+// banner reuses the dashboard image. Invite-a-hunter card has copper-circle
+// Mail icon header + icon-prefixed input + full-width copper Send Invite
+// button. Hunter cards use the new NetworkPersonCard with big avatar +
+// mountains watermark + bottom-right Remove action. Pending invites keep
+// the existing legacy row layout — they're transient and don't need the
+// hero-card treatment.
 export default async function HuntersPage() {
   const { profile } = await requireGuide()
   const supabase = await createClient()
@@ -48,7 +58,6 @@ export default async function HuntersPage() {
       last_sent_at: i.last_sent_at,
     }))
 
-  // Resolve display names for accepted hunters via a single profiles lookup.
   const acceptedIds = accepted.map((a) => a.accepted_by).filter((v): v is string => !!v)
   if (acceptedIds.length > 0) {
     const { data: profiles } = await supabase
@@ -61,97 +70,96 @@ export default async function HuntersPage() {
     })
   }
 
-  const isEmpty = accepted.length === 0 && pending.length === 0
-
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="bb-page-eyebrow">Your network</p>
-          <h1 className="bb-page-title">Hunters</h1>
-          <p className="bb-page-sub">
-            Invite hunters by email. Once they accept, you can add them to trips and shared records.
-          </p>
+      <DashboardHero
+        eyebrow="Your network"
+        title="Hunters"
+        subtitle="Invite hunters by email. Once they accept, you can add them to trips and shared records."
+      />
+
+      {/* Invite-a-hunter card */}
+      <section className="bb-net-card bb-net-invite mt-4">
+        <div className="bb-net-invite-head">
+          <span className="bb-net-invite-icon" aria-hidden="true">
+            <Mail size={20} />
+          </span>
+          <h2 className="bb-net-invite-title">Invite a hunter</h2>
         </div>
-      </header>
+        <InviteForm />
+      </section>
 
-      <div className="bb-form-narrow">
-        <section className="bb-tile mt-4">
-          <div className="bb-tile-body">
-            <h2 className="bb-section-title" style={{ marginTop: 0 }}>Invite a hunter</h2>
-            <InviteForm />
-          </div>
-        </section>
-
-        {isEmpty ? (
-          <div className="bb-empty mt-4">
-            <div className="bb-empty-title">No hunters yet</div>
-            <p className="bb-empty-sub">
-              Invite your first hunter to get started.
-            </p>
-          </div>
-        ) : (
-          <>
-            {accepted.length > 0 && (
-              <section className="mt-4">
-                <h2 className="bb-section-title">Your hunters</h2>
-                <div className="bb-detail-list">
-                  {accepted.map((h) => (
-                    <div key={h.id} className="bb-detail-row">
-                      <div className="bb-avatar" aria-hidden="true">
-                        {(h.display_name ?? h.email).slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="bb-detail-name">{h.display_name ?? h.email}</div>
-                        <div className="bb-detail-sub">
-                          Joined {fmtDate(h.created_at)}{h.display_name ? ` (${h.email})` : ''}
-                        </div>
-                      </div>
-                      <div className="bb-resend-wrap">
-                        <RemoveHunterButton
-                          inviteId={h.id}
-                          displayName={h.display_name ?? null}
-                          email={h.email}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {pending.length > 0 && (
-              <section className="mt-4">
-                <h2 className="bb-section-title">Pending invites</h2>
-                <div className="bb-detail-list">
-                  {pending.map((p) => (
-                    <div key={p.id} className="bb-detail-row bb-detail-row-pending">
-                      <div className="bb-avatar" aria-hidden="true">
-                        {p.email.slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="bb-detail-name">{p.email}</div>
-                        <div className="bb-detail-sub">
-                          Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
-                        </div>
-                      </div>
-                      <span className="bb-pill bb-pill-planned">Pending</span>
-                      <div className="bb-resend-wrap">
-                        <ResendInviteButton
-                          inviteId={p.id}
-                          email={p.email}
-                          lastSentAt={p.last_sent_at}
-                        />
-                        <CancelInviteButton inviteId={p.id} email={p.email} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
-        )}
+      {/* YOUR HUNTERS section */}
+      <div className="bb-net-section-head">
+        <span className="bb-net-section-icon" aria-hidden="true">
+          <Users size={14} />
+        </span>
+        <span className="bb-net-section-title">Your hunters</span>
       </div>
+
+      {accepted.length === 0 ? (
+        <div className="bb-empty">
+          <div className="bb-empty-title">No hunters yet</div>
+          <p className="bb-empty-sub">Invite your first hunter to get started.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {accepted.map((h) => {
+            const label = h.display_name ?? h.email
+            return (
+              <NetworkPersonCard
+                key={h.id}
+                avatarLetter={label.slice(0, 1).toUpperCase()}
+                name={label}
+                sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
+                action={
+                  <RemoveHunterButton
+                    inviteId={h.id}
+                    displayName={h.display_name ?? null}
+                    email={h.email}
+                  />
+                }
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {/* Pending invites — keep the existing dense row layout */}
+      {pending.length > 0 && (
+        <>
+          <div className="bb-net-section-head">
+            <span className="bb-net-section-icon" aria-hidden="true">
+              <Mail size={14} />
+            </span>
+            <span className="bb-net-section-title">Pending invites</span>
+          </div>
+          <div className="bb-detail-list">
+            {pending.map((p) => (
+              <div key={p.id} className="bb-detail-row bb-detail-row-pending">
+                <div className="bb-avatar" aria-hidden="true">
+                  {p.email.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="bb-detail-name">{p.email}</div>
+                  <div className="bb-detail-sub">
+                    Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+                  </div>
+                </div>
+                <span className="bb-pill bb-pill-planned">Pending</span>
+                <div className="bb-resend-wrap">
+                  <ResendInviteButton
+                    inviteId={p.id}
+                    email={p.email}
+                    lastSentAt={p.last_sent_at}
+                  />
+                  <CancelInviteButton inviteId={p.id} email={p.email} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </main>
   )
 }

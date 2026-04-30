@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import { removeHunterAction } from './actions'
 
@@ -67,10 +67,12 @@ export default function RemoveHunterButton({
           type="button"
           onClick={onClick}
           disabled={isPending}
-          className="bb-text-action bb-text-action-muted"
+          className="bb-text-action bb-text-action-copper"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}
           aria-label={buttonTitle}
           title={buttonTitle}
         >
+          <Trash2 size={14} aria-hidden="true" />
           {isPending ? 'Removing' : 'Remove'}
         </button>
       )}
