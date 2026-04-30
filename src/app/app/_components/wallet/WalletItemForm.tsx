@@ -15,6 +15,7 @@ import {
   deleteWalletItemAction,
 } from '../../_lib/wallet-actions'
 import type { WalletItemType, WalletJurisdiction } from '../../_lib/wallet-utils'
+import DateField from '../DateField'
 
 // Per-type fields are sourced from
 // /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md
@@ -484,13 +485,11 @@ export default function WalletItemForm({
           <div className="bb-tile-body">
             <h2 className="bb-form-section-head">Reporting</h2>
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="extras_report_due_date">Report due by</label>
-              <input
-                id="extras_report_due_date"
+              <span className="bb-form-label">Report due by</span>
+              <DateField
                 name="extras_report_due_date"
-                type="date"
                 defaultValue={e.report_due_date ?? ''}
-                className="bb-input"
+                ariaLabel="Report due date"
               />
               <p className="bb-form-help">
                 Different from the hunt window. CA HRC is due Jan 31 the year after the season.
@@ -658,25 +657,21 @@ export default function WalletItemForm({
           <h2 className="bb-form-section-head">Validity</h2>
           <div className="bb-form-grid-2">
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="valid_from">Valid from</label>
-              <input
-                id="valid_from"
+              <span className="bb-form-label">Valid from</span>
+              <DateField
                 name="valid_from"
-                type="date"
                 required
                 defaultValue={initial.valid_from || ''}
-                className="bb-input"
+                ariaLabel="Valid from date"
               />
             </div>
             <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="valid_to">Valid to</label>
-              <input
-                id="valid_to"
+              <span className="bb-form-label">Valid to</span>
+              <DateField
                 name="valid_to"
-                type="date"
                 required
                 defaultValue={initial.valid_to || ''}
-                className="bb-input"
+                ariaLabel="Valid to date"
               />
             </div>
           </div>
@@ -684,13 +679,11 @@ export default function WalletItemForm({
             <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
               {SHOW.issueDate(type) && (
                 <div className="bb-form-row">
-                  <label className="bb-form-label" htmlFor="issue_date">Issue date <span style={{ opacity: 0.6 }}>(optional)</span></label>
-                  <input
-                    id="issue_date"
+                  <span className="bb-form-label">Issue date <span style={{ opacity: 0.6 }}>(optional)</span></span>
+                  <DateField
                     name="issue_date"
-                    type="date"
                     defaultValue={initial.issue_date ?? ''}
-                    className="bb-input"
+                    ariaLabel="Issue date"
                   />
                 </div>
               )}
@@ -765,7 +758,7 @@ export default function WalletItemForm({
             </button>
             <button
               type="button"
-              className="bb-cta-sm-destructive"
+              className="bb-cta-sm bb-cta-sm-destructive"
               onClick={() => {
                 if (window.confirm('Delete this wallet item? This cannot be undone.')) {
                   callMutation(deleteWalletItemAction)
