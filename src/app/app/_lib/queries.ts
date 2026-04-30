@@ -494,14 +494,17 @@ export async function reopenTrip(guideId: string, tripId: string): Promise<{ ok:
 // v26.3: insert a harvest for a trip the caller owns. Reverifies trip
 // ownership + status before inserting so a stale form submission against a
 // closed trip yields a friendly error rather than an RLS denial.
-// v27.0b.2: per-hunter tag options for the harvest form. Returns a Map
-// keyed by hunter_id where the value is the list of active tag wallet
-// items that hunter can consume on this trip.
+// v27.0b.2.1: per-hunter tag options for the harvest form. Always returns
+// the hunter's FULL active tag inventory; trip_wallet_items is consulted
+// only to compute a default selection. The guide can always override.
 //
-// Strategy: prefer tags linked via `trip_wallet_items` (the v27.0b.3
-// action-needed flow will populate these once shipped). Until then,
-// fall back to ALL of the hunter's active (not archived, not tagged
-// out, not expired) tag wallet items so the guide can still pick.
+// Returns Map<hunter_id, { tags, default_tag_id }>. default_tag_id is the
+// most recently linked trip_wallet_items row that points to one of the
+// hunter's currently active tags; null if no link exists or the link
+// points to an archived/used/expired tag.
+//
+// No client-side memoization. The harvest form page is a server component
+// that calls this on every render → fresh data on every navigation.
 export type HarvestTagOption = {
   id: string
   identifier: string
@@ -512,17 +515,22 @@ export type HarvestTagOption = {
   valid_to: string
 }
 
+export type HarvestTagOptions = {
+  tags: HarvestTagOption[]
+  default_tag_id: string | null
+}
+
 export async function fetchHarvestTagOptions(
   guideId: string,
   tripId: string,
   hunterIds: string[]
-): Promise<Map<string, HarvestTagOption[]>> {
-  const out = new Map<string, HarvestTagOption[]>()
+): Promise<Map<string, HarvestTagOptions>> {
+  const out = new Map<string, HarvestTagOptions>()
   if (hunterIds.length === 0) return out
   const supabase = await createClient()
 
-  // 1. Verify the guide owns the trip — RLS will gate trip_wallet_items
-  // reads via _is_trip_owner anyway, but bail early on a bad caller.
+  // Verify the guide owns the trip. RLS will also gate the trip_wallet_items
+  // read via _is_trip_owner; bailing early on a bad caller is defense-in-depth.
   const { data: trip } = await supabase
     .from('trips')
     .select('id')
@@ -531,78 +539,55 @@ export async function fetchHarvestTagOptions(
     .maybeSingle()
   if (!trip) return out
 
-  // 2. Fetch trip-linked tags (v27.0b.3 path).
-  const { data: linked } = await supabase
-    .from('trip_wallet_items')
-    .select(
-      'hunter_id, wallet_items!inner (id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at)'
-    )
-    .eq('trip_id', tripId)
-    .in('hunter_id', hunterIds)
-  type LinkedRow = {
-    hunter_id: string
-    wallet_items: {
-      id: string
-      identifier: string
-      type: string
-      species: string | null
-      state: string | null
-      zone: string | null
-      season_year: number | null
-      valid_to: string
-      archived_at: string | null
-      tagged_out_at: string | null
-    }
-  }
   const today = new Date().toISOString().slice(0, 10)
-  for (const r of (linked ?? []) as unknown as LinkedRow[]) {
-    const w = r.wallet_items
-    if (
-      w.type === 'tag' &&
-      !w.archived_at &&
-      !w.tagged_out_at &&
-      w.valid_to >= today
-    ) {
-      const arr = out.get(r.hunter_id) ?? []
-      arr.push({
-        id: w.id,
-        identifier: w.identifier,
-        species: w.species,
-        state: w.state,
-        zone: w.zone,
-        season_year: w.season_year,
-        valid_to: w.valid_to,
-      })
-      out.set(r.hunter_id, arr)
-    }
+
+  // 1. Always-on full inventory: every active tag for each participant
+  //    hunter. This is the option list the picker shows.
+  const { data: allTags } = await supabase
+    .from('wallet_items')
+    .select(
+      'id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at'
+    )
+    .in('user_id', hunterIds)
+    .eq('type', 'tag')
+    .is('archived_at', null)
+    .is('tagged_out_at', null)
+    .gte('valid_to', today)
+
+  // Index active tag ids per hunter so we can validate the link below.
+  const activeByHunter = new Map<string, Set<string>>()
+  for (const w of allTags ?? []) {
+    const arr = out.get(w.user_id) ?? { tags: [], default_tag_id: null }
+    arr.tags.push({
+      id: w.id,
+      identifier: w.identifier,
+      species: w.species,
+      state: w.state,
+      zone: w.zone,
+      season_year: w.season_year,
+      valid_to: w.valid_to,
+    })
+    out.set(w.user_id, arr)
+    const set = activeByHunter.get(w.user_id) ?? new Set<string>()
+    set.add(w.id)
+    activeByHunter.set(w.user_id, set)
   }
 
-  // 3. Fallback for hunters who have no linked rows yet — pull all their
-  // active tag wallet items. This temporary state holds until v27.0b.3
-  // ships and trip_wallet_items rows are created via the onboarding
-  // action-needed queue.
-  const missingHunters = hunterIds.filter((h) => !out.has(h))
-  if (missingHunters.length > 0) {
-    const { data: fallback } = await supabase
-      .from('wallet_items')
-      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at')
-      .in('user_id', missingHunters)
-      .eq('type', 'tag')
-      .is('archived_at', null)
-      .is('tagged_out_at', null)
-      .gte('valid_to', today)
-    for (const w of fallback ?? []) {
-      const arr = out.get(w.user_id) ?? []
-      arr.push({
-        id: w.id,
-        identifier: w.identifier,
-        species: w.species,
-        state: w.state,
-        zone: w.zone,
-        season_year: w.season_year,
-        valid_to: w.valid_to,
-      })
-      out.set(w.user_id, arr)
+  // 2. Trip-linked tags (preferred default). Order by most-recent linked
+  //    so the first match per hunter is the freshest pick.
+  const { data: linked } = await supabase
+    .from('trip_wallet_items')
+    .select('hunter_id, wallet_item_id, linked_at')
+    .eq('trip_id', tripId)
+    .in('hunter_id', hunterIds)
+    .order('linked_at', { ascending: false })
+
+  for (const link of linked ?? []) {
+    const existing = out.get(link.hunter_id)
+    if (!existing || existing.default_tag_id) continue // already set, keep most-recent
+    const activeIds = activeByHunter.get(link.hunter_id)
+    if (activeIds && activeIds.has(link.wallet_item_id)) {
+      existing.default_tag_id = link.wallet_item_id
     }
   }
 

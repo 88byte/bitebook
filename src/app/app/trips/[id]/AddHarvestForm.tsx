@@ -17,14 +17,20 @@ type TagOption = {
   valid_to: string
 }
 
+type TagOptions = {
+  tags: TagOption[]
+  default_tag_id: string | null
+}
+
 type Props = {
   tripId: string
   tripKind: 'hunting' | 'fishing'
   defaultMethod: string | null
   participants: ParticipantOption[]
-  /** v27.0b.2: per-hunter tag options. Linked tags via trip_wallet_items
-   * preferred; falls back to all active tags until v27.0b.3 ships. */
-  tagOptionsByHunter: Record<string, TagOption[]>
+  /** v27.0b.2.1: per-hunter active tag inventory + default selection.
+   * Always shows the hunter's full active tag list; trip_wallet_items
+   * only drives the default selection. Guide can always override. */
+  tagOptionsByHunter: Record<string, TagOptions>
 }
 
 // v26.3: per-trip harvest entry. Visible to the guide on planned/active
@@ -32,12 +38,17 @@ type Props = {
 // the harvest (server enforces too). Photo upload is deferred to the
 // Storage batch.
 //
-// v27.0b.2: hunter selector drives tag binding. After picking a hunter:
-//   - 0 active tags → block save with "link a tag first" hint
-//   - 1 active tag → auto-bind silently, no extra UI
-//   - 2+ active tags → secondary tag picker scoped to that hunter
-// On save, harvests.consumed_wallet_item_id is set; the v27.0b.0 trigger
-// flips the linked wallet item to tagged_out_at.
+// v27.0b.2.1: hunter selector → tag picker shows hunter's FULL active
+// tag inventory (not filtered by trip linkage). trip_wallet_items only
+// drives the default selection — guide can always override. Cases:
+//   - 0 active tags total → empty state, save blocked
+//   - 1 active tag → auto-bind silently, no picker
+//   - 2+ active tags → picker, pre-selected to default_tag_id if set,
+//     otherwise blank (guide must pick)
+//
+// Data fetch lives in the parent server component (trips/[id]/page.tsx)
+// and is recomputed on every page load — no client-side memoization, so
+// hunter wallet edits propagate next time the guide reopens this page.
 export default function AddHarvestForm({ tripId, tripKind, defaultMethod, participants, tagOptionsByHunter }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +57,10 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
   const [hunterId, setHunterId] = useState<string>('')
   const [tagId, setTagId] = useState<string>('')
 
-  const tagOptions = hunterId ? tagOptionsByHunter[hunterId] ?? [] : []
+  const opts: TagOptions = hunterId
+    ? tagOptionsByHunter[hunterId] ?? { tags: [], default_tag_id: null }
+    : { tags: [], default_tag_id: null }
+  const tagOptions = opts.tags
   const needsTagPick = tagOptions.length > 1
   const noTags = !!hunterId && tagOptions.length === 0
   const autoBoundTagId = tagOptions.length === 1 ? tagOptions[0].id : null
@@ -135,8 +149,11 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
             required
             value={hunterId}
             onChange={(e) => {
-              setHunterId(e.target.value)
-              setTagId('')
+              const newHunter = e.target.value
+              setHunterId(newHunter)
+              // Pre-select trip-linked default if present, else blank.
+              const next = tagOptionsByHunter[newHunter]?.default_tag_id ?? ''
+              setTagId(next)
             }}
             className="bb-input"
           >
@@ -192,8 +209,8 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
       )}
       {noTags && (
         <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
-          This hunter has no active tags linked to this trip. Link a tag from
-          their wallet first, then come back to log the harvest.
+          This hunter has no active tags in their wallet. They&apos;ll need to
+          add a tag before this harvest can be logged.
         </p>
       )}
 

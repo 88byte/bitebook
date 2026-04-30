@@ -24,7 +24,7 @@ import {
   fetchTripDetail,
   fetchAcceptedHunters,
   fetchHarvestTagOptions,
-  type HarvestTagOption,
+  type HarvestTagOptions,
 } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
 import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../_lib/format'
@@ -70,15 +70,15 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   // v27.0b.2: per-hunter linked-tag options for the harvest form. Map of
   // hunter_id → list of active tag wallet items they can consume on this
   // trip. Plain object so it serializes to the client component cleanly.
-  const tagOptionsByHunter: Record<string, HarvestTagOption[]> = {}
+  const tagOptionsByHunter: Record<string, HarvestTagOptions> = {}
   if (isOpen) {
     const tagOptionsMap = await fetchHarvestTagOptions(
       profile.id,
       trip.id,
       harvestParticipants.map((p) => p.id)
     )
-    tagOptionsMap.forEach((tags, hunterId) => {
-      tagOptionsByHunter[hunterId] = tags
+    tagOptionsMap.forEach((opts, hunterId) => {
+      tagOptionsByHunter[hunterId] = opts
     })
   }
 
