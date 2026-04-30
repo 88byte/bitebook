@@ -3143,3 +3143,47 @@ body {
     margin-right: 12rem;
   }
 }
+
+/* v27.0a.18: stronger stack-depth signal on the wallet deck. Peek slots
+   get an upward-cast shadow (so the card in front receives a clear
+   shadow on its top edge) plus a warm cream-tinted hairline along the
+   top so each layer reads as a distinct surface, not a continuous
+   green blob. */
+
+/* Bump top card's own shadow so it visually anchors as "in front". */
+.bb-wallet-deck-slot:not(.bb-wallet-deck-slot--peek) .bb-wallet-card {
+  box-shadow:
+    0 14px 28px rgba(11, 8, 6, 0.30),
+    0 4px 10px rgba(11, 8, 6, 0.20);
+}
+
+/* Peek cards: heavier upward shadow + warm rim light. Targeting the
+   inner card means the shadow follows the rotation/transform with the
+   slot. */
+.bb-wallet-deck-slot--peek .bb-wallet-card {
+  box-shadow:
+    0 -3px 6px rgba(0, 0, 0, 0.40),
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(231, 219, 196, 0.18);
+}
+
+.bb-wallet-deck-slot--peek-1 .bb-wallet-card {
+  box-shadow:
+    0 -4px 8px rgba(0, 0, 0, 0.42),
+    0 2px 8px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(231, 219, 196, 0.18);
+}
+
+.bb-wallet-deck-slot--peek-2 .bb-wallet-card {
+  box-shadow:
+    0 -5px 10px rgba(0, 0, 0, 0.44),
+    0 2px 10px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(231, 219, 196, 0.20);
+}
+
+/* Container needs taller min-height now to fit the bigger Y offset
+   (peek 2 sits at ~22px below top). */
+.bb-wallet-deck { min-height: 240px; }
+@media (min-width: 768px) {
+  .bb-wallet-deck { min-height: 260px; }
+}

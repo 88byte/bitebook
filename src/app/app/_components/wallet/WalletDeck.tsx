@@ -136,8 +136,10 @@ export default function WalletDeck({
     }
 
     // Idle stack: top card at 0, peeks behind get progressive offsets.
+    // v27.0a.18: bigger Y/X step (11/4) so the peek edge is unmistakable;
+    // peeks LIGHTEN slightly (brightness > 1) so they read as ambient-lit
+    // surfaces behind the front card — opposite of v27.0a.17's darken.
     if (pos === 0) {
-      // Top card may also be drag-translated.
       const rotDuringDrag = dragX === 0 ? 0 : dragX / 30
       return {
         transform: `translate3d(${dragX}px, 0, 0) rotate(${rotDuringDrag}deg)`,
@@ -151,14 +153,14 @@ export default function WalletDeck({
       }
     }
     if (pos < MAX_PEEKS) {
-      const ty = pos * 6
-      const tx = pos * 2
-      const rot = -1 * pos
+      const ty = pos * 11
+      const tx = pos * 4
+      const rot = -1.5 * pos
       return {
         transform: `translate3d(${tx}px, ${ty}px, 0) rotate(${rot}deg)`,
         zIndex: 100 - pos,
         opacity: 1,
-        filter: `brightness(${1 - pos * 0.04})`,
+        filter: `brightness(${1 + pos * 0.06}) saturate(0.94)`,
       }
     }
     return { opacity: 0, pointerEvents: 'none', zIndex: 0 }
@@ -179,22 +181,28 @@ export default function WalletDeck({
       onTouchMove={(e) => onPointerMove(e.touches[0].clientX)}
       onTouchEnd={onPointerEnd}
     >
-      {visibleIndices.map((absIdx) => (
+      {visibleIndices.map((absIdx) => {
+        const pos = relPos(absIdx)
+        const peekClass = !isFanned && pos > 0 && pos < MAX_PEEKS
+          ? ` bb-wallet-deck-slot--peek bb-wallet-deck-slot--peek-${pos}`
+          : ''
+        return (
         <div
           key={items[absIdx].id}
-          className="bb-wallet-deck-slot"
+          className={`bb-wallet-deck-slot${peekClass}`}
           style={cardStyle(absIdx)}
-          aria-hidden={relPos(absIdx) !== 0 && !isFanned}
+          aria-hidden={pos !== 0 && !isFanned}
         >
           <WalletHeroCard
             item={items[absIdx]}
             basePath={basePath}
             eyebrow={eyebrow}
             onClick={onCardClick(absIdx)}
-            tabIndex={relPos(absIdx) === 0 || isFanned ? 0 : -1}
+            tabIndex={pos === 0 || isFanned ? 0 : -1}
           />
         </div>
-      ))}
+        )
+      })}
       {showMoreTile && isFanned && (
         <div
           className="bb-wallet-deck-slot bb-wallet-deck-more"
