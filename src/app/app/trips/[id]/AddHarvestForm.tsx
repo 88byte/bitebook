@@ -7,22 +7,49 @@ import { addHarvestAction } from './actions'
 
 type ParticipantOption = { id: string; display_name: string }
 
+type TagOption = {
+  id: string
+  identifier: string
+  species: string | null
+  state: string | null
+  zone: string | null
+  season_year: number | null
+  valid_to: string
+}
+
 type Props = {
   tripId: string
   tripKind: 'hunting' | 'fishing'
   defaultMethod: string | null
   participants: ParticipantOption[]
+  /** v27.0b.2: per-hunter tag options. Linked tags via trip_wallet_items
+   * preferred; falls back to all active tags until v27.0b.3 ships. */
+  tagOptionsByHunter: Record<string, TagOption[]>
 }
 
 // v26.3: per-trip harvest entry. Visible to the guide on planned/active
 // trips. Self-cert is required: guide attests they personally witnessed
 // the harvest (server enforces too). Photo upload is deferred to the
 // Storage batch.
-export default function AddHarvestForm({ tripId, tripKind, defaultMethod, participants }: Props) {
+//
+// v27.0b.2: hunter selector drives tag binding. After picking a hunter:
+//   - 0 active tags → block save with "link a tag first" hint
+//   - 1 active tag → auto-bind silently, no extra UI
+//   - 2+ active tags → secondary tag picker scoped to that hunter
+// On save, harvests.consumed_wallet_item_id is set; the v27.0b.0 trigger
+// flips the linked wallet item to tagged_out_at.
+export default function AddHarvestForm({ tripId, tripKind, defaultMethod, participants, tagOptionsByHunter }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [hunterId, setHunterId] = useState<string>('')
+  const [tagId, setTagId] = useState<string>('')
+
+  const tagOptions = hunterId ? tagOptionsByHunter[hunterId] ?? [] : []
+  const needsTagPick = tagOptions.length > 1
+  const noTags = !!hunterId && tagOptions.length === 0
+  const autoBoundTagId = tagOptions.length === 1 ? tagOptions[0].id : null
 
   function nowLocal(): string {
     const d = new Date()
@@ -35,6 +62,15 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
     setError(null)
     const fd = new FormData(e.currentTarget)
     fd.set('trip_id', tripId)
+    // v27.0b.2: bind the consumed tag explicitly. Single-tag hunters get
+    // auto-bound; multi-tag hunters use the picker; no-tag hunters are
+    // blocked client-side here (server validates too).
+    const boundTagId = autoBoundTagId ?? tagId
+    if (hunterId && tagOptions.length > 0 && !boundTagId) {
+      setError('Pick which tag this harvest used.')
+      return
+    }
+    if (boundTagId) fd.set('consumed_wallet_item_id', boundTagId)
     startTransition(async () => {
       const res = await addHarvestAction(fd)
       if ('error' in res) {
@@ -43,6 +79,8 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
       }
       setSavedAt(Date.now())
       setOpen(false)
+      setHunterId('')
+      setTagId('')
       ;(e.target as HTMLFormElement).reset()
     })
   }
@@ -95,7 +133,11 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
             id="harvest_hunter_id"
             name="hunter_id"
             required
-            defaultValue=""
+            value={hunterId}
+            onChange={(e) => {
+              setHunterId(e.target.value)
+              setTagId('')
+            }}
             className="bb-input"
           >
             <option value="" disabled>Select hunter</option>
@@ -118,6 +160,42 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
           />
         </div>
       </div>
+
+      {/* v27.0b.2: tag picker — only when chosen hunter has 2+ active tags. */}
+      {needsTagPick && (
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="harvest_tag_id">Tag used</label>
+          <select
+            id="harvest_tag_id"
+            value={tagId}
+            onChange={(e) => setTagId(e.target.value)}
+            required
+            className="bb-input"
+          >
+            <option value="" disabled>Pick a tag</option>
+            {tagOptions.map((t) => {
+              const parts = [
+                t.species,
+                t.state,
+                t.zone ? `Zone ${t.zone}` : null,
+                t.season_year ? `${t.season_year}` : null,
+              ].filter(Boolean)
+              return (
+                <option key={t.id} value={t.id}>
+                  {t.identifier}
+                  {parts.length > 0 ? ` — ${parts.join(' · ')}` : ''}
+                </option>
+              )
+            })}
+          </select>
+        </div>
+      )}
+      {noTags && (
+        <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
+          This hunter has no active tags linked to this trip. Link a tag from
+          their wallet first, then come back to log the harvest.
+        </p>
+      )}
 
       <div className="bb-form-row">
         <span className="bb-form-label">Activity</span>
@@ -227,7 +305,7 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
       )}
 
       <div className="flex items-center gap-2 pt-1">
-        <button type="submit" className="bb-cta-sm" disabled={isPending}>
+        <button type="submit" className="bb-cta-sm" disabled={isPending || noTags}>
           <Plus size={14} aria-hidden="true" />
           {isPending ? 'Saving...' : 'Save harvest'}
         </button>

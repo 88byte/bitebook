@@ -20,7 +20,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
-import { fetchTripDetail, fetchAcceptedHunters } from '../../_lib/queries'
+import {
+  fetchTripDetail,
+  fetchAcceptedHunters,
+  fetchHarvestTagOptions,
+  type HarvestTagOption,
+} from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
 import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../_lib/format'
 import AddParticipantsForm from './AddParticipantsForm'
@@ -61,6 +66,21 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   const harvestParticipants = participants
     .filter((p) => p.hunter_id && p.profile)
     .map((p) => ({ id: p.hunter_id as string, display_name: p.profile!.display_name }))
+
+  // v27.0b.2: per-hunter linked-tag options for the harvest form. Map of
+  // hunter_id → list of active tag wallet items they can consume on this
+  // trip. Plain object so it serializes to the client component cleanly.
+  const tagOptionsByHunter: Record<string, HarvestTagOption[]> = {}
+  if (isOpen) {
+    const tagOptionsMap = await fetchHarvestTagOptions(
+      profile.id,
+      trip.id,
+      harvestParticipants.map((p) => p.id)
+    )
+    tagOptionsMap.forEach((tags, hunterId) => {
+      tagOptionsByHunter[hunterId] = tags
+    })
+  }
 
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip)
@@ -267,6 +287,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                   tripKind={trip.kind}
                   defaultMethod={trip.method ?? null}
                   participants={harvestParticipants}
+                  tagOptionsByHunter={tagOptionsByHunter}
                 />
               </div>
             )}

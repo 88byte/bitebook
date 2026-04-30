@@ -165,6 +165,7 @@ export async function addHarvestAction(formData: FormData): Promise<AddHarvestRe
   if (!tripId) return { error: 'Missing trip id.' }
 
   const hunterId = String(formData.get('hunter_id') ?? '').trim() || null
+  const consumedWalletItemId = String(formData.get('consumed_wallet_item_id') ?? '').trim() || null
   const speciesName = String(formData.get('species_name') ?? '').trim()
   const kindRaw = String(formData.get('kind') ?? '').trim() as Kind
   const tagNumber = String(formData.get('tag_number') ?? '').trim()
@@ -195,6 +196,7 @@ export async function addHarvestAction(formData: FormData): Promise<AddHarvestRe
     tag_number: tagNumber || null,
     harvested_at: harvestedAt,
     notes: notesInput || null,
+    consumed_wallet_item_id: consumedWalletItemId,
   })
   if ('error' in result) return { error: result.error }
 

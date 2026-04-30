@@ -494,6 +494,121 @@ export async function reopenTrip(guideId: string, tripId: string): Promise<{ ok:
 // v26.3: insert a harvest for a trip the caller owns. Reverifies trip
 // ownership + status before inserting so a stale form submission against a
 // closed trip yields a friendly error rather than an RLS denial.
+// v27.0b.2: per-hunter tag options for the harvest form. Returns a Map
+// keyed by hunter_id where the value is the list of active tag wallet
+// items that hunter can consume on this trip.
+//
+// Strategy: prefer tags linked via `trip_wallet_items` (the v27.0b.3
+// action-needed flow will populate these once shipped). Until then,
+// fall back to ALL of the hunter's active (not archived, not tagged
+// out, not expired) tag wallet items so the guide can still pick.
+export type HarvestTagOption = {
+  id: string
+  identifier: string
+  species: string | null
+  state: string | null
+  zone: string | null
+  season_year: number | null
+  valid_to: string
+}
+
+export async function fetchHarvestTagOptions(
+  guideId: string,
+  tripId: string,
+  hunterIds: string[]
+): Promise<Map<string, HarvestTagOption[]>> {
+  const out = new Map<string, HarvestTagOption[]>()
+  if (hunterIds.length === 0) return out
+  const supabase = await createClient()
+
+  // 1. Verify the guide owns the trip — RLS will gate trip_wallet_items
+  // reads via _is_trip_owner anyway, but bail early on a bad caller.
+  const { data: trip } = await supabase
+    .from('trips')
+    .select('id')
+    .eq('id', tripId)
+    .eq('guide_id', guideId)
+    .maybeSingle()
+  if (!trip) return out
+
+  // 2. Fetch trip-linked tags (v27.0b.3 path).
+  const { data: linked } = await supabase
+    .from('trip_wallet_items')
+    .select(
+      'hunter_id, wallet_items!inner (id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at)'
+    )
+    .eq('trip_id', tripId)
+    .in('hunter_id', hunterIds)
+  type LinkedRow = {
+    hunter_id: string
+    wallet_items: {
+      id: string
+      identifier: string
+      type: string
+      species: string | null
+      state: string | null
+      zone: string | null
+      season_year: number | null
+      valid_to: string
+      archived_at: string | null
+      tagged_out_at: string | null
+    }
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  for (const r of (linked ?? []) as unknown as LinkedRow[]) {
+    const w = r.wallet_items
+    if (
+      w.type === 'tag' &&
+      !w.archived_at &&
+      !w.tagged_out_at &&
+      w.valid_to >= today
+    ) {
+      const arr = out.get(r.hunter_id) ?? []
+      arr.push({
+        id: w.id,
+        identifier: w.identifier,
+        species: w.species,
+        state: w.state,
+        zone: w.zone,
+        season_year: w.season_year,
+        valid_to: w.valid_to,
+      })
+      out.set(r.hunter_id, arr)
+    }
+  }
+
+  // 3. Fallback for hunters who have no linked rows yet — pull all their
+  // active tag wallet items. This temporary state holds until v27.0b.3
+  // ships and trip_wallet_items rows are created via the onboarding
+  // action-needed queue.
+  const missingHunters = hunterIds.filter((h) => !out.has(h))
+  if (missingHunters.length > 0) {
+    const { data: fallback } = await supabase
+      .from('wallet_items')
+      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at')
+      .in('user_id', missingHunters)
+      .eq('type', 'tag')
+      .is('archived_at', null)
+      .is('tagged_out_at', null)
+      .gte('valid_to', today)
+    for (const w of fallback ?? []) {
+      const arr = out.get(w.user_id) ?? []
+      arr.push({
+        id: w.id,
+        identifier: w.identifier,
+        species: w.species,
+        state: w.state,
+        zone: w.zone,
+        season_year: w.season_year,
+        valid_to: w.valid_to,
+      })
+      out.set(w.user_id, arr)
+    }
+  }
+
+  return out
+}
+
 export async function insertHarvest(
   guideId: string,
   input: {
@@ -506,6 +621,7 @@ export async function insertHarvest(
     tag_number: string | null
     harvested_at: string
     notes: string | null
+    consumed_wallet_item_id?: string | null
   }
 ): Promise<{ id: string } | { error: string }> {
   const supabase = await createClient()
