@@ -13,7 +13,6 @@ import {
   BadgeCheck,
   Crosshair,
   CircleCheck,
-  Trophy,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { WalletItemType, WalletItemWithStatus } from '../../_lib/wallet-utils'
@@ -102,21 +101,7 @@ export default function WalletHeroCard({
       </div>
       <div className="bb-wallet-card-top">
         <p className="bb-wallet-card-eyebrow">{eyebrow}</p>
-        <h3 className="bb-wallet-card-title">
-          {isTaggedOut && (
-            <Trophy
-              size={18}
-              aria-hidden="true"
-              style={{
-                display: 'inline-block',
-                marginRight: '0.4rem',
-                verticalAlign: '-2px',
-                color: 'var(--color-copper)',
-              }}
-            />
-          )}
-          {item.identifier || 'Untitled'}
-        </h3>
+        <h3 className="bb-wallet-card-title">{item.identifier || 'Untitled'}</h3>
         {stateLine && <p className="bb-wallet-card-sub">{stateLine}</p>}
         {item.state && (
           <p className="bb-wallet-card-state">
@@ -125,16 +110,18 @@ export default function WalletHeroCard({
         )}
       </div>
       <div className="bb-wallet-card-bottom">
-        <span
-          className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}
-        >
-          {isTaggedOut ? (
-            <Trophy size={12} aria-hidden="true" />
-          ) : (
+        {/* v27.0a.20: tagged-out skin has the ribbon baked in; suppress
+            the redundant copper TAGGED OUT pill on used cards. Other
+            statuses keep their pill so Active / Expired stay legible. */}
+        {!isTaggedOut && (
+          <span
+            className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}
+          >
             <CircleCheck size={12} aria-hidden="true" />
-          )}
-          {statusLabel}
-        </span>
+            {statusLabel}
+          </span>
+        )}
+        {isTaggedOut && <span />}
         <div className="bb-wallet-card-validity">
           <p className="bb-wallet-card-validity-eyebrow">Valid through</p>
           <p className="bb-wallet-card-validity-date">{validToFmt}</p>

@@ -2124,7 +2124,8 @@ body {
 }
 .bb-wallet-carousel::-webkit-scrollbar { display: none; }
 
-/* Hero wallet card — leather/forest gradient + watermark + content */
+/* Hero wallet card — v27.0a.20: skin image replaces the forest gradient.
+   Tagged-out cards swap to a different skin via .bb-wallet-card--used. */
 .bb-wallet-card {
   position: relative;
   flex: 0 0 100%;
@@ -2132,9 +2133,11 @@ body {
   min-height: 200px;
   border-radius: 16px;
   padding: 1rem 1.1rem;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(176, 108, 60, 0.18) 0%, transparent 60%),
-    linear-gradient(135deg, #1F2419 0%, #0E1410 100%);
+  background-image: url('/bb-card-skin.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #1F2419; /* fallback while skin loads */
   color: #F4EFE5;
   text-decoration: none;
   display: flex;
@@ -2145,11 +2148,12 @@ body {
   box-shadow: 0 10px 24px rgba(11, 8, 6, 0.18);
 }
 
+/* Watermark stamp — v27.0a.20: positive inset so it sits fully inside
+   the card instead of bleeding off the right edge. Smaller size too. */
 .bb-wallet-card-watermark {
   position: absolute;
-  right: -28px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 16px;
+  bottom: 16px;
   color: rgba(176, 108, 60, 0.18);
   z-index: 0;
   pointer-events: none;
@@ -2365,24 +2369,22 @@ body {
   box-shadow: 0 0 0 2px rgba(176, 108, 60, 0.25);
 }
 
-/* v27.0a.7: photographic watermark on hero card (right-aligned, faded) */
+/* v27.0a.7: photographic watermark on hero card. v27.0a.20: inset to sit
+   inside the card with breathing room (was bleeding off the right edge). */
 .bb-wallet-card-watermark-img {
   display: block;
-  width: 220px;
-  height: 220px;
+  width: 160px;
+  height: 160px;
   object-fit: contain;
-  object-position: right center;
-  opacity: 0.16;
+  object-position: right bottom;
+  opacity: 0.18;
   filter: brightness(1.15) contrast(0.95);
-  /* allow image-bleed beyond the card edge so the crest looks anchored
-     to the right side rather than floating in the middle */
-  margin-right: -32px;
 }
 
 @media (min-width: 768px) {
   .bb-wallet-card-watermark-img {
-    width: 280px;
-    height: 280px;
+    width: 200px;
+    height: 200px;
   }
 }
 
@@ -3219,29 +3221,12 @@ body {
   .bb-wallet-deck { min-height: 280px; }
 }
 
-/* ── v27.0b.1: tagged-out celebration treatment ─────────────────────── */
+/* ── v27.0a.20: tagged-out skin (ribbon + TAGGED OUT marker baked in) ─── */
 
-/* Solid copper-filled status pill instead of the muted rgba look. */
-.bb-wallet-card-status-used {
-  background: var(--color-copper) !important;
-  color: #FFFFFF !important;
-  border-color: var(--color-copper) !important;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-weight: 800;
-  box-shadow: 0 2px 8px rgba(176, 108, 60, 0.45);
-}
-
-/* Card itself gets a copper-tinted radial glow at the top-right + a
-   thin copper outline so the tagged-out card reads as a victory in the
-   Tagged Out section, not a dim/used-up downgrade. */
+/* The tagged-out skin already carries the celebration visually — swap
+   the bg image only. The status pill, inline Trophy, copper outline, and
+   ambient glow from v27.0b.1 are dropped because they'd compete with the
+   skin's own ribbon + marker. */
 .bb-wallet-card--used {
-  background:
-    radial-gradient(circle at 100% 0%, rgba(176, 108, 60, 0.45) 0%, transparent 55%),
-    linear-gradient(135deg, #1F2419 0%, #0E1410 100%);
-  box-shadow:
-    0 0 0 1px rgba(176, 108, 60, 0.55),
-    0 14px 28px rgba(11, 8, 6, 0.30),
-    0 4px 10px rgba(11, 8, 6, 0.20),
-    0 0 24px rgba(176, 108, 60, 0.12);
+  background-image: url('/bb-card-skin-tagged-out.png');
 }
