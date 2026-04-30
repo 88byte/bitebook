@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireHunter } from '../../_lib/auth'
 import { fetchHunterTripsPage } from '../../_lib/queries'
 import HunterTripRow from '../_components/HunterTripRow'
+import DashboardHero from '../../_components/DashboardHero'
 import type { Database } from '@/lib/supabase/types'
 
 type TripStatus = Database['public']['Enums']['trip_status']
@@ -49,16 +50,13 @@ export default async function HunterTripsListPage({
     return `/app/h/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
+  const heroSub = `${total} ${total === 1 ? 'trip' : 'trips'}${
+    status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''
+  }`
+
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Your trips</p>
-        <h1 className="bb-page-title">My trips</h1>
-        <p className="bb-page-sub">
-          {total} {total === 1 ? 'trip' : 'trips'}
-          {status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''}
-        </p>
-      </header>
+      <DashboardHero eyebrow="Your trips" title="My trips" subtitle={heroSub} />
 
       <div className="bb-chip-row mt-4" role="tablist" aria-label="Filter by status">
         {STATUSES.map((s) => (

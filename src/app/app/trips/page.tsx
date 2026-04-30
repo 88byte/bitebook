@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
 import { fetchTripsPage } from '../_lib/queries'
 import TripRow from '../_components/TripRow'
+import DashboardHero from '../_components/DashboardHero'
 import type { Database } from '@/lib/supabase/types'
 
 type TripStatus = Database['public']['Enums']['trip_status']
@@ -46,28 +47,25 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
     return `/app/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
+  const heroSub = `${total} ${total === 1 ? 'trip' : 'trips'}${
+    status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''
+  }`
+
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="bb-page-eyebrow">Your trips</p>
-          <h1 className="bb-page-title">My trips</h1>
-          <p className="bb-page-sub">
-            {total} {total === 1 ? 'trip' : 'trips'}
-            {status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''}
-          </p>
-        </div>
-        {/* v25.1: when there are zero trips, the empty-state CTA owns the
-            "create" action, so suppress the header button to avoid double CTAs.
-            Once at least one trip exists the empty state isn't rendered, so
-            the header button is the only path. */}
-        {total > 0 && (
+      <DashboardHero eyebrow="Your trips" title="My trips" subtitle={heroSub} />
+
+      {/* v27.0a.10: hero owns the title; "New trip" CTA moves below as a
+          secondary inline action so the hero stays clean. The empty-state
+          CTA still appears when total === 0. */}
+      {total > 0 && (
+        <div className="mt-3 flex justify-end">
           <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
             <Plus size={16} aria-hidden="true" />
             New trip
           </Link>
-        )}
-      </header>
+        </div>
+      )}
 
       <div className="bb-chip-row mt-4" role="tablist" aria-label="Filter by status">
         {STATUSES.map((s) => (

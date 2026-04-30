@@ -2652,20 +2652,19 @@ body {
   color: var(--color-ink-muted);
 }
 
-/* Tree watermark on trip cards — TreePine icon at low opacity, bottom right */
-.bb-trip-row { position: relative; overflow: hidden; }
+/* v27.0a.10: tree watermark removed (Flavio never asked for it). Trip
+   cards render as clean paper cards. */
 
-.bb-trip-watermark {
-  position: absolute;
-  right: -10px;
-  bottom: -14px;
-  z-index: 0;
-  color: var(--color-copper);
-  opacity: 0.07;
-  pointer-events: none;
+/* v27.0a.10: vertical stack mode for "View all" expanded carousels */
+.bb-wallet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-/* Make sure the body content sits above the watermark */
-.bb-trip-row > .bb-trip-date,
-.bb-trip-row > .bb-trip-body,
-.bb-trip-row > .bb-pill { position: relative; z-index: 1; }
+/* In stack mode the cards take the full available width — override the
+   carousel's flex 0 0 100% sizing so they expand naturally. */
+.bb-wallet-stack .bb-wallet-card {
+  flex: 1 1 auto;
+  width: 100%;
+}

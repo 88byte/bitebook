@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, Users, Trophy, Star, TreePine } from 'lucide-react'
+import { Calendar, MapPin, Users, Trophy, Star } from 'lucide-react'
 import StatusPill from './StatusPill'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../_lib/format'
 import type { Database } from '@/lib/supabase/types'
@@ -43,9 +43,6 @@ export default function TripRow({
 
   return (
     <Link href={`/app/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
-      <span className="bb-trip-watermark" aria-hidden="true">
-        <TreePine size={120} strokeWidth={1.2} />
-      </span>
       <div className="bb-trip-date" aria-hidden="true">
         <span className="m">{tripMonth(trip.starts_at)}</span>
         <span className="d">{tripDay(trip.starts_at)}</span>
@@ -55,25 +52,25 @@ export default function TripRow({
         <div className="bb-trip-meta">
           <span className="bb-trip-meta-cell">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Calendar size={14} />
+              <Calendar size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{dateLabel}</span>
           </span>
           <span className="bb-trip-meta-cell">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <MapPin size={14} />
+              <MapPin size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{locLabel}</span>
           </span>
           <span className="bb-trip-meta-cell">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Users size={14} />
+              <Users size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
           </span>
           <span className="bb-trip-meta-cell">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Trophy size={14} />
+              <Trophy size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>

@@ -226,6 +226,12 @@ function WalletStatusSection({
   emptySub: string
 }) {
   const [pageIndex, setPageIndex] = useState(0)
+  // v27.0a.10: "View all" toggle — flips the carousel into a vertical
+  // stack of every card in this status bucket. Real navigation to a
+  // dedicated list page is still on the roadmap; expanding inline gives
+  // the same outcome (see all without horizontal scrolling) without
+  // adding a new route.
+  const [expanded, setExpanded] = useState(false)
 
   return (
     <section className="bb-wallet-section mt-4">
@@ -237,19 +243,27 @@ function WalletStatusSection({
           <button
             type="button"
             className="bb-text-action bb-text-action-copper"
-            onClick={() => {
-              // Stub for v27.0a.5 — full list view comes with future expansion.
-              // For now scroll to first card.
-              setPageIndex(0)
-            }}
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
           >
-            View all
+            {expanded ? 'Show less' : 'View all'}
           </button>
         )}
       </div>
 
       {items.length === 0 ? (
         <EmptyState icon={emptyIcon} title={emptyTitle} sub={emptySub} />
+      ) : expanded ? (
+        <div className="bb-wallet-stack">
+          {items.map((item) => (
+            <WalletHeroCard
+              key={item.id}
+              item={item}
+              basePath={basePath}
+              eyebrow={TYPE_EYEBROW[type]}
+            />
+          ))}
+        </div>
       ) : (
         <>
           <div
