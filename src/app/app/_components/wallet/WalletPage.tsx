@@ -4,14 +4,15 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState } from 'react'
 import {
-  IdCard,
-  Crosshair,
-  ScrollText,
+  FileText,
+  Tag,
+  FileSignature,
   Stamp,
   ClipboardList,
-  Wallet as WalletIcon,
-  ShieldCheck,
   Award,
+  ShieldCheck,
+  BadgeCheck,
+  Crosshair,
   Plus,
   CalendarCheck,
   CircleCheck,
@@ -25,15 +26,17 @@ import {
   type WalletItemWithStatus,
 } from '../../_lib/wallet-utils'
 
+// Per-type icons used on stat cards (copper-filled circle, white icon).
+// Selections per Flavio's v27.0a.6 spec.
 const TAB_ICONS: Record<WalletItemType, LucideIcon> = {
-  license: IdCard,
-  tag: Crosshair,
-  permit: ScrollText,
+  license: FileText,
+  tag: Tag,
+  permit: FileSignature,
   stamp: Stamp,
   harvest_report_card: ClipboardList,
-  guide_license: WalletIcon,
+  guide_license: Award,
   insurance: ShieldCheck,
-  business_credential: Award,
+  business_credential: BadgeCheck,
 }
 
 // Eyebrow on the hero card, uppercase per mockup.
@@ -74,10 +77,15 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
     <main className="bb-app-main">
       <WalletHero basePath={basePath} activeTab={activeTab} />
 
-      {/* Stats grid — paper cards, one per visible type, copper border on active */}
+      {/* Stats grid — paper cards, one per visible type, copper border on
+          active. Each card has a small copper-filled circle with a white
+          per-type icon, big count, uppercase label. Tap selects type. This
+          is the SOLE type selector — pill chips were removed in v27.0a.6
+          since they duplicated this control. */}
       <div className="bb-wallet-stats mt-3" role="tablist" aria-label="Wallet category counts">
         {tabs.map((t) => {
           const isActive = activeTab === t
+          const TypeIcon = TAB_ICONS[t]
           return (
             <button
               key={`stat-${t}`}
@@ -87,30 +95,11 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
               onClick={() => setActiveTab(t)}
               className={`bb-wallet-stat-card ${isActive ? 'is-active' : ''}`}
             >
+              <span className="bb-wallet-stat-icon" aria-hidden="true">
+                <TypeIcon size={14} strokeWidth={2.2} />
+              </span>
               <span className="bb-wallet-stat-count">{countFor(t)}</span>
               <span className="bb-wallet-stat-label">{TYPE_LABEL[t]}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Pill chips — same selection model, more compact, wraps */}
-      <div className="bb-wallet-tabs mt-3" role="tablist" aria-label="Wallet item type">
-        {tabs.map((t) => {
-          const TabIcon = TAB_ICONS[t]
-          const count = countFor(t)
-          return (
-            <button
-              key={`pill-${t}`}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === t}
-              onClick={() => setActiveTab(t)}
-              className={`bb-wallet-tab ${activeTab === t ? 'is-active' : ''}`}
-            >
-              <TabIcon size={14} aria-hidden="true" />
-              <span>{TYPE_LABEL[t]}</span>
-              {count > 0 && <span className="bb-wallet-tab-count">{count}</span>}
             </button>
           )
         })}

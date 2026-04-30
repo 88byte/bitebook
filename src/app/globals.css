@@ -2339,3 +2339,28 @@ body {
     grid-auto-columns: minmax(80px, 1fr);
   }
 }
+
+/* v27.0a.6: per-type icon on stat card — copper-filled circle, white icon */
+.bb-wallet-stat-card {
+  /* roomier — accommodate icon above the count */
+  min-height: 96px;
+  padding-top: 0.55rem;
+}
+
+.bb-wallet-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  margin-bottom: 0.2rem;
+  flex-shrink: 0;
+}
+
+.bb-wallet-stat-card.is-active .bb-wallet-stat-icon {
+  /* keep copper but add a subtle ring on the active card */
+  box-shadow: 0 0 0 2px rgba(176, 108, 60, 0.25);
+}
