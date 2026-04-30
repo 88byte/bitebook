@@ -14,7 +14,7 @@ import {
   restoreWalletItemAction,
   deleteWalletItemAction,
 } from '../../_lib/wallet-actions'
-import type { WalletItemType, WalletJurisdiction } from '../../_lib/wallet-utils'
+import { WALLET_TYPES_HUNTER, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
 import DateField from '../DateField'
 
 // Per-type fields are sourced from
@@ -115,6 +115,16 @@ export default function WalletItemForm({
   const isArchived = !!initial.archived_at
   const e = initial.extras ?? {}
 
+  // Hunter route locks the type dropdown to hunter types only — hunters
+  // cannot be issued guide credentials in real life, so guide_license /
+  // insurance / business_credential are not selectable from /app/h/wallet.
+  // Guide route shows all 8 types since guides can be dual-role (have
+  // personal hunter licenses).
+  const isHunterPath = basePath === '/app/h/wallet'
+  const visibleTypeOptions = isHunterPath
+    ? TYPE_OPTIONS.filter((o) => WALLET_TYPES_HUNTER.includes(o.value))
+    : TYPE_OPTIONS
+
   function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
     ev.preventDefault()
     setError(null)
@@ -163,7 +173,7 @@ export default function WalletItemForm({
               onChange={(ev) => setType(ev.target.value as WalletItemType)}
               className="bb-input"
             >
-              {TYPE_OPTIONS.map((o) => (
+              {visibleTypeOptions.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
