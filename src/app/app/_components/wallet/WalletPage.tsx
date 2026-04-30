@@ -51,6 +51,19 @@ const TYPE_EYEBROW: Record<WalletItemType, string> = {
   business_credential: 'Business Credential',
 }
 
+// Per-type watermark images (Flavio-supplied via Drive). v27.0a.7.
+// Permits reuse license art. Guide license reuses tag art. Stamps + harvest
+// report cards have no image yet — fall through to the lucide icon below
+// so they remain visually distinct (obvious "awaiting image" placeholder).
+const WATERMARK_IMG: Partial<Record<WalletItemType, string>> = {
+  license: '/bb-watermark-license.png',
+  tag: '/bb-watermark-tag.png',
+  permit: '/bb-watermark-license.png',
+  guide_license: '/bb-watermark-tag.png',
+  insurance: '/bb-watermark-insurance.png',
+  business_credential: '/bb-watermark-credentials.png',
+}
+
 type Props = {
   /** Path prefix for "Add new" / edit links — '/app/h/wallet' or '/app/wallet'. */
   basePath: '/app/h/wallet' | '/app/wallet'
@@ -297,6 +310,12 @@ function WalletHeroCard({
     : item.status === 'expired' ? 'Expired'
     : 'Archived'
 
+  const watermarkSrc = WATERMARK_IMG[item.type]
+  // Stamps + Report Cards have no Drive image yet — fall back to the type's
+  // lucide icon at large size with low opacity. Visually distinct from the
+  // photo watermarks so it's obvious those types are awaiting an image.
+  const FallbackIcon = TAB_ICONS[item.type] ?? Crosshair
+
   return (
     <Link
       href={`${basePath}/${item.id}/edit`}
@@ -304,7 +323,12 @@ function WalletHeroCard({
       aria-label={`${eyebrow} ${item.identifier}`}
     >
       <div className="bb-wallet-card-watermark" aria-hidden="true">
-        <Crosshair size={140} strokeWidth={1.2} />
+        {watermarkSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={watermarkSrc} alt="" className="bb-wallet-card-watermark-img" />
+        ) : (
+          <FallbackIcon size={140} strokeWidth={1.2} />
+        )}
       </div>
       <div className="bb-wallet-card-top">
         <p className="bb-wallet-card-eyebrow">{eyebrow}</p>

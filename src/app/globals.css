@@ -2364,3 +2364,24 @@ body {
   /* keep copper but add a subtle ring on the active card */
   box-shadow: 0 0 0 2px rgba(176, 108, 60, 0.25);
 }
+
+/* v27.0a.7: photographic watermark on hero card (right-aligned, faded) */
+.bb-wallet-card-watermark-img {
+  display: block;
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+  object-position: right center;
+  opacity: 0.16;
+  filter: brightness(1.15) contrast(0.95);
+  /* allow image-bleed beyond the card edge so the crest looks anchored
+     to the right side rather than floating in the middle */
+  margin-right: -32px;
+}
+
+@media (min-width: 768px) {
+  .bb-wallet-card-watermark-img {
+    width: 280px;
+    height: 280px;
+  }
+}
