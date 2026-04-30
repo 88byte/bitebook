@@ -22,6 +22,7 @@ export default async function HunterGuidesPage() {
         bgImage="/bb-network-hero.png"
         eyebrowColor="copper"
         showShield={false}
+        objectPosition="center 28%"
       />
 
       <div className="bb-net-section-head">

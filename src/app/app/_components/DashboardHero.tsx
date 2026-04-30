@@ -13,6 +13,7 @@ export default function DashboardHero({
   bgImage = '/bb-dashboard-hero.png',
   eyebrowColor = 'light',
   showShield = true,
+  objectPosition,
 }: {
   eyebrow: string
   title: string
@@ -20,6 +21,13 @@ export default function DashboardHero({
   bgImage?: string
   eyebrowColor?: 'light' | 'copper'
   showShield?: boolean
+  /**
+   * CSS object-position override for the bg image. v27.0a.16 — network +
+   * trips heroes need a non-center anchor so the figure's head stays in
+   * frame at wider desktop viewports. Defaults to "center" (dashboard
+   * behavior).
+   */
+  objectPosition?: string
 }) {
   const eyebrowClass =
     eyebrowColor === 'copper'
@@ -35,6 +43,7 @@ export default function DashboardHero({
         priority
         sizes="(max-width: 1024px) 100vw, 64rem"
         className="bb-dash-hero-img"
+        style={objectPosition ? { objectPosition } : undefined}
       />
       <div className="bb-dash-hero-overlay" />
       <div className="bb-dash-hero-inner">

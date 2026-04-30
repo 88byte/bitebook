@@ -3017,3 +3017,43 @@ body {
   gap: 1rem;
   justify-content: flex-end;
 }
+
+/* v27.0a.16: wallet carousel desktop chevrons (mobile keeps touch scroll-snap) */
+.bb-wallet-carousel-wrap {
+  position: relative;
+}
+
+/* Focus ring goes on the carousel itself for keyboard arrow nav */
+.bb-wallet-carousel:focus-visible {
+  outline: 2px solid rgba(176, 108, 60, 0.55);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.bb-wallet-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none; /* mobile-first hide */
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  border: 0;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 4px 10px rgba(11, 8, 6, 0.25);
+  transition: filter 0.12s, transform 0.05s;
+}
+.bb-wallet-nav:hover { filter: brightness(1.05); }
+.bb-wallet-nav:active { transform: translateY(calc(-50% + 1px)); }
+
+.bb-wallet-nav-prev { left: -0.6rem; }
+.bb-wallet-nav-next { right: -0.6rem; }
+
+@media (min-width: 768px) {
+  .bb-wallet-nav { display: inline-flex; }
+}

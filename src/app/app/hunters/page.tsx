@@ -79,6 +79,7 @@ export default async function HuntersPage() {
         bgImage="/bb-network-hero.png"
         eyebrowColor="copper"
         showShield={false}
+        objectPosition="center 28%"
       />
 
       {/* Invite-a-hunter card */}

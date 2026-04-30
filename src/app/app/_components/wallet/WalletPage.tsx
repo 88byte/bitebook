@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   FileText,
   Tag,
@@ -16,6 +16,8 @@ import {
   Plus,
   CalendarCheck,
   CircleCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -232,6 +234,26 @@ function WalletStatusSection({
   // the same outcome (see all without horizontal scrolling) without
   // adding a new route.
   const [expanded, setExpanded] = useState(false)
+  // v27.0a.16: desktop chevron navigation. Touch scroll-snap stays
+  // primary on mobile; the chevrons + keyboard arrows are an additional
+  // affordance for cursor-driven viewports.
+  const carouselRef = useRef<HTMLDivElement>(null)
+
+  function scrollByCard(direction: 1 | -1) {
+    const el = carouselRef.current
+    if (!el) return
+    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' })
+  }
+
+  function onCarouselKey(ev: React.KeyboardEvent<HTMLDivElement>) {
+    if (ev.key === 'ArrowRight') {
+      ev.preventDefault()
+      scrollByCard(1)
+    } else if (ev.key === 'ArrowLeft') {
+      ev.preventDefault()
+      scrollByCard(-1)
+    }
+  }
 
   return (
     <section className="bb-wallet-section mt-4">
@@ -266,22 +288,49 @@ function WalletStatusSection({
         </div>
       ) : (
         <>
-          <div
-            className="bb-wallet-carousel"
-            onScroll={(e) => {
-              const el = e.currentTarget
-              const w = el.clientWidth
-              if (w > 0) setPageIndex(Math.round(el.scrollLeft / w))
-            }}
-          >
-            {items.map((item) => (
-              <WalletHeroCard
-                key={item.id}
-                item={item}
-                basePath={basePath}
-                eyebrow={TYPE_EYEBROW[type]}
-              />
-            ))}
+          <div className="bb-wallet-carousel-wrap">
+            {items.length > 1 && (
+              <button
+                type="button"
+                className="bb-wallet-nav bb-wallet-nav-prev"
+                onClick={() => scrollByCard(-1)}
+                aria-label="Previous card"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            )}
+            <div
+              ref={carouselRef}
+              className="bb-wallet-carousel"
+              tabIndex={0}
+              role="region"
+              aria-label={`${title} carousel`}
+              onKeyDown={onCarouselKey}
+              onScroll={(e) => {
+                const el = e.currentTarget
+                const w = el.clientWidth
+                if (w > 0) setPageIndex(Math.round(el.scrollLeft / w))
+              }}
+            >
+              {items.map((item) => (
+                <WalletHeroCard
+                  key={item.id}
+                  item={item}
+                  basePath={basePath}
+                  eyebrow={TYPE_EYEBROW[type]}
+                />
+              ))}
+            </div>
+            {items.length > 1 && (
+              <button
+                type="button"
+                className="bb-wallet-nav bb-wallet-nav-next"
+                onClick={() => scrollByCard(1)}
+                aria-label="Next card"
+              >
+                <ChevronRight size={20} />
+              </button>
+            )}
           </div>
           {items.length > 1 && (
             <div className="bb-wallet-dots" aria-hidden="true">
