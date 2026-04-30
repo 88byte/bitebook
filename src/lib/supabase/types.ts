@@ -126,6 +126,7 @@ export type Database = {
           bio: string | null
           business_name: string | null
           created_at: string
+          guide_license_expires_at: string | null
           id: string
           license_number: string | null
           max_party_size: number
@@ -138,6 +139,7 @@ export type Database = {
           bio?: string | null
           business_name?: string | null
           created_at?: string
+          guide_license_expires_at?: string | null
           id?: string
           license_number?: string | null
           max_party_size?: number
@@ -150,6 +152,7 @@ export type Database = {
           bio?: string | null
           business_name?: string | null
           created_at?: string
+          guide_license_expires_at?: string | null
           id?: string
           license_number?: string | null
           max_party_size?: number
@@ -170,6 +173,7 @@ export type Database = {
       }
       harvests: {
         Row: {
+          consumed_wallet_item_id: string | null
           created_at: string
           harvested_at: string
           hunter_id: string | null
@@ -191,6 +195,7 @@ export type Database = {
           weight_lbs: number | null
         }
         Insert: {
+          consumed_wallet_item_id?: string | null
           created_at?: string
           harvested_at?: string
           hunter_id?: string | null
@@ -212,6 +217,7 @@ export type Database = {
           weight_lbs?: number | null
         }
         Update: {
+          consumed_wallet_item_id?: string | null
           created_at?: string
           harvested_at?: string
           hunter_id?: string | null
@@ -233,6 +239,13 @@ export type Database = {
           weight_lbs?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "harvests_consumed_wallet_item_id_fkey"
+            columns: ["consumed_wallet_item_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "harvests_hunter_id_fkey"
             columns: ["hunter_id"]
@@ -490,7 +503,9 @@ export type Database = {
       }
       outfitter_subscriptions: {
         Row: {
-          billing_interval: Database["public"]["Enums"]["subscription_interval"] | null
+          billing_interval:
+            | Database["public"]["Enums"]["subscription_interval"]
+            | null
           created_at: string
           current_period_end: string | null
           guide_id: string
@@ -502,7 +517,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          billing_interval?: Database["public"]["Enums"]["subscription_interval"] | null
+          billing_interval?:
+            | Database["public"]["Enums"]["subscription_interval"]
+            | null
           created_at?: string
           current_period_end?: string | null
           guide_id: string
@@ -514,7 +531,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          billing_interval?: Database["public"]["Enums"]["subscription_interval"] | null
+          billing_interval?:
+            | Database["public"]["Enums"]["subscription_interval"]
+            | null
           created_at?: string
           current_period_end?: string | null
           guide_id?: string
@@ -847,6 +866,48 @@ export type Database = {
           },
         ]
       }
+      trip_participants: {
+        Row: {
+          added_at: string
+          guest_name: string | null
+          hunter_id: string | null
+          id: string
+          role: string
+          trip_id: string
+        }
+        Insert: {
+          added_at?: string
+          guest_name?: string | null
+          hunter_id?: string | null
+          id?: string
+          role?: string
+          trip_id: string
+        }
+        Update: {
+          added_at?: string
+          guest_name?: string | null
+          hunter_id?: string | null
+          id?: string
+          role?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_participants_hunter_id_fkey"
+            columns: ["hunter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_participants_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_reviews: {
         Row: {
           comment: string | null
@@ -902,44 +963,54 @@ export type Database = {
           },
         ]
       }
-      trip_participants: {
+      trip_wallet_items: {
         Row: {
-          added_at: string
-          guest_name: string | null
-          hunter_id: string | null
+          action_status: Database["public"]["Enums"]["trip_wallet_action_status"]
+          completed_at: string | null
+          hunter_id: string
           id: string
-          role: string
+          linked_at: string
           trip_id: string
+          wallet_item_id: string
         }
         Insert: {
-          added_at?: string
-          guest_name?: string | null
-          hunter_id?: string | null
+          action_status?: Database["public"]["Enums"]["trip_wallet_action_status"]
+          completed_at?: string | null
+          hunter_id: string
           id?: string
-          role?: string
+          linked_at?: string
           trip_id: string
+          wallet_item_id: string
         }
         Update: {
-          added_at?: string
-          guest_name?: string | null
-          hunter_id?: string | null
+          action_status?: Database["public"]["Enums"]["trip_wallet_action_status"]
+          completed_at?: string | null
+          hunter_id?: string
           id?: string
-          role?: string
+          linked_at?: string
           trip_id?: string
+          wallet_item_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "trip_participants_hunter_id_fkey"
+            foreignKeyName: "trip_wallet_items_hunter_id_fkey"
             columns: ["hunter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "trip_participants_trip_id_fkey"
+            foreignKeyName: "trip_wallet_items_trip_id_fkey"
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_wallet_items_wallet_item_id_fkey"
+            columns: ["wallet_item_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_items"
             referencedColumns: ["id"]
           },
         ]
@@ -1036,6 +1107,7 @@ export type Database = {
           season_year: number | null
           species: string | null
           state: string | null
+          tagged_out_at: string | null
           type: Database["public"]["Enums"]["wallet_item_type"]
           updated_at: string
           user_id: string
@@ -1057,6 +1129,7 @@ export type Database = {
           season_year?: number | null
           species?: string | null
           state?: string | null
+          tagged_out_at?: string | null
           type: Database["public"]["Enums"]["wallet_item_type"]
           updated_at?: string
           user_id: string
@@ -1078,6 +1151,7 @@ export type Database = {
           season_year?: number | null
           species?: string | null
           state?: string | null
+          tagged_out_at?: string | null
           type?: Database["public"]["Enums"]["wallet_item_type"]
           updated_at?: string
           user_id?: string
@@ -1100,17 +1174,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      _is_trip_owner: { Args: { _trip_id: string; _user_id: string }; Returns: boolean }
-      _is_trip_participant: { Args: { _trip_id: string; _user_id: string }; Returns: boolean }
+      _is_trip_owner: {
+        Args: { _trip_id: string; _user_id: string }
+        Returns: boolean
+      }
+      _is_trip_participant: {
+        Args: { _trip_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       feedback_sentiment: "positive" | "neutral" | "negative"
       harvest_kind: "hunting" | "fishing"
-      invite_status: "pending" | "accepted" | "expired" | "revoked" | "canceled" | "removed"
+      invite_status:
+        | "pending"
+        | "accepted"
+        | "expired"
+        | "revoked"
+        | "canceled"
+        | "removed"
       media_kind: "photo" | "video"
       subscription_interval: "month" | "year"
-      subscription_status: "trialing" | "active" | "past_due" | "canceled" | "incomplete"
+      subscription_status:
+        | "trialing"
+        | "active"
+        | "past_due"
+        | "canceled"
+        | "incomplete"
       trip_status: "planned" | "active" | "completed" | "canceled"
+      trip_wallet_action_status: "pending" | "completed"
       user_role: "guide" | "hunter" | "admin"
       wallet_item_type:
         | "license"
@@ -1130,6 +1222,7 @@ export type Database = {
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
@@ -1142,15 +1235,19 @@ export type Tables<
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -1166,14 +1263,18 @@ export type TablesInsert<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends { Insert: infer I }
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
       ? I
       : never
     : never
@@ -1187,14 +1288,18 @@ export type TablesUpdate<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends { Update: infer U }
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
       ? U
       : never
     : never
@@ -1208,10 +1313,29 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
@@ -1219,11 +1343,25 @@ export const Constants = {
     Enums: {
       feedback_sentiment: ["positive", "neutral", "negative"],
       harvest_kind: ["hunting", "fishing"],
-      invite_status: ["pending", "accepted", "expired", "revoked", "canceled", "removed"],
+      invite_status: [
+        "pending",
+        "accepted",
+        "expired",
+        "revoked",
+        "canceled",
+        "removed",
+      ],
       media_kind: ["photo", "video"],
       subscription_interval: ["month", "year"],
-      subscription_status: ["trialing", "active", "past_due", "canceled", "incomplete"],
+      subscription_status: [
+        "trialing",
+        "active",
+        "past_due",
+        "canceled",
+        "incomplete",
+      ],
       trip_status: ["planned", "active", "completed", "canceled"],
+      trip_wallet_action_status: ["pending", "completed"],
       user_role: ["guide", "hunter", "admin"],
       wallet_item_type: [
         "license",
