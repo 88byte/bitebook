@@ -75,6 +75,52 @@ function basePathForRole(role: string): '/app/h/wallet' | '/app/wallet' {
   return role === 'hunter' ? '/app/h/wallet' : '/app/wallet'
 }
 
+// Read type-specific extras from the form. Per the canonical-fields research
+// at /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md.
+// Anything beyond the 9 structured columns (identifier, state, species, zone,
+// season_year, issue_date, valid_from, valid_to, jurisdiction) goes here.
+const EXTRAS_KEYS = [
+  // Insurance (ACORD 25 baseline; multi-coverage breakdown is a v27.0a.x add)
+  'insurer',
+  'policy_number',
+  'coverage_per_occurrence',
+  'coverage_aggregate',
+  'named_insured',
+  'additional_insured',
+  // Business credential
+  'credential_course',
+  'credential_level',
+  'issuer',
+  'instructor_id',
+  // Guide license
+  'license_class',
+  'business_name',
+  // Hunter license
+  'hunter_ed_number',
+  'license_type_code',
+  'residency',
+  // Tag
+  'tag_type',
+  'weapon_restriction',
+  'sex_restriction',
+  // Permit
+  'permit_type',
+  'landowner_name',
+  // Stamp
+  'stamp_signed',
+  // Harvest Report Card
+  'report_due_date',
+] as const
+
+function readExtras(fd: FormData): Record<string, string> | null {
+  const out: Record<string, string> = {}
+  for (const key of EXTRAS_KEYS) {
+    const v = fd.get(`extras_${key}`)
+    if (typeof v === 'string' && v.trim() !== '') out[key] = v.trim()
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
 export async function addWalletItemAction(formData: FormData): Promise<WalletActionResult> {
   const { profile } = await requireUser()
   const get = readForm(formData)
@@ -93,6 +139,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
     return { error: 'State is required for state-issued items.' }
   }
 
+  const extras = readExtras(formData)
   const insertPayload: WalletInsert = {
     user_id: profile.id,
     type: parsed.type,
@@ -106,6 +153,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
     valid_from: parsed.valid_from,
     valid_to: parsed.valid_to,
     notes: get('notes'),
+    extras,
   }
   const sb = await createClient()
   const { data, error } = await sb
@@ -139,6 +187,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     return { error: 'State is required for state-issued items.' }
   }
 
+  const extras = readExtras(formData)
   const updatePayload: WalletUpdate = {
     type: parsed.type,
     jurisdiction: parsed.jurisdiction,
@@ -151,6 +200,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     valid_from: parsed.valid_from,
     valid_to: parsed.valid_to,
     notes: get('notes'),
+    extras,
   }
   const sb = await createClient()
   const { error } = await sb
@@ -180,6 +230,23 @@ export async function archiveWalletItemAction(itemId: string): Promise<WalletAct
   if (error) {
     console.warn('[walletActions.archive]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not archive wallet item.' }
+  }
+  revalidatePath(basePathForRole(profile.role))
+  return { ok: true, id: itemId }
+}
+
+export async function restoreWalletItemAction(itemId: string): Promise<WalletActionResult> {
+  const { profile } = await requireUser()
+  if (!itemId) return { error: 'Missing item id.' }
+  const sb = await createClient()
+  const { error } = await sb
+    .from('wallet_items')
+    .update({ archived_at: null })
+    .eq('id', itemId)
+    .eq('user_id', profile.id)
+  if (error) {
+    console.warn('[walletActions.restore]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not restore wallet item.' }
   }
   revalidatePath(basePathForRole(profile.role))
   return { ok: true, id: itemId }

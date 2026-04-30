@@ -53,6 +53,7 @@ export default async function HunterWalletNewPage({
             valid_to: '',
             notes: null,
             archived_at: null,
+            extras: null,
           }}
         />
       </div>

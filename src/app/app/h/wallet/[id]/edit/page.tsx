@@ -51,6 +51,7 @@ export default async function HunterWalletEditPage({ params }: { params: RoutePa
             valid_to: item.valid_to,
             notes: item.notes,
             archived_at: item.archived_at,
+            extras: (item.extras as Record<string, string> | null) ?? null,
           }}
         />
       </div>
