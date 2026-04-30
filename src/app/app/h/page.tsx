@@ -25,8 +25,8 @@ export default async function HunterDashboardPage() {
     fetchHunterOnboardingProgress(supabase, user.id),
   ])
 
-  const isEmpty = upcoming.length === 0 && recent.length === 0
   const showBanner = !isHunterOnboarded(progress)
+  const upcomingCount = upcoming.length
 
   return (
     <main className="bb-app-main">
@@ -34,9 +34,9 @@ export default async function HunterDashboardPage() {
         eyebrow="Welcome"
         title={profile.display_name}
         subtitle={
-          isEmpty
-            ? 'No trips yet. Your guide will add you to a trip when they are ready.'
-            : `You have been on ${stats.trips} ${stats.trips === 1 ? 'trip' : 'trips'}.`
+          upcomingCount === 0
+            ? 'You have no upcoming trips.'
+            : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
       />
 

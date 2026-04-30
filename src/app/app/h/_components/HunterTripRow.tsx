@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Calendar, MapPin, Users, Trophy, Star } from 'lucide-react'
 import StatusPill from '../../_components/StatusPill'
+import TripDateBlock from '../../_components/TripDateBlock'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../../_lib/format'
 import type { Database } from '@/lib/supabase/types'
 
@@ -35,10 +36,7 @@ export default function HunterTripRow({
 
   return (
     <Link href={`/app/h/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
-      <div className="bb-trip-date" aria-hidden="true">
-        <span className="m">{tripMonth(trip.starts_at)}</span>
-        <span className="d">{tripDay(trip.starts_at)}</span>
-      </div>
+      <TripDateBlock month={tripMonth(trip.starts_at)} day={tripDay(trip.starts_at)} />
       <div className="bb-trip-body">
         <div className="bb-trip-title">{trip.title}</div>
         <div className="bb-trip-meta">

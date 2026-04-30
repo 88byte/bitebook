@@ -2668,3 +2668,53 @@ body {
   flex: 1 1 auto;
   width: 100%;
 }
+
+/* v27.0a.11: trip card calendar-shape date block (replaces the v26.5 plain
+   month/day stack). Three layered parts inside a small physical-calendar
+   silhouette: dark-green top tab + paper body with big bold day + faded
+   mountain SVG silhouette at the bottom. Uses currentColor on the SVG so
+   the silhouette inherits ink color and stays subtle. */
+
+.bb-trip-row { grid-template-columns: 4.6rem minmax(0, 1fr) auto; }
+
+.bb-trip-cal {
+  display: flex;
+  flex-direction: column;
+  width: 4.6rem;
+  background: #FAF7F2;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 10px;
+  overflow: hidden;
+  align-self: flex-start;
+  box-shadow: 0 1px 2px rgba(11, 8, 6, 0.04);
+}
+
+.bb-trip-cal-top {
+  background: #3F4B3A;
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.28rem 0 0.22rem;
+}
+
+.bb-trip-cal-day {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.7rem;
+  color: var(--color-ink);
+  text-align: center;
+  line-height: 1;
+  padding: 0.5rem 0 0.45rem;
+}
+
+.bb-trip-cal-mountains {
+  display: block;
+  width: 100%;
+  height: 22px;
+  color: var(--color-ink);
+  opacity: 0.18;
+}

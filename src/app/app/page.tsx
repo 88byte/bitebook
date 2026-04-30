@@ -38,9 +38,8 @@ export default async function DashboardPage() {
   ])
 
   const greetingName = guide?.business_name?.trim() || profile.display_name
-  const isEmpty = recent.length === 0 && upcoming.length === 0
   const showBanner = !isOnboarded(progress)
-  const totalTrips = recent.length + upcoming.length
+  const upcomingCount = upcoming.length
 
   return (
     <main className="bb-app-main">
@@ -48,9 +47,9 @@ export default async function DashboardPage() {
         eyebrow="Welcome back"
         title={greetingName}
         subtitle={
-          isEmpty
-            ? 'Start your first trip to begin logging hunts.'
-            : `You have ${totalTrips} ${totalTrips === 1 ? 'recent trip' : 'recent trips'}.`
+          upcomingCount === 0
+            ? 'You have no upcoming trips.'
+            : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
       />
 
