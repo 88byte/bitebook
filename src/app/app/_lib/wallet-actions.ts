@@ -256,6 +256,78 @@ export async function restoreWalletItemAction(itemId: string): Promise<WalletAct
   return { ok: true, id: itemId }
 }
 
+// v27.0b.1: manual tag-out. Hunter flips an active tag to `used` from the
+// wallet item edit page. Sets tagged_out_at = now(); deriveStatus reads
+// that and returns 'used' so the card moves to the Tagged Out section on
+// next render. Only valid for items of type 'tag'.
+export async function tagOutWalletItemAction(itemId: string): Promise<WalletActionResult> {
+  const { profile } = await requireUser()
+  if (!itemId) return { error: 'Missing item id.' }
+  const sb = await createClient()
+  // Verify item exists, is owned, and is a tag.
+  const { data: item, error: readErr } = await sb
+    .from('wallet_items')
+    .select('id, type, tagged_out_at, archived_at')
+    .eq('id', itemId)
+    .eq('user_id', profile.id)
+    .maybeSingle()
+  if (readErr || !item) {
+    return { error: readErr?.message || 'Wallet item not found.' }
+  }
+  if (item.type !== 'tag') {
+    return { error: 'Only tag items can be marked tagged out.' }
+  }
+  if (item.archived_at) {
+    return { error: 'Restore the item before marking tagged out.' }
+  }
+  const { error } = await sb
+    .from('wallet_items')
+    .update({ tagged_out_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .eq('user_id', profile.id)
+  if (error) {
+    console.warn('[walletActions.tagOut]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not mark tagged out.' }
+  }
+  revalidatePath(basePathForRole(profile.role))
+  return { ok: true, id: itemId }
+}
+
+// v27.0b.1: reverse manual tag-out. Refused if a harvest references this
+// wallet item via consumed_wallet_item_id (those go through harvest edit
+// or delete to unflip).
+export async function untagWalletItemAction(itemId: string): Promise<WalletActionResult> {
+  const { profile } = await requireUser()
+  if (!itemId) return { error: 'Missing item id.' }
+  const sb = await createClient()
+  // Block if a harvest currently consumes this tag.
+  const { data: linkedHarvests, error: hErr } = await sb
+    .from('harvests')
+    .select('id')
+    .eq('consumed_wallet_item_id', itemId)
+    .limit(1)
+  if (hErr) {
+    return { error: hErr.message || 'Could not verify harvest links.' }
+  }
+  if (linkedHarvests && linkedHarvests.length > 0) {
+    return {
+      error:
+        "This tag is linked to a harvest, can't unmark. Edit or delete the harvest first.",
+    }
+  }
+  const { error } = await sb
+    .from('wallet_items')
+    .update({ tagged_out_at: null })
+    .eq('id', itemId)
+    .eq('user_id', profile.id)
+  if (error) {
+    console.warn('[walletActions.untag]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not mark active.' }
+  }
+  revalidatePath(basePathForRole(profile.role))
+  return { ok: true, id: itemId }
+}
+
 export async function bulkArchiveExpiredAction(type: WalletItemType): Promise<WalletActionResult> {
   const { profile } = await requireUser()
   if (!ALL_TYPES.includes(type)) return { error: 'Invalid type.' }

@@ -28,6 +28,10 @@ export type WalletItemWithStatus = WalletItem & { status: WalletDerivedStatus }
 
 export function deriveStatus(item: WalletItem, now = new Date()): WalletDerivedStatus {
   if (item.archived_at) return 'archived'
+  // v27.0b.1: tagged_out_at takes priority over expired so a tag that
+  // was used right before its season expired still reads as a victory,
+  // not a stale expiration.
+  if (item.tagged_out_at) return 'used'
   const validTo = new Date(item.valid_to)
   if (Number.isNaN(validTo.getTime())) return 'active'
   if (validTo < new Date(now.toDateString())) return 'expired'

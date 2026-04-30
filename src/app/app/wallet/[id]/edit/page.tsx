@@ -54,6 +54,7 @@ export default async function GuideWalletEditPage({ params }: { params: RoutePar
             archived_at: item.archived_at,
             extras: (item.extras as Record<string, string> | null) ?? null,
             document_url: item.document_url,
+            tagged_out_at: item.tagged_out_at,
           }}
         />
       </div>

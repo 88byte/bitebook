@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   Crosshair,
   CircleCheck,
+  Trophy,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { WalletItemType, WalletItemWithStatus } from '../../_lib/wallet-utils'
@@ -80,10 +81,12 @@ export default function WalletHeroCard({
   const watermarkSrc = WATERMARK_IMG[item.type]
   const FallbackIcon = TAB_ICONS[item.type] ?? Crosshair
 
+  const isTaggedOut = item.status === 'used'
+
   return (
     <Link
       href={`${basePath}/${item.id}/edit`}
-      className={`bb-wallet-card${className ? ` ${className}` : ''}`}
+      className={`bb-wallet-card${isTaggedOut ? ' bb-wallet-card--used' : ''}${className ? ` ${className}` : ''}`}
       aria-label={`${eyebrow} ${item.identifier}`}
       style={style}
       onClick={onClick}
@@ -99,7 +102,21 @@ export default function WalletHeroCard({
       </div>
       <div className="bb-wallet-card-top">
         <p className="bb-wallet-card-eyebrow">{eyebrow}</p>
-        <h3 className="bb-wallet-card-title">{item.identifier || 'Untitled'}</h3>
+        <h3 className="bb-wallet-card-title">
+          {isTaggedOut && (
+            <Trophy
+              size={18}
+              aria-hidden="true"
+              style={{
+                display: 'inline-block',
+                marginRight: '0.4rem',
+                verticalAlign: '-2px',
+                color: 'var(--color-copper)',
+              }}
+            />
+          )}
+          {item.identifier || 'Untitled'}
+        </h3>
         {stateLine && <p className="bb-wallet-card-sub">{stateLine}</p>}
         {item.state && (
           <p className="bb-wallet-card-state">
@@ -111,7 +128,11 @@ export default function WalletHeroCard({
         <span
           className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}
         >
-          <CircleCheck size={12} aria-hidden="true" />
+          {isTaggedOut ? (
+            <Trophy size={12} aria-hidden="true" />
+          ) : (
+            <CircleCheck size={12} aria-hidden="true" />
+          )}
           {statusLabel}
         </span>
         <div className="bb-wallet-card-validity">

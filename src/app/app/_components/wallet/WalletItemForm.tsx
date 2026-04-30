@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import {
   PawPrint, Mountain, FileText, Map,
   Building2, ShieldCheck, GraduationCap, Briefcase,
+  Trophy, RotateCcw,
 } from 'lucide-react'
+import ConfirmModal from '@/app/_components/ConfirmModal'
 import { US_STATES } from '@/lib/us-states'
 import {
   addWalletItemAction,
@@ -13,6 +15,8 @@ import {
   archiveWalletItemAction,
   restoreWalletItemAction,
   deleteWalletItemAction,
+  tagOutWalletItemAction,
+  untagWalletItemAction,
 } from '../../_lib/wallet-actions'
 import { WALLET_TYPES_HUNTER, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
 import DateField from '../DateField'
@@ -42,6 +46,7 @@ type Initial = {
   archived_at: string | null
   extras: ExtrasShape
   document_url?: string | null
+  tagged_out_at?: string | null
 }
 
 const TYPE_OPTIONS: { value: WalletItemType; label: string }[] = [
@@ -119,8 +124,12 @@ export default function WalletItemForm({
   // document_url input below — the actual upload happens out-of-band
   // (already in Supabase Storage) by the time we reach submit.
   const [documentUrl, setDocumentUrl] = useState<string | null>(initial.document_url ?? null)
+  // v27.0b.1: confirm-modal state for the manual tag-out / mark-active flows.
+  const [confirmMode, setConfirmMode] = useState<null | 'tagOut' | 'untag'>(null)
 
   const isArchived = !!initial.archived_at
+  const isTaggedOut = !!initial.tagged_out_at
+  const isTagType = initial.type === 'tag'
   const e = initial.extras ?? {}
 
   // Hunter route locks the type dropdown to hunter types only — hunters
@@ -775,6 +784,31 @@ export default function WalletItemForm({
         <button type="submit" disabled={pending} className="bb-cta">
           {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
         </button>
+        {/* v27.0b.1: tag-only manual flip. */}
+        {initial.id && isTagType && !isArchived && !isTaggedOut && (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => setConfirmMode('tagOut')}
+            disabled={pending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Trophy size={14} aria-hidden="true" />
+            Mark as tagged out
+          </button>
+        )}
+        {initial.id && isTagType && !isArchived && isTaggedOut && (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => setConfirmMode('untag')}
+            disabled={pending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            Mark as active
+          </button>
+        )}
         {initial.id && !isArchived && (
           <button
             type="button"
@@ -818,6 +852,34 @@ export default function WalletItemForm({
           Cancel
         </button>
       </div>
+
+      {/* v27.0b.1: confirm modal for manual tag-out / mark-active */}
+      <ConfirmModal
+        open={confirmMode === 'tagOut'}
+        title="Mark this tag as used?"
+        body="It'll move to your Tagged Out section. You can flip it back later if it wasn't used."
+        confirmLabel="Mark tagged out"
+        cancelLabel="Cancel"
+        isPending={pending}
+        onConfirm={() => {
+          setConfirmMode(null)
+          callMutation(tagOutWalletItemAction)
+        }}
+        onCancel={() => setConfirmMode(null)}
+      />
+      <ConfirmModal
+        open={confirmMode === 'untag'}
+        title="Mark this tag as active?"
+        body="The tag goes back into your Active section. If a harvest is linked to this tag, you'll need to edit or delete the harvest first."
+        confirmLabel="Mark active"
+        cancelLabel="Cancel"
+        isPending={pending}
+        onConfirm={() => {
+          setConfirmMode(null)
+          callMutation(untagWalletItemAction)
+        }}
+        onCancel={() => setConfirmMode(null)}
+      />
     </form>
   )
 }

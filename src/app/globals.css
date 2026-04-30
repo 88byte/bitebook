@@ -3218,3 +3218,30 @@ body {
 @media (min-width: 768px) {
   .bb-wallet-deck { min-height: 280px; }
 }
+
+/* ── v27.0b.1: tagged-out celebration treatment ─────────────────────── */
+
+/* Solid copper-filled status pill instead of the muted rgba look. */
+.bb-wallet-card-status-used {
+  background: var(--color-copper) !important;
+  color: #FFFFFF !important;
+  border-color: var(--color-copper) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(176, 108, 60, 0.45);
+}
+
+/* Card itself gets a copper-tinted radial glow at the top-right + a
+   thin copper outline so the tagged-out card reads as a victory in the
+   Tagged Out section, not a dim/used-up downgrade. */
+.bb-wallet-card--used {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(176, 108, 60, 0.45) 0%, transparent 55%),
+    linear-gradient(135deg, #1F2419 0%, #0E1410 100%);
+  box-shadow:
+    0 0 0 1px rgba(176, 108, 60, 0.55),
+    0 14px 28px rgba(11, 8, 6, 0.30),
+    0 4px 10px rgba(11, 8, 6, 0.20),
+    0 0 24px rgba(176, 108, 60, 0.12);
+}
