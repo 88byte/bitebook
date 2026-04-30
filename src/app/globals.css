@@ -3057,3 +3057,89 @@ body {
 @media (min-width: 768px) {
   .bb-wallet-nav { display: inline-flex; }
 }
+
+/* ── v27.0a.17: wallet deck (replaces carousel) ─────────────────────── */
+
+.bb-wallet-deck {
+  position: relative;
+  width: 100%;
+  /* min-height tracks the hero card min-height plus a buffer for fan-out
+     translateY arc + stack peek offset. Cards inside are absolute. */
+  min-height: 220px;
+  outline: none;
+  cursor: grab;
+  perspective: 1200px;
+  /* Touch interactions are managed by JS (drag); CSS only handles taps. */
+  touch-action: pan-y;
+}
+
+.bb-wallet-deck:focus-visible {
+  outline: 2px solid rgba(176, 108, 60, 0.55);
+  outline-offset: 6px;
+  border-radius: 14px;
+}
+
+.bb-wallet-deck-slot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity, filter;
+  transition: transform 200ms ease-out, opacity 200ms ease-out, filter 200ms ease-out;
+}
+
+/* Cards inside the slot fill it; override the carousel-era flex sizing. */
+.bb-wallet-deck-slot .bb-wallet-card {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: none;
+}
+
+/* Desktop fan: when the deck is hovered, slots spread horizontally.
+   Hovering a single card inside the fan raises it + adds a copper outline. */
+@media (hover: hover) {
+  .bb-wallet-deck.is-fanned .bb-wallet-deck-slot:hover {
+    transform: var(--fan-tx, translate3d(0, -8px, 0)) scale(1.04) !important;
+    z-index: 200 !important;
+    filter: brightness(1) !important;
+  }
+  .bb-wallet-deck.is-fanned .bb-wallet-deck-slot:hover .bb-wallet-card {
+    box-shadow: 0 0 0 2px var(--color-copper), 0 14px 28px rgba(11, 8, 6, 0.32);
+  }
+}
+
+/* +N more tile when items.length > FAN_SHOW (5) and the deck is fanned. */
+.bb-wallet-deck-more {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  background: rgba(31, 36, 25, 0.08);
+  border: 1px dashed var(--color-card-divider);
+  border-radius: 16px;
+  color: var(--color-ink-muted);
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+}
+
+.bb-wallet-deck-more-num {
+  font-size: 1.6rem;
+  color: var(--color-ink);
+}
+
+.bb-wallet-deck-more-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-soft);
+}
+
+/* The deck container needs slack on the right so fanned cards have room. */
+@media (min-width: 768px) {
+  .bb-wallet-deck {
+    min-height: 240px;
+    margin-right: 12rem;
+  }
+}

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   FileText,
   Tag,
@@ -12,12 +12,8 @@ import {
   Award,
   ShieldCheck,
   BadgeCheck,
-  Crosshair,
   Plus,
   CalendarCheck,
-  CircleCheck,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -27,6 +23,8 @@ import {
   type WalletItemType,
   type WalletItemWithStatus,
 } from '../../_lib/wallet-utils'
+import WalletHeroCard from './WalletHeroCard'
+import WalletDeck from './WalletDeck'
 
 // Per-type icons used on stat cards (copper-filled circle, white icon).
 // Selections per Flavio's v27.0a.6 spec.
@@ -51,20 +49,6 @@ const TYPE_EYEBROW: Record<WalletItemType, string> = {
   guide_license: 'Guide License',
   insurance: 'Insurance',
   business_credential: 'Business Credential',
-}
-
-// Per-type watermark images (Flavio-supplied via Drive). v27.0a.13: every
-// wallet type now has a real image — stamps and harvest_report_card
-// added, no more lucide fallbacks anywhere.
-const WATERMARK_IMG: Partial<Record<WalletItemType, string>> = {
-  license: '/bb-watermark-license.png',
-  tag: '/bb-watermark-tag.png',
-  permit: '/bb-watermark-permit.png',
-  stamp: '/bb-watermark-stamp.png',
-  harvest_report_card: '/bb-watermark-harvest-report.png',
-  insurance: '/bb-watermark-insurance.png',
-  guide_license: '/bb-watermark-insurance.png',
-  business_credential: '/bb-watermark-credentials.png',
 }
 
 type Props = {
@@ -227,33 +211,10 @@ function WalletStatusSection({
   emptyTitle: string
   emptySub: string
 }) {
-  const [pageIndex, setPageIndex] = useState(0)
-  // v27.0a.10: "View all" toggle — flips the carousel into a vertical
-  // stack of every card in this status bucket. Real navigation to a
-  // dedicated list page is still on the roadmap; expanding inline gives
-  // the same outcome (see all without horizontal scrolling) without
-  // adding a new route.
+  // v27.0a.10: "View all" toggle — flips the deck into a vertical stack of
+  // every card in this status bucket. Deck (idle) shows top + 2 peeks;
+  // expanded shows everything full-width.
   const [expanded, setExpanded] = useState(false)
-  // v27.0a.16: desktop chevron navigation. Touch scroll-snap stays
-  // primary on mobile; the chevrons + keyboard arrows are an additional
-  // affordance for cursor-driven viewports.
-  const carouselRef = useRef<HTMLDivElement>(null)
-
-  function scrollByCard(direction: 1 | -1) {
-    const el = carouselRef.current
-    if (!el) return
-    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' })
-  }
-
-  function onCarouselKey(ev: React.KeyboardEvent<HTMLDivElement>) {
-    if (ev.key === 'ArrowRight') {
-      ev.preventDefault()
-      scrollByCard(1)
-    } else if (ev.key === 'ArrowLeft') {
-      ev.preventDefault()
-      scrollByCard(-1)
-    }
-  }
 
   return (
     <section className="bb-wallet-section mt-4">
@@ -287,136 +248,15 @@ function WalletStatusSection({
           ))}
         </div>
       ) : (
-        <>
-          <div className="bb-wallet-carousel-wrap">
-            {items.length > 1 && (
-              <button
-                type="button"
-                className="bb-wallet-nav bb-wallet-nav-prev"
-                onClick={() => scrollByCard(-1)}
-                aria-label="Previous card"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <div
-              ref={carouselRef}
-              className="bb-wallet-carousel"
-              tabIndex={0}
-              role="region"
-              aria-label={`${title} carousel`}
-              onKeyDown={onCarouselKey}
-              onScroll={(e) => {
-                const el = e.currentTarget
-                const w = el.clientWidth
-                if (w > 0) setPageIndex(Math.round(el.scrollLeft / w))
-              }}
-            >
-              {items.map((item) => (
-                <WalletHeroCard
-                  key={item.id}
-                  item={item}
-                  basePath={basePath}
-                  eyebrow={TYPE_EYEBROW[type]}
-                />
-              ))}
-            </div>
-            {items.length > 1 && (
-              <button
-                type="button"
-                className="bb-wallet-nav bb-wallet-nav-next"
-                onClick={() => scrollByCard(1)}
-                aria-label="Next card"
-              >
-                <ChevronRight size={20} />
-              </button>
-            )}
-          </div>
-          {items.length > 1 && (
-            <div className="bb-wallet-dots" aria-hidden="true">
-              {items.map((_, i) => (
-                <span
-                  key={i}
-                  className={`bb-wallet-dot ${i === pageIndex ? 'is-active' : ''}`}
-                />
-              ))}
-            </div>
-          )}
-        </>
+        <WalletDeck
+          items={items}
+          basePath={basePath}
+          eyebrow={TYPE_EYEBROW[type]}
+          type={type}
+          ariaLabel={`${title} ${TYPE_LABEL[type]} cards`}
+        />
       )}
     </section>
-  )
-}
-
-function WalletHeroCard({
-  item,
-  basePath,
-  eyebrow,
-}: {
-  item: WalletItemWithStatus
-  basePath: string
-  eyebrow: string
-}) {
-  const validToFmt = item.valid_to
-    ? new Date(item.valid_to).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : '—'
-  const stateLine = [
-    item.state ?? null,
-    item.season_year ? `${item.season_year}` : null,
-  ].filter(Boolean).join(' · ')
-  const statusLabel =
-    item.status === 'active' ? 'Active'
-    : item.status === 'used' ? 'Tagged out'
-    : item.status === 'expired' ? 'Expired'
-    : 'Archived'
-
-  const watermarkSrc = WATERMARK_IMG[item.type]
-  // Stamps + Report Cards have no Drive image yet — fall back to the type's
-  // lucide icon at large size with low opacity. Visually distinct from the
-  // photo watermarks so it's obvious those types are awaiting an image.
-  const FallbackIcon = TAB_ICONS[item.type] ?? Crosshair
-
-  return (
-    <Link
-      href={`${basePath}/${item.id}/edit`}
-      className="bb-wallet-card"
-      aria-label={`${eyebrow} ${item.identifier}`}
-    >
-      <div className="bb-wallet-card-watermark" aria-hidden="true">
-        {watermarkSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={watermarkSrc} alt="" className="bb-wallet-card-watermark-img" />
-        ) : (
-          <FallbackIcon size={140} strokeWidth={1.2} />
-        )}
-      </div>
-      <div className="bb-wallet-card-top">
-        <p className="bb-wallet-card-eyebrow">{eyebrow}</p>
-        <h3 className="bb-wallet-card-title">{item.identifier || 'Untitled'}</h3>
-        {stateLine && <p className="bb-wallet-card-sub">{stateLine}</p>}
-        {item.state && (
-          <p className="bb-wallet-card-state">
-            {expandStateLabel(item.state)}
-          </p>
-        )}
-      </div>
-      <div className="bb-wallet-card-bottom">
-        <span
-          className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}
-        >
-          <CircleCheck size={12} aria-hidden="true" />
-          {statusLabel}
-        </span>
-        <div className="bb-wallet-card-validity">
-          <p className="bb-wallet-card-validity-eyebrow">Valid through</p>
-          <p className="bb-wallet-card-validity-date">{validToFmt}</p>
-        </div>
-      </div>
-    </Link>
   )
 }
 
@@ -440,19 +280,3 @@ function EmptyState({
   )
 }
 
-// 2-letter US state code → "FULL NAME". Falls back to the raw value.
-function expandStateLabel(state: string): string {
-  const map: Record<string, string> = {
-    AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-    CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-    HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-    KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-    MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-    MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-    NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-    OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-    SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-    VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
-  }
-  return (map[state.toUpperCase()] ?? state).toUpperCase()
-}
