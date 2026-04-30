@@ -44,6 +44,13 @@ export default function TripRow({
 
   return (
     <Link href={`/app/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/bb-card-watermark.png"
+        alt=""
+        aria-hidden="true"
+        className="bb-trip-card-watermark"
+      />
       <TripDateBlock month={tripMonth(trip.starts_at)} day={tripDay(trip.starts_at)} />
       <div className="bb-trip-body">
         <div className="bb-trip-title">{trip.title}</div>

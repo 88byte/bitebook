@@ -2915,3 +2915,34 @@ body {
   margin-right: -16px;
   margin-bottom: -8px;
 }
+
+/* v27.0a.14: bb-card-watermark.png on trip cards — bottom-right anchor,
+   16% opacity, behind the date block + body + status pill. */
+.bb-trip-row {
+  position: relative;
+  overflow: hidden;
+}
+
+.bb-trip-card-watermark {
+  position: absolute;
+  right: -16px;
+  bottom: -10px;
+  width: 180px;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: right bottom;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Lift the actual card content above the watermark. .bb-trip-row uses a
+   CSS grid, so each immediate child is a grid cell — date block, body,
+   and status pill all need explicit positioning + z-index. */
+.bb-trip-row > .bb-trip-cal,
+.bb-trip-row > .bb-trip-body,
+.bb-trip-row > .bb-pill {
+  position: relative;
+  z-index: 1;
+}
