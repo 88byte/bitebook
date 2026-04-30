@@ -1,20 +1,15 @@
 'use client'
 
-import { useRef, useState, useId } from 'react'
+import { useState, useId } from 'react'
 import { Calendar } from 'lucide-react'
 
-// v26.5.3: custom datetime field for /app/trips/new + /app/trips/[id]/edit.
-// The native <input type="datetime-local"> renders its value as "MM/DD/YYYY,
-// HH:MM AM" (or worse on iOS Safari where it shows "Apr 28, 2026 at 11:45 AM")
-// — too long to fit in a 2-col grid cell at 375px iPhone. Flavio repeatedly
-// flagged the overflow.
-//
-// Approach: render a styled <button> that displays our short format
-// ("Apr 28, 11:45 AM") and a hidden <input type="datetime-local"> behind it.
-// Tapping the button calls input.showPicker() which opens the native iOS /
-// Android wheel picker. The hidden input still participates in form
-// submission, so server actions read it as before — no change to
-// createTripAction / updateTripAction signatures needed.
+// v27.0a.23: overlay-input pattern (same as DateField v27.0a.3 fix). The
+// real <input type="datetime-local"> sits ON TOP of the styled display
+// with opacity:0 + cursor:pointer. The user's tap hits the real input
+// directly, preserving the user gesture, so iOS Safari opens the picker
+// natively. v26.5.3's button + showPicker() pattern broke on iOS because
+// the hidden input had pointer-events:none + tabIndex=-1, which iOS
+// treats as non-interactive — picker call rejected.
 export default function DateTimeField({
   name,
   defaultValue = '',
@@ -27,34 +22,16 @@ export default function DateTimeField({
   ariaLabel?: string
 }) {
   const id = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(defaultValue)
 
   const display = value ? formatShort(value) : 'Select date & time'
 
-  function openPicker() {
-    const el = inputRef.current
-    if (!el) return
-    if (typeof el.showPicker === 'function') {
-      try {
-        el.showPicker()
-        return
-      } catch {
-        // Fall through to focus+click in browsers where showPicker is gated.
-      }
-    }
-    el.focus()
-    el.click()
-  }
-
   return (
     <div className="bb-datetime-field" style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={openPicker}
+      {/* Visual surface — purely presentational, sits behind the input */}
+      <div
         className="bb-input bb-input-iconed bb-datetime-display"
-        aria-label={ariaLabel ?? 'Pick date and time'}
-        aria-haspopup="dialog"
+        aria-hidden="true"
       >
         <span className="bb-field-icon" aria-hidden="true">
           <Calendar size={18} />
@@ -67,25 +44,27 @@ export default function DateTimeField({
         >
           {display}
         </span>
-      </button>
+      </div>
+      {/* Real interactive input — overlaid on top, invisible. Picker fires
+          natively on tap because user gesture lands on a real interactive
+          input. DO NOT add pointer-events:none / tabIndex=-1 / aria-hidden
+          here — iOS refuses to open the picker on inputs that aren't
+          interactive at the moment of tap. */}
       <input
-        ref={inputRef}
         id={id}
         type="datetime-local"
         name={name}
         value={value}
         required={required}
         onChange={(e) => setValue(e.target.value)}
-        aria-hidden="true"
-        tabIndex={-1}
-        className="bb-datetime-hidden"
+        aria-label={ariaLabel ?? 'Pick date and time'}
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
           opacity: 0,
-          pointerEvents: 'none',
+          cursor: 'pointer',
         }}
       />
     </div>
@@ -94,8 +73,6 @@ export default function DateTimeField({
 
 // "yyyy-MM-ddTHH:mm" → "Apr 28, 11:45 AM"
 function formatShort(localInput: string): string {
-  // Parse as local time (datetime-local has no timezone). Construct via Date
-  // constructor so the user's locale time is preserved.
   const [datePart, timePart] = localInput.split('T')
   if (!datePart || !timePart) return localInput
   const [y, m, d] = datePart.split('-').map(Number)

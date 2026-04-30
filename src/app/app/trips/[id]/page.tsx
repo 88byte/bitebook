@@ -286,6 +286,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                   tripId={trip.id}
                   tripKind={trip.kind}
                   defaultMethod={trip.method ?? null}
+                  defaultSpecies={trip.species_targeted ?? null}
                   participants={harvestParticipants}
                   tagOptionsByHunter={tagOptionsByHunter}
                 />

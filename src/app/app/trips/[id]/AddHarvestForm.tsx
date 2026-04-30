@@ -26,6 +26,10 @@ type Props = {
   tripId: string
   tripKind: 'hunting' | 'fishing'
   defaultMethod: string | null
+  /** v27.0a.23: trip's structured species_targeted, used to prefill the
+   * Species field so guides aren't re-typing it. Guide can override for
+   * opportunistic harvests. */
+  defaultSpecies: string | null
   participants: ParticipantOption[]
   /** v27.0b.2.1: per-hunter active tag inventory + default selection.
    * Always shows the hunter's full active tag list; trip_wallet_items
@@ -49,7 +53,7 @@ type Props = {
 // Data fetch lives in the parent server component (trips/[id]/page.tsx)
 // and is recomputed on every page load — no client-side memoization, so
 // hunter wallet edits propagate next time the guide reopens this page.
-export default function AddHarvestForm({ tripId, tripKind, defaultMethod, participants, tagOptionsByHunter }: Props) {
+export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaultSpecies, participants, tagOptionsByHunter }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
@@ -170,6 +174,7 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, partic
             name="species_name"
             type="text"
             required
+            defaultValue={defaultSpecies ?? ''}
             placeholder={tripKind === 'fishing' ? 'Rainbow trout' : 'Black bear'}
             className="bb-input"
             autoComplete="off"
