@@ -153,11 +153,14 @@ export default function WalletDeck({
       }
     }
     if (pos < MAX_PEEKS) {
-      const ty = pos * 11
+      // v27.0a.19: bigger Y step (14), bigger rotation (-2 per layer),
+      // and per-peek scale-down for a universal depth cue.
+      const ty = pos * 14
       const tx = pos * 4
-      const rot = -1.5 * pos
+      const rot = -2 * pos
+      const scale = 1 - pos * 0.03
       return {
-        transform: `translate3d(${tx}px, ${ty}px, 0) rotate(${rot}deg)`,
+        transform: `translate3d(${tx}px, ${ty}px, 0) rotate(${rot}deg) scale(${scale})`,
         zIndex: 100 - pos,
         opacity: 1,
         filter: `brightness(${1 + pos * 0.06}) saturate(0.94)`,

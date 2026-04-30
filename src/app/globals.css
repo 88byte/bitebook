@@ -3187,3 +3187,34 @@ body {
 @media (min-width: 768px) {
   .bb-wallet-deck { min-height: 260px; }
 }
+
+/* v27.0a.19: stronger top-edge rim on peek cards (0.18 → 0.30) and a
+   touch more vertical room to fit the new bigger peek offsets + scale. */
+
+.bb-wallet-deck-slot--peek .bb-wallet-card {
+  box-shadow:
+    0 -3px 6px rgba(0, 0, 0, 0.40),
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    inset 0 2px 0 rgba(231, 219, 196, 0.30);
+}
+
+.bb-wallet-deck-slot--peek-1 .bb-wallet-card {
+  box-shadow:
+    0 -4px 8px rgba(0, 0, 0, 0.44),
+    0 2px 8px rgba(0, 0, 0, 0.20),
+    inset 0 2px 0 rgba(231, 219, 196, 0.30);
+}
+
+.bb-wallet-deck-slot--peek-2 .bb-wallet-card {
+  box-shadow:
+    0 -5px 10px rgba(0, 0, 0, 0.48),
+    0 2px 10px rgba(0, 0, 0, 0.22),
+    inset 0 2px 0 rgba(231, 219, 196, 0.32);
+}
+
+/* Peek 2 sits at +28px Y; scale(0.94) doesn't grow the box but the
+   ridge of separated edges needs more breathing room above + below. */
+.bb-wallet-deck { min-height: 260px; }
+@media (min-width: 768px) {
+  .bb-wallet-deck { min-height: 280px; }
+}
