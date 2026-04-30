@@ -50,8 +50,8 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
     <main className="bb-app-main">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <p className="bb-page-eyebrow">All trips</p>
-          <h1 className="bb-page-title">Trips</h1>
+          <p className="bb-page-eyebrow">Your trips</p>
+          <h1 className="bb-page-title">My trips</h1>
           <p className="bb-page-sub">
             {total} {total === 1 ? 'trip' : 'trips'}
             {status !== 'all' ? ` · ${STATUSES.find((s) => s.key === status)?.label}` : ''}

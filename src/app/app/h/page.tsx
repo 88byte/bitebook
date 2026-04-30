@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { Calendar, Trophy, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { requireHunter } from '../_lib/auth'
 import {
   fetchHunterUpcomingTrips,
@@ -6,20 +8,13 @@ import {
   fetchHunterStats,
 } from '../_lib/queries'
 import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
-import Widget from '../_components/Widget'
 import HunterTripRow from './_components/HunterTripRow'
 import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
+import DashboardHero from '../_components/DashboardHero'
 
-// v25.1: hunter dashboard. Stats row + recent trips. Hunters don't create
-// trips, so there are no add-trip CTAs here — guides do that.
-//
-// v26.0 Batch A: shows a HunterOnboardingBanner at the top of the grid when
-// onboarding is incomplete (3-step checklist on /app/h/welcome).
-//
-// v26.5.7: matched to the guide dashboard structure — Upcoming widget
-// (planned/active by date) AND Recent widget (wrapped trips by updated_at).
-// Dropped the "Your guides" widget per Flavio: guides remain accessible via
-// the dedicated /app/h/guides tab.
+// v27.0a.9: hunter dashboard mirror of the guide rebuild — same hero +
+// stat trio + section pattern. No Quick Actions / Pending Invites cards
+// (hunters can't create trips or send invites — guides do that).
 export default async function HunterDashboardPage() {
   const { supabase, user, profile } = await requireHunter()
 
@@ -35,113 +30,106 @@ export default async function HunterDashboardPage() {
 
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Welcome</p>
-        <h1 className="bb-page-title">{profile.display_name}</h1>
-        <p className="bb-page-sub">
-          {isEmpty
+      <DashboardHero
+        eyebrow="Welcome"
+        title={profile.display_name}
+        subtitle={
+          isEmpty
             ? 'No trips yet. Your guide will add you to a trip when they are ready.'
-            : `You have been on ${stats.trips} ${stats.trips === 1 ? 'trip' : 'trips'}.`}
-        </p>
-      </header>
+            : `You have been on ${stats.trips} ${stats.trips === 1 ? 'trip' : 'trips'}.`
+        }
+      />
 
-      <div className="bb-dash-grid mt-4">
-        {showBanner && (
-          <div className="bb-dash-cell-12" data-order-mobile="0">
-            <HunterOnboardingBanner progress={progress} />
+      {showBanner && (
+        <div className="mt-4">
+          <HunterOnboardingBanner progress={progress} />
+        </div>
+      )}
+
+      <div className="bb-stat-row mt-4">
+        <StatIconedCard icon={Calendar} value={stats.trips} label="Trips you've been on" />
+        <StatIconedCard icon={Trophy} value={stats.harvests} label="Harvests" />
+        <StatIconedCard icon={Users} value={stats.guides} label="Guides" />
+      </div>
+
+      <section className="mt-5">
+        <div className="bb-dash-section-head">
+          <span className="bb-dash-section-title">Upcoming trips</span>
+          {upcoming.length > 0 && (
+            <Link href="/app/h/trips" className="bb-text-action bb-text-action-copper">
+              View all
+            </Link>
+          )}
+        </div>
+        {upcoming.length === 0 ? (
+          <div className="bb-empty">
+            <div className="bb-empty-title">No upcoming trips</div>
+            <p className="bb-empty-sub">
+              Your guide will add you to a trip when they are ready. You will get an email when they do.
+            </p>
+          </div>
+        ) : (
+          <div role="list" className="flex flex-col gap-3">
+            {upcoming.map((t) => (
+              <div role="listitem" key={t.id}>
+                <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} />
+              </div>
+            ))}
           </div>
         )}
+      </section>
 
-        <section
-          aria-labelledby="hunter-stats"
-          className="bb-dash-cell-12"
-          data-order-mobile="1"
-        >
-          <h2 id="hunter-stats" className="sr-only">Your stats</h2>
-          <div className="bb-stat-grid">
-            <Stat label="Trips you've been on" value={stats.trips} />
-            <Stat label="Harvests" value={stats.harvests} />
-            <Stat label="Guides" value={stats.guides} />
+      <section className="mt-5">
+        <div className="bb-dash-section-head">
+          <span className="bb-dash-section-title">Recent trips</span>
+          {recent.length > 0 && (
+            <Link
+              href="/app/h/trips?status=completed"
+              className="bb-text-action bb-text-action-copper"
+            >
+              View all
+            </Link>
+          )}
+        </div>
+        {recent.length === 0 ? (
+          <div className="bb-empty">
+            <div className="bb-empty-title">No wrapped trips yet</div>
+            <p className="bb-empty-sub">
+              Once your guide wraps a hunt, it will show up here so you can leave a review.
+            </p>
           </div>
-        </section>
-
-        <div className="bb-dash-cell-12" data-order-mobile="2">
-          <Widget
-            title="Upcoming trips"
-            action={
-              upcoming.length > 0 ? (
-                <Link
-                  href="/app/h/trips"
-                  className="bb-widget-link"
-                  style={{ color: 'var(--color-copper)' }}
-                >
-                  See all
-                </Link>
-              ) : null
-            }
-          >
-            {upcoming.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No upcoming trips</div>
-                <p className="bb-empty-sub">
-                  Your guide will add you to a trip when they are ready. You will get an email when they do.
-                </p>
+        ) : (
+          <div role="list" className="flex flex-col gap-3">
+            {recent.map((t) => (
+              <div role="listitem" key={t.id}>
+                <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} />
               </div>
-            ) : (
-              <div role="list" className="flex flex-col gap-4">
-                {upcoming.map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-12" data-order-mobile="3">
-          <Widget
-            title="Recent trips"
-            action={
-              recent.length > 0 ? (
-                <Link
-                  href="/app/h/trips?status=completed"
-                  className="bb-widget-link"
-                  style={{ color: 'var(--color-copper)' }}
-                >
-                  See all
-                </Link>
-              ) : null
-            }
-          >
-            {recent.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No wrapped trips yet</div>
-                <p className="bb-empty-sub">
-                  Once your guide wraps a hunt, it will show up here so you can leave a review.
-                </p>
-              </div>
-            ) : (
-              <div role="list" className="flex flex-col gap-4">
-                {recent.map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Widget>
-        </div>
-      </div>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function StatIconedCard({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: LucideIcon
+  value: number
+  label: string
+}) {
   return (
-    <div className="bb-stat-card">
-      <div className="bb-stat-value">{value}</div>
-      <div className="bb-stat-label">{label}</div>
+    <div className="bb-stat-card-iconed">
+      <span className="bb-stat-icon" aria-hidden="true">
+        <Icon size={16} />
+      </span>
+      <span className="bb-stat-text">
+        <span className="v">{value}</span>
+        <span className="l">{label}</span>
+      </span>
     </div>
   )
 }

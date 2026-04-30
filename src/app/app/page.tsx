@@ -1,5 +1,14 @@
 import Link from 'next/link'
-import { Plus, UserPlus, Upload, ArrowRight } from 'lucide-react'
+import {
+  Plus,
+  UserPlus,
+  Upload,
+  ArrowRight,
+  Users,
+  Calendar,
+  Trophy,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { requireGuide } from './_lib/auth'
 import {
   fetchRecentTrips,
@@ -9,9 +18,14 @@ import {
 } from './_lib/queries'
 import { fetchOnboardingProgress, isOnboarded } from './_lib/onboarding'
 import TripRow from './_components/TripRow'
-import Widget from './_components/Widget'
 import OnboardingBanner from './_components/OnboardingBanner'
+import DashboardHero from './_components/DashboardHero'
 
+// v27.0a.9: dashboard rebuilt to Flavio's mockup. Hero banner with the new
+// bb-dashboard-hero.png + 3-card Quick Actions row, single Pending Invites
+// card, 3 stat cards with icons, and bare Upcoming + Recent sections (no
+// Widget tile wrapper — just an eyebrow head + "View all" link + TripRow
+// stack). Onboarding banner stays above the grid for non-onboarded users.
 export default async function DashboardPage() {
   const { supabase, user, profile, guide } = await requireGuide()
 
@@ -24,159 +38,192 @@ export default async function DashboardPage() {
   ])
 
   const greetingName = guide?.business_name?.trim() || profile.display_name
-  const isEmpty = recent.length === 0
+  const isEmpty = recent.length === 0 && upcoming.length === 0
   const showBanner = !isOnboarded(progress)
-  // v25.1: the v24.1 hideNewTripCtas dedupe was an over-correction. Both the
-  // OnboardingBanner (which routes to /app/welcome — a guided checklist) and
-  // Quick Actions (which jumps straight to /app/trips/new) intentionally
-  // expose distinct paths. Restore all three quick actions and the dedicated
-  // empty-state CTA, and drop the duplicate header "+ New trip" button —
-  // Quick Actions owns that CTA on the dashboard now.
-  // v26.1.2: dashboard reordered so Upcoming Trips renders above Recent
-  // Trips — guides care more about what's NEXT than what's already done.
-  // Documents widget removed (reachable via mobile drawer / desktop sidebar
-  // / Docs nav, no longer warrants its own dashboard tile).
+  const totalTrips = recent.length + upcoming.length
 
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Welcome back</p>
-        <h1 className="bb-page-title">{greetingName}</h1>
-        <p className="bb-page-sub">
-          {isEmpty
+      <DashboardHero
+        eyebrow="Welcome back"
+        title={greetingName}
+        subtitle={
+          isEmpty
             ? 'Start your first trip to begin logging hunts.'
-            : `You have ${recent.length} recent ${recent.length === 1 ? 'trip' : 'trips'}.`}
-        </p>
-      </header>
+            : `You have ${totalTrips} ${totalTrips === 1 ? 'recent trip' : 'recent trips'}.`
+        }
+      />
 
-      <div className="bb-dash-grid mt-4">
-        {showBanner && (
-          <div className="bb-dash-cell-12" data-order-mobile="1">
-            <OnboardingBanner progress={progress} />
+      {showBanner && <div className="mt-4"><OnboardingBanner progress={progress} /></div>}
+
+      {/* Quick Actions */}
+      <h2 className="bb-dash-section-title mt-4">Quick Actions</h2>
+      <div className="bb-quick-row mt-2">
+        <QuickActionCard
+          href="/app/trips/new"
+          icon={Plus}
+          title="Add trip"
+          sub="Plan a new adventure"
+        />
+        <QuickActionCard
+          href="/app/hunters"
+          icon={UserPlus}
+          title="Add hunter"
+          sub="Invite or add a hunter"
+        />
+        <QuickActionCard
+          href="/app/docs"
+          icon={Upload}
+          title="Upload doc"
+          sub="Add permits or docs"
+        />
+      </div>
+
+      {/* Pending invites */}
+      <Link href="/app/hunters" className="bb-pending-card mt-3" aria-label="Manage hunters">
+        <div className="bb-pending-left">
+          <span className="bb-pending-icon" aria-hidden="true">
+            <Users size={20} />
+          </span>
+          <span className="bb-pending-meta">
+            <span className="bb-pending-count">{pendingInvites}</span>
+            <span className="bb-pending-label">
+              {pendingInvites === 1 ? 'invite waiting' : 'invites waiting'}
+            </span>
+          </span>
+        </div>
+        <span
+          className="bb-text-action bb-text-action-copper"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+        >
+          Manage hunters
+          <ArrowRight size={14} aria-hidden="true" />
+        </span>
+      </Link>
+
+      {/* Stats trio */}
+      <div className="bb-stat-row mt-3">
+        <StatIconedCard icon={Calendar} value={stats.tripsThisYear} label="Trips this year" />
+        <StatIconedCard icon={Users} value={stats.huntersServed} label="Hunters served" />
+        <StatIconedCard icon={Trophy} value={stats.harvests} label="Harvests" />
+      </div>
+
+      {/* Upcoming */}
+      <section className="mt-5">
+        <div className="bb-dash-section-head">
+          <span className="bb-dash-section-title">Upcoming</span>
+          {upcoming.length > 0 && (
+            <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
+              View all
+            </Link>
+          )}
+        </div>
+        {upcoming.length === 0 ? (
+          <div className="bb-empty">
+            <div className="bb-empty-title">Nothing on the books</div>
+            <p className="bb-empty-sub">Plan a trip to see it appear here.</p>
+          </div>
+        ) : (
+          <div role="list" className="flex flex-col gap-3">
+            {upcoming.slice(0, 3).map((t) => (
+              <div role="listitem" key={t.id}>
+                <TripRow
+                  trip={t}
+                  hunters={t.hunters}
+                  harvests={t.harvests}
+                  rating={t.rating}
+                  reviewCount={t.reviewCount}
+                />
+              </div>
+            ))}
           </div>
         )}
+      </section>
 
-        <div className="bb-dash-cell-4" data-order-mobile="2">
-          <Widget title="Quick actions">
-            <div className="bb-quick-actions">
-              <Link href="/app/trips/new" className="bb-btn-secondary">
-                <Plus size={16} aria-hidden="true" />
-                Add trip
-              </Link>
-              <Link href="/app/hunters" className="bb-btn-secondary">
-                <UserPlus size={16} aria-hidden="true" />
-                Add hunter
-              </Link>
-              <Link href="/app/docs" className="bb-btn-secondary">
-                <Upload size={16} aria-hidden="true" />
-                Upload doc
-              </Link>
-            </div>
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-4" data-order-mobile="3">
-          <Widget title="Pending invites">
-            <div className="bb-widget-stat">
-              <div className="bb-stat-value">{pendingInvites}</div>
-              <div className="bb-stat-label">
-                {pendingInvites === 1 ? 'invite waiting' : 'invites waiting'}
-              </div>
-            </div>
-            <Link
-              href="/app/hunters"
-              className="bb-widget-link mt-3 inline-flex items-center gap-1"
-              style={{ color: 'var(--color-copper)' }}
-            >
-              Manage hunters
-              <ArrowRight size={14} aria-hidden="true" />
+      {/* Recent trips */}
+      <section className="mt-5">
+        <div className="bb-dash-section-head">
+          <span className="bb-dash-section-title">Recent trips</span>
+          {recent.length > 0 && (
+            <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
+              View all
             </Link>
-          </Widget>
+          )}
         </div>
-
-        <section
-          aria-labelledby="dash-stats"
-          className="bb-dash-cell-12"
-          data-order-mobile="4"
-        >
-          <h2 id="dash-stats" className="sr-only">Season stats</h2>
-          <div className="bb-stat-grid">
-            <Stat label="Trips, this year" value={stats.tripsThisYear} />
-            <Stat label="Hunters served" value={stats.huntersServed} />
-            <Stat label="Harvests" value={stats.harvests} />
+        {recent.length === 0 ? (
+          <div className="bb-empty">
+            <div className="bb-empty-title">No wrapped trips yet</div>
+            <p className="bb-empty-sub">
+              Bite Book is built around trips — each ties hunters, tags, and harvests to one record.
+            </p>
+            <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
+              <Plus size={16} aria-hidden="true" />
+              Log your first trip
+            </Link>
           </div>
-        </section>
-
-        {/* v26.1.2: Upcoming above Recent on both mobile and desktop. */}
-        <div className="bb-dash-cell-7" data-order-mobile="5">
-          <Widget title="Upcoming">
-            {upcoming.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">Nothing on the books</div>
-                <p className="bb-empty-sub">
-                  Plan a trip to see it appear here.
-                </p>
+        ) : (
+          <div role="list" className="flex flex-col gap-3">
+            {recent.slice(0, 3).map((t) => (
+              <div role="listitem" key={t.id}>
+                <TripRow
+                  trip={t}
+                  hunters={t.hunters}
+                  harvests={t.harvests}
+                  rating={t.rating}
+                  reviewCount={t.reviewCount}
+                />
               </div>
-            ) : (
-              <div role="list" className="flex flex-col gap-4">
-                {upcoming.map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} reviewCount={t.reviewCount} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Widget>
-        </div>
-
-        <div className="bb-dash-cell-5" data-order-mobile="6">
-          <Widget
-            title="Recent trips"
-            action={
-              !isEmpty ? (
-                <Link
-                  href="/app/trips"
-                  className="bb-widget-link"
-                  style={{ color: 'var(--color-copper)' }}
-                >
-                  See all
-                </Link>
-              ) : null
-            }
-          >
-            {isEmpty ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No trips yet</div>
-                <p className="bb-empty-sub">
-                  Bite Book is built around trips. Each trip ties hunters, tags, and harvests to one
-                  record you can hand to a warden in a tap.
-                </p>
-                <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-                  <Plus size={16} aria-hidden="true" />
-                  Log your first trip
-                </Link>
-              </div>
-            ) : (
-              <div role="list" className="flex flex-col gap-4">
-                {recent.slice(0, 5).map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} reviewCount={t.reviewCount} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Widget>
-        </div>
-      </div>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function QuickActionCard({
+  href,
+  icon: Icon,
+  title,
+  sub,
+}: {
+  href: string
+  icon: LucideIcon
+  title: string
+  sub: string
+}) {
   return (
-    <div className="bb-stat-card">
-      <div className="bb-stat-value">{value}</div>
-      <div className="bb-stat-label">{label}</div>
+    <Link href={href} className="bb-quick-card">
+      <span className="bb-quick-card-icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <span className="bb-quick-card-title">{title}</span>
+      <span className="bb-quick-card-sub">{sub}</span>
+      <span className="bb-quick-card-arrow" aria-hidden="true">
+        <ArrowRight size={14} />
+      </span>
+    </Link>
+  )
+}
+
+function StatIconedCard({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: LucideIcon
+  value: number
+  label: string
+}) {
+  return (
+    <div className="bb-stat-card-iconed">
+      <span className="bb-stat-icon" aria-hidden="true">
+        <Icon size={16} />
+      </span>
+      <span className="bb-stat-text">
+        <span className="v">{value}</span>
+        <span className="l">{label}</span>
+      </span>
     </div>
   )
 }

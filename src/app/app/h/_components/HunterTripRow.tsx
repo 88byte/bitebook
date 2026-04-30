@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, Users, Trophy, Star } from 'lucide-react'
+import { Calendar, MapPin, Users, Trophy, Star, TreePine } from 'lucide-react'
 import StatusPill from '../../_components/StatusPill'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../../_lib/format'
 import type { Database } from '@/lib/supabase/types'
@@ -35,6 +35,9 @@ export default function HunterTripRow({
 
   return (
     <Link href={`/app/h/trips/${trip.id}`} className="bb-trip-row" aria-label={trip.title}>
+      <span className="bb-trip-watermark" aria-hidden="true">
+        <TreePine size={120} strokeWidth={1.2} />
+      </span>
       <div className="bb-trip-date" aria-hidden="true">
         <span className="m">{tripMonth(trip.starts_at)}</span>
         <span className="d">{tripDay(trip.starts_at)}</span>

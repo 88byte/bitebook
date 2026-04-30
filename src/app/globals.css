@@ -2385,3 +2385,287 @@ body {
     height: 280px;
   }
 }
+
+/* ── v27.0a.9: dashboard mockup rebuild — hero, quick actions, stat cards ── */
+
+/* Dark-on-image hero banner used on /app and /app/h dashboards */
+.bb-dash-hero {
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 32vw, 280px);
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #1F2419;
+  margin-top: 0.25rem;
+  color: #F4EFE5;
+}
+
+.bb-dash-hero-img {
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+}
+
+.bb-dash-hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to right,
+    rgba(11, 8, 6, 0.78) 0%,
+    rgba(11, 8, 6, 0.55) 55%,
+    rgba(11, 8, 6, 0.35) 100%
+  );
+}
+
+.bb-dash-hero-inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+}
+
+.bb-dash-hero-text { min-width: 0; max-width: 70%; }
+
+.bb-dash-hero-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(244, 239, 229, 0.75);
+  margin: 0;
+}
+
+.bb-dash-hero-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(1.9rem, 7vw, 2.6rem);
+  line-height: 1.05;
+  color: #FFFFFF;
+  margin: 0.2rem 0 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+.bb-dash-hero-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.95rem;
+  color: rgba(244, 239, 229, 0.85);
+  margin: 0;
+}
+
+.bb-dash-hero-shield {
+  flex-shrink: 0;
+  width: clamp(64px, 18vw, 96px);
+  height: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+
+/* Quick action cards — three in a row, paper bg, copper-circle icon top,
+   small arrow-button bottom right. Wrap on narrow viewports. */
+.bb-quick-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+@media (max-width: 480px) {
+  .bb-quick-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
+}
+
+.bb-quick-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.85rem 0.7rem 2rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+  text-decoration: none;
+  color: var(--color-ink);
+  transition: border-color 0.12s, transform 0.05s;
+  min-height: 130px;
+}
+
+.bb-quick-card:hover { border-color: rgba(176, 108, 60, 0.45); }
+.bb-quick-card:active { transform: translateY(1px); }
+
+.bb-quick-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.12);
+  color: var(--color-copper);
+  margin-bottom: 0.3rem;
+}
+
+.bb-quick-card-title {
+  font-family: var(--font-barlow);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.bb-quick-card-sub {
+  font-family: var(--font-barlow);
+  font-size: 0.78rem;
+  color: var(--color-ink-soft);
+  line-height: 1.25;
+}
+
+.bb-quick-card-arrow {
+  position: absolute;
+  bottom: 0.6rem;
+  right: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--color-copper);
+  color: #FFFFFF;
+}
+
+/* Pending invites — single horizontal paper card */
+.bb-pending-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+}
+
+.bb-pending-left { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+
+.bb-pending-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.12);
+  color: var(--color-copper);
+  flex-shrink: 0;
+}
+
+.bb-pending-meta { display: flex; flex-direction: column; min-width: 0; }
+
+.bb-pending-count {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.bb-pending-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-soft);
+  margin-top: 0.15rem;
+}
+
+/* Stat trio with icons — replaces the v24 `.bb-stat-card` plain look */
+.bb-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.bb-stat-row .bb-stat-card-iconed {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 0.7rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+  min-height: 76px;
+}
+
+.bb-stat-row .bb-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: rgba(176, 108, 60, 0.12);
+  color: var(--color-copper);
+  flex-shrink: 0;
+}
+
+.bb-stat-row .bb-stat-text { display: flex; flex-direction: column; min-width: 0; }
+
+.bb-stat-row .bb-stat-text .v {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.bb-stat-row .bb-stat-text .l {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-soft);
+  margin-top: 0.2rem;
+  line-height: 1.1;
+}
+
+/* Section head — "UPCOMING" eyebrow + "View all" right link.
+   Used on dashboard sections AND trip card sections. */
+.bb-dash-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.bb-dash-section-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-muted);
+}
+
+/* Tree watermark on trip cards — TreePine icon at low opacity, bottom right */
+.bb-trip-row { position: relative; overflow: hidden; }
+
+.bb-trip-watermark {
+  position: absolute;
+  right: -10px;
+  bottom: -14px;
+  z-index: 0;
+  color: var(--color-copper);
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* Make sure the body content sits above the watermark */
+.bb-trip-row > .bb-trip-date,
+.bb-trip-row > .bb-trip-body,
+.bb-trip-row > .bb-pill { position: relative; z-index: 1; }
