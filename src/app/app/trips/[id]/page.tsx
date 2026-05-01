@@ -34,6 +34,7 @@ import AddParticipantsForm from './AddParticipantsForm'
 import AddHarvestForm from './AddHarvestForm'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
+import CancelTripButton from './CancelTripButton'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -400,6 +401,10 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           <h2 id="trip-actions" className="sr-only">Trip actions</h2>
           <div className="flex flex-wrap gap-2">
             {isOpen && <WrapUpTripButton tripId={trip.id} />}
+            {/* v27.0b.7: Cancel trip — sibling to Wrap up. Wrap up is for
+                trips that completed; Cancel is for trips that didn't
+                happen. Both available on planned/active. */}
+            {isOpen && <CancelTripButton tripId={trip.id} />}
             {isClosed && <ReopenTripButton tripId={trip.id} />}
             <button
               type="button"

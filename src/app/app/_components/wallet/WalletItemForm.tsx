@@ -177,7 +177,11 @@ export default function WalletItemForm({
         setError(res.error)
         return
       }
-      router.push(basePath)
+      // v27.0b.7: preserve the wallet tab on save by including the
+      // saved item's type as ?type=. The wallet root reads it on mount
+      // (initialTab in WalletPage) so the user lands on the same tab
+      // they were viewing before opening this form.
+      router.push(`${basePath}?type=${type}`)
       router.refresh()
     })
   }
@@ -191,7 +195,8 @@ export default function WalletItemForm({
         setError(res.error)
         return
       }
-      router.push(basePath)
+      // v27.0b.7: same tab-preservation rule as onSubmit.
+      router.push(`${basePath}?type=${type}`)
       router.refresh()
     })
   }
@@ -975,7 +980,7 @@ export default function WalletItemForm({
         <button
           type="button"
           className="bb-btn-secondary"
-          onClick={() => router.push(basePath)}
+          onClick={() => router.push(`${basePath}?type=${type}`)}
           disabled={pending}
         >
           Cancel

@@ -150,6 +150,39 @@ export async function reopenTripAction(formData: FormData): Promise<ReopenTripRe
   return { ok: true }
 }
 
+// v27.0b.7: cancel a planned/active trip mid-flight (a trip that didn't
+// happen). Flips status to 'canceled'. Different from closeTrip which is
+// for trips that DID happen and need wrap-up. Refused on already-closed
+// trips (completed | canceled). RLS gates ownership; .eq guide_id is
+// defense-in-depth.
+export type CancelTripResult = { ok: true } | { error: string }
+
+export async function cancelTripAction(formData: FormData): Promise<CancelTripResult> {
+  const { profile } = await requireGuide()
+  const tripId = String(formData.get('trip_id') ?? '').trim()
+  if (!tripId) return { error: 'Missing trip id.' }
+
+  const sb = await createClient()
+  const { error } = await sb
+    .from('trips')
+    .update({ status: 'canceled' })
+    .eq('id', tripId)
+    .eq('guide_id', profile.id)
+    .in('status', ['planned', 'active'])
+  if (error) {
+    console.warn('[cancelTripAction]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not cancel trip.' }
+  }
+
+  revalidatePath('/app')
+  revalidatePath('/app/trips')
+  revalidatePath(`/app/trips/${tripId}`)
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
+  return { ok: true }
+}
+
 export type WrapUpTripResult = { ok: true } | { error: string }
 
 // v26.3: rename of closeTripAction in the UI. The DB-level helper is still

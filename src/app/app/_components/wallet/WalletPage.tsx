@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   FileText,
   Tag,
@@ -61,7 +62,29 @@ type Props = {
 }
 
 export default function WalletPage({ basePath, tabs, groups }: Props) {
-  const [activeTab, setActiveTab] = useState<WalletItemType>(tabs[0] ?? 'license')
+  // v27.0b.7: persist active tab in URL ?type=. Hydrates from the current
+  // search params on mount so a refresh / back-from-edit lands on the
+  // tab the user was viewing. Falls back to first tab if param missing
+  // or invalid.
+  const router = useRouter()
+  const pathname = usePathname()
+  const search = useSearchParams()
+  const initialTab = (() => {
+    const t = search.get('type')
+    if (t && (tabs as readonly string[]).includes(t)) return t as WalletItemType
+    return tabs[0] ?? 'license'
+  })()
+  const [activeTab, setActiveTab] = useState<WalletItemType>(initialTab)
+
+  // Push the new tab into the URL whenever the user switches. Use
+  // router.replace so back/forward isn't polluted with every tab toggle.
+  useEffect(() => {
+    const sp = new URLSearchParams(search.toString())
+    if (sp.get('type') === activeTab) return
+    sp.set('type', activeTab)
+    router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   const items = groups.get(activeTab) ?? []
   const buckets = bucketByStatus(items)

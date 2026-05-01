@@ -93,49 +93,62 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
     ? `/app/h/wallet/new?type=${action.type}&state=${encodeURIComponent(action.state)}`
     : `/app/h/wallet/new?type=${action.type}`
 
+  // v27.0b.7: always render BOTH paths side-by-side. Even when the hunter
+  // has no matching items, the dropdown still appears (with a "No
+  // matching items" placeholder) so the user knows the option exists.
+  // Add new is always there as the alternative.
+  const hasCandidates = action.candidates.length > 0
+
   return (
     <div
       className="bb-tile"
       style={{ padding: '0.75rem', borderColor: 'var(--color-ink-tint)' }}
     >
       <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{action.label}</div>
-      {action.candidates.length > 0 ? (
-        <div className="bb-form-row" style={{ marginBottom: '0.5rem' }}>
-          <select
-            value={selection}
-            onChange={(e) => setSelection(e.target.value)}
-            className="bb-input"
-            disabled={isPending || savedAt !== null}
-          >
+      <div className="bb-form-row" style={{ marginBottom: '0.5rem' }}>
+        <label
+          className="bb-form-label"
+          style={{ marginBottom: '0.25rem' }}
+          htmlFor={`action-${action.key}-pick`}
+        >
+          Use existing from your wallet
+        </label>
+        <select
+          id={`action-${action.key}-pick`}
+          value={selection}
+          onChange={(e) => setSelection(e.target.value)}
+          className="bb-input"
+          disabled={!hasCandidates || isPending || savedAt !== null}
+        >
+          {hasCandidates ? (
             <option value="">— Pick from your wallet —</option>
-            {action.candidates.map((c) => {
-              const label = [c.identifier, c.state, c.species, c.zone]
-                .filter(Boolean)
-                .join(' · ')
-              return (
-                <option key={c.id} value={c.id}>
-                  {label}
-                </option>
-              )
-            })}
-          </select>
-        </div>
-      ) : (
-        <p className="bb-form-help" style={{ marginBottom: '0.5rem' }}>
-          You don&rsquo;t have a matching wallet item yet.
-        </p>
-      )}
+          ) : (
+            <option value="">— No matching items in your wallet —</option>
+          )}
+          {action.candidates.map((c) => {
+            const label = [c.identifier, c.state, c.species, c.zone]
+              .filter(Boolean)
+              .join(' · ')
+            return (
+              <option key={c.id} value={c.id}>
+                {label}
+              </option>
+            )
+          })}
+        </select>
+      </div>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {action.candidates.length > 0 && (
-          <button
-            type="button"
-            className="bb-cta-sm"
-            onClick={handleLink}
-            disabled={isPending || savedAt !== null || !selection}
-          >
-            {savedAt !== null ? 'Linked' : isPending ? 'Linking…' : 'Use this'}
-          </button>
-        )}
+        <button
+          type="button"
+          className="bb-cta-sm"
+          onClick={handleLink}
+          disabled={!hasCandidates || isPending || savedAt !== null || !selection}
+        >
+          {savedAt !== null ? 'Linked' : isPending ? 'Linking…' : 'Use this'}
+        </button>
+        <span style={{ alignSelf: 'center', color: 'var(--color-ink-soft)', fontSize: '0.85rem' }}>
+          or
+        </span>
         <Link
           href={newHref}
           className="bb-btn-secondary"
