@@ -135,6 +135,10 @@ export default function WalletPage({ basePath, tabs, groups, holderName }: Props
         })}
       </div>
 
+      {/* v27.0b.8: Add button relocated here from the hero — appears
+          between stats and section content. */}
+      <WalletAddCta basePath={basePath} activeTab={activeTab} />
+
       {/* ACTIVE section */}
       <WalletStatusSection
         title="Active"
@@ -212,16 +216,36 @@ function WalletHero({
           <h1 className="bb-page-title bb-wallet-hero-title">Wallet</h1>
           <p className="bb-page-sub">Licenses, tags, and credentials in one place.</p>
         </div>
-        <Link
-          href={`${basePath}/new?type=${activeTab}`}
-          className="bb-cta-sm bb-wallet-hero-add"
-          aria-label={`Add ${TYPE_LABEL_SINGULAR[activeTab]}`}
-        >
-          <Plus size={16} aria-hidden="true" />
-          Add
-        </Link>
+        {/* v27.0b.8: Add button relocated to underneath the stat counters
+            (rendered separately as <WalletAddCta />). The hero now only
+            shows title + subtitle. */}
       </div>
     </section>
+  )
+}
+
+// v27.0b.8: Add button as its own row below the stats grid.
+function WalletAddCta({
+  basePath,
+  activeTab,
+}: {
+  basePath: string
+  activeTab: WalletItemType
+}) {
+  const TypeIcon = TAB_ICONS[activeTab]
+  return (
+    <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <Link
+        href={`${basePath}/new?type=${activeTab}`}
+        className="bb-cta-sm"
+        aria-label={`Add ${TYPE_LABEL_SINGULAR[activeTab]}`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+      >
+        <Plus size={16} aria-hidden="true" />
+        <TypeIcon size={14} aria-hidden="true" />
+        Add {TYPE_LABEL_SINGULAR[activeTab]}
+      </Link>
+    </div>
   )
 }
 

@@ -105,7 +105,10 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
       style={{ padding: '0.75rem', borderColor: 'var(--color-ink-tint)' }}
     >
       <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{action.label}</div>
-      <div className="bb-form-row" style={{ marginBottom: '0.5rem' }}>
+      <div
+        className="bb-form-row"
+        style={{ marginBottom: '0.5rem', position: 'relative', zIndex: 1 }}
+      >
         <label
           className="bb-form-label"
           style={{ marginBottom: '0.25rem' }}
@@ -113,12 +116,20 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
         >
           Use existing from your wallet
         </label>
+        {/* v27.0b.8: removed the !hasCandidates clause from `disabled`.
+            When empty the only option is the "No matching items"
+            placeholder, but the select stays tappable so iOS doesn't
+            render it as a non-interactive gray field. Pointer-events
+            forced auto via inline style as defense against any
+            ancestor pointer-events:none. */}
         <select
           id={`action-${action.key}-pick`}
+          name={`action-${action.key}-pick`}
           value={selection}
           onChange={(e) => setSelection(e.target.value)}
           className="bb-input"
-          disabled={!hasCandidates || isPending || savedAt !== null}
+          disabled={isPending || savedAt !== null}
+          style={{ pointerEvents: 'auto' }}
         >
           {hasCandidates ? (
             <option value="">— Pick from your wallet —</option>

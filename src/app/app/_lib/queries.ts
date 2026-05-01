@@ -964,9 +964,19 @@ export async function fetchHunterUpcomingTrips(
     console.warn('[queries.fetchHunterUpcomingTrips]', { hunterId, code: error.code, message: error.message })
     return []
   }
+  // v27.0b.8: defense-in-depth status filter in JS. Supabase's
+  // .in('trip.status', [...]) on an embedded foreign-key resource has
+  // had sporadic reliability issues — a canceled trip can leak through
+  // and inflate the dashboard's "upcoming" counter. Filter again here
+  // so the contract is bullet-proof regardless of the PostgREST nested-
+  // filter behavior.
   return (data ?? [])
     .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
-    .filter((t): t is Record<string, unknown> => !!t)
+    .filter((t): t is Record<string, unknown> => {
+      if (!t) return false
+      const s = (t as { status?: string }).status
+      return s === 'planned' || s === 'active'
+    })
     .map(shapeHunterTripRow)
 }
 
@@ -991,9 +1001,17 @@ export async function fetchHunterRecentTrips(
     console.warn('[queries.fetchHunterRecentTrips]', { hunterId, code: error.code, message: error.message })
     return []
   }
+  // v27.0b.8: same defense-in-depth status filter as
+  // fetchHunterUpcomingTrips. The Recent widget only wants trips that
+  // are actually wrapped (completed | canceled). Filter in JS so we
+  // don't depend on PostgREST nested-filter behavior.
   const shaped = (data ?? [])
     .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
-    .filter((t): t is Record<string, unknown> => !!t)
+    .filter((t): t is Record<string, unknown> => {
+      if (!t) return false
+      const s = (t as { status?: string }).status
+      return s === 'completed' || s === 'canceled'
+    })
     .map(shapeHunterTripRow)
   return attachRatings(shaped, { kind: 'hunter-own', hunterId })
 }
