@@ -116,17 +116,42 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <StatusPill status={trip.status} />
-          <Link
-            href={`/app/trips/${trip.id}/edit`}
-            className="bb-btn-secondary"
-            aria-label="Edit trip"
-            style={{ color: 'var(--color-copper)' }}
-          >
-            <Pencil size={14} aria-hidden="true" />
-            Edit
-          </Link>
         </div>
       </header>
+
+      {/* v27.0b.9.1: trip actions promoted from the bottom of the page to
+          a tight row right under the header. Primary action (Edit) uses
+          bb-cta-sm copper styling so it matches Save Changes / Add
+          Hunter / Wrap up across the rest of the app. Secondary actions
+          (Wrap up / Cancel / Reopen / Share) keep bb-btn-secondary. */}
+      <div
+        className="mt-2 flex flex-wrap gap-2"
+        aria-label="Trip actions"
+        style={{ alignItems: 'center' }}
+      >
+        <Link
+          href={`/app/trips/${trip.id}/edit`}
+          className="bb-cta-sm"
+          aria-label="Edit trip"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <Pencil size={14} aria-hidden="true" />
+          Edit
+        </Link>
+        {isOpen && <WrapUpTripButton tripId={trip.id} />}
+        {isOpen && <CancelTripButton tripId={trip.id} />}
+        {isClosed && <ReopenTripButton tripId={trip.id} />}
+        <button
+          type="button"
+          className="bb-btn-secondary"
+          disabled
+          title="Warden share ships later in Sprint 2"
+          aria-label="Share with warden (coming soon)"
+        >
+          <Share2 size={14} aria-hidden="true" />
+          Share with warden
+        </button>
+      </div>
 
       <div className="bb-form-narrow mt-4 flex flex-col gap-4">
         {/* BASICS */}
@@ -396,28 +421,11 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           </div>
         </section>
 
-        {/* ACTIONS */}
-        <section aria-labelledby="trip-actions">
-          <h2 id="trip-actions" className="sr-only">Trip actions</h2>
-          <div className="flex flex-wrap gap-2">
-            {isOpen && <WrapUpTripButton tripId={trip.id} />}
-            {/* v27.0b.7: Cancel trip — sibling to Wrap up. Wrap up is for
-                trips that completed; Cancel is for trips that didn't
-                happen. Both available on planned/active. */}
-            {isOpen && <CancelTripButton tripId={trip.id} />}
-            {isClosed && <ReopenTripButton tripId={trip.id} />}
-            <button
-              type="button"
-              className="bb-btn-secondary"
-              disabled
-              title="Warden share ships later in Sprint 2"
-              aria-label="Share with warden (coming soon)"
-            >
-              <Share2 size={14} aria-hidden="true" />
-              Share with warden
-            </button>
-          </div>
-        </section>
+        {/* v27.0b.9.1: Trip actions section relocated to the top of the
+            page (under the header). The bottom-of-page action row was
+            removed in favor of the top placement so common actions
+            (Edit / Wrap up / Cancel / Reopen) are reachable without
+            scrolling. */}
       </div>
     </main>
   )
