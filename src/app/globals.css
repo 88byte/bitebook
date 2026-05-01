@@ -3266,8 +3266,13 @@ body {
   padding-left: 0.15rem;
 }
 .bb-wallet-card--tag-family .bb-wallet-card-eyebrow {
-  margin-top: -0.4rem;   /* up ~6px */
-  margin-left: 1rem;     /* v27.0b.7.4: pushed further right (was 0.4rem) */
+  /* v27.0b.7.5: eyebrow lift dialed back from -0.4rem to -0.15rem
+     (~75% less). The .7.3 value pulled the eyebrow too high; this
+     keeps it just a touch above its default position so it sits
+     comfortably inside the artwork's eyebrow zone. Right shift kept
+     at 1rem from .7.4. */
+  margin-top: -0.15rem;
+  margin-left: 1rem;
 }
 .bb-wallet-card--tag-family .bb-wallet-card-title {
   margin-top: 0.75rem;   /* down ~12px from eyebrow */
