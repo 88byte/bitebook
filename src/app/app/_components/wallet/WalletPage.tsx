@@ -224,7 +224,10 @@ function WalletHero({
   )
 }
 
-// v27.0b.8: Add button as its own row below the stats grid.
+// v27.0b.8 / .8.1: Add button as its own row below the stats grid.
+// v27.0b.8.1: label reverted to generic "+ Add New Card". Hunter can
+// pick any type from the form regardless of current tab; "card" matches
+// the mental model used everywhere else in the wallet UI.
 function WalletAddCta({
   basePath,
   activeTab,
@@ -232,18 +235,16 @@ function WalletAddCta({
   basePath: string
   activeTab: WalletItemType
 }) {
-  const TypeIcon = TAB_ICONS[activeTab]
   return (
     <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <Link
         href={`${basePath}/new?type=${activeTab}`}
         className="bb-cta-sm"
-        aria-label={`Add ${TYPE_LABEL_SINGULAR[activeTab]}`}
+        aria-label="Add new card"
         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <Plus size={16} aria-hidden="true" />
-        <TypeIcon size={14} aria-hidden="true" />
-        Add {TYPE_LABEL_SINGULAR[activeTab]}
+        Add New Card
       </Link>
     </div>
   )

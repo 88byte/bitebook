@@ -51,8 +51,22 @@ export async function fetchTripWalletLinks(
 }
 
 // fetchHunterMatchingWalletItems — hunter-side dropdown for the action
-// queue card. Pulls the hunter's own active wallet items of a given
-// type (license or tag), optionally filtered by state.
+// queue card. Pulls the hunter's own ACTIVE wallet items of a given type
+// (license / tag).
+//
+// v27.0b.8.1: dropped the strict state filter. Filtering by state was
+// hiding all the hunter's licenses/tags whenever the trip was in a
+// different state from any of their items — even when the hunter had
+// the right wallet items but in a different state from the trip.
+// State is now a soft preference: items matching the trip's state sort
+// first, then the rest. Hunter is still responsible for picking the
+// correct one. The action card's "Add new" path remains for items they
+// don't yet own.
+//
+// Filter rules:
+//   - same type
+//   - active (not archived, not tagged-out, not expired)
+// Sort: matching state first, then by valid_to ascending.
 export async function fetchHunterMatchingWalletItems(
   hunterId: string,
   type: Database['public']['Enums']['wallet_item_type'],
@@ -60,7 +74,7 @@ export async function fetchHunterMatchingWalletItems(
 ): Promise<LinkedWalletItem[]> {
   const supabase = await createClient()
   const today = new Date().toISOString().slice(0, 10)
-  let q = supabase
+  const { data, error } = await supabase
     .from('wallet_items')
     .select('id, type, identifier, state, species, zone')
     .eq('user_id', hunterId)
@@ -68,11 +82,19 @@ export async function fetchHunterMatchingWalletItems(
     .is('archived_at', null)
     .is('tagged_out_at', null)
     .gte('valid_to', today)
-  if (state) q = q.eq('state', state)
-  const { data, error } = await q.order('valid_to', { ascending: true })
+    .order('valid_to', { ascending: true })
   if (error || !data) {
     if (error) console.warn('[queries.fetchHunterMatchingWalletItems]', { hunterId, type, code: error.code, message: error.message })
     return []
+  }
+  // Soft sort: items matching the trip state first.
+  if (state) {
+    const wanted = state.toUpperCase()
+    return [...data].sort((a, b) => {
+      const aMatch = (a.state ?? '').toUpperCase() === wanted ? 0 : 1
+      const bMatch = (b.state ?? '').toUpperCase() === wanted ? 0 : 1
+      return aMatch - bMatch
+    })
   }
   return data
 }
@@ -1298,10 +1320,14 @@ export type HunterStats = {
 
 export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
   const supabase = await createClient()
+  // v27.0b.8.1: include trip.status in the embed so we can exclude
+  // canceled trips from the "Trips you've been on" + "Guides" counts.
+  // PostgREST nested filtering is unreliable, so we filter in JS after
+  // the fetch — same belt-and-suspenders rule as fetchHunterUpcomingTrips.
   const [participantsRes, harvestsRes] = await Promise.all([
     supabase
       .from('trip_participants')
-      .select('trip_id, trips!inner(guide_id)')
+      .select('trip_id, trips!inner(guide_id, status)')
       .eq('hunter_id', hunterId),
     supabase
       .from('harvests')
@@ -1312,13 +1338,25 @@ export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
   const tripsSet = new Set<string>()
   const guidesSet = new Set<string>()
   ;(participantsRes.data ?? []).forEach((row) => {
-    const r = row as { trip_id: string; trips: { guide_id: string } | { guide_id: string }[] | null }
-    tripsSet.add(r.trip_id)
+    const r = row as {
+      trip_id: string
+      trips:
+        | { guide_id: string; status: string }
+        | { guide_id: string; status: string }[]
+        | null
+    }
     const trips = r.trips
+    // Helper: only count this row when the trip status is NOT canceled.
+    const include = (t: { guide_id: string; status: string } | null | undefined) => {
+      if (!t) return
+      if (t.status === 'canceled') return
+      tripsSet.add(r.trip_id)
+      if (t.guide_id) guidesSet.add(t.guide_id)
+    }
     if (Array.isArray(trips)) {
-      trips.forEach((t) => t?.guide_id && guidesSet.add(t.guide_id))
-    } else if (trips && trips.guide_id) {
-      guidesSet.add(trips.guide_id)
+      trips.forEach(include)
+    } else {
+      include(trips)
     }
   })
 
