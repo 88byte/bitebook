@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const [profileRes, guideRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('first_name, last_name, phone, address_street, address_city, address_state, address_zip')
+      .select('first_name, last_name, phone, address_street, address_street2, address_city, address_state, address_zip')
       .eq('id', user.id)
       .maybeSingle(),
     supabase
@@ -42,6 +42,7 @@ export default async function SettingsPage() {
                 last_name: p?.last_name ?? '',
                 phone: p?.phone ?? '',
                 address_street: p?.address_street ?? '',
+                address_street2: p?.address_street2 ?? '',
                 address_city: p?.address_city ?? '',
                 address_state: p?.address_state ?? '',
                 address_zip: p?.address_zip ?? '',

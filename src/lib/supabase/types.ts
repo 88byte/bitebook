@@ -774,6 +774,7 @@ export type Database = {
           address_city: string | null
           address_state: string | null
           address_street: string | null
+          address_street2: string | null
           address_zip: string | null
           avatar_url: string | null
           created_at: string
@@ -790,6 +791,7 @@ export type Database = {
           address_city?: string | null
           address_state?: string | null
           address_street?: string | null
+          address_street2?: string | null
           address_zip?: string | null
           avatar_url?: string | null
           created_at?: string
@@ -806,6 +808,7 @@ export type Database = {
           address_city?: string | null
           address_state?: string | null
           address_street?: string | null
+          address_street2?: string | null
           address_zip?: string | null
           avatar_url?: string | null
           created_at?: string

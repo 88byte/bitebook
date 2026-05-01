@@ -36,6 +36,8 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
   // Address — all optional at the field level (we don't reject partials),
   // but the onboarding step requires all four to flip done.
   const address_street = String(formData.get('address_street') ?? '').trim().slice(0, 160) || null
+  // v27.1.1.0.2: optional second line; doesn't gate profile_set.
+  const address_street2 = String(formData.get('address_street2') ?? '').trim().slice(0, 80) || null
   const address_city = String(formData.get('address_city') ?? '').trim().slice(0, 80) || null
   const addrStateRaw = String(formData.get('address_state') ?? '').trim().toUpperCase()
   const address_state = addrStateRaw && addrStateRaw.length === 2 ? addrStateRaw : null
@@ -53,6 +55,7 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
       last_name,
       phone,
       address_street,
+      address_street2,
       address_city,
       address_state,
       address_zip,

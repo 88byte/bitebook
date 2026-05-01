@@ -23,6 +23,8 @@ type Initial = {
   phone: string
   // Address (profiles)
   address_street: string
+  // v27.1.1.0.2: optional second line (apt / suite / unit)
+  address_street2: string
   address_city: string
   address_state: string
   address_zip: string
@@ -43,6 +45,7 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
   const [phone, setPhone] = useState(initial.phone)
   // Address
   const [addrStreet, setAddrStreet] = useState(initial.address_street)
+  const [addrStreet2, setAddrStreet2] = useState(initial.address_street2)
   const [addrCity, setAddrCity] = useState(initial.address_city)
   const [addrState, setAddrState] = useState(initial.address_state)
   const [addrZip, setAddrZip] = useState(initial.address_zip)
@@ -188,6 +191,23 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
             onChange={(e) => setAddrStreet(e.target.value)}
             maxLength={160}
             autoComplete="street-address"
+          />
+        </div>
+
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="address_street2">
+            Apt / suite / unit <span style={{ opacity: 0.6 }}>(optional)</span>
+          </label>
+          <input
+            id="address_street2"
+            name="address_street2"
+            className="bb-input"
+            type="text"
+            placeholder="Apt 4B"
+            value={addrStreet2}
+            onChange={(e) => setAddrStreet2(e.target.value)}
+            maxLength={80}
+            autoComplete="address-line2"
           />
         </div>
 

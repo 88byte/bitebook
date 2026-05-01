@@ -14,7 +14,7 @@ export default async function HunterProfilePage() {
   const { data: extended } = await supabase
     .from('profiles')
     .select(
-      'first_name, last_name, address_street, address_city, address_state, address_zip, license_doc_id'
+      'first_name, last_name, address_street, address_street2, address_city, address_state, address_zip, license_doc_id'
     )
     .eq('id', user.id)
     .maybeSingle()
@@ -39,6 +39,7 @@ export default async function HunterProfilePage() {
                 last_name: extended?.last_name ?? '',
                 phone: profile.phone ?? '',
                 address_street: extended?.address_street ?? '',
+                address_street2: extended?.address_street2 ?? '',
                 address_city: extended?.address_city ?? '',
                 address_state: extended?.address_state ?? '',
                 address_zip: extended?.address_zip ?? '',

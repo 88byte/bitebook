@@ -51,6 +51,7 @@ export type DataSourceCategory =
   | 'guide'
   | 'guide_wallet'
   | 'hunter'
+  | 'hunter_license'
   | 'harvest'
   | 'wallet_consumed'
   | 'special'
@@ -73,23 +74,37 @@ export type DataSourceOption = {
 
 export const DATA_SOURCES: DataSourceOption[] = [
   // ── Trip ────────────────────────────────────────────────────────────
-  { value: 'trip.title',            label: 'Trip title',            category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.location_city',    label: 'Trip city',             category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.location_state',   label: 'Trip state',            category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.location_zone',    label: 'Trip zone / unit',      category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.location_county',  label: 'Trip county',           category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.start_date',       label: 'Trip start date',       category: 'trip', valueType: 'string', type: 'date' },
-  { value: 'trip.end_date',         label: 'Trip end date',         category: 'trip', valueType: 'string', type: 'date' },
-  { value: 'trip.species_targeted', label: 'Trip target species',   category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'trip.method',           label: 'Trip method',           category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.title',                label: 'Trip title',                  category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_city',        label: 'Trip city',                   category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_state',       label: 'Trip state',                  category: 'trip', valueType: 'string', type: 'text' },
+  // v27.1.1.0.2: pre-formatted "Redding, CA" for forms with a single
+  // location field. Engine joins city + state with ", " and drops empty
+  // segments cleanly.
+  { value: 'trip.location_city_state',  label: 'Trip city, state (combined)', category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_zone',        label: 'Trip zone / unit',            category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_county',      label: 'Trip county',                 category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.start_date',           label: 'Trip start date',             category: 'trip', valueType: 'string', type: 'date' },
+  { value: 'trip.end_date',             label: 'Trip end date',               category: 'trip', valueType: 'string', type: 'date' },
+  { value: 'trip.species_targeted',     label: 'Trip target species',         category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.method',               label: 'Trip method',                 category: 'trip', valueType: 'string', type: 'text' },
   // boolean sibling of trip.* used by checkbox fields
-  { value: 'trip.is_canceled',      label: 'Trip is canceled',      category: 'trip', valueType: 'boolean', type: 'boolean' },
+  { value: 'trip.is_canceled',          label: 'Trip is canceled',            category: 'trip', valueType: 'boolean', type: 'boolean' },
 
   // ── Guide profile ───────────────────────────────────────────────────
   { value: 'guide.business_name', label: 'Guide business name', category: 'guide', valueType: 'string', type: 'text' },
   { value: 'guide.full_name',     label: 'Guide full name',     category: 'guide', valueType: 'string', type: 'text' },
   { value: 'guide.first_name',    label: 'Guide first name',    category: 'guide', valueType: 'string', type: 'text' },
   { value: 'guide.last_name',     label: 'Guide last name',     category: 'guide', valueType: 'string', type: 'text' },
+  // v27.1.1.0.2: guide address sources. Resolved against profiles.address_*
+  // (single-line current + new street2). full_address concatenates with
+  // ", " and skips empty segments. city_state mirrors trip.location_city_state.
+  { value: 'guide.street1',       label: 'Guide street address',                    category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.street2',       label: 'Guide street address line 2',             category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.city',          label: 'Guide city',                              category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.state',         label: 'Guide state',                             category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.postal_code',   label: 'Guide postal code',                       category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.city_state',    label: 'Guide city, state (combined)',            category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.address_full',  label: 'Guide full address (single line)',        category: 'guide', valueType: 'string', type: 'text' },
 
   // ── Guide wallet (guide_license) ────────────────────────────────────
   { value: 'guide_wallet.identifier',  label: 'Guide license number',  category: 'guide_wallet', valueType: 'string', type: 'text' },
@@ -102,6 +117,28 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'hunter.first_name', label: 'Hunter first name', category: 'hunter', valueType: 'string', type: 'text', perRow: true },
   { value: 'hunter.last_name',  label: 'Hunter last name',  category: 'hunter', valueType: 'string', type: 'text', perRow: true },
   { value: 'hunter.email',      label: 'Hunter email',      category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  // v27.1.1.0.2: hunter address sources, mirrors guide. Resolved against
+  // each harvest's hunter profile (per-row). Useful for forms with a
+  // hunter address block per kill.
+  { value: 'hunter.street1',      label: 'Hunter street address',                  category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.street2',      label: 'Hunter street address line 2',           category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.city',         label: 'Hunter city',                            category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.state',        label: 'Hunter state',                           category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.postal_code',  label: 'Hunter postal code',                     category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.city_state',   label: 'Hunter city, state (combined)',          category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.address_full', label: 'Hunter full address (single line)',      category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+
+  // ── Hunter license (per-row) ────────────────────────────────────────
+  // v27.1.1.0.2: state forms typically need the hunter's hunting LICENSE
+  // identifier next to each kill, separate from the consumed TAG (see
+  // wallet_consumed.* below). Resolved per-harvest as: most recently
+  // linked trip_wallet_items row where wallet_items.type='license' and
+  // hunter_id matches; falls through to the hunter's primary active
+  // license in their wallet if none linked.
+  { value: 'hunter_license.identifier',  label: 'Hunter license number',           category: 'hunter_license', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter_license.state',       label: 'Hunter license state',            category: 'hunter_license', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter_license.valid_to',    label: 'Hunter license expires',          category: 'hunter_license', valueType: 'string', type: 'date', perRow: true },
+  { value: 'hunter_license.holder_name', label: 'Hunter license holder',           category: 'hunter_license', valueType: 'string', type: 'text', perRow: true },
 
   // ── Harvest (per-row) ───────────────────────────────────────────────
   { value: 'harvest.species_name',  label: 'Harvest species',     category: 'harvest', valueType: 'string', type: 'text', perRow: true },
@@ -129,7 +166,7 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'wallet_consumed.is_federal',    label: 'Tag is federal',    category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true },
 
   // ── Special ─────────────────────────────────────────────────────────
-  { value: STATIC_TEXT_PREFIX,        label: 'Static text — type a value',         category: 'special', valueType: 'string' },
+  { value: STATIC_TEXT_PREFIX,        label: 'Type your own value',                 category: 'special', valueType: 'string' },
   { value: STATIC_DATE_PREFIX,        label: 'Pick a date',                         category: 'special', valueType: 'string', type: 'date' },
   { value: STATIC_DATE_RANGE_PREFIX,  label: 'Pick a date range',                   category: 'special', valueType: 'string', type: 'date' },
   { value: SKIP_VALUE,                label: 'Skip — leave field blank',            category: 'special', valueType: 'string' },
@@ -142,7 +179,7 @@ export const DATA_SOURCES: DataSourceOption[] = [
 ]
 
 export const CATEGORY_ORDER: DataSourceCategory[] = [
-  'trip', 'guide', 'guide_wallet', 'hunter', 'harvest', 'wallet_consumed', 'special',
+  'trip', 'guide', 'guide_wallet', 'hunter', 'hunter_license', 'harvest', 'wallet_consumed', 'special',
 ]
 
 export const CATEGORY_LABELS: Record<DataSourceCategory, string> = {
@@ -150,6 +187,7 @@ export const CATEGORY_LABELS: Record<DataSourceCategory, string> = {
   guide:            'Guide profile',
   guide_wallet:     'Guide license',
   hunter:           'Hunter',
+  hunter_license:   'Hunter license (per row)',
   harvest:          'Harvest (per row)',
   wallet_consumed:  'Tag used (per row)',
   special:          'Special',
