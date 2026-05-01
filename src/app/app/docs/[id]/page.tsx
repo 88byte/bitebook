@@ -75,19 +75,31 @@ export default async function DocDetailPage({ params }: { params: Params }) {
         <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
       </section>
 
-      {/* Mapping placeholder for v27.1.0 — wizard ships v27.1.1 (logs) and v27.1.2 (waivers). */}
+      {/* v27.1.1.0: log + waiver field mapping wizard. Waiver signature
+          placement still ships in v27.1.2; log auto-fill engine ships in
+          v27.1.1.1. The wizard route handles both kinds for now since
+          the field-mapping infra is shared. */}
       {doc.kind !== 'resource' && (
         <section
           className="bb-tile mt-3"
           style={{ borderColor: 'var(--color-ink-tint)' }}
         >
           <div className="bb-tile-body">
-            <h2 className="bb-form-section-head">Mapping</h2>
+            <h2 className="bb-form-section-head">Field mapping</h2>
             <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
               {doc.kind === 'waiver'
-                ? 'Drag signature placeholders for hunter and guide onto the PDF. Coming in the next ship (v27.1.2).'
-                : 'Map AcroForm fields to data sources from your wallet, trips, and harvests. Coming in the next ship (v27.1.1).'}
+                ? 'Map text fields here; signature placement ships next (v27.1.2).'
+                : 'Match each PDF field to a Bite Book data source. Auto-fill ships next (v27.1.1.1).'}
             </p>
+            <div style={{ marginTop: '0.6rem' }}>
+              <Link
+                href={`/app/docs/${doc.id}/mapping`}
+                className="bb-cta-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
+              </Link>
+            </div>
           </div>
         </section>
       )}

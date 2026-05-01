@@ -1,13 +1,16 @@
 'use server'
 
-// v27.1.0 — Documents Module server actions.
-// Library: create / update / archive / restore / delete-when-unattached.
-// Mapping wizards + trip attachment + per-hunter actions land in v27.1.1+.
+// v27.1.0 — Documents Module server actions (library CRUD).
+// v27.1.1.0 — log mapping wizard server actions (extract + save).
+// Auto-fill engine lands in v27.1.1.1.
 
+import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
+import { PDFDocument } from 'pdf-lib'
+import { SKIP_VALUE, STATIC_TEXT_PREFIX } from './doc-data-sources'
 
 export type DocKind = Database['public']['Enums']['doc_kind']
 type DocInsert = TablesInsert<'docs'>
@@ -237,4 +240,285 @@ export async function deleteDocAction(docId: string): Promise<DocActionResult> {
 
   revalidatePath('/app/docs')
   return { ok: true, id: docId }
+}
+
+// ==========================================================================
+// v27.1.1.0 — log field mapping wizard server actions
+// ==========================================================================
+
+export type DocPdfField = {
+  name: string
+  type: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown'
+  /** For radio + dropdown + optionList — the available choices the form
+   *  defines. The fill engine (v27.1.1.1) will need these to coerce a
+   *  data-source value to a valid selection. */
+  options?: string[]
+}
+
+export type ExtractFieldsResult =
+  | {
+      ok: true
+      fields: DocPdfField[]
+      formTemplateHash: string
+      /** Fields with no AcroForm at all → flag so the wizard can show a
+       *  helpful "this PDF isn't fillable" state instead of an empty list. */
+      hasAcroForm: boolean
+    }
+  | { error: string }
+
+export async function extractDocFieldsAction(docId: string): Promise<ExtractFieldsResult> {
+  const { profile } = await requireGuide()
+  if (!docId) return { error: 'Missing doc id.' }
+
+  const sb = await createClient()
+  const { data: doc } = await sb
+    .from('docs')
+    .select('id, kind, file_path, file_mime, form_template_hash')
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (!doc) return { error: 'Doc not found.' }
+  if (doc.kind !== 'log' && doc.kind !== 'waiver') {
+    return { error: 'Field mapping is only available for log and waiver docs.' }
+  }
+
+  // Download the binary via the user-session client (RLS-gated by storage
+  // policies). createSignedUrl + fetch would also work but `download` is
+  // cleaner — the server already has the user's auth.
+  const { data: blob, error: dlErr } = await sb.storage
+    .from('bb-private')
+    .download(doc.file_path)
+  if (dlErr || !blob) {
+    console.warn('[docs.extractDocFieldsAction:download]', { code: dlErr?.statusCode, message: dlErr?.message })
+    return { error: 'Could not download the PDF.' }
+  }
+
+  const buf = Buffer.from(await blob.arrayBuffer())
+  const formTemplateHash = createHash('sha256').update(buf).digest('hex')
+
+  let pdf: PDFDocument
+  try {
+    pdf = await PDFDocument.load(buf, { ignoreEncryption: true })
+  } catch (e: unknown) {
+    return {
+      error:
+        'Could not parse this PDF. It may be corrupted or password-protected. Try the official version from your state agency.',
+    }
+  }
+
+  // pdf-lib's getForm() always returns a form — fields[] is empty for
+  // PDFs without an AcroForm. We surface that explicitly so the wizard
+  // can show the right empty state.
+  const form = pdf.getForm()
+  const rawFields = form.getFields()
+
+  const fields: DocPdfField[] = rawFields.map((f) => {
+    const name = f.getName()
+    const ctorName = f.constructor.name
+    let type: DocPdfField['type'] = 'unknown'
+    let options: string[] | undefined
+    if (ctorName === 'PDFTextField') type = 'text'
+    else if (ctorName === 'PDFCheckBox') type = 'checkbox'
+    else if (ctorName === 'PDFRadioGroup') {
+      type = 'radio'
+      const rg = f as unknown as { getOptions: () => string[] }
+      try {
+        options = rg.getOptions?.()
+      } catch {
+        /* noop */
+      }
+    } else if (ctorName === 'PDFDropdown') {
+      type = 'dropdown'
+      const dd = f as unknown as { getOptions: () => string[] }
+      try {
+        options = dd.getOptions?.()
+      } catch {
+        /* noop */
+      }
+    } else if (ctorName === 'PDFOptionList') {
+      type = 'optionList'
+      const ol = f as unknown as { getOptions: () => string[] }
+      try {
+        options = ol.getOptions?.()
+      } catch {
+        /* noop */
+      }
+    } else if (ctorName === 'PDFButton') type = 'button'
+    else if (ctorName === 'PDFSignature') type = 'signature'
+    return { name, type, options }
+  })
+
+  // Persist the hash if it changed (or was never set). Lets us key
+  // future "your existing mappings still apply" UX off the hash even
+  // though the wizard saves rows on doc_id directly.
+  if (doc.form_template_hash !== formTemplateHash) {
+    await sb
+      .from('docs')
+      .update({ form_template_hash: formTemplateHash })
+      .eq('id', docId)
+      .eq('guide_id', profile.id)
+  }
+
+  return {
+    ok: true,
+    fields,
+    formTemplateHash,
+    hasAcroForm: rawFields.length > 0,
+  }
+}
+
+// --- saveDocMappingsAction -------------------------------------------------
+
+export type MappingInput = {
+  field_name: string
+  /** Either a known data-source path, "static:<value>", or "skip". An empty
+   *  string means "no mapping" and that row should be DELETED if it exists. */
+  data_source_path: string
+}
+
+export type SaveMappingsResult = { ok: true; mapping_status: string } | { error: string }
+
+export async function saveDocMappingsAction(
+  docId: string,
+  mappings: MappingInput[]
+): Promise<SaveMappingsResult> {
+  const { profile } = await requireGuide()
+  if (!docId) return { error: 'Missing doc id.' }
+  if (!Array.isArray(mappings)) return { error: 'Bad mappings payload.' }
+
+  const sb = await createClient()
+  const { data: doc } = await sb
+    .from('docs')
+    .select('id, kind')
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (!doc) return { error: 'Doc not found.' }
+  if (doc.kind !== 'log' && doc.kind !== 'waiver') {
+    return { error: 'Field mapping is only available for log and waiver docs.' }
+  }
+
+  // Split into upsert vs delete sets.
+  const toUpsert: TablesInsert<'doc_field_mappings'>[] = []
+  const toDelete: string[] = []
+  for (const m of mappings) {
+    const fieldName = m.field_name?.trim()
+    if (!fieldName) continue
+    const path = (m.data_source_path ?? '').trim()
+    if (!path) {
+      toDelete.push(fieldName)
+      continue
+    }
+    // Reject obviously-malformed static-text values where the prefix is
+    // present but the literal is empty — caller should send "" instead.
+    if (path === STATIC_TEXT_PREFIX) {
+      toDelete.push(fieldName)
+      continue
+    }
+    toUpsert.push({
+      doc_id: docId,
+      mapping_kind: 'field',
+      field_name: fieldName,
+      data_source_path: path,
+    })
+  }
+
+  if (toDelete.length > 0) {
+    const { error: delErr } = await sb
+      .from('doc_field_mappings')
+      .delete()
+      .eq('doc_id', docId)
+      .eq('mapping_kind', 'field')
+      .in('field_name', toDelete)
+    if (delErr) {
+      console.warn('[docs.saveDocMappingsAction:delete]', { code: delErr.code, message: delErr.message })
+      return { error: delErr.message || 'Could not clear mappings.' }
+    }
+  }
+
+  if (toUpsert.length > 0) {
+    const { error: upErr } = await sb
+      .from('doc_field_mappings')
+      .upsert(toUpsert, { onConflict: 'doc_id,field_name,mapping_kind' })
+    if (upErr) {
+      console.warn('[docs.saveDocMappingsAction:upsert]', { code: upErr.code, message: upErr.message })
+      return { error: upErr.message || 'Could not save mappings.' }
+    }
+  }
+
+  // Recompute mapping_status. Coarse rule:
+  //   no mapped field rows  → 'unmapped'
+  //   some rows but not all → 'partial' (we don't know "all" without the
+  //                          form's field count; treat any saved row as
+  //                          'partial' until the wizard explicitly marks
+  //                          complete via the dedicated "All set" path
+  //                          v27.1.1.1 surfaces. For now we go to
+  //                          'partial' and let the guide flip to
+  //                          'complete' from the wizard footer.)
+  const { count } = await sb
+    .from('doc_field_mappings')
+    .select('id', { count: 'exact', head: true })
+    .eq('doc_id', docId)
+    .eq('mapping_kind', 'field')
+
+  const newStatus =
+    !count || count === 0
+      ? 'unmapped'
+      : 'partial'
+
+  await sb
+    .from('docs')
+    .update({ mapping_status: newStatus })
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+
+  revalidatePath('/app/docs')
+  revalidatePath(`/app/docs/${docId}`)
+  revalidatePath(`/app/docs/${docId}/mapping`)
+  return { ok: true, mapping_status: newStatus }
+}
+
+// --- markMappingCompleteAction --------------------------------------------
+// Lets the guide explicitly flag a doc as complete from the wizard. Distinct
+// from saveDocMappingsAction so the wizard can offer "Save draft" vs
+// "Save + mark complete" without inferring intent from row counts.
+
+export type MarkMappingResult = { ok: true } | { error: string }
+
+export async function markMappingCompleteAction(
+  docId: string,
+  complete: boolean
+): Promise<MarkMappingResult> {
+  const { profile } = await requireGuide()
+  if (!docId) return { error: 'Missing doc id.' }
+
+  const sb = await createClient()
+  const newStatus = complete ? 'complete' : 'partial'
+
+  // Sanity: don't let the guide mark complete with zero rows.
+  if (complete) {
+    const { count } = await sb
+      .from('doc_field_mappings')
+      .select('id', { count: 'exact', head: true })
+      .eq('doc_id', docId)
+      .eq('mapping_kind', 'field')
+    if (!count || count === 0) {
+      return { error: 'No mappings saved yet — nothing to mark complete.' }
+    }
+  }
+
+  const { error } = await sb
+    .from('docs')
+    .update({ mapping_status: newStatus })
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+  if (error) {
+    console.warn('[docs.markMappingCompleteAction]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not update status.' }
+  }
+
+  revalidatePath('/app/docs')
+  revalidatePath(`/app/docs/${docId}`)
+  revalidatePath(`/app/docs/${docId}/mapping`)
+  return { ok: true }
 }
