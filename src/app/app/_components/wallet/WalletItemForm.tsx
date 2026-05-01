@@ -420,16 +420,23 @@ export default function WalletItemForm({
             <h2 className="bb-form-section-head">Tag conditions</h2>
             <div className="bb-form-grid-2">
               <div className="bb-form-row">
-                <label className="bb-form-label" htmlFor="extras_tag_type">Tag type</label>
+                {/* v27.0b.4.3: relabeled from "Tag type" to "Tag designation".
+                    Holds the state's classification of the tag — General
+                    season, Archery, Depredation, Junior, Apprentice, Either-
+                    sex, etc. Free-text because the vocabulary varies by
+                    state. Storage column key stays extras.tag_type for
+                    compat. */}
+                <label className="bb-form-label" htmlFor="extras_tag_type">Tag designation <span style={{ opacity: 0.6 }}>(optional)</span></label>
                 <input
                   id="extras_tag_type"
                   name="extras_tag_type"
                   type="text"
                   defaultValue={e.tag_type ?? ''}
-                  placeholder="General, archery, depredation"
+                  placeholder="General, Archery, Junior, Depredation"
                   className="bb-input"
                   autoComplete="off"
                 />
+                <p className="bb-form-help">Your state&rsquo;s tag classification (General, Archery, Junior, Either-sex, Depredation, etc.). Leave blank if your state doesn&rsquo;t use one.</p>
               </div>
               <div className="bb-form-row">
                 <label className="bb-form-label" htmlFor="extras_weapon_restriction">Weapon</label>

@@ -78,6 +78,10 @@ export async function createTripAction(formData: FormData) {
 
   revalidatePath('/app')
   revalidatePath('/app/trips')
+  // v27.0b.4.3: hunter-side dashboard + trips list bust so participating
+  // hunters see the new trip on next load without a hard refresh.
+  revalidatePath('/app/h')
+  revalidatePath('/app/h/trips')
   redirect(`/app/trips/${insertResult.id}`)
 }
 
@@ -92,4 +96,9 @@ export async function closeTripAction(formData: FormData) {
   revalidatePath('/app')
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
+  // v27.0b.4.3: hunter-side cache bust on trip close so wrapped-trip
+  // status + review CTA appears on /app/h/trips/[id].
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
 }

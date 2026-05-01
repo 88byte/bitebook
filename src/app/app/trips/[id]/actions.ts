@@ -57,6 +57,12 @@ export async function addTripParticipantsAction(
 
   revalidatePath(`/app/trips/${tripId}`)
   revalidatePath('/app/trips')
+  // v27.0b.4.3: hunter-side participant rosters change too — bust the
+  // hunter trip detail + their dashboard so the newly-added hunter sees
+  // the trip on next load.
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true }
 }
 
@@ -112,6 +118,13 @@ export async function updateTripAction(formData: FormData) {
   revalidatePath('/app')
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
+  // v27.0b.4.3: hunter-side cache bust. THE BUG this fixes: guide-edited
+  // trip.method was sticking on /app/h/trips/[id] because hunter paths
+  // weren't being revalidated. Same column on the same trip row, but the
+  // hunter's data cache layer was stale until they hard-refreshed.
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   redirect(`/app/trips/${tripId}`)
 }
 
@@ -130,6 +143,10 @@ export async function reopenTripAction(formData: FormData): Promise<ReopenTripRe
   revalidatePath('/app')
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
+  // v27.0b.4.3: hunter-side trip detail status pill needs to flip too.
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true }
 }
 
@@ -150,6 +167,11 @@ export async function wrapUpTripAction(formData: FormData): Promise<WrapUpTripRe
   revalidatePath('/app')
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
+  // v27.0b.4.3: hunter-side trip detail (status pill flips to completed,
+  // wrap-up unlocks reviews on the hunter's /app/h/trips/[id]).
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true }
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Plus, Check } from 'lucide-react'
-import { METHOD_OPTIONS } from '@/lib/methods'
+import { methodsForKind } from '@/lib/methods'
 import { addHarvestAction } from './actions'
 
 type ParticipantOption = { id: string; display_name: string }
@@ -287,7 +287,7 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
             className="bb-input"
           >
             <option value="">Select method</option>
-            {METHOD_OPTIONS.map((m) => (
+            {methodsForKind(tripKind).map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>

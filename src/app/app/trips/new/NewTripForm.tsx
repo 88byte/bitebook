@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { FileText, Building, Map, Mountain, TreeDeciduous, PawPrint, Crosshair } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
-import { METHOD_OPTIONS } from '@/lib/methods'
+import { methodsForKind } from '@/lib/methods'
 import { createTripAction } from '../actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import DateTimeField from '../../_components/DateTimeField'
@@ -17,6 +17,9 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // v27.0b.4.3: track kind in state so the method dropdown filters by activity
+  // without a full re-render. Switching to fishing reveals fishing methods.
+  const [kind, setKind] = useState<'hunting' | 'fishing'>('hunting')
   // v26.3: keep a local copy so the inline-invite path can append entries
   // without a full server round-trip. The canonical list refreshes when the
   // page revalidates after submit.
@@ -84,11 +87,23 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
             <span className="bb-form-label">Activity</span>
             <div className="bb-segmented" role="radiogroup" aria-label="Activity">
               <label>
-                <input type="radio" name="kind" value="hunting" defaultChecked />
+                <input
+                  type="radio"
+                  name="kind"
+                  value="hunting"
+                  checked={kind === 'hunting'}
+                  onChange={() => setKind('hunting')}
+                />
                 Hunting
               </label>
               <label>
-                <input type="radio" name="kind" value="fishing" />
+                <input
+                  type="radio"
+                  name="kind"
+                  value="fishing"
+                  checked={kind === 'fishing'}
+                  onChange={() => setKind('fishing')}
+                />
                 Fishing
               </label>
             </div>
@@ -215,7 +230,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   className="bb-input bb-input-iconed"
                 >
                   <option value="">Select method</option>
-                  {METHOD_OPTIONS.map((m) => (
+                  {methodsForKind(kind).map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>

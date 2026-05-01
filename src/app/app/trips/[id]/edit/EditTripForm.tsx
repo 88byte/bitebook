@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Building, Map, Mountain, TreeDeciduous, PawPrint, Crosshair } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
-import { METHOD_OPTIONS } from '@/lib/methods'
+import { methodsForKind } from '@/lib/methods'
 import { updateTripAction } from '../actions'
 import HuntersMultiSelect, { type HunterOption } from '../../_components/HuntersMultiSelect'
 import DateTimeField from '../../../_components/DateTimeField'
@@ -53,6 +53,8 @@ export default function EditTripForm({
   const [error, setError] = useState<string | null>(null)
   const [hunterList, setHunterList] = useState<HunterOption[]>(candidates)
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds))
+  // v27.0b.4.3: track kind in state so the method dropdown filters by activity.
+  const [kind, setKind] = useState<'hunting' | 'fishing'>(initial.kind)
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -119,7 +121,8 @@ export default function EditTripForm({
                   type="radio"
                   name="kind"
                   value="hunting"
-                  defaultChecked={initial.kind === 'hunting'}
+                  checked={kind === 'hunting'}
+                  onChange={() => setKind('hunting')}
                 />
                 Hunting
               </label>
@@ -128,7 +131,8 @@ export default function EditTripForm({
                   type="radio"
                   name="kind"
                   value="fishing"
-                  defaultChecked={initial.kind === 'fishing'}
+                  checked={kind === 'fishing'}
+                  onChange={() => setKind('fishing')}
                 />
                 Fishing
               </label>
@@ -265,7 +269,7 @@ export default function EditTripForm({
                   className="bb-input bb-input-iconed"
                 >
                   <option value="">Select method</option>
-                  {METHOD_OPTIONS.map((m) => (
+                  {methodsForKind(kind).map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>

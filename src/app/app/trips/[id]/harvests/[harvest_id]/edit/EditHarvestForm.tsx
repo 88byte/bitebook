@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save, Trash2 } from 'lucide-react'
-import { METHOD_OPTIONS } from '@/lib/methods'
+import { methodsForKind } from '@/lib/methods'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import { updateHarvestAction, deleteHarvestAction } from '../../../actions'
 
@@ -59,6 +59,8 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
   const [tagId, setTagId] = useState<string>(initial.consumed_wallet_item_id ?? '')
   const [speciesName, setSpeciesName] = useState<string>(initial.species_name ?? '')
   const [tagNumber, setTagNumber] = useState<string>(initial.tag_number ?? '')
+  // v27.0b.4.3: track kind in state so the method dropdown filters by activity.
+  const [harvestKind, setHarvestKind] = useState<'hunting' | 'fishing'>(initial.kind)
 
   const opts: TagOptions = hunterId
     ? tagOptionsByHunter[hunterId] ?? { tags: [], default_tag_id: null }
@@ -213,11 +215,23 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
         <span className="bb-form-label">Activity</span>
         <div className="bb-segmented" role="radiogroup" aria-label="Activity">
           <label>
-            <input type="radio" name="kind" value="hunting" defaultChecked={initial.kind === 'hunting'} />
+            <input
+              type="radio"
+              name="kind"
+              value="hunting"
+              checked={harvestKind === 'hunting'}
+              onChange={() => setHarvestKind('hunting')}
+            />
             Hunting
           </label>
           <label>
-            <input type="radio" name="kind" value="fishing" defaultChecked={initial.kind === 'fishing'} />
+            <input
+              type="radio"
+              name="kind"
+              value="fishing"
+              checked={harvestKind === 'fishing'}
+              onChange={() => setHarvestKind('fishing')}
+            />
             Fishing
           </label>
         </div>
@@ -233,7 +247,9 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
             className="bb-input"
           >
             <option value="">Select method</option>
-            {METHOD_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+            {methodsForKind(harvestKind).map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
           </select>
         </div>
         <div className="bb-form-row">
