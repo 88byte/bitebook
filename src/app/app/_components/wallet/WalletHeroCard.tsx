@@ -32,7 +32,14 @@ function skinFor(type: WalletItemType, status: WalletDerivedStatus): string {
     if (status === 'expired') return '/bb-card-skin-tag-expired.png'
     return '/bb-card-skin-tag.png'
   }
-  if (type === 'permit' || type === 'harvest_report_card') {
+  if (
+    type === 'permit' ||
+    type === 'harvest_report_card' ||
+    // v27.0b.7.1: stamp shares the tag skin family per Flavio's spec.
+    // Stamps don't have a tagged-out state; treat as active when not
+    // expired. Dedicated stamp artwork is a v27.1 candidate.
+    type === 'stamp'
+  ) {
     return status === 'expired'
       ? '/bb-card-skin-tag-expired.png'
       : '/bb-card-skin-tag.png'
@@ -42,8 +49,21 @@ function skinFor(type: WalletItemType, status: WalletDerivedStatus): string {
       ? '/bb-card-skin-guide-license-expired.png'
       : '/bb-card-skin-guide-license.png'
   }
-  // insurance, business_credential, stamp — keep legacy default for now.
+  // insurance, business_credential — keep legacy default until dedicated
+  // artwork ships.
   return '/bb-card-skin.png'
+}
+
+// v27.0b.7.1: which types use the tag skin family. Drives the
+// .bb-wallet-card--tag-family modifier class (extra left + top padding
+// to clear the artwork's left-edge hole/grommet ornament).
+function isTagFamily(type: WalletItemType): boolean {
+  return (
+    type === 'tag' ||
+    type === 'permit' ||
+    type === 'harvest_report_card' ||
+    type === 'stamp'
+  )
 }
 
 // Extracted from WalletPage in v27.0a.17 so the new WalletDeck component
@@ -86,21 +106,86 @@ export default function WalletHeroCard({
 
   const isTaggedOut = item.status === 'used'
 
-  // v27.0b.7: pass the per-type/status skin via inline style so it
-  // overrides the global .bb-wallet-card { background-image } default.
-  // .bb-wallet-card--used class is preserved only as a UX marker for the
-  // "skip the redundant TAGGED OUT pill" rule below; the actual skin
-  // image now comes from skinFor().
   const skin = skinFor(item.type, item.status)
+  const isGuideLic = item.type === 'guide_license'
+  const tagFamily = isTagFamily(item.type)
+
   // v27.0b.7: guide_license skins have the eyebrow ("Guide License")
   // baked into the artwork. Suppress the React-rendered eyebrow on that
   // type only so the title doesn't sit beneath a duplicate label.
-  const showEyebrow = item.type !== 'guide_license'
+  const showEyebrow = !isGuideLic
+
+  // v27.0b.7.1: build the className list. .bb-wallet-card--tag-family
+  // bumps left + top padding to clear the tag artwork's grommet/hole
+  // ornament. .bb-wallet-card--guide-license switches to absolute-
+  // positioned per-field layout so dynamic values land under the
+  // baked-in labels (LICENSE HOLDER / STATE / LICENSE ID / VALID
+  // THROUGH).
+  const cls = [
+    'bb-wallet-card',
+    isTaggedOut ? 'bb-wallet-card--used' : '',
+    tagFamily ? 'bb-wallet-card--tag-family' : '',
+    isGuideLic ? 'bb-wallet-card--guide-license' : '',
+    className ?? '',
+  ].filter(Boolean).join(' ')
+
+  if (isGuideLic) {
+    // v27.0b.7.1: dedicated layout for guide_license. The skin has 4
+    // baked-in labels stacked on the left side (LICENSE HOLDER / STATE
+    // / LICENSE ID / VALID THROUGH) with copper icons. We render the
+    // dynamic values as a 4-row grid pinned to the same vertical band
+    // so each value sits next to its label. No eyebrow, no separate
+    // top/bottom blocks — single grid keyed to artwork.
+    const stateLabel = item.state ? expandStateLabel(item.state) : '—'
+    const seasonLabel = item.season_year ? `${item.season_year}` : null
+    return (
+      <Link
+        href={`${basePath}/${item.id}/edit`}
+        className={cls}
+        aria-label={`${eyebrow} ${item.identifier}`}
+        style={{ ...style, backgroundImage: `url('${skin}')` }}
+        onClick={onClick}
+        tabIndex={tabIndex}
+      >
+        <div className="bb-wallet-card-gl-fields" aria-hidden={false}>
+          <div className="bb-wallet-card-gl-row">
+            {/* LICENSE HOLDER value. We don't have a dedicated holder
+                column on wallet_items yet, so show the eyebrow ("Guide
+                License") prop's already-known holder value via item
+                fields available — currently we don't have it; surface
+                identifier as a sensible fallback. v27.1 will plumb a
+                real holder_name field through the form. */}
+            <span className="bb-wallet-card-gl-value">{item.identifier || 'Untitled'}</span>
+          </div>
+          <div className="bb-wallet-card-gl-row">
+            <span className="bb-wallet-card-gl-value">{stateLabel}</span>
+          </div>
+          <div className="bb-wallet-card-gl-row">
+            <span className="bb-wallet-card-gl-value">
+              {item.identifier || '—'}
+              {seasonLabel ? <span className="bb-wallet-card-gl-meta"> · {seasonLabel}</span> : null}
+            </span>
+          </div>
+          <div className="bb-wallet-card-gl-row">
+            <span className="bb-wallet-card-gl-value">{validToFmt}</span>
+          </div>
+        </div>
+        {/* Status pill remains in its standard bottom-right position so
+            active / expired states stay legible at a glance. */}
+        <div className="bb-wallet-card-gl-status">
+          <span className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}>
+            <CircleCheck size={12} aria-hidden="true" />
+            {statusLabel}
+          </span>
+        </div>
+      </Link>
+    )
+  }
 
   return (
     <Link
       href={`${basePath}/${item.id}/edit`}
-      className={`bb-wallet-card${isTaggedOut ? ' bb-wallet-card--used' : ''}${className ? ` ${className}` : ''}`}
+      className={cls}
       aria-label={`${eyebrow} ${item.identifier}`}
       style={{ ...style, backgroundImage: `url('${skin}')` }}
       onClick={onClick}

@@ -3252,6 +3252,85 @@ body {
    the bg image only. The status pill, inline Trophy, copper outline, and
    ambient glow from v27.0b.1 are dropped because they'd compete with the
    skin's own ribbon + marker. */
+/* v27.0b.7.1: tag-family skin (tag, permit, harvest_report_card, stamp)
+   has a tag-shape ornament with a grommet hole on the upper-left that
+   crowds default text positioning. Bump left + top padding so the
+   eyebrow, title, sub, state lines sit clearly inside the artwork's
+   text area. Applied on top of the base .bb-wallet-card padding. */
+.bb-wallet-card--tag-family {
+  padding-left: 1.85rem;
+  padding-top: 1.45rem;
+}
+.bb-wallet-card--tag-family .bb-wallet-card-top {
+  padding-left: 0.15rem;
+}
+
+/* v27.0b.7.1: guide_license layout. The skin has 4 baked-in labels
+   stacked on the left half (LICENSE HOLDER / STATE / LICENSE ID /
+   VALID THROUGH) with copper icons. The card render branch in
+   WalletHeroCard emits a 4-row grid pinned to the same vertical band
+   so dynamic values land directly under each label.
+
+   Coordinates derived from the artwork at native 1024×612 resolution:
+     - GUIDE LICENSE header occupies top ~28% (no value rendered there)
+     - LICENSE HOLDER label baseline ~30% from top
+     - STATE label                  ~44% from top
+     - LICENSE ID label             ~58% from top
+     - VALID THROUGH label          ~72% from top
+   The grid below uses padding-top + row gap to land each value at the
+   matching vertical position. Left column is fixed to the artwork's
+   ~50% boundary so the right half (mountain photo) stays clear. */
+.bb-wallet-card--guide-license {
+  padding: 0;
+  display: block; /* override base flex */
+  position: relative;
+}
+.bb-wallet-card-gl-fields {
+  position: absolute;
+  top: 30%;
+  left: 9%;
+  right: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.bb-wallet-card-gl-row {
+  display: flex;
+  align-items: baseline;
+  min-height: 1.05rem;
+}
+.bb-wallet-card-gl-value {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #F4EFE5;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bb-wallet-card-gl-meta {
+  font-weight: 500;
+  opacity: 0.78;
+}
+.bb-wallet-card-gl-status {
+  position: absolute;
+  bottom: 0.85rem;
+  right: 1rem;
+  z-index: 2;
+}
+/* Slightly larger row gap on bigger viewports so values stay aligned
+   to labels when the card height grows past 200px. */
+@media (min-width: 480px) {
+  .bb-wallet-card-gl-fields {
+    gap: 0.85rem;
+  }
+  .bb-wallet-card-gl-value {
+    font-size: 1.1rem;
+  }
+}
+
 .bb-wallet-card--used {
   background-image: url('/bb-card-skin-tagged-out.png');
 }
