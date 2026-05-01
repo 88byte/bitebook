@@ -94,6 +94,107 @@ export type Database = {
           },
         ]
       }
+      // v27.1.0 — Documents Module (hand-edited; auto-generation skipped per memory rule)
+      doc_field_mappings: {
+        Row: {
+          bbox: Json | null
+          created_at: string
+          data_source_path: string | null
+          doc_id: string
+          field_name: string
+          id: string
+          mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
+          page_index: number | null
+          signature_role: string | null
+          updated_at: string
+        }
+        Insert: {
+          bbox?: Json | null
+          created_at?: string
+          data_source_path?: string | null
+          doc_id: string
+          field_name: string
+          id?: string
+          mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
+          page_index?: number | null
+          signature_role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bbox?: Json | null
+          created_at?: string
+          data_source_path?: string | null
+          doc_id?: string
+          field_name?: string
+          id?: string
+          mapping_kind?: Database["public"]["Enums"]["doc_mapping_kind"]
+          page_index?: number | null
+          signature_role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doc_field_mappings_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "docs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      docs: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_mime: string
+          file_path: string
+          form_template_hash: string | null
+          guide_id: string
+          id: string
+          kind: Database["public"]["Enums"]["doc_kind"]
+          label: string
+          mapping_status: string
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_mime: string
+          file_path: string
+          form_template_hash?: string | null
+          guide_id: string
+          id?: string
+          kind: Database["public"]["Enums"]["doc_kind"]
+          label: string
+          mapping_status?: string
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_mime?: string
+          file_path?: string
+          form_template_hash?: string | null
+          guide_id?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["doc_kind"]
+          label?: string
+          mapping_status?: string
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "docs_guide_id_fkey"
+            columns: ["guide_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_flags: {
         Row: {
           description: string | null
@@ -908,6 +1009,104 @@ export type Database = {
           },
         ]
       }
+      // v27.1.0 — Documents Module (hand-edited)
+      trip_doc_hunter_actions: {
+        Row: {
+          action_type: Database["public"]["Enums"]["doc_action_type"]
+          completed_at: string | null
+          completed_data: Json | null
+          created_at: string
+          hunter_id: string
+          id: string
+          required: boolean
+          trip_doc_id: string
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["doc_action_type"]
+          completed_at?: string | null
+          completed_data?: Json | null
+          created_at?: string
+          hunter_id: string
+          id?: string
+          required?: boolean
+          trip_doc_id: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["doc_action_type"]
+          completed_at?: string | null
+          completed_data?: Json | null
+          created_at?: string
+          hunter_id?: string
+          id?: string
+          required?: boolean
+          trip_doc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_doc_hunter_actions_hunter_id_fkey"
+            columns: ["hunter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_doc_hunter_actions_trip_doc_id_fkey"
+            columns: ["trip_doc_id"]
+            isOneToOne: false
+            referencedRelation: "trip_docs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_docs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          doc_id: string
+          hunter_visible: boolean
+          id: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          doc_id: string
+          hunter_visible?: boolean
+          id?: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          doc_id?: string
+          hunter_visible?: boolean
+          id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_docs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_docs_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "docs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_docs_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_reviews: {
         Row: {
           comment: string | null
@@ -1187,6 +1386,10 @@ export type Database = {
       }
     }
     Enums: {
+      // v27.1.0 — Documents Module (hand-edited)
+      doc_action_type: "sign" | "fill" | "view"
+      doc_kind: "waiver" | "log" | "resource"
+      doc_mapping_kind: "field" | "signature"
       feedback_sentiment: "positive" | "neutral" | "negative"
       harvest_kind: "hunting" | "fishing"
       invite_status:
@@ -1344,6 +1547,10 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      // v27.1.0 — Documents Module (hand-edited)
+      doc_action_type: ["sign", "fill", "view"],
+      doc_kind: ["waiver", "log", "resource"],
+      doc_mapping_kind: ["field", "signature"],
       feedback_sentiment: ["positive", "neutral", "negative"],
       harvest_kind: ["hunting", "fishing"],
       invite_status: [

@@ -1,31 +1,275 @@
-import { FileText } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, ClipboardCheck, BookOpen, Plus, AlertCircle, Archive } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
+import { fetchGuideDocs, fetchGuideDocCounts, type DocKind, type DocSummary } from '../_lib/docs-queries'
+import { relativeOrDate } from '../_lib/format'
 
-export default async function DocsPage() {
-  // Gate the route on a real session even though the body is static — keeps
-  // the sidebar link aligned with the rest of /app and avoids leaking the
-  // route shell to logged-out users.
-  await requireGuide()
+type SearchParams = Promise<{ kind?: string; archived?: string }>
+
+const KIND_FILTERS: { value: DocKind | 'all'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'waiver', label: 'Waivers' },
+  { value: 'log', label: 'Logs' },
+  { value: 'resource', label: 'Resources' },
+]
+
+function isKindFilter(s: string | undefined): s is DocKind | 'all' {
+  return s === 'all' || s === 'waiver' || s === 'log' || s === 'resource'
+}
+
+// v27.1.0 — Documents Module library page.
+// Guide uploads PDFs of three kinds (waiver / log / resource), filters by
+// kind chip, sees mapping status badges, and opens the doc detail to edit
+// label / state / kind. Mapping wizards land in v27.1.1+.
+export default async function DocsPage({ searchParams }: { searchParams: SearchParams }) {
+  const { profile } = await requireGuide()
+  const sp = await searchParams
+  const kind: DocKind | 'all' = isKindFilter(sp.kind) ? sp.kind : 'all'
+  const includeArchived = sp.archived === '1'
+
+  const [docs, counts] = await Promise.all([
+    fetchGuideDocs(profile.id, { kind, includeArchived }),
+    fetchGuideDocCounts(profile.id),
+  ])
 
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Coming soon</p>
-        <h1 className="bb-page-title">Documents</h1>
-        <p className="bb-page-sub">A home for your guide paperwork, hunter docs, and warden share.</p>
-      </header>
-
-      <section className="bb-tile mt-4">
-        <div className="bb-tile-body" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-          <FileText size={36} aria-hidden="true" style={{ color: 'var(--color-ink-soft)', margin: '0 auto' }} />
-          <div className="bb-empty-title mt-2">Documents are coming in v25</div>
-          <p className="bb-empty-sub">
-            Custom doc upload, hunter wallet, and one-tap warden share are next on the build list.
-            Bite Book will keep your tags, licenses, and harvest records together so you can hand a
-            warden a single link in the field.
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="bb-page-eyebrow">Documents</p>
+          <h1 className="bb-page-title">Your library</h1>
+          <p className="bb-page-sub">
+            Waivers, harvest logs, and resources you can attach to any trip.
           </p>
         </div>
-      </section>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <Link
+            href="/app/docs/new"
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Upload doc
+          </Link>
+        </div>
+      </header>
+
+      {/* Filter chips. URL-driven so the browser back button works and links
+          can be shared. Active state = copper underline matching the
+          mobile-tab pattern. */}
+      <nav
+        className="mt-4 flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Filter docs by kind"
+      >
+        {KIND_FILTERS.map((f) => {
+          const active = f.value === kind
+          const href = f.value === 'all' ? '/app/docs' : `/app/docs?kind=${f.value}`
+          const count = counts[f.value]
+          return (
+            <Link
+              key={f.value}
+              href={href}
+              role="tab"
+              aria-selected={active}
+              className={active ? 'bb-chip is-active' : 'bb-chip'}
+            >
+              {f.label} <span style={{ opacity: 0.65 }}>({count})</span>
+            </Link>
+          )
+        })}
+        <Link
+          href={includeArchived ? '/app/docs' : '/app/docs?archived=1'}
+          className={includeArchived ? 'bb-chip is-active' : 'bb-chip'}
+          aria-pressed={includeArchived}
+          style={{ marginLeft: 'auto' }}
+        >
+          <Archive size={12} aria-hidden="true" style={{ marginRight: 4 }} />
+          {includeArchived ? 'Hide archived' : 'Show archived'}
+        </Link>
+      </nav>
+
+      {docs.length === 0 ? (
+        <EmptyState kind={kind} includeArchived={includeArchived} />
+      ) : (
+        <section className="mt-4 flex flex-col gap-3">
+          {docs.map((d) => (
+            <DocRow key={d.id} doc={d} />
+          ))}
+        </section>
+      )}
     </main>
+  )
+}
+
+function EmptyState({
+  kind,
+  includeArchived,
+}: {
+  kind: DocKind | 'all'
+  includeArchived: boolean
+}) {
+  if (includeArchived) {
+    return (
+      <section className="bb-tile mt-4">
+        <div className="bb-tile-body" style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+          <Archive size={32} aria-hidden="true" style={{ color: 'var(--color-ink-soft)', margin: '0 auto' }} />
+          <div className="bb-empty-title mt-2">No archived docs</div>
+          <p className="bb-empty-sub">Archived docs appear here. Restore or hard-delete from a doc&rsquo;s detail page.</p>
+        </div>
+      </section>
+    )
+  }
+  const kindLabel =
+    kind === 'all'
+      ? 'docs'
+      : kind === 'waiver'
+        ? 'waivers'
+        : kind === 'log'
+          ? 'logs'
+          : 'resources'
+  return (
+    <section className="bb-tile mt-4">
+      <div className="bb-tile-body" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <FileText size={36} aria-hidden="true" style={{ color: 'var(--color-ink-soft)', margin: '0 auto' }} />
+        <div className="bb-empty-title mt-2">No {kindLabel} yet</div>
+        <p className="bb-empty-sub">
+          Upload your first PDF — a hunt waiver, a state harvest log template, or a resource handout
+          like &ldquo;What to bring on a bear hunt.&rdquo;
+        </p>
+        <div className="mt-4">
+          <Link
+            href="/app/docs/new"
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Upload doc
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function DocRow({ doc }: { doc: DocSummary }) {
+  const Icon = doc.kind === 'waiver' ? ClipboardCheck : doc.kind === 'log' ? FileText : BookOpen
+  const kindLabel =
+    doc.kind === 'waiver' ? 'Waiver' : doc.kind === 'log' ? 'Harvest log' : 'Resource'
+  const isArchived = !!doc.archived_at
+
+  return (
+    <Link
+      href={`/app/docs/${doc.id}`}
+      className="bb-tile bb-trip-row"
+      style={{
+        textDecoration: 'none',
+        opacity: isArchived ? 0.6 : 1,
+        alignItems: 'flex-start',
+      }}
+    >
+      <div className="bb-tile-body" style={{ width: '100%' }}>
+        <div className="flex items-start gap-3" style={{ width: '100%' }}>
+          <span
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              width: 36,
+              height: 36,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8,
+              backgroundColor: 'var(--color-paper-tint)',
+              color: 'var(--color-ink-soft)',
+            }}
+          >
+            <Icon size={18} />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              className="bb-trip-title"
+              style={{ overflowWrap: 'anywhere' }}
+            >
+              {doc.label}
+            </div>
+            <div
+              className="bb-trip-meta"
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}
+            >
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                {kindLabel}
+                {doc.state ? ` · ${doc.state}` : ''}
+                {' · '}Updated {relativeOrDate(doc.updated_at)}
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                {doc.trip_count > 0 ? `On ${doc.trip_count} trip${doc.trip_count === 1 ? '' : 's'}` : 'Not attached to a trip'}
+              </span>
+            </div>
+          </div>
+          <MappingBadge status={doc.mapping_status} archived={isArchived} />
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function MappingBadge({ status, archived }: { status: string; archived: boolean }) {
+  if (archived) {
+    return (
+      <span
+        style={{
+          flexShrink: 0,
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          padding: '0.2rem 0.5rem',
+          borderRadius: 999,
+          background: 'var(--color-ink-tint)',
+          color: 'var(--color-ink-soft)',
+        }}
+      >
+        Archived
+      </span>
+    )
+  }
+  if (status === 'not_applicable') {
+    return null
+  }
+  if (status === 'complete') {
+    return (
+      <span
+        style={{
+          flexShrink: 0,
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          padding: '0.2rem 0.5rem',
+          borderRadius: 999,
+          background: 'rgba(168, 92, 50, 0.12)',
+          color: 'var(--color-copper)',
+        }}
+      >
+        Mapped
+      </span>
+    )
+  }
+  // unmapped or partial
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '0.2rem 0.5rem',
+        borderRadius: 999,
+        background: 'rgba(168, 92, 50, 0.12)',
+        color: 'var(--color-copper)',
+      }}
+    >
+      <AlertCircle size={11} aria-hidden="true" />
+      {status === 'partial' ? 'Partial' : 'Needs mapping'}
+    </span>
   )
 }
