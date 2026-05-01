@@ -23,6 +23,10 @@ import DateField from '../DateField'
 import WalletPhotoField from './WalletPhotoField'
 import SpeciesField from '../SpeciesField'
 import type { SpeciesOption } from '../../_lib/queries'
+// v27.0b.9.2: source-of-truth method list shared with NewTripForm,
+// EditTripForm, AddHarvestForm, EditHarvestForm. Wallet weapon dropdown
+// now filters by the same Hunting/Fishing toggle that filters species.
+import { methodsForKind, FISHING_METHODS } from '@/lib/methods'
 
 // Per-type fields are sourced from
 // /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md
@@ -137,8 +141,24 @@ export default function WalletItemForm({
   // v27.0b.6: species + species kind toggle. Species is now a controlled
   // datalist autocomplete; the kind toggle filters which seed options
   // appear in the list. Default kind: hunting (most common path).
+  // v27.0b.9.2: also default to 'fishing' on edit when the saved weapon
+  // restriction is a fishing method, so the toggle reflects the actual
+  // tag category rather than always landing on Hunting.
+  const initialWeaponRestriction: string = (initial.extras?.weapon_restriction as string | undefined) ?? ''
+  const initialKind: 'hunting' | 'fishing' =
+    (FISHING_METHODS as readonly string[]).includes(initialWeaponRestriction) ? 'fishing' : 'hunting'
   const [speciesValue, setSpeciesValue] = useState<string>(initial.species ?? '')
-  const [speciesKind, setSpeciesKind] = useState<'hunting' | 'fishing'>('hunting')
+  const [speciesKind, setSpeciesKind] = useState<'hunting' | 'fishing'>(initialKind)
+  // v27.0b.9.2: weapon_restriction is now controlled so the toggle can
+  // clear it when the saved value doesn't match the new kind. "Any" is
+  // a constraint, not a method, and is preserved across toggle changes.
+  const [weaponRestriction, setWeaponRestriction] = useState<string>(initialWeaponRestriction)
+  function chooseSpeciesKind(next: 'hunting' | 'fishing') {
+    setSpeciesKind(next)
+    if (!weaponRestriction || weaponRestriction === 'Any') return
+    const allowed = methodsForKind(next) as readonly string[]
+    if (!allowed.includes(weaponRestriction)) setWeaponRestriction('')
+  }
   // v27.0a.15: photo state. Persisted on form submit via the hidden
   // document_url input below — the actual upload happens out-of-band
   // (already in Supabase Storage) by the time we reach submit.
@@ -419,7 +439,7 @@ export default function WalletItemForm({
                         name="species_kind"
                         value="hunting"
                         checked={speciesKind === 'hunting'}
-                        onChange={() => setSpeciesKind('hunting')}
+                        onChange={() => chooseSpeciesKind('hunting')}
                       />
                       Hunting
                     </label>
@@ -429,7 +449,7 @@ export default function WalletItemForm({
                         name="species_kind"
                         value="fishing"
                         checked={speciesKind === 'fishing'}
-                        onChange={() => setSpeciesKind('fishing')}
+                        onChange={() => chooseSpeciesKind('fishing')}
                       />
                       Fishing
                     </label>
@@ -510,29 +530,31 @@ export default function WalletItemForm({
                 <p className="bb-form-help">Whatever your tag is officially called by the issuing agency — the program or class (General-season, Limited Quota, Premium, Restricted, PLO, Voucher, Apprentice, Junior, Pioneer, Depredation, Reduced-fee, etc.). Don&rsquo;t put sex or weapon restrictions here — those are tracked in their own fields below.</p>
               </div>
               <div className="bb-form-row">
-                <label className="bb-form-label" htmlFor="extras_weapon_restriction">Weapon</label>
-                {/* v27.0b.4.5: dropped "only" / "legal" qualifiers per
-                    Flavio. The selection IS the choice. Storage values
-                    bumped to canonical method labels (Any/Bow/Muzzleloader/
-                    Rifle) so the wallet's weapon_restriction can flow into
-                    method_display in queries.ts without case-mapping. The
-                    legacy lowercase values (archery/muzzleloader/rifle/any)
-                    are still normalized in queries.ts for backward
-                    compatibility. */}
+                <label className="bb-form-label" htmlFor="extras_weapon_restriction">Weapon / method</label>
+                {/* v27.0b.9.2: dropdown sourced from methodsForKind() in
+                    src/lib/methods.ts so it matches NewTripForm,
+                    EditTripForm, AddHarvestForm, EditHarvestForm exactly.
+                    Filters by the Hunting/Fishing toggle above (same
+                    toggle that filters species). When the toggle changes
+                    and the saved value isn't valid for the new kind,
+                    chooseSpeciesKind() clears it. "Any" is preserved as a
+                    constraint (not a method) and is always available.
+                    Legacy lowercase values (archery/muzzleloader/etc)
+                    remain normalized in queries.ts for back-compat. */}
                 <select
                   id="extras_weapon_restriction"
                   name="extras_weapon_restriction"
-                  defaultValue={e.weapon_restriction ?? ''}
+                  value={weaponRestriction}
+                  onChange={(ev) => setWeaponRestriction(ev.target.value)}
                   className="bb-input"
                 >
                   <option value="">—</option>
                   <option value="Any">Any</option>
-                  <option value="Bow">Bow</option>
-                  <option value="Crossbow">Crossbow</option>
-                  <option value="Muzzleloader">Muzzleloader</option>
-                  <option value="Rifle">Rifle</option>
-                  <option value="Shotgun">Shotgun</option>
-                  <option value="Handgun">Handgun</option>
+                  {methodsForKind(speciesKind).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
