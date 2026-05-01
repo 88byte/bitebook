@@ -523,7 +523,14 @@ export type HarvestTagOptions = {
 export async function fetchHarvestTagOptions(
   guideId: string,
   tripId: string,
-  hunterIds: string[]
+  hunterIds: string[],
+  /**
+   * v27.0b.4: include this wallet item in the result even if it's
+   * tagged out / archived / expired. Used by the harvest EDIT form so
+   * the currently-bound tag (always tagged out — the AFTER INSERT
+   * trigger flipped it on harvest creation) stays visible in the picker.
+   */
+  includeBoundTagId?: string | null
 ): Promise<Map<string, HarvestTagOptions>> {
   const out = new Map<string, HarvestTagOptions>()
   if (hunterIds.length === 0) return out
@@ -588,6 +595,41 @@ export async function fetchHarvestTagOptions(
     const activeIds = activeByHunter.get(link.hunter_id)
     if (activeIds && activeIds.has(link.wallet_item_id)) {
       existing.default_tag_id = link.wallet_item_id
+    }
+  }
+
+  // 3. v27.0b.4: include the bound tag (regardless of tagged_out_at /
+  //    archived_at / expired) so the edit form can show what's currently
+  //    selected. Without this, the trigger-flipped tag disappears from
+  //    the picker the moment the harvest is logged.
+  if (includeBoundTagId) {
+    const { data: bound } = await supabase
+      .from('wallet_items')
+      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to')
+      .eq('id', includeBoundTagId)
+      .eq('type', 'tag')
+      .maybeSingle()
+    if (bound && hunterIds.includes(bound.user_id)) {
+      const existing = out.get(bound.user_id) ?? { tags: [], default_tag_id: null }
+      const alreadyPresent = existing.tags.some((t) => t.id === bound.id)
+      if (!alreadyPresent) {
+        existing.tags = [
+          {
+            id: bound.id,
+            identifier: bound.identifier,
+            species: bound.species,
+            state: bound.state,
+            zone: bound.zone,
+            season_year: bound.season_year,
+            valid_to: bound.valid_to,
+          },
+          ...existing.tags,
+        ]
+      }
+      // Default to the bound tag for the edit form so the picker shows
+      // the current binding pre-selected.
+      if (!existing.default_tag_id) existing.default_tag_id = bound.id
+      out.set(bound.user_id, existing)
     }
   }
 

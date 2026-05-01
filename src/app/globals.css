@@ -3230,3 +3230,13 @@ body {
 .bb-wallet-card--used {
   background-image: url('/bb-card-skin-tagged-out.png');
 }
+
+/* v27.0b.4: trip card harvest indicator. When count > 0, the Trophy
+   meta cell flips to copper (icon + text), filled trophy, bolder text. */
+.bb-trip-meta-cell--harvest .bb-trip-meta-cell-icon {
+  color: var(--color-copper);
+}
+.bb-trip-meta-cell--harvest .bb-trip-meta-cell-text {
+  color: var(--color-copper);
+  font-weight: 600;
+}

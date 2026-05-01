@@ -64,7 +64,8 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
   const tagOptionsMap = await fetchHarvestTagOptions(
     profile.id,
     trip.id,
-    harvestParticipants.map((p) => p.id)
+    harvestParticipants.map((p) => p.id),
+    harvest.consumed_wallet_item_id ?? null
   )
   tagOptionsMap.forEach((opts, hunterId) => {
     tagOptionsByHunter[hunterId] = opts

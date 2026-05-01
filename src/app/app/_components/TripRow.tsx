@@ -40,6 +40,7 @@ export default function TripRow({
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
   const huntersLabel = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`
   const harvestsLabel = `${harvests} ${harvests === 1 ? 'harvested' : 'harvested'}`
+  const hasHarvest = harvests > 0
   const isWrapped = trip.status === 'completed' || trip.status === 'canceled'
 
   return (
@@ -73,9 +74,9 @@ export default function TripRow({
             </span>
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
           </span>
-          <span className="bb-trip-meta-cell">
+          <span className={`bb-trip-meta-cell${hasHarvest ? ' bb-trip-meta-cell--harvest' : ''}`}>
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Trophy size={14} strokeWidth={1.5} />
+              <Trophy size={14} strokeWidth={hasHarvest ? 2 : 1.5} fill={hasHarvest ? 'currentColor' : 'none'} />
             </span>
             <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>
