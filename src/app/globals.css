@@ -3267,10 +3267,22 @@ body {
 }
 .bb-wallet-card--tag-family .bb-wallet-card-eyebrow {
   margin-top: -0.4rem;   /* up ~6px */
-  margin-left: 0.4rem;   /* right ~6px */
+  margin-left: 1rem;     /* v27.0b.7.4: pushed further right (was 0.4rem) */
 }
 .bb-wallet-card--tag-family .bb-wallet-card-title {
   margin-top: 0.75rem;   /* down ~12px from eyebrow */
+}
+
+/* v27.0b.7.4: tag-family swaps the bottom block layout — VALID THROUGH
+   moves to bottom-left, ACTIVE/EXPIRED status pill to bottom-right.
+   Easiest knob: row-reverse the existing flex container. */
+.bb-wallet-card--tag-family .bb-wallet-card-bottom {
+  flex-direction: row-reverse;
+}
+/* When validity moves to the bottom-left, its right-aligned text would
+   look strange floating away from the edge — left-align it. */
+.bb-wallet-card--tag-family .bb-wallet-card-validity {
+  text-align: left;
 }
 
 /* v27.0b.7.2: meta block on tag-family cards — species / weapon / tag
@@ -3333,10 +3345,12 @@ body {
   align-items: baseline;
   min-height: 1.1rem;
 }
+/* v27.0b.7.4: holder stays at 42% (locked); state / id / valid pulled
+   up 3-5pp to tighten alignment to their label baselines. */
 .bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="holder"] { top: 42%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 56%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 69%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 82%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 53%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 65%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 77%; }
 
 .bb-wallet-card-gl-value {
   font-family: var(--font-barlow-condensed), sans-serif;
@@ -3349,9 +3363,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* v27.0b.7.4: status pill nudged up so it doesn't crowd the new
+   valid-through row position (77%). */
 .bb-wallet-card-gl-status {
   position: absolute;
-  bottom: 0.85rem;
+  bottom: 1.5rem;
   right: 1rem;
   z-index: 2;
 }
