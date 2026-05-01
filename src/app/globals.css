@@ -3252,17 +3252,25 @@ body {
    the bg image only. The status pill, inline Trophy, copper outline, and
    ambient glow from v27.0b.1 are dropped because they'd compete with the
    skin's own ribbon + marker. */
-/* v27.0b.7.1 / .7.2: tag-family skin (tag, permit, harvest_report_card,
-   stamp) has a tag-shape ornament with a grommet hole on the upper-left
-   that crowds default text positioning. .7.2 bumped left padding from
-   1.85rem to 2.6rem so the title block sits clearly inside the artwork's
-   text band. Top padding stays at 1.45rem (works). */
+/* v27.0b.7.1 / .7.2 / .7.3: tag-family skin (tag, permit,
+   harvest_report_card, stamp). Padding-left at 2.6rem clears the
+   grommet/hole ornament. Padding-top at 1.45rem.
+   .7.3 splits the title block: eyebrow shifts up + right to land on
+   the artwork's intended eyebrow zone; the rest of the body content
+   shifts down for breathing room from the eyebrow. */
 .bb-wallet-card--tag-family {
   padding-left: 2.6rem;
   padding-top: 1.45rem;
 }
 .bb-wallet-card--tag-family .bb-wallet-card-top {
   padding-left: 0.15rem;
+}
+.bb-wallet-card--tag-family .bb-wallet-card-eyebrow {
+  margin-top: -0.4rem;   /* up ~6px */
+  margin-left: 0.4rem;   /* right ~6px */
+}
+.bb-wallet-card--tag-family .bb-wallet-card-title {
+  margin-top: 0.75rem;   /* down ~12px from eyebrow */
 }
 
 /* v27.0b.7.2: meta block on tag-family cards — species / weapon / tag
@@ -3313,18 +3321,22 @@ body {
   display: block; /* override base flex */
   position: relative;
 }
+/* v27.0b.7.3: shifted values down 3-4pp from .7.2 so they sit BELOW
+   each baked-in label instead of overlapping. Left edge bumped 9% to
+   13% to align with the label's x-position (icon + label start ~12-13%
+   in the artwork). */
 .bb-wallet-card--guide-license .bb-wallet-card-gl-row {
   position: absolute;
-  left: 9%;
+  left: 13%;
   right: 50%;
   display: flex;
   align-items: baseline;
   min-height: 1.1rem;
 }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="holder"] { top: 38%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 52%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 65%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 78%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="holder"] { top: 42%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 56%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 69%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 82%; }
 
 .bb-wallet-card-gl-value {
   font-family: var(--font-barlow-condensed), sans-serif;
