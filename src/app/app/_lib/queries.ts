@@ -259,6 +259,12 @@ export type TripDetail = {
     quantity: number
     method: string | null
     hunter_name: string | null
+    /** v27.0b.4.1: live-source display values. wallet_item.species/identifier
+     * preferred; harvest snapshot fallback; trip-level fallback last. Read
+     * these for display, never the snapshot fields above. */
+    species_display: string | null
+    tag_number_display: string | null
+    method_display: string | null
   }>
 }
 
@@ -281,7 +287,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
       .eq('trip_id', tripId),
     supabase
       .from('harvests')
-      .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity, method')
+      .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity, method, consumed_wallet_item_id')
       .eq('trip_id', tripId)
       .order('harvested_at', { ascending: false }),
   ])
@@ -302,6 +308,27 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
     ;(profiles ?? []).forEach((p) => profilesMap.set(p.id, p))
   }
 
+  // v27.0b.4.1: pull live wallet items for any harvest with a bound tag,
+  // so display reads from the source of truth (rename/zone/etc edits
+  // propagate). Snapshot fields (species_name, tag_number) are fallback.
+  const consumedIds = Array.from(
+    new Set(
+      (harvestsRes.data ?? [])
+        .map((h) => h.consumed_wallet_item_id)
+        .filter((v): v is string => !!v)
+    )
+  )
+  const walletMap = new Map<string, { species: string | null; identifier: string | null }>()
+  if (consumedIds.length > 0) {
+    const { data: walletItems } = await supabase
+      .from('wallet_items')
+      .select('id, species, identifier')
+      .in('id', consumedIds)
+    ;(walletItems ?? []).forEach((w) =>
+      walletMap.set(w.id, { species: w.species, identifier: w.identifier })
+    )
+  }
+
   return {
     trip,
     participants: (participantsRes.data ?? []).map((p) => ({
@@ -311,18 +338,26 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
       hunter_id: p.hunter_id,
       profile: p.hunter_id ? profilesMap.get(p.hunter_id) ?? null : null,
     })),
-    harvests: (harvestsRes.data ?? []).map((h) => ({
-      id: h.id,
-      kind: h.kind,
-      species_name: h.species_name,
-      harvested_at: h.harvested_at,
-      tag_number: h.tag_number,
-      notes: h.notes,
-      hunter_id: h.hunter_id,
-      quantity: h.quantity,
-      method: h.method ?? null,
-      hunter_name: h.hunter_id ? profilesMap.get(h.hunter_id)?.display_name ?? null : null,
-    })),
+    harvests: (harvestsRes.data ?? []).map((h) => {
+      const live = h.consumed_wallet_item_id ? walletMap.get(h.consumed_wallet_item_id) : undefined
+      return {
+        id: h.id,
+        kind: h.kind,
+        species_name: h.species_name,
+        harvested_at: h.harvested_at,
+        tag_number: h.tag_number,
+        notes: h.notes,
+        hunter_id: h.hunter_id,
+        quantity: h.quantity,
+        method: h.method ?? null,
+        hunter_name: h.hunter_id ? profilesMap.get(h.hunter_id)?.display_name ?? null : null,
+        // Display-time live-source resolution. Wallet item wins, then
+        // harvest snapshot, then trip-level fallback.
+        species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
+        tag_number_display: live?.identifier ?? h.tag_number ?? null,
+        method_display: h.method ?? trip.method ?? null,
+      }
+    }),
   }
 }
 
@@ -873,6 +908,13 @@ export type HunterTripDetail = {
     tag_number: string | null
     notes: string | null
     quantity: number
+    /** v27.0b.4.1: live-source display values mirror guide-side TripDetail.
+     * wallet_item.species/identifier preferred; harvest snapshot fallback;
+     * trip-level fallback last. Read these for display, never the snapshot
+     * fields above. */
+    species_display: string | null
+    tag_number_display: string | null
+    method_display: string | null
   }>
 }
 
@@ -907,7 +949,7 @@ export async function fetchHunterTripDetail(
       .eq('trip_id', tripId),
     supabase
       .from('harvests')
-      .select('id, kind, species_name, harvested_at, tag_number, notes, quantity, hunter_id')
+      .select('id, kind, species_name, harvested_at, tag_number, notes, quantity, hunter_id, method, consumed_wallet_item_id')
       .eq('trip_id', tripId)
       .eq('hunter_id', hunterId)
       .order('harvested_at', { ascending: false }),
@@ -942,6 +984,27 @@ export async function fetchHunterTripDetail(
     ;(profiles ?? []).forEach((p) => profilesMap.set(p.id, p))
   }
 
+  // v27.0b.4.1: pull live wallet items for any harvest with a bound tag, so
+  // display reads from the source of truth — same rule as guide-side
+  // fetchTripDetail. wallet_items RLS lets the hunter read their own tags.
+  const consumedIds = Array.from(
+    new Set(
+      (harvestsRes.data ?? [])
+        .map((h) => h.consumed_wallet_item_id)
+        .filter((v): v is string => !!v)
+    )
+  )
+  const walletMap = new Map<string, { species: string | null; identifier: string | null }>()
+  if (consumedIds.length > 0) {
+    const { data: walletItems } = await supabase
+      .from('wallet_items')
+      .select('id, species, identifier')
+      .in('id', consumedIds)
+    ;(walletItems ?? []).forEach((w) =>
+      walletMap.set(w.id, { species: w.species, identifier: w.identifier })
+    )
+  }
+
   return {
     trip: {
       id: trip.id,
@@ -973,15 +1036,23 @@ export async function fetchHunterTripDetail(
       hunter_id: p.hunter_id,
       profile: p.hunter_id ? profilesMap.get(p.hunter_id) ?? null : null,
     })),
-    myHarvests: (harvestsRes.data ?? []).map((h) => ({
-      id: h.id,
-      kind: h.kind,
-      species_name: h.species_name,
-      harvested_at: h.harvested_at,
-      tag_number: h.tag_number,
-      notes: h.notes,
-      quantity: h.quantity,
-    })),
+    myHarvests: (harvestsRes.data ?? []).map((h) => {
+      const live = h.consumed_wallet_item_id ? walletMap.get(h.consumed_wallet_item_id) : undefined
+      return {
+        id: h.id,
+        kind: h.kind,
+        species_name: h.species_name,
+        harvested_at: h.harvested_at,
+        tag_number: h.tag_number,
+        notes: h.notes,
+        quantity: h.quantity,
+        // v27.0b.4.1: live-source resolution. Wallet item wins, then harvest
+        // snapshot, then trip-level fallback.
+        species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
+        tag_number_display: live?.identifier ?? h.tag_number ?? null,
+        method_display: h.method ?? trip.method ?? null,
+      }
+    }),
   }
 }
 

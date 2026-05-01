@@ -172,14 +172,18 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
             ) : (
               <div className="bb-detail-list">
                 {myHarvests.map((h) => {
-                  const species = h.species_name ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
+                  // v27.0b.4.1: read live-source display values (wallet item
+                  // > harvest snapshot > trip fallback) so guide edits to the
+                  // bound tag's species/identifier propagate without touching
+                  // the harvest row.
+                  const species = h.species_display ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
                   return (
                     <div key={h.id} className="bb-detail-row">
                       <span className="bb-avatar" aria-hidden="true">{initials(species)}</span>
                       <div className="flex-1 min-w-0">
                         <div className="bb-detail-name">
                           {species}
-                          {h.tag_number ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number}</span> : null}
+                          {h.tag_number_display ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number_display}</span> : null}
                         </div>
                         <div className="bb-detail-sub">
                           {timeOfDay(h.harvested_at)} · {relativeOrDate(h.harvested_at)}

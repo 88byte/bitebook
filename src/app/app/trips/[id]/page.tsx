@@ -255,9 +255,13 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
               <div className="bb-detail-list">
                 {harvests.map((h) => {
                   const hunterName = h.hunter_name ?? 'Unknown hunter'
-                  const species = h.species_name ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
+                  // v27.0b.4.1: read live-source display values. wallet item
+                  // wins, harvest snapshot fallback, then trip-level fallback.
+                  // Renames or zone edits on the bound tag propagate without
+                  // touching the harvest row.
+                  const species = h.species_display ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
                   const subParts: string[] = [hunterName, timeOfDay(h.harvested_at), relativeOrDate(h.harvested_at)]
-                  if (h.method) subParts.push(h.method)
+                  if (h.method_display) subParts.push(h.method_display)
                   if (h.quantity > 1) subParts.push(`Qty ${h.quantity}`)
                   return (
                     <div key={h.id} className="bb-detail-row">
@@ -265,7 +269,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                       <div className="flex-1 min-w-0">
                         <div className="bb-detail-name">
                           {species}
-                          {h.tag_number ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number}</span> : null}
+                          {h.tag_number_display ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number_display}</span> : null}
                         </div>
                         <div className="bb-detail-sub">{subParts.join(' · ')}</div>
                         {h.notes && (
