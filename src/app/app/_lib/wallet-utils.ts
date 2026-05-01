@@ -26,6 +26,31 @@ export type WalletDerivedStatus = 'active' | 'used' | 'expired' | 'archived'
 
 export type WalletItemWithStatus = WalletItem & { status: WalletDerivedStatus }
 
+// v27.0b.4.6: universal Male/Female/Either replaces deer-specific
+// Antlered/Antlerless/Either-sex. Wallet covers bear, elk, turkey, pig,
+// fish — all need a sex restriction occasionally. Helper maps legacy
+// values to the new vocabulary on display so existing tag rows still
+// render correctly without a data migration.
+//
+// Maps:
+//   antlerless / doe / cow         → Female
+//   antlered  / buck / bull        → Male
+//   either-sex / either / any sex / any → Either
+export function normalizeSexRestriction(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  const female = ['antlerless', 'doe', 'doe only', 'cow', 'cow only', 'female']
+  const male = ['antlered', 'buck', 'buck only', 'bull', 'bull only', 'male']
+  const either = ['either-sex', 'either_sex', 'either sex', 'either', 'any sex', 'any']
+  if (female.includes(lower)) return 'Female'
+  if (male.includes(lower)) return 'Male'
+  if (either.includes(lower)) return 'Either'
+  // Unknown values pass through verbatim so anything weird stays visible.
+  return trimmed
+}
+
 export function deriveStatus(item: WalletItem, now = new Date()): WalletDerivedStatus {
   if (item.archived_at) return 'archived'
   // v27.0b.1: tagged_out_at takes priority over expired so a tag that

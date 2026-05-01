@@ -121,6 +121,34 @@ function readExtras(fd: FormData): Record<string, string> | null {
   return Object.keys(out).length > 0 ? out : null
 }
 
+// v27.0b.4.6: ROOT CAUSE FIX for "wallet edits don't propagate to harvest
+// log method".
+//
+// Why v27.0b.4.5 looked broken even though the precedence chain was right:
+// fetchTripDetail / fetchHunterTripDetail correctly read wallet first, but
+// the trip detail page is server-rendered and its data was stuck in Next's
+// Router Cache after the wallet update. updateWalletItemAction was only
+// busting `/app/wallet` or `/app/h/wallet`, never `/app/trips/[id]` or
+// `/app/h/trips/[id]`. So the hunter saved a wallet edit, navigated to the
+// trip, and Next served the prerendered HTML from before the edit.
+//
+// Layout-level revalidation here is a hammer (busts every trip detail
+// page, not just the ones bound to this wallet item) but the alternative
+// is querying trip_wallet_items + harvests on every wallet save to find
+// which trips reference this item — more SQL for a hot path. Layout
+// revalidation is cheap and correct.
+function revalidateAfterWalletChange(role: 'guide' | 'hunter' | 'admin' | string) {
+  // Wallet roots
+  revalidatePath(basePathForRole(role))
+  // Trip detail caches on both sides — a wallet edit can change
+  // species_display / tag_number_display / method_display in queries.ts.
+  revalidatePath('/app/trips', 'layout')
+  revalidatePath('/app/h/trips', 'layout')
+  // Dashboards (harvest counters, recent activity).
+  revalidatePath('/app')
+  revalidatePath('/app/h')
+}
+
 export async function addWalletItemAction(formData: FormData): Promise<WalletActionResult> {
   const { profile } = await requireUser()
   const get = readForm(formData)
@@ -168,8 +196,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
     return { error: error.message || 'Could not add wallet item.' }
   }
 
-  const base = basePathForRole(profile.role)
-  revalidatePath(base)
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: data.id }
 }
 
@@ -217,8 +244,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     return { error: error.message || 'Could not update wallet item.' }
   }
 
-  const base = basePathForRole(profile.role)
-  revalidatePath(base)
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 
@@ -235,7 +261,7 @@ export async function archiveWalletItemAction(itemId: string): Promise<WalletAct
     console.warn('[walletActions.archive]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not archive wallet item.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 
@@ -252,7 +278,7 @@ export async function restoreWalletItemAction(itemId: string): Promise<WalletAct
     console.warn('[walletActions.restore]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not restore wallet item.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 
@@ -289,7 +315,7 @@ export async function tagOutWalletItemAction(itemId: string): Promise<WalletActi
     console.warn('[walletActions.tagOut]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not mark tagged out.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 
@@ -324,7 +350,7 @@ export async function untagWalletItemAction(itemId: string): Promise<WalletActio
     console.warn('[walletActions.untag]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not mark active.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 
@@ -344,7 +370,7 @@ export async function bulkArchiveExpiredAction(type: WalletItemType): Promise<Wa
     console.warn('[walletActions.bulkArchive]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not archive items.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: 'bulk' }
 }
 
@@ -374,7 +400,7 @@ export async function deleteWalletItemAction(itemId: string): Promise<WalletActi
     console.warn('[walletActions.delete]', { code: error.code, message: error.message })
     return { error: error.message || 'Could not delete wallet item.' }
   }
-  revalidatePath(basePathForRole(profile.role))
+  revalidateAfterWalletChange(profile.role)
   return { ok: true, id: itemId }
 }
 

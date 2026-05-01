@@ -18,7 +18,7 @@ import {
   tagOutWalletItemAction,
   untagWalletItemAction,
 } from '../../_lib/wallet-actions'
-import { WALLET_TYPES_HUNTER, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
+import { WALLET_TYPES_HUNTER, normalizeSexRestriction, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
 import DateField from '../DateField'
 import WalletPhotoField from './WalletPhotoField'
 
@@ -476,18 +476,25 @@ export default function WalletItemForm({
               </div>
             </div>
             <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+              {/* v27.0b.4.6: dropped deer-specific Antlered/Antlerless/
+                  Either-sex labels in favor of universal Male/Female/
+                  Either. Wallet covers bear, elk, turkey, pig, fish too.
+                  defaultValue runs through normalizeSexRestriction so
+                  legacy values (antlered/antlerless/either_sex/any)
+                  saved before this build still match a new option on
+                  edit. Storage values going forward are Male/Female/
+                  Either Title Case. */}
               <label className="bb-form-label" htmlFor="extras_sex_restriction">Sex restriction <span style={{ opacity: 0.6 }}>(optional)</span></label>
               <select
                 id="extras_sex_restriction"
                 name="extras_sex_restriction"
-                defaultValue={e.sex_restriction ?? ''}
+                defaultValue={normalizeSexRestriction(e.sex_restriction) ?? ''}
                 className="bb-input"
               >
                 <option value="">—</option>
-                <option value="any">Any sex</option>
-                <option value="antlered">Antlered</option>
-                <option value="antlerless">Antlerless</option>
-                <option value="either_sex">Either sex</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Either">Either</option>
               </select>
             </div>
           </div>
