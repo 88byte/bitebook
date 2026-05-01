@@ -169,6 +169,11 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
 
   const extras = readExtras(formData)
   const documentUrl = get('document_url') || null
+  // v27.0b.5: single_use is hidden-input-fed boolean string; only meaningful
+  // for tags. Default true. Non-tag items take the schema default.
+  const singleUseRaw = formData.get('single_use')
+  const singleUse =
+    parsed.type === 'tag' ? singleUseRaw !== 'false' : true
   const insertPayload: WalletInsert = {
     user_id: profile.id,
     type: parsed.type,
@@ -184,6 +189,7 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
     notes: get('notes'),
     extras,
     document_url: documentUrl,
+    single_use: singleUse,
   }
   const sb = await createClient()
   const { data, error } = await sb
@@ -218,6 +224,10 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
 
   const extras = readExtras(formData)
   const documentUrl = get('document_url') || null
+  // v27.0b.5: see addWalletItemAction note. Tags only.
+  const singleUseRaw = formData.get('single_use')
+  const singleUse =
+    parsed.type === 'tag' ? singleUseRaw !== 'false' : true
   const updatePayload: WalletUpdate = {
     type: parsed.type,
     jurisdiction: parsed.jurisdiction,
@@ -232,6 +242,7 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     notes: get('notes'),
     extras,
     document_url: documentUrl,
+    single_use: singleUse,
   }
   const sb = await createClient()
   const { error } = await sb

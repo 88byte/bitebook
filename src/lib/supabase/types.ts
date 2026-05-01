@@ -1105,6 +1105,7 @@ export type Database = {
           jurisdiction: Database["public"]["Enums"]["wallet_jurisdiction"]
           notes: string | null
           season_year: number | null
+          single_use: boolean
           species: string | null
           state: string | null
           tagged_out_at: string | null
@@ -1127,6 +1128,7 @@ export type Database = {
           jurisdiction: Database["public"]["Enums"]["wallet_jurisdiction"]
           notes?: string | null
           season_year?: number | null
+          single_use?: boolean
           species?: string | null
           state?: string | null
           tagged_out_at?: string | null
@@ -1149,6 +1151,7 @@ export type Database = {
           jurisdiction?: Database["public"]["Enums"]["wallet_jurisdiction"]
           notes?: string | null
           season_year?: number | null
+          single_use?: boolean
           species?: string | null
           state?: string | null
           tagged_out_at?: string | null

@@ -47,6 +47,9 @@ type Initial = {
   extras: ExtrasShape
   document_url?: string | null
   tagged_out_at?: string | null
+  /** v27.0b.5: tags only. true = covers one animal (auto-tags-out on
+   * harvest). false = multi-use (turkey, pig, predator). */
+  single_use?: boolean
 }
 
 const TYPE_OPTIONS: { value: WalletItemType; label: string }[] = [
@@ -120,6 +123,10 @@ export default function WalletItemForm({
   const [error, setError] = useState<string | null>(null)
   const [type, setType] = useState<WalletItemType>(initial.type)
   const [jurisdiction, setJurisdiction] = useState<WalletJurisdiction>(initial.jurisdiction)
+  // v27.0b.5: single_use tracks whether the tag covers one animal or
+  // multiple. Default true so existing single-animal tags don't need
+  // a touch. The hidden input below is what the server reads.
+  const [singleUse, setSingleUse] = useState<boolean>(initial.single_use ?? true)
   // v27.0a.15: photo state. Persisted on form submit via the hidden
   // document_url input below — the actual upload happens out-of-band
   // (already in Supabase Storage) by the time we reach submit.
@@ -496,6 +503,39 @@ export default function WalletItemForm({
                 <option value="Female">Female</option>
                 <option value="Either">Either</option>
               </select>
+            </div>
+
+            {/* v27.0b.5: single-use vs multi-use tag toggle. Default ON
+                (single-use covers one animal — deer, elk, bear). OFF for
+                tags that cover multiple animals (turkey, pig, predator).
+                Drives the _on_harvest_consume_tag trigger: when a harvest
+                is logged against a single_use tag, tagged_out_at fires
+                automatically. Multi-use tags stay active until the hunter
+                manually marks tagged-out from the wallet. */}
+            <div className="bb-form-row" style={{ marginTop: '0.85rem' }}>
+              <label className="bb-form-label">Single-use tag</label>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  fontSize: '0.95rem',
+                  color: 'var(--color-ink)',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={singleUse}
+                  onChange={(ev) => setSingleUse(ev.target.checked)}
+                  style={{ width: '1.05rem', height: '1.05rem', accentColor: 'var(--color-copper)' }}
+                />
+                <span>{singleUse ? 'Yes — covers one animal' : 'No — covers multiple animals'}</span>
+              </label>
+              <input type="hidden" name="single_use" value={singleUse ? 'true' : 'false'} />
+              <p className="bb-form-help">
+                On for tags that cover one animal (deer, elk, bear). Off for tags that cover multiple animals (turkey, pig, predator). Multi-use tags don&rsquo;t auto-tag-out — mark them tagged out from the wallet when done.
+              </p>
             </div>
           </div>
         </section>

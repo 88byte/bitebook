@@ -573,6 +573,9 @@ export type HarvestTagOption = {
   zone: string | null
   season_year: number | null
   valid_to: string
+  /** v27.0b.5: false → multi-use tag (turkey, pig, predator). Form
+   * shows a heads-up that the tag won't auto-tag-out on save. */
+  single_use: boolean
 }
 
 export type HarvestTagOptions = {
@@ -610,10 +613,15 @@ export async function fetchHarvestTagOptions(
 
   // 1. Always-on full inventory: every active tag for each participant
   //    hunter. This is the option list the picker shows.
+  // v27.0b.5: include single_use so the form can warn on multi-use tags.
+  // For multi-use tags we ALSO need to include rows where tagged_out_at
+  // is set on the bound tag (since multi-use tags don't auto-flip), but
+  // that's edge-case for the EDIT form; for the picker, active tags only
+  // are what's relevant.
   const { data: allTags } = await supabase
     .from('wallet_items')
     .select(
-      'id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at'
+      'id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at, single_use'
     )
     .in('user_id', hunterIds)
     .eq('type', 'tag')
@@ -633,6 +641,7 @@ export async function fetchHarvestTagOptions(
       zone: w.zone,
       season_year: w.season_year,
       valid_to: w.valid_to,
+      single_use: w.single_use,
     })
     out.set(w.user_id, arr)
     const set = activeByHunter.get(w.user_id) ?? new Set<string>()
@@ -665,7 +674,7 @@ export async function fetchHarvestTagOptions(
   if (includeBoundTagId) {
     const { data: bound } = await supabase
       .from('wallet_items')
-      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to')
+      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to, single_use')
       .eq('id', includeBoundTagId)
       .eq('type', 'tag')
       .maybeSingle()
@@ -682,6 +691,7 @@ export async function fetchHarvestTagOptions(
             zone: bound.zone,
             season_year: bound.season_year,
             valid_to: bound.valid_to,
+            single_use: bound.single_use,
           },
           ...existing.tags,
         ]

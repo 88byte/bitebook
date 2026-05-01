@@ -17,6 +17,8 @@ type TagOption = {
   zone: string | null
   season_year: number | null
   valid_to: string
+  // v27.0b.5: false → multi-use tag won't auto-tag-out on save.
+  single_use: boolean
 }
 
 type TagOptions = {
@@ -70,6 +72,9 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
   const noTags = !!hunterId && tagOptions.length === 0
   const autoBoundTagId = tagOptions.length === 1 ? tagOptions[0].id : null
   const boundTagId = autoBoundTagId ?? tagId
+  // v27.0b.5: heads-up when bound tag is multi-use.
+  const boundTag = boundTagId ? tagOptions.find((t) => t.id === boundTagId) ?? null : null
+  const multiUseHeadsUp = boundTag && boundTag.single_use === false
 
   // Same auto-fill rule as AddHarvestForm — tag selection wins on switch,
   // manual edits survive between switches. Initialize lastApplied to the
@@ -208,6 +213,12 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
       {noTags && (
         <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
           This hunter has no active tags in their wallet.
+        </p>
+      )}
+      {/* v27.0b.5: multi-use heads-up. */}
+      {multiUseHeadsUp && (
+        <p className="bb-form-help" style={{ color: 'var(--color-copper)' }}>
+          This tag is multi-use — won&rsquo;t auto-tag-out. Mark it tagged out from the wallet when done.
         </p>
       )}
 

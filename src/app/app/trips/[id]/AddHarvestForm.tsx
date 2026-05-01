@@ -15,6 +15,8 @@ type TagOption = {
   zone: string | null
   season_year: number | null
   valid_to: string
+  // v27.0b.5: false → multi-use tag won't auto-tag-out on save.
+  single_use: boolean
 }
 
 type TagOptions = {
@@ -75,6 +77,11 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
   const noTags = !!hunterId && tagOptions.length === 0
   const autoBoundTagId = tagOptions.length === 1 ? tagOptions[0].id : null
   const boundTagId = autoBoundTagId ?? tagId
+  // v27.0b.5: surface a heads-up when the bound tag is multi-use. Multi-use
+  // tags don't auto-tag-out on harvest, so the hunter has to manually mark
+  // tagged-out from the wallet when the season's done.
+  const boundTag = boundTagId ? tagOptions.find((t) => t.id === boundTagId) ?? null : null
+  const multiUseHeadsUp = boundTag && boundTag.single_use === false
 
   // v27.0a.24: when the bound tag changes, pull species + tag_number
   // forward from the wallet item. Predictable rule: tag selection always
@@ -250,6 +257,15 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
         <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
           This hunter has no active tags in their wallet. They&apos;ll need to
           add a tag before this harvest can be logged.
+        </p>
+      )}
+      {/* v27.0b.5: multi-use heads-up. Single-use tags auto-tag-out on
+          harvest save via the _on_harvest_consume_tag trigger; multi-use
+          tags don't, so the hunter has to mark tagged-out manually from
+          the wallet when they're done with the season. */}
+      {multiUseHeadsUp && (
+        <p className="bb-form-help" style={{ color: 'var(--color-copper)' }}>
+          This tag is multi-use — won&rsquo;t auto-tag-out. Mark it tagged out from the wallet when done.
         </p>
       )}
 
