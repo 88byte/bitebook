@@ -505,13 +505,13 @@ export default function WalletItemForm({
               </select>
             </div>
 
-            {/* v27.0b.5: single-use vs multi-use tag toggle. Default ON
-                (single-use covers one animal — deer, elk, bear). OFF for
-                tags that cover multiple animals (turkey, pig, predator).
-                Drives the _on_harvest_consume_tag trigger: when a harvest
-                is logged against a single_use tag, tagged_out_at fires
-                automatically. Multi-use tags stay active until the hunter
-                manually marks tagged-out from the wallet. */}
+            {/* v27.0b.5 / .5.1: single-use vs multi-use tag toggle. Default
+                ON. Renders for both guide and hunter — the section is
+                gated only by type === 'tag' (SHOW.tagExtras), no role
+                gating. Drives the _on_harvest_consume_tag trigger: when a
+                harvest is logged against a single_use tag, tagged_out_at
+                fires automatically. Multi-use tags stay active until the
+                hunter manually marks tagged-out from the wallet. */}
             <div className="bb-form-row" style={{ marginTop: '0.85rem' }}>
               <label className="bb-form-label">Single-use tag</label>
               <label
@@ -530,12 +530,10 @@ export default function WalletItemForm({
                   onChange={(ev) => setSingleUse(ev.target.checked)}
                   style={{ width: '1.05rem', height: '1.05rem', accentColor: 'var(--color-copper)' }}
                 />
-                <span>{singleUse ? 'Yes — covers one animal' : 'No — covers multiple animals'}</span>
+                <span>{singleUse ? 'Yes' : 'No'}</span>
               </label>
               <input type="hidden" name="single_use" value={singleUse ? 'true' : 'false'} />
-              <p className="bb-form-help">
-                On for tags that cover one animal (deer, elk, bear). Off for tags that cover multiple animals (turkey, pig, predator). Multi-use tags don&rsquo;t auto-tag-out — mark them tagged out from the wallet when done.
-              </p>
+              <p className="bb-form-help">Off if this tag covers multiple animals.</p>
             </div>
           </div>
         </section>
