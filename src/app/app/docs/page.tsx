@@ -158,58 +158,89 @@ function DocRow({ doc }: { doc: DocSummary }) {
     doc.kind === 'waiver' ? 'Waiver' : doc.kind === 'log' ? 'Harvest log' : 'Resource'
   const isArchived = !!doc.archived_at
 
+  // v27.1.0.2: do NOT compose with .bb-trip-row. That class is a 3-column
+  // grid (3.25rem date / 1fr body / auto pill) that expects exactly three
+  // direct children. Wrapping everything in a single .bb-tile-body shoves
+  // every child into column ONE (3.25rem), which is what was crushing the
+  // text to ~10px and rendering one character per line. Doc rows have a
+  // different anatomy (icon + body + badge), so we use a flat flex layout
+  // here with min-width:0 on the body so it actually shrinks instead of
+  // forcing min-content overflow.
   return (
     <Link
       href={`/app/docs/${doc.id}`}
-      className="bb-tile bb-trip-row"
+      className="bb-tile"
       style={{
         textDecoration: 'none',
+        color: 'inherit',
         opacity: isArchived ? 0.6 : 1,
+        display: 'flex',
         alignItems: 'flex-start',
+        gap: '0.75rem',
+        padding: '0.875rem 1rem',
       }}
     >
-      <div className="bb-tile-body" style={{ width: '100%' }}>
-        <div className="flex items-start gap-3" style={{ width: '100%' }}>
+      <span
+        aria-hidden="true"
+        style={{
+          flexShrink: 0,
+          width: 36,
+          height: 36,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 8,
+          backgroundColor: 'var(--color-paper-tint)',
+          color: 'var(--color-ink-soft)',
+        }}
+      >
+        <Icon size={18} />
+      </span>
+      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            color: 'var(--color-ink)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {doc.label}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.1rem',
+            marginTop: '0.15rem',
+          }}
+        >
           <span
-            aria-hidden="true"
             style={{
-              flexShrink: 0,
-              width: 36,
-              height: 36,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8,
-              backgroundColor: 'var(--color-paper-tint)',
+              fontSize: '0.85rem',
               color: 'var(--color-ink-soft)',
+              overflowWrap: 'anywhere',
             }}
           >
-            <Icon size={18} />
+            {kindLabel}
+            {doc.state ? ` · ${doc.state}` : ''}
+            {' · '}Updated {relativeOrDate(doc.updated_at)}
           </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              className="bb-trip-title"
-              style={{ overflowWrap: 'anywhere' }}
-            >
-              {doc.label}
-            </div>
-            <div
-              className="bb-trip-meta"
-              style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}
-            >
-              <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-                {kindLabel}
-                {doc.state ? ` · ${doc.state}` : ''}
-                {' · '}Updated {relativeOrDate(doc.updated_at)}
-              </span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-                {doc.trip_count > 0 ? `On ${doc.trip_count} trip${doc.trip_count === 1 ? '' : 's'}` : 'Not attached to a trip'}
-              </span>
-            </div>
-          </div>
-          <MappingBadge status={doc.mapping_status} archived={isArchived} />
+          <span
+            style={{
+              fontSize: '0.85rem',
+              color: 'var(--color-ink-soft)',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {doc.trip_count > 0
+              ? `On ${doc.trip_count} trip${doc.trip_count === 1 ? '' : 's'}`
+              : 'Not attached to a trip'}
+          </span>
         </div>
       </div>
+      <MappingBadge status={doc.mapping_status} archived={isArchived} />
     </Link>
   )
 }
