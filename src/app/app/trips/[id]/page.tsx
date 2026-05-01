@@ -274,6 +274,17 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                           </div>
                         )}
                       </div>
+                      {isOpen && (
+                        <Link
+                          href={`/app/trips/${trip.id}/harvests/${h.id}/edit`}
+                          className="bb-text-action bb-text-action-copper"
+                          aria-label={`Edit harvest ${species}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                          Edit
+                        </Link>
+                      )}
                     </div>
                   )
                 })}
