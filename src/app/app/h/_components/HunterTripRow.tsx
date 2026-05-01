@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, Users, Trophy, Star } from 'lucide-react'
+import { Calendar, MapPin, Users, Star } from 'lucide-react'
 import StatusPill from '../../_components/StatusPill'
 import TripDateBlock from '../../_components/TripDateBlock'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../../_lib/format'
@@ -31,7 +31,9 @@ export default function HunterTripRow({
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
   const huntersLabel = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`
-  const harvestsLabel = `${harvests} ${harvests === 1 ? 'harvested' : 'harvested'}`
+  // v27.0b.4.2: harvest count cell uses the bb-harvest-log-icon.png art and
+  // the "X harvest log" label. Mirrors guide-side TripRow.
+  const harvestsLabel = `${harvests} harvest log`
   const hasHarvest = harvests > 0
   const isWrapped = trip.status === 'completed' || trip.status === 'canceled'
 
@@ -67,8 +69,14 @@ export default function HunterTripRow({
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
           </span>
           <span className={`bb-trip-meta-cell${hasHarvest ? ' bb-trip-meta-cell--harvest' : ''}`}>
-            <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Trophy size={14} strokeWidth={hasHarvest ? 2 : 1.5} fill={hasHarvest ? 'currentColor' : 'none'} />
+            <span className="bb-trip-meta-cell-icon bb-trip-meta-cell-icon--img" aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/bb-harvest-log-icon.png"
+                alt=""
+                aria-hidden="true"
+                className={`bb-harvest-log-icon${hasHarvest ? ' bb-harvest-log-icon--filled' : ''}`}
+              />
             </span>
             <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>

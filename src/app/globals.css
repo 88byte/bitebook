@@ -956,6 +956,31 @@ body {
   display: inline-flex;
 }
 
+/* v27.0b.4.2: harvest log icon variant — wraps a real PNG (not a lucide
+   stroke) so we lean on object-fit + filter to match other meta-cell icons.
+   The base art is dark; --filled state desaturates+brightens to copper-tint
+   when the trip has 1+ harvests, untinted+lower-opacity when count = 0. */
+.bb-trip-meta-cell-icon--img {
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+}
+.bb-harvest-log-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  /* count = 0 → muted, neutral. */
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+.bb-harvest-log-icon--filled {
+  /* count > 0 → full color so the asset's copper notes pop. */
+  opacity: 1;
+  filter: none;
+}
+
 .bb-trip-meta-cell-text {
   min-width: 0;
   overflow: hidden;

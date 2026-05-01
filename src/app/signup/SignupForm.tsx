@@ -60,7 +60,7 @@ export default function SignupForm() {
           label="Annual"
           price="$90"
           period="/yr"
-          badge="Save $18"
+          badge="Save 17%"
           selected={plan === 'annual'}
           onClick={() => setPlan('annual')}
         />

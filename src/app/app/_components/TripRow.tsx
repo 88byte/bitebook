@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, Users, Trophy, Star } from 'lucide-react'
+import { Calendar, MapPin, Users, Star } from 'lucide-react'
 import StatusPill from './StatusPill'
 import TripDateBlock from './TripDateBlock'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../_lib/format'
@@ -39,7 +39,11 @@ export default function TripRow({
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
   const huntersLabel = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`
-  const harvestsLabel = `${harvests} ${harvests === 1 ? 'harvested' : 'harvested'}`
+  // v27.0b.4.2: harvest count cell label changed from "X harvested" → "X harvest log"
+  // and the Trophy lucide icon replaced with the bb-harvest-log-icon.png art Flavio
+  // sent (file 16WZDeOkZgAbfLfSMpkc0XUGQ0g0pIOPp). Color treatment kept: copper-tinted
+  // when count > 0 via .bb-trip-meta-cell--harvest, muted when count = 0.
+  const harvestsLabel = `${harvests} harvest log`
   const hasHarvest = harvests > 0
   const isWrapped = trip.status === 'completed' || trip.status === 'canceled'
 
@@ -75,8 +79,14 @@ export default function TripRow({
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
           </span>
           <span className={`bb-trip-meta-cell${hasHarvest ? ' bb-trip-meta-cell--harvest' : ''}`}>
-            <span className="bb-trip-meta-cell-icon" aria-hidden="true">
-              <Trophy size={14} strokeWidth={hasHarvest ? 2 : 1.5} fill={hasHarvest ? 'currentColor' : 'none'} />
+            <span className="bb-trip-meta-cell-icon bb-trip-meta-cell-icon--img" aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/bb-harvest-log-icon.png"
+                alt=""
+                aria-hidden="true"
+                className={`bb-harvest-log-icon${hasHarvest ? ' bb-harvest-log-icon--filled' : ''}`}
+              />
             </span>
             <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>

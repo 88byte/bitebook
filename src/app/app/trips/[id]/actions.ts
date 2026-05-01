@@ -203,6 +203,13 @@ export async function addHarvestAction(formData: FormData): Promise<AddHarvestRe
   revalidatePath(`/app/trips/${tripId}`)
   revalidatePath('/app/trips')
   revalidatePath('/app')
+  // v27.0b.4.2: also bust the hunter-side trip detail + dashboard so a
+  // hunter looking at /app/h/trips/[id] sees the harvest the guide just
+  // logged on next page load. (Pages are dynamic via cookies-using
+  // Supabase auth, so this is belt-and-suspenders for the data cache.)
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true, id: result.id }
 }
 
@@ -297,6 +304,11 @@ export async function updateHarvestAction(formData: FormData): Promise<UpdateHar
   revalidatePath(`/app/trips/${existing.trip_id}`)
   revalidatePath('/app/trips')
   revalidatePath('/app')
+  // v27.0b.4.2: hunter-side paths also busted so guide edits to method,
+  // hunter, time, species, tag # all show on /app/h/trips/[id] next load.
+  revalidatePath(`/app/h/trips/${existing.trip_id}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true, id: harvestId }
 }
 
@@ -346,5 +358,9 @@ export async function deleteHarvestAction(harvestId: string): Promise<DeleteHarv
   revalidatePath(`/app/trips/${existing.trip_id}`)
   revalidatePath('/app/trips')
   revalidatePath('/app')
+  // v27.0b.4.2: hunter-side paths.
+  revalidatePath(`/app/h/trips/${existing.trip_id}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
   return { ok: true }
 }
