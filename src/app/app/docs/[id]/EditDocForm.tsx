@@ -205,7 +205,7 @@ export default function EditDocForm({
           {isArchived && (
             <button
               type="button"
-              className="bb-cta-sm-destructive"
+              className="bb-cta-sm bb-cta-sm-destructive"
               onClick={() => setConfirmMode('delete')}
               disabled={pending || !canHardDelete}
               title={
