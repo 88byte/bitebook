@@ -123,10 +123,10 @@ export default function WalletItemForm({
   const [error, setError] = useState<string | null>(null)
   const [type, setType] = useState<WalletItemType>(initial.type)
   const [jurisdiction, setJurisdiction] = useState<WalletJurisdiction>(initial.jurisdiction)
-  // v27.0b.5: single_use tracks whether the tag covers one animal or
-  // multiple. Default true so existing single-animal tags don't need
-  // a touch. The hidden input below is what the server reads.
-  const [singleUse, setSingleUse] = useState<boolean>(initial.single_use ?? true)
+  // v27.0b.5 / .5.2: store as multiUse for the UX (checkbox checked =
+  // multi-use). Default false (most tags are single-use). Hidden input
+  // below maps back to single_use boolean for the server: !multiUse.
+  const [multiUse, setMultiUse] = useState<boolean>(initial.single_use === false)
   // v27.0a.15: photo state. Persisted on form submit via the hidden
   // document_url input below — the actual upload happens out-of-band
   // (already in Supabase Storage) by the time we reach submit.
@@ -505,35 +505,42 @@ export default function WalletItemForm({
               </select>
             </div>
 
-            {/* v27.0b.5 / .5.1: single-use vs multi-use tag toggle. Default
-                ON. Renders for both guide and hunter — the section is
-                gated only by type === 'tag' (SHOW.tagExtras), no role
-                gating. Drives the _on_harvest_consume_tag trigger: when a
-                harvest is logged against a single_use tag, tagged_out_at
-                fires automatically. Multi-use tags stay active until the
-                hunter manually marks tagged-out from the wallet. */}
+            {/* v27.0b.5.2: replaced the single-use toggle with a plainer
+                conditional checkbox. Default unchecked = single use
+                (auto-tag-out via _on_harvest_consume_tag trigger).
+                Checked = multi-use (no auto-tag-out; hunter manually
+                marks tagged-out). The label IS the helper. No role
+                gating — section visibility depends only on type === 'tag'. */}
             <div className="bb-form-row" style={{ marginTop: '0.85rem' }}>
-              <label className="bb-form-label">Single-use tag</label>
               <label
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
+                  display: 'flex',
+                  alignItems: 'flex-start',
                   gap: '0.6rem',
                   fontSize: '0.95rem',
                   color: 'var(--color-ink)',
                   cursor: 'pointer',
+                  lineHeight: 1.4,
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={singleUse}
-                  onChange={(ev) => setSingleUse(ev.target.checked)}
-                  style={{ width: '1.05rem', height: '1.05rem', accentColor: 'var(--color-copper)' }}
+                  checked={multiUse}
+                  onChange={(ev) => setMultiUse(ev.target.checked)}
+                  style={{
+                    width: '1.05rem',
+                    height: '1.05rem',
+                    marginTop: '0.15rem',
+                    accentColor: 'var(--color-copper)',
+                    flexShrink: 0,
+                  }}
                 />
-                <span>{singleUse ? 'Yes' : 'No'}</span>
+                <span>
+                  <strong>Check this box if your tag covers multiple animals</strong>{' '}
+                  <span style={{ color: 'var(--color-ink-soft)' }}>(turkey, pig, predator, etc.)</span>
+                </span>
               </label>
-              <input type="hidden" name="single_use" value={singleUse ? 'true' : 'false'} />
-              <p className="bb-form-help">Off if this tag covers multiple animals.</p>
+              <input type="hidden" name="single_use" value={multiUse ? 'false' : 'true'} />
             </div>
           </div>
         </section>

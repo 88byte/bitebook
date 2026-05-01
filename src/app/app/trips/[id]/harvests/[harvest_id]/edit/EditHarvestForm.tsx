@@ -19,6 +19,8 @@ type TagOption = {
   valid_to: string
   // v27.0b.5: false → multi-use tag won't auto-tag-out on save.
   single_use: boolean
+  // v27.0b.5.2: tag's weapon, normalized to canonical method or null.
+  weapon_restriction: string | null
 }
 
 type TagOptions = {

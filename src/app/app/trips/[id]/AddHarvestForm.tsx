@@ -17,6 +17,10 @@ type TagOption = {
   valid_to: string
   // v27.0b.5: false → multi-use tag won't auto-tag-out on save.
   single_use: boolean
+  // v27.0b.5.2: tag's weapon restriction, normalized to canonical
+  // method label or null. Drives the auto-fill of harvest method when
+  // the tag binds.
+  weapon_restriction: string | null
 }
 
 type TagOptions = {
@@ -68,6 +72,10 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
   // as the initial fallback when no tag is bound.
   const [speciesName, setSpeciesName] = useState<string>(defaultSpecies ?? '')
   const [tagNumber, setTagNumber] = useState<string>('')
+  // v27.0b.5.2: method also controlled so tag binding can auto-fill it
+  // alongside species + tag_number. Mirrors the same chain queries.ts uses
+  // for method_display: tag.weapon_restriction → trip default.
+  const [method, setMethod] = useState<string>(defaultMethod ?? '')
 
   const opts: TagOptions = hunterId
     ? tagOptionsByHunter[hunterId] ?? { tags: [], default_tag_id: null }
@@ -96,15 +104,20 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
       if (tag) {
         setSpeciesName(tag.species ?? defaultSpecies ?? '')
         setTagNumber(tag.identifier ?? '')
+        // v27.0b.5.2: pull method from tag.weapon_restriction (already
+        // normalized to a canonical method label or null in queries.ts).
+        // Fall through to trip default if the tag has no weapon set.
+        setMethod(tag.weapon_restriction ?? defaultMethod ?? '')
         lastAppliedTagRef.current = boundTagId
       }
     } else if (!boundTagId && lastAppliedTagRef.current !== '') {
-      // Tag cleared — reset to trip default for species, blank for tag #.
+      // Tag cleared — reset to trip defaults; blank for tag #.
       setSpeciesName(defaultSpecies ?? '')
       setTagNumber('')
+      setMethod(defaultMethod ?? '')
       lastAppliedTagRef.current = ''
     }
-  }, [boundTagId, tagOptions, defaultSpecies])
+  }, [boundTagId, tagOptions, defaultSpecies, defaultMethod])
 
   function nowLocal(): string {
     const d = new Date()
@@ -299,7 +312,8 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
           <select
             id="harvest_method"
             name="method"
-            defaultValue={defaultMethod ?? ''}
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
             className="bb-input"
           >
             <option value="">Select method</option>

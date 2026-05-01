@@ -228,6 +228,27 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
   const singleUseRaw = formData.get('single_use')
   const singleUse =
     parsed.type === 'tag' ? singleUseRaw !== 'false' : true
+  const sb = await createClient()
+
+  // v27.0b.5.2: detect single_use transition true → false. When the
+  // hunter flips a tag to multi-use AND the row was tagged-out, clear
+  // tagged_out_at as part of the same save. Multi-use tags shouldn't
+  // carry an auto-tag-out state from a prior harvest. Manual tag-outs
+  // on multi-use tags can be re-applied via the "Mark as tagged out"
+  // button after.
+  let clearTaggedOut = false
+  if (parsed.type === 'tag' && singleUse === false) {
+    const { data: existing } = await sb
+      .from('wallet_items')
+      .select('single_use, tagged_out_at')
+      .eq('id', itemId)
+      .eq('user_id', profile.id)
+      .maybeSingle()
+    if (existing?.single_use === true && existing?.tagged_out_at) {
+      clearTaggedOut = true
+    }
+  }
+
   const updatePayload: WalletUpdate = {
     type: parsed.type,
     jurisdiction: parsed.jurisdiction,
@@ -243,8 +264,8 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
     extras,
     document_url: documentUrl,
     single_use: singleUse,
+    ...(clearTaggedOut ? { tagged_out_at: null } : {}),
   }
-  const sb = await createClient()
   const { error } = await sb
     .from('wallet_items')
     .update(updatePayload)

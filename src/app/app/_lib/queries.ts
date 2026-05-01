@@ -576,6 +576,12 @@ export type HarvestTagOption = {
   /** v27.0b.5: false → multi-use tag (turkey, pig, predator). Form
    * shows a heads-up that the tag won't auto-tag-out on save. */
   single_use: boolean
+  /** v27.0b.5.2: pulled from wallet_items.extras.weapon_restriction so
+   * the harvest form can auto-fill method on hunter/tag selection
+   * matching the same chain queries.ts uses for method_display. Already
+   * normalized to canonical method labels. null when "Any" or unset —
+   * caller falls through to harvest snapshot / trip default. */
+  weapon_restriction: string | null
 }
 
 export type HarvestTagOptions = {
@@ -621,7 +627,7 @@ export async function fetchHarvestTagOptions(
   const { data: allTags } = await supabase
     .from('wallet_items')
     .select(
-      'id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at, single_use'
+      'id, user_id, identifier, type, species, state, zone, season_year, valid_to, archived_at, tagged_out_at, single_use, extras'
     )
     .in('user_id', hunterIds)
     .eq('type', 'tag')
@@ -633,6 +639,7 @@ export async function fetchHarvestTagOptions(
   const activeByHunter = new Map<string, Set<string>>()
   for (const w of allTags ?? []) {
     const arr = out.get(w.user_id) ?? { tags: [], default_tag_id: null }
+    const extras = (w.extras ?? null) as { weapon_restriction?: string } | null
     arr.tags.push({
       id: w.id,
       identifier: w.identifier,
@@ -642,6 +649,7 @@ export async function fetchHarvestTagOptions(
       season_year: w.season_year,
       valid_to: w.valid_to,
       single_use: w.single_use,
+      weapon_restriction: normalizeWeaponRestriction(extras?.weapon_restriction),
     })
     out.set(w.user_id, arr)
     const set = activeByHunter.get(w.user_id) ?? new Set<string>()
@@ -674,7 +682,7 @@ export async function fetchHarvestTagOptions(
   if (includeBoundTagId) {
     const { data: bound } = await supabase
       .from('wallet_items')
-      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to, single_use')
+      .select('id, user_id, identifier, type, species, state, zone, season_year, valid_to, single_use, extras')
       .eq('id', includeBoundTagId)
       .eq('type', 'tag')
       .maybeSingle()
@@ -682,6 +690,7 @@ export async function fetchHarvestTagOptions(
       const existing = out.get(bound.user_id) ?? { tags: [], default_tag_id: null }
       const alreadyPresent = existing.tags.some((t) => t.id === bound.id)
       if (!alreadyPresent) {
+        const boundExtras = (bound.extras ?? null) as { weapon_restriction?: string } | null
         existing.tags = [
           {
             id: bound.id,
@@ -692,6 +701,7 @@ export async function fetchHarvestTagOptions(
             season_year: bound.season_year,
             valid_to: bound.valid_to,
             single_use: bound.single_use,
+            weapon_restriction: normalizeWeaponRestriction(boundExtras?.weapon_restriction),
           },
           ...existing.tags,
         ]
