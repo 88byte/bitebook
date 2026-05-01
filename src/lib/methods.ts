@@ -1,23 +1,22 @@
-// v27.0b.4.3 / .4.4: per-activity method options. Same list referenced from
-// NewTripForm, EditTripForm, AddHarvestForm, EditHarvestForm so the dropdown
-// stays consistent. Filter by trip.kind so a fishing trip shows fishing
-// methods only and vice versa.
+// v27.0b.4.3 / .4.4 / .4.5: per-activity method options. Same list referenced
+// from NewTripForm, EditTripForm, AddHarvestForm, EditHarvestForm so the
+// dropdown stays consistent. Filter by trip.kind so a fishing trip shows
+// fishing methods only and vice versa.
 //
-// v27.0b.4.4 corrections after agency-source audit (CA DFW, CO CPW,
-// MT FWP, WY WGFD, AK ADFG):
-//   - "Bow" → "Archery" — "Archery" is the universal regulation term used
-//     on every western state harvest form. "Bow" reads like equipment.
-//   - Dropped "Spear" — vanishingly rare for big game; if it shows up at
-//     all it's small game / fish, confusing in a hunting list.
-//   - Dropped "Trap" — trapping is a separate license in every western
-//     state and shouldn't share a dropdown with method-of-take for hunting.
+// v27.0b.4.5 corrections:
+//   - "Archery" → "Bow" — Flavio's preferred term for the canonical method
+//     list. "Archery" reads more like a sport category; "Bow" matches how
+//     guides and hunters talk about it. The wallet's weapon_restriction
+//     dropdown uses the same label.
+//   - No "only" / "Any legal" qualifiers anywhere. The selection IS the
+//     choice.
 //
 // Stored as the literal display string in trips.method / harvests.method
 // (TEXT column, no enum so we can extend without a migration).
 export const HUNTING_METHODS = [
   'Rifle',
   'Shotgun',
-  'Archery',
+  'Bow',
   'Crossbow',
   'Muzzleloader',
   'Handgun',
@@ -35,9 +34,9 @@ export const FISHING_METHODS = [
 ] as const
 
 // Legacy values still acceptable to isValidMethod() so harvests / trips
-// saved under earlier builds (v26.3 — v27.0b.4.3) don't fail validation
+// saved under earlier builds (v26.3 — v27.0b.4.4) don't fail validation
 // on edit. Not surfaced in any dropdown.
-const LEGACY_METHODS = ['Bow', 'Spear', 'Trap', 'N/A'] as const
+const LEGACY_METHODS = ['Archery', 'Spear', 'Trap', 'N/A'] as const
 
 export type HuntingMethod = (typeof HUNTING_METHODS)[number]
 export type FishingMethod = (typeof FISHING_METHODS)[number]
@@ -58,4 +57,31 @@ export function methodsForKind(kind: 'hunting' | 'fishing'): readonly string[] {
 
 export function isValidMethod(value: string): boolean {
   return (METHOD_OPTIONS as readonly string[]).includes(value)
+}
+
+// v27.0b.4.5: normalize wallet weapon_restriction into a canonical method
+// label OR null. Used in the method_display chain so the wallet wins live
+// over the harvest snapshot. Returns null for "Any" / "any-legal-weapon"
+// because that's a CONSTRAINT not a method — we shouldn't pre-fill the
+// harvest method with "Any" just because the tag allows any weapon. Maps
+// legacy lowercase values from pre-v27.0b.4.5 saves into Title Case.
+export function normalizeWeaponRestriction(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  // "any" / "any legal" / "any-legal-weapon" — not a specific method
+  if (lower === 'any' || lower === 'any legal' || lower === 'any-legal-weapon') {
+    return null
+  }
+  const map: Record<string, string> = {
+    archery: 'Bow',
+    bow: 'Bow',
+    muzzleloader: 'Muzzleloader',
+    rifle: 'Rifle',
+    shotgun: 'Shotgun',
+    handgun: 'Handgun',
+    crossbow: 'Crossbow',
+  }
+  return map[lower] ?? trimmed
 }

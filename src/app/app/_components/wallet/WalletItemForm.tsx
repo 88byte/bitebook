@@ -450,6 +450,14 @@ export default function WalletItemForm({
               </div>
               <div className="bb-form-row">
                 <label className="bb-form-label" htmlFor="extras_weapon_restriction">Weapon</label>
+                {/* v27.0b.4.5: dropped "only" / "legal" qualifiers per
+                    Flavio. The selection IS the choice. Storage values
+                    bumped to canonical method labels (Any/Bow/Muzzleloader/
+                    Rifle) so the wallet's weapon_restriction can flow into
+                    method_display in queries.ts without case-mapping. The
+                    legacy lowercase values (archery/muzzleloader/rifle/any)
+                    are still normalized in queries.ts for backward
+                    compatibility. */}
                 <select
                   id="extras_weapon_restriction"
                   name="extras_weapon_restriction"
@@ -457,10 +465,13 @@ export default function WalletItemForm({
                   className="bb-input"
                 >
                   <option value="">—</option>
-                  <option value="any">Any legal</option>
-                  <option value="archery">Archery only</option>
-                  <option value="muzzleloader">Muzzleloader only</option>
-                  <option value="rifle">Rifle only</option>
+                  <option value="Any">Any</option>
+                  <option value="Bow">Bow</option>
+                  <option value="Crossbow">Crossbow</option>
+                  <option value="Muzzleloader">Muzzleloader</option>
+                  <option value="Rifle">Rifle</option>
+                  <option value="Shotgun">Shotgun</option>
+                  <option value="Handgun">Handgun</option>
                 </select>
               </div>
             </div>

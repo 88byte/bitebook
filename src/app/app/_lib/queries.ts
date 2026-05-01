@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
+import { normalizeWeaponRestriction } from '@/lib/methods'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /app data layer.
@@ -318,9 +319,9 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
         .filter((v): v is string => !!v)
     )
   )
-  // v27.0b.4.2: extras lives in wallet_items.extras JSON. We pull weapon_restriction
-  // out of it for the method_display fallback chain (harvest.method wins because
-  // it's mutable per-harvest; weapon_restriction is the tag-default).
+  // v27.0b.4.2 / .4.5: extras lives in wallet_items.extras JSON. We pull
+  // weapon_restriction out of it for the method_display chain. Normalize
+  // legacy lowercase values + filter "Any" via normalizeWeaponRestriction.
   const walletMap = new Map<
     string,
     { species: string | null; identifier: string | null; weapon_restriction: string | null }
@@ -335,7 +336,7 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
       walletMap.set(w.id, {
         species: w.species,
         identifier: w.identifier,
-        weapon_restriction: extras?.weapon_restriction || null,
+        weapon_restriction: normalizeWeaponRestriction(extras?.weapon_restriction),
       })
     })
   }
@@ -364,14 +365,22 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
         // Hunter name is read fresh from profiles each call — profile renames
         // propagate without touching the harvest row.
         hunter_name: h.hunter_id ? profilesMap.get(h.hunter_id)?.display_name ?? null : null,
-        // v27.0b.4.2: live-source display resolution.
-        // species: wallet_item wins, harvest snapshot fallback, trip fallback.
-        // tag_number: wallet_item wins, harvest snapshot fallback.
-        // method: harvest.method wins (it's the per-harvest editable field),
-        // bound tag's weapon_restriction next, then trip-level method.
+        // v27.0b.4.5: live-source display resolution. WALLET WINS in all
+        // three chains so hunter wallet edits propagate to the harvest
+        // display without the guide having to re-save the harvest.
+        // species: wallet → snapshot → trip
+        // tag #:   wallet → snapshot
+        // method:  wallet.weapon_restriction → harvest.method → trip.method
+        // Trade-off: if a guide manually overrode the harvest method to
+        // something different from the bound tag's weapon (e.g. tag says
+        // Rifle but the guide logged "Crossbow" because the hunter swapped
+        // mid-hunt), the next hunter wallet edit clobbers that override.
+        // Edge case for v27.0b.4.5. If it bites in production, add a
+        // harvest.method_from_tag boolean flag and treat false (manual
+        // override) as the new winner.
         species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
         tag_number_display: live?.identifier ?? h.tag_number ?? null,
-        method_display: h.method ?? live?.weapon_restriction ?? trip.method ?? null,
+        method_display: live?.weapon_restriction ?? h.method ?? trip.method ?? null,
       }
     }),
   }
@@ -1026,7 +1035,7 @@ export async function fetchHunterTripDetail(
       walletMap.set(w.id, {
         species: w.species,
         identifier: w.identifier,
-        weapon_restriction: extras?.weapon_restriction || null,
+        weapon_restriction: normalizeWeaponRestriction(extras?.weapon_restriction),
       })
     })
   }
@@ -1072,13 +1081,14 @@ export async function fetchHunterTripDetail(
         tag_number: h.tag_number,
         notes: h.notes,
         quantity: h.quantity,
-        // v27.0b.4.1/.4.2: live-source resolution.
+        // v27.0b.4.5: wallet wins in all three chains. Mirrors guide-side
+        // fetchTripDetail. See the trade-off comment there.
         // species: wallet → snapshot → trip
-        // tag #: wallet → snapshot
-        // method: harvest.method → tag.weapon_restriction → trip.method
+        // tag #:   wallet → snapshot
+        // method:  wallet.weapon_restriction → harvest.method → trip.method
         species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
         tag_number_display: live?.identifier ?? h.tag_number ?? null,
-        method_display: h.method ?? live?.weapon_restriction ?? trip.method ?? null,
+        method_display: live?.weapon_restriction ?? h.method ?? trip.method ?? null,
       }
     }),
   }
