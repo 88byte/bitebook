@@ -148,12 +148,12 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
             onChange={(e) => {
               const next = e.target.value
               setHunterId(next)
-              const dflt = tagOptionsByHunter[next]?.default_tag_id ?? ''
+              const dflt = next ? (tagOptionsByHunter[next]?.default_tag_id ?? '') : ''
               setTagId(dflt)
             }}
             className="bb-input"
           >
-            <option value="" disabled>Select hunter</option>
+            <option value="">— Select hunter —</option>
             {participants.map((p) => (
               <option key={p.id} value={p.id}>{p.display_name}</option>
             ))}

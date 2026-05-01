@@ -187,13 +187,14 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
             onChange={(e) => {
               const newHunter = e.target.value
               setHunterId(newHunter)
-              // Pre-select trip-linked default if present, else blank.
-              const next = tagOptionsByHunter[newHunter]?.default_tag_id ?? ''
+              // v27.0b.3.1: empty value clears tag + dependent fields so
+              // the guide can switch hunters cleanly.
+              const next = newHunter ? (tagOptionsByHunter[newHunter]?.default_tag_id ?? '') : ''
               setTagId(next)
             }}
             className="bb-input"
           >
-            <option value="" disabled>Select hunter</option>
+            <option value="">— Select hunter —</option>
             {participants.map((p) => (
               <option key={p.id} value={p.id}>{p.display_name}</option>
             ))}

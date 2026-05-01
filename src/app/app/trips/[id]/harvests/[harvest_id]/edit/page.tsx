@@ -36,6 +36,26 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
     .maybeSingle()
   if (!harvest) notFound()
 
+  // v27.0b.3.1: re-pull species + identifier from the consumed wallet
+  // item (if linked). Wallet item is the source of truth — the harvest
+  // row's stored species_name/tag_number are denormalized snapshots and
+  // can drift if the hunter renamed the tag after the harvest was logged.
+  // Fall back to the harvest row's snapshot when the wallet item is
+  // missing or unlinked.
+  let liveSpecies: string | null = harvest.species_name
+  let liveTagNumber: string | null = harvest.tag_number
+  if (harvest.consumed_wallet_item_id) {
+    const { data: walletItem } = await sb
+      .from('wallet_items')
+      .select('id, species, identifier')
+      .eq('id', harvest.consumed_wallet_item_id)
+      .maybeSingle()
+    if (walletItem) {
+      liveSpecies = walletItem.species ?? harvest.species_name
+      liveTagNumber = walletItem.identifier ?? harvest.tag_number
+    }
+  }
+
   const harvestParticipants = participants
     .filter((p) => p.hunter_id && p.profile)
     .map((p) => ({ id: p.hunter_id as string, display_name: p.profile!.display_name }))
@@ -55,10 +75,10 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
     trip_id: harvest.trip_id,
     hunter_id: harvest.hunter_id,
     kind: harvest.kind,
-    species_name: harvest.species_name,
+    species_name: liveSpecies,
     method: harvest.method,
     quantity: harvest.quantity,
-    tag_number: harvest.tag_number,
+    tag_number: liveTagNumber,
     harvested_at: harvest.harvested_at,
     notes: harvest.notes,
     consumed_wallet_item_id: harvest.consumed_wallet_item_id,
