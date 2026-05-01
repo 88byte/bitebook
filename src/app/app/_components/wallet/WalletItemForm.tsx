@@ -420,23 +420,33 @@ export default function WalletItemForm({
             <h2 className="bb-form-section-head">Tag conditions</h2>
             <div className="bb-form-grid-2">
               <div className="bb-form-row">
-                {/* v27.0b.4.3: relabeled from "Tag type" to "Tag designation".
-                    Holds the state's classification of the tag — General
-                    season, Archery, Depredation, Junior, Apprentice, Either-
-                    sex, etc. Free-text because the vocabulary varies by
-                    state. Storage column key stays extras.tag_type for
-                    compat. */}
+                {/* v27.0b.4.4: copy refactored to remove overlap with the
+                    Weapon (weapon_restriction) and Sex restriction
+                    (sex_restriction) fields below. Tag designation is
+                    ONLY the issuing agency's program/class for the tag —
+                    drawing pool, age program, voucher type, etc. Sex and
+                    weapon are independent attributes printed alongside
+                    on the actual tag. Real classifications validated
+                    against CA DFW (General/Premium/Restricted/PLM/SHARE/
+                    Fund/First-Deer/Second-Deer), CO CPW (Limited/OTC/
+                    PLO/RFW/Voucher/Leftover), MT FWP (General license/
+                    Special permit/Combination), WY WGFD (General/Type
+                    0-9/Full-price/Reduced-price/Limited Quota/Pioneer/
+                    Youth/Landowner), AK ADFG (General-season/Drawing
+                    permit/Registration permit/Targeted/Tier I/Tier II/
+                    Cultural). Free-text because every state uses a
+                    different vocabulary. */}
                 <label className="bb-form-label" htmlFor="extras_tag_type">Tag designation <span style={{ opacity: 0.6 }}>(optional)</span></label>
                 <input
                   id="extras_tag_type"
                   name="extras_tag_type"
                   type="text"
                   defaultValue={e.tag_type ?? ''}
-                  placeholder="General, Archery, Junior, Depredation"
+                  placeholder="General, Limited Quota, Premium, PLO, Apprentice"
                   className="bb-input"
                   autoComplete="off"
                 />
-                <p className="bb-form-help">Your state&rsquo;s tag classification (General, Archery, Junior, Either-sex, Depredation, etc.). Leave blank if your state doesn&rsquo;t use one.</p>
+                <p className="bb-form-help">Whatever your tag is officially called by the issuing agency — the program or class (General-season, Limited Quota, Premium, Restricted, PLO, Voucher, Apprentice, Junior, Pioneer, Depredation, Reduced-fee, etc.). Don&rsquo;t put sex or weapon restrictions here — those are tracked in their own fields below.</p>
               </div>
               <div className="bb-form-row">
                 <label className="bb-form-label" htmlFor="extras_weapon_restriction">Weapon</label>
