@@ -59,9 +59,13 @@ type Props = {
   tabs: WalletItemType[]
   /** Items grouped by type. */
   groups: Map<WalletItemType, WalletItemWithStatus[]>
+  /** v27.0b.7.2: current user's display name (or email-local fallback).
+   * Threaded into hero cards for the LICENSE HOLDER slot on
+   * guide_license cards. */
+  holderName?: string | null
 }
 
-export default function WalletPage({ basePath, tabs, groups }: Props) {
+export default function WalletPage({ basePath, tabs, groups, holderName }: Props) {
   // v27.0b.7: persist active tab in URL ?type=. Hydrates from the current
   // search params on mount so a refresh / back-from-edit lands on the
   // tab the user was viewing. Falls back to first tab if param missing
@@ -141,6 +145,7 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
         emptyIcon={Icon}
         emptyTitle={`No active ${TYPE_LABEL[activeTab].toLowerCase()}`}
         emptySub="When you add one, it'll show up here."
+        holderName={holderName}
       />
 
       {/* TAGGED OUT — only render for tags */}
@@ -154,6 +159,7 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
           emptyIcon={Icon}
           emptyTitle="None tagged out"
           emptySub=""
+          holderName={holderName}
         />
       )}
 
@@ -167,6 +173,7 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
         emptyIcon={CalendarCheck}
         emptyTitle={`No expired ${TYPE_LABEL[activeTab].toLowerCase()}`}
         emptySub="You're all caught up."
+        holderName={holderName}
       />
 
       {/* Archived — small text link to view archived (deferred full surface) */}
@@ -227,6 +234,7 @@ function WalletStatusSection({
   emptyIcon,
   emptyTitle,
   emptySub,
+  holderName,
 }: {
   title: string
   count: number
@@ -236,6 +244,7 @@ function WalletStatusSection({
   emptyIcon: LucideIcon
   emptyTitle: string
   emptySub: string
+  holderName?: string | null
 }) {
   // v27.0a.10: "View all" toggle — flips the deck into a vertical stack of
   // every card in this status bucket. Deck (idle) shows top + 2 peeks;
@@ -270,6 +279,7 @@ function WalletStatusSection({
               item={item}
               basePath={basePath}
               eyebrow={TYPE_EYEBROW[type]}
+              holderName={holderName}
             />
           ))}
         </div>
@@ -279,6 +289,7 @@ function WalletStatusSection({
           basePath={basePath}
           eyebrow={TYPE_EYEBROW[type]}
           type={type}
+          holderName={holderName}
           ariaLabel={`${title} ${TYPE_LABEL[type]} cards`}
         />
       )}

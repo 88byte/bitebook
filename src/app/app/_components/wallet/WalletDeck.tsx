@@ -17,12 +17,14 @@ export default function WalletDeck({
   eyebrow,
   type,
   ariaLabel,
+  holderName,
 }: {
   items: WalletItemWithStatus[]
   basePath: string
   eyebrow: string
   type: WalletItemType
   ariaLabel: string
+  holderName?: string | null
 }) {
   const [topIndex, setTopIndex] = useState(0)
   const [isFanned, setIsFanned] = useState(false)
@@ -200,6 +202,7 @@ export default function WalletDeck({
             item={items[absIdx]}
             basePath={basePath}
             eyebrow={eyebrow}
+            holderName={holderName}
             onClick={onCardClick(absIdx)}
             tabIndex={pos === 0 || isFanned ? 0 : -1}
           />

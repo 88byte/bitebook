@@ -7,9 +7,20 @@ import WalletPage from '../_components/wallet/WalletPage'
 // Insurance / Credentials. If they also hunt personally on someone else's
 // trip, hunter tabs (Licenses/Tags/etc.) auto-reveal once items exist.
 export default async function GuideWalletPage() {
-  const { profile } = await requireGuide()
+  const { user, profile } = await requireGuide()
   const items = await fetchWallet(profile.id)
   const groups = groupByType(items)
   const tabs = visibleTabs('guide', groups)
-  return <WalletPage basePath="/app/wallet" tabs={tabs} groups={groups} />
+  // v27.0b.7.2: holder name for guide_license LICENSE HOLDER slot.
+  // display_name → email-local-part → null fallback.
+  const holderName =
+    profile.display_name?.trim() || user.email?.split('@')[0] || null
+  return (
+    <WalletPage
+      basePath="/app/wallet"
+      tabs={tabs}
+      groups={groups}
+      holderName={holderName}
+    />
+  )
 }

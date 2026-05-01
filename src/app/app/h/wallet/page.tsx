@@ -8,9 +8,20 @@ import WalletPage from '../../_components/wallet/WalletPage'
 // (data not deleted — just hidden). Guide-side auto-reveal logic stays
 // intact for users with role='guide' since guides can also hunt personally.
 export default async function HunterWalletPage() {
-  const { profile } = await requireHunter()
+  const { user, profile } = await requireHunter()
   const allItems = await fetchWallet(profile.id)
   const items = allItems.filter((i) => WALLET_TYPES_HUNTER.includes(i.type))
   const groups = groupByType(items)
-  return <WalletPage basePath="/app/h/wallet" tabs={WALLET_TYPES_HUNTER} groups={groups} />
+  // v27.0b.7.2: holder name passed through for any guide_license cards
+  // (hunter-side wallet won't show guide_license, but harmless to pass).
+  const holderName =
+    profile.display_name?.trim() || user.email?.split('@')[0] || null
+  return (
+    <WalletPage
+      basePath="/app/h/wallet"
+      tabs={WALLET_TYPES_HUNTER}
+      groups={groups}
+      holderName={holderName}
+    />
+  )
 }

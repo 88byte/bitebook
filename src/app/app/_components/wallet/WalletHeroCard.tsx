@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { CSSProperties, MouseEvent } from 'react'
 import { CircleCheck } from 'lucide-react'
+import { normalizeWeaponRestriction } from '@/lib/methods'
 import type { WalletItemType, WalletItemWithStatus, WalletDerivedStatus } from '../../_lib/wallet-utils'
 
 // v27.0b.7: per type/status card skin. Replaces the v27.0a.20 single-skin
@@ -74,6 +75,7 @@ export default function WalletHeroCard({
   item,
   basePath,
   eyebrow,
+  holderName,
   style,
   className,
   onClick,
@@ -82,6 +84,11 @@ export default function WalletHeroCard({
   item: WalletItemWithStatus
   basePath: string
   eyebrow: string
+  /** v27.0b.7.2: rendered in the LICENSE HOLDER slot on guide_license
+   * cards. Comes from profiles.display_name of the wallet item's owner.
+   * Null falls back to email-local-part — and ultimately a "—" if even
+   * that's missing. Plumbed from WalletPage at the route layer. */
+  holderName?: string | null
   style?: CSSProperties
   className?: string
   onClick?: (ev: MouseEvent<HTMLAnchorElement>) => void
@@ -130,14 +137,17 @@ export default function WalletHeroCard({
   ].filter(Boolean).join(' ')
 
   if (isGuideLic) {
-    // v27.0b.7.1: dedicated layout for guide_license. The skin has 4
-    // baked-in labels stacked on the left side (LICENSE HOLDER / STATE
-    // / LICENSE ID / VALID THROUGH) with copper icons. We render the
-    // dynamic values as a 4-row grid pinned to the same vertical band
-    // so each value sits next to its label. No eyebrow, no separate
-    // top/bottom blocks — single grid keyed to artwork.
+    // v27.0b.7.2: dedicated guide_license layout. Each row absolutely
+    // positioned at the artwork's exact label vertical band via
+    // data-slot attribute (CSS pins each slot to a measured top%).
+    // Slot mapping (corrected from v27.0b.7.1):
+    //   holder → display_name (holderName prop, falls through email
+    //            local-part, then a — placeholder)
+    //   state  → expanded state name (e.g. "CALIFORNIA")
+    //   id     → identifier (license number)
+    //   valid  → valid_to formatted as "MMM d, yyyy"
     const stateLabel = item.state ? expandStateLabel(item.state) : '—'
-    const seasonLabel = item.season_year ? `${item.season_year}` : null
+    const holder = (holderName ?? '').trim() || '—'
     return (
       <Link
         href={`${basePath}/${item.id}/edit`}
@@ -147,31 +157,20 @@ export default function WalletHeroCard({
         onClick={onClick}
         tabIndex={tabIndex}
       >
-        <div className="bb-wallet-card-gl-fields" aria-hidden={false}>
-          <div className="bb-wallet-card-gl-row">
-            {/* LICENSE HOLDER value. We don't have a dedicated holder
-                column on wallet_items yet, so show the eyebrow ("Guide
-                License") prop's already-known holder value via item
-                fields available — currently we don't have it; surface
-                identifier as a sensible fallback. v27.1 will plumb a
-                real holder_name field through the form. */}
-            <span className="bb-wallet-card-gl-value">{item.identifier || 'Untitled'}</span>
-          </div>
-          <div className="bb-wallet-card-gl-row">
-            <span className="bb-wallet-card-gl-value">{stateLabel}</span>
-          </div>
-          <div className="bb-wallet-card-gl-row">
-            <span className="bb-wallet-card-gl-value">
-              {item.identifier || '—'}
-              {seasonLabel ? <span className="bb-wallet-card-gl-meta"> · {seasonLabel}</span> : null}
-            </span>
-          </div>
-          <div className="bb-wallet-card-gl-row">
-            <span className="bb-wallet-card-gl-value">{validToFmt}</span>
-          </div>
+        <div className="bb-wallet-card-gl-row" data-slot="holder">
+          <span className="bb-wallet-card-gl-value">{holder}</span>
         </div>
-        {/* Status pill remains in its standard bottom-right position so
-            active / expired states stay legible at a glance. */}
+        <div className="bb-wallet-card-gl-row" data-slot="state">
+          <span className="bb-wallet-card-gl-value">{stateLabel}</span>
+        </div>
+        <div className="bb-wallet-card-gl-row" data-slot="id">
+          <span className="bb-wallet-card-gl-value">{item.identifier || '—'}</span>
+        </div>
+        <div className="bb-wallet-card-gl-row" data-slot="valid">
+          <span className="bb-wallet-card-gl-value">{validToFmt}</span>
+        </div>
+        {/* Status pill in its own absolutely-positioned slot, sits to
+            the right of the bottom-most label. */}
         <div className="bb-wallet-card-gl-status">
           <span className={`bb-wallet-card-status bb-wallet-card-status-${item.status}`}>
             <CircleCheck size={12} aria-hidden="true" />
@@ -204,6 +203,41 @@ export default function WalletHeroCard({
             {expandStateLabel(item.state)}
           </p>
         )}
+        {/* v27.0b.7.2: species + weapon + tag designation block for the
+            tag-family (tag, permit, harvest_report_card, stamp). Each
+            field skips render when empty. extras is jsonb on the row;
+            we read the keys we know (weapon_restriction, tag_type) and
+            normalize weapon_restriction so legacy lowercase + Any are
+            handled. */}
+        {tagFamily && (() => {
+          const extras = (item.extras ?? null) as { weapon_restriction?: string; tag_type?: string } | null
+          const weapon = normalizeWeaponRestriction(extras?.weapon_restriction)
+          const tagDesignation = (extras?.tag_type ?? '').trim() || null
+          const species = (item.species ?? '').trim() || null
+          if (!species && !weapon && !tagDesignation) return null
+          return (
+            <div className="bb-wallet-card-meta">
+              {species && (
+                <p className="bb-wallet-card-meta-line">
+                  <span className="bb-wallet-card-meta-label">Species</span>
+                  <span className="bb-wallet-card-meta-value">{species}</span>
+                </p>
+              )}
+              {weapon && (
+                <p className="bb-wallet-card-meta-line">
+                  <span className="bb-wallet-card-meta-label">Weapon</span>
+                  <span className="bb-wallet-card-meta-value">{weapon}</span>
+                </p>
+              )}
+              {tagDesignation && (
+                <p className="bb-wallet-card-meta-line">
+                  <span className="bb-wallet-card-meta-label">Designation</span>
+                  <span className="bb-wallet-card-meta-value">{tagDesignation}</span>
+                </p>
+              )}
+            </div>
+          )
+        })()}
       </div>
       <div className="bb-wallet-card-bottom">
         {/* v27.0a.20: tagged-out skin has the ribbon baked in; suppress
