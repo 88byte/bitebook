@@ -109,3 +109,104 @@ export async function linkWalletItemToTripAction(
   revalidatePath('/app')
   return { ok: true }
 }
+
+// v27.0b.9: hunter swaps an already-linked trip_wallet_items row to a
+// different wallet item of the same type. Lets them fix a mis-pick
+// without going through the wallet/trip edit flows.
+//
+// Edge case (tags only): if the OLD tag has a harvest referencing it
+// (harvests.consumed_wallet_item_id = old_id), block the swap with an
+// error directing the guide to edit the harvest. Updating the harvest's
+// consumed_wallet_item_id silently would mask audit trail and confuse
+// the guide who logged it. Guide-side EditHarvestForm already handles
+// rebinding, so the path exists.
+export type SwapWalletResult = { ok: true } | { error: string }
+
+export async function swapTripWalletItemAction(
+  formData: FormData
+): Promise<SwapWalletResult> {
+  const { profile } = await requireHunter()
+  const tripId = String(formData.get('trip_id') ?? '').trim()
+  const oldWalletItemId = String(formData.get('old_wallet_item_id') ?? '').trim()
+  const newWalletItemId = String(formData.get('new_wallet_item_id') ?? '').trim()
+
+  if (!tripId) return { error: 'Missing trip id.' }
+  if (!oldWalletItemId) return { error: 'Missing current link.' }
+  if (!newWalletItemId) return { error: 'Pick a wallet item to swap to.' }
+  if (oldWalletItemId === newWalletItemId) return { error: 'Same wallet item — no change.' }
+
+  const sb = await createClient()
+
+  // Verify hunter is a participant on the trip.
+  const { data: participant } = await sb
+    .from('trip_participants')
+    .select('id')
+    .eq('trip_id', tripId)
+    .eq('hunter_id', profile.id)
+    .maybeSingle()
+  if (!participant) return { error: 'You are not a participant on this trip.' }
+
+  // Verify hunter owns the new wallet item.
+  const { data: newItem } = await sb
+    .from('wallet_items')
+    .select('id, type')
+    .eq('id', newWalletItemId)
+    .eq('user_id', profile.id)
+    .maybeSingle()
+  if (!newItem) return { error: 'New wallet item not found.' }
+
+  // Verify hunter owned (now or originally) the old wallet item — required
+  // because RLS gates the trip_wallet_items update on hunter_id.
+  const { data: oldItem } = await sb
+    .from('wallet_items')
+    .select('id, type')
+    .eq('id', oldWalletItemId)
+    .eq('user_id', profile.id)
+    .maybeSingle()
+  if (!oldItem) return { error: 'Original wallet item not found.' }
+
+  // Type must match (can't swap a license link to a tag, etc).
+  if (oldItem.type !== newItem.type) {
+    return { error: `Type mismatch — current link is a ${oldItem.type}; can't swap to a ${newItem.type}.` }
+  }
+
+  // Tag-specific edge case: if a harvest references the OLD tag, block.
+  // Guide must edit the harvest to retarget the consumed_wallet_item_id
+  // first. Keeps the audit trail clean.
+  if (oldItem.type === 'tag') {
+    const { data: linkedHarvests } = await sb
+      .from('harvests')
+      .select('id')
+      .eq('trip_id', tripId)
+      .eq('consumed_wallet_item_id', oldWalletItemId)
+      .limit(1)
+    if (linkedHarvests && linkedHarvests.length > 0) {
+      return {
+        error:
+          "This tag has been used for a harvest. Ask the guide to edit the harvest to change the tag.",
+      }
+    }
+  }
+
+  // Update the trip_wallet_items row keyed by (trip_id, hunter_id,
+  // wallet_item_id=old). Single row given the (trip_id, hunter_id,
+  // wallet_item_id) UNIQUE constraint.
+  const { error: updErr } = await sb
+    .from('trip_wallet_items')
+    .update({ wallet_item_id: newWalletItemId, linked_at: new Date().toISOString() })
+    .eq('trip_id', tripId)
+    .eq('hunter_id', profile.id)
+    .eq('wallet_item_id', oldWalletItemId)
+  if (updErr) {
+    console.warn('[swapTripWalletItemAction]', { code: updErr.code, message: updErr.message })
+    return { error: updErr.message || 'Could not swap wallet item.' }
+  }
+
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
+  revalidatePath(`/app/trips/${tripId}`)
+  revalidatePath('/app/trips')
+  revalidatePath('/app')
+  return { ok: true }
+}

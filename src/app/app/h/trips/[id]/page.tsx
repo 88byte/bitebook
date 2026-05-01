@@ -69,34 +69,40 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
 
   // v27.0b.6 (B): derive Action Needed items for this hunter on this trip.
   // Only on planned/active trips. Sane default set: 1 license action +
-  // 1 tag action when the trip targets a species. v27.1 will refine with
-  // real form-mapped requirements (per-state rules, etc.).
+  // 1 tag action when the trip targets a species. v27.0b.9: actions
+  // continue to render after the hunter links an item — the row morphs
+  // to a "linked" state with a Change affordance so the hunter can swap
+  // the link if they picked the wrong wallet item.
   let actions: ActionItem[] = []
   const isOpenForActions = trip.status === 'planned' || trip.status === 'active'
   if (isOpenForActions) {
     const linksMap = await fetchTripWalletLinks(trip.id)
     const linked = linksMap.get(profile.id) ?? []
-    const haveLicense = linked.some((l) => l.type === 'license')
-    const haveTag = linked.some((l) => l.type === 'tag')
+    const linkedLicense = linked.find((l) => l.type === 'license') ?? null
+    const linkedTag = linked.find((l) => l.type === 'tag') ?? null
     const stateForLink = trip.state || null
 
     const draft: ActionItem[] = []
-    if (!haveLicense) {
-      draft.push({
-        key: 'license',
-        label: stateForLink ? `Add your ${stateForLink} hunting license` : 'Add your hunting license',
-        type: 'license',
-        candidates: await fetchHunterMatchingWalletItems(profile.id, 'license', stateForLink),
-        state: stateForLink,
-      })
-    }
-    if (!haveTag && trip.species_targeted) {
+    // License row always renders on planned/active trips; shows linked
+    // state when one exists.
+    draft.push({
+      key: 'license',
+      label: stateForLink ? `Your ${stateForLink} hunting license` : 'Your hunting license',
+      type: 'license',
+      candidates: await fetchHunterMatchingWalletItems(profile.id, 'license', stateForLink),
+      state: stateForLink,
+      currentLinked: linkedLicense,
+    })
+    // Tag row renders only when the trip targets a species (otherwise we
+    // can't compute a sensible label). Same morph-on-link behavior.
+    if (trip.species_targeted) {
       draft.push({
         key: 'tag',
-        label: `Add your ${trip.species_targeted} tag`,
+        label: `Your ${trip.species_targeted} tag`,
         type: 'tag',
         candidates: await fetchHunterMatchingWalletItems(profile.id, 'tag', stateForLink),
         state: stateForLink,
+        currentLinked: linkedTag,
       })
     }
     actions = draft

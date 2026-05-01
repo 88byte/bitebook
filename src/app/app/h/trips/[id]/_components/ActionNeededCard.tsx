@@ -13,8 +13,8 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
-import { AlertCircle, Plus } from 'lucide-react'
-import { linkWalletItemToTripAction } from '../actions'
+import { AlertCircle, Plus, Check, RefreshCw } from 'lucide-react'
+import { linkWalletItemToTripAction, swapTripWalletItemAction } from '../actions'
 import type { LinkedWalletItem } from '../../../../_lib/queries'
 
 export type ActionItem = {
@@ -26,6 +26,10 @@ export type ActionItem = {
   candidates: LinkedWalletItem[]
   /** prefill state on the wallet new link, when known */
   state?: string | null
+  /** v27.0b.9: the hunter's currently-linked item for this action, if any.
+   * When present the row morphs to a "linked" state with a Change
+   * affordance instead of a Pick prompt. */
+  currentLinked?: LinkedWalletItem | null
 }
 
 export default function ActionNeededCard({
@@ -36,11 +40,23 @@ export default function ActionNeededCard({
   actions: ActionItem[]
 }) {
   if (actions.length === 0) return null
+  // v27.0b.9: header morphs based on completion state.
+  const allLinked = actions.every((a) => !!a.currentLinked)
+  const HeaderIcon = allLinked ? Check : AlertCircle
+  const headerLabel = allLinked ? 'Trip credentials' : 'Action needed'
+  const headerIconColor = allLinked ? 'var(--color-ink-soft)' : 'var(--color-copper)'
+  const subtitle = allLinked
+    ? 'Linked to your wallet. Tap Change if you picked the wrong one.'
+    : 'Your guide needs these on file before the trip. Pick from your wallet or add new.'
   return (
     <section
       className="bb-tile bb-form-section"
       aria-labelledby="bb-action-needed"
-      style={{ borderColor: 'var(--color-copper)', borderWidth: 1, borderStyle: 'solid' }}
+      style={{
+        borderColor: allLinked ? 'var(--color-ink-tint)' : 'var(--color-copper)',
+        borderWidth: 1,
+        borderStyle: 'solid',
+      }}
     >
       <div className="bb-tile-body">
         <h2
@@ -48,11 +64,11 @@ export default function ActionNeededCard({
           className="bb-form-section-head"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <AlertCircle size={18} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-          Action needed
+          <HeaderIcon size={18} aria-hidden="true" style={{ color: headerIconColor }} />
+          {headerLabel}
         </h2>
         <p className="bb-form-help" style={{ marginTop: '-0.3rem', marginBottom: '0.5rem' }}>
-          Your guide needs these on file before the trip. Pick from your wallet or add new.
+          {subtitle}
         </p>
         <div className="flex flex-col gap-3">
           {actions.map((a) => (
@@ -65,27 +81,50 @@ export default function ActionNeededCard({
 }
 
 function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
-  const [selection, setSelection] = useState<string>('')
+  // v27.0b.9: when an item is already linked, render a "linked" state
+  // with a Change affordance. Tapping Change reveals the picker and
+  // submits a swap (updates the existing trip_wallet_items row in
+  // place). Picker stays usable on the unlinked state too.
+  const linked = action.currentLinked ?? null
+  const [selection, setSelection] = useState<string>(linked?.id ?? '')
+  const [picking, setPicking] = useState<boolean>(!linked)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  function handleLink() {
+  function handleSubmit() {
     if (!selection) {
       setError('Pick a wallet item first.')
       return
     }
+    if (linked && selection === linked.id) {
+      setError('Same wallet item — no change.')
+      return
+    }
     setError(null)
-    const fd = new FormData()
-    fd.set('trip_id', tripId)
-    fd.set('wallet_item_id', selection)
     startTransition(async () => {
-      const res = await linkWalletItemToTripAction(fd)
-      if ('error' in res) {
-        setError(res.error)
-        return
+      const fd = new FormData()
+      fd.set('trip_id', tripId)
+      if (linked) {
+        // Swap path — update existing row.
+        fd.set('old_wallet_item_id', linked.id)
+        fd.set('new_wallet_item_id', selection)
+        const res = await swapTripWalletItemAction(fd)
+        if ('error' in res) {
+          setError(res.error)
+          return
+        }
+      } else {
+        // First-link path — insert new row.
+        fd.set('wallet_item_id', selection)
+        const res = await linkWalletItemToTripAction(fd)
+        if ('error' in res) {
+          setError(res.error)
+          return
+        }
       }
       setSavedAt(Date.now())
+      setPicking(false)
     })
   }
 
@@ -93,12 +132,54 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
     ? `/app/h/wallet/new?type=${action.type}&state=${encodeURIComponent(action.state)}`
     : `/app/h/wallet/new?type=${action.type}`
 
-  // v27.0b.7: always render BOTH paths side-by-side. Even when the hunter
-  // has no matching items, the dropdown still appears (with a "No
-  // matching items" placeholder) so the user knows the option exists.
-  // Add new is always there as the alternative.
   const hasCandidates = action.candidates.length > 0
+  const linkedLabel = linked
+    ? [linked.identifier, linked.state, linked.species, linked.zone].filter(Boolean).join(' · ')
+    : null
 
+  // Linked + not picking: compact summary row with Change button.
+  if (linked && !picking) {
+    return (
+      <div
+        className="bb-tile"
+        style={{ padding: '0.75rem', borderColor: 'var(--color-ink-tint)' }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>{action.label}</div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+            <Check size={14} aria-hidden="true" style={{ color: 'var(--color-copper)', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.92rem', color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {linkedLabel}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => {
+              setSelection(linked.id)
+              setSavedAt(null)
+              setError(null)
+              setPicking(true)
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Change
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Picking state — both first-link and swap flows share this UI.
   return (
     <div
       className="bb-tile"
@@ -114,14 +195,8 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
           style={{ marginBottom: '0.25rem' }}
           htmlFor={`action-${action.key}-pick`}
         >
-          Use existing from your wallet
+          {linked ? 'Swap to a different item' : 'Use existing from your wallet'}
         </label>
-        {/* v27.0b.8: removed the !hasCandidates clause from `disabled`.
-            When empty the only option is the "No matching items"
-            placeholder, but the select stays tappable so iOS doesn't
-            render it as a non-interactive gray field. Pointer-events
-            forced auto via inline style as defense against any
-            ancestor pointer-events:none. */}
         <select
           id={`action-${action.key}-pick`}
           name={`action-${action.key}-pick`}
@@ -152,11 +227,29 @@ function ActionRow({ tripId, action }: { tripId: string; action: ActionItem }) {
         <button
           type="button"
           className="bb-cta-sm"
-          onClick={handleLink}
+          onClick={handleSubmit}
           disabled={!hasCandidates || isPending || savedAt !== null || !selection}
         >
-          {savedAt !== null ? 'Linked' : isPending ? 'Linking…' : 'Use this'}
+          {savedAt !== null
+            ? linked ? 'Swapped' : 'Linked'
+            : isPending
+              ? linked ? 'Swapping…' : 'Linking…'
+              : linked ? 'Save swap' : 'Use this'}
         </button>
+        {linked && (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => {
+              setSelection(linked.id)
+              setError(null)
+              setPicking(false)
+            }}
+            disabled={isPending}
+          >
+            Cancel
+          </button>
+        )}
         <span style={{ alignSelf: 'center', color: 'var(--color-ink-soft)', fontSize: '0.85rem' }}>
           or
         </span>
