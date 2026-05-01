@@ -67,10 +67,13 @@ export default function WalletPage({ basePath, tabs, groups }: Props) {
   const buckets = bucketByStatus(items)
   const Icon = TAB_ICONS[activeTab]
 
-  // Counts shown on stats grid + pill chips. Excludes archived from the
-  // primary count to match the mockup (archived hidden from main view).
+  // Counts shown on stats grid + pill chips. v27.0b.6: only active items
+  // count toward the top-of-page counters. Tagged-out / expired / archived
+  // items still appear in their respective sections below but no longer
+  // inflate the active counter — Flavio's spec: counter must reflect
+  // what's actually USABLE right now.
   function countFor(type: WalletItemType): number {
-    return (groups.get(type) ?? []).filter((i) => i.status !== 'archived').length
+    return (groups.get(type) ?? []).filter((i) => i.status === 'active').length
   }
 
   return (

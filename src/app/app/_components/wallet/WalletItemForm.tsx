@@ -21,6 +21,8 @@ import {
 import { WALLET_TYPES_HUNTER, normalizeSexRestriction, type WalletItemType, type WalletJurisdiction } from '../../_lib/wallet-utils'
 import DateField from '../DateField'
 import WalletPhotoField from './WalletPhotoField'
+import SpeciesField from '../SpeciesField'
+import type { SpeciesOption } from '../../_lib/queries'
 
 // Per-type fields are sourced from
 // /Users/flave/Documents/Claude/Projects/Last Bite Pro/2026-04-29-wallet-fields-by-type.md
@@ -113,10 +115,15 @@ export default function WalletItemForm({
   basePath,
   userId,
   initial,
+  speciesOptions = [],
 }: {
   basePath: '/app/h/wallet' | '/app/wallet'
   userId: string
   initial: Initial
+  /** v27.0b.6: full hunting + fishing seed from the species table.
+   * Filtered locally by the kind toggle. Empty array = no autocomplete
+   * (falls back to plain free-text input via SpeciesField). */
+  speciesOptions?: SpeciesOption[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -127,6 +134,11 @@ export default function WalletItemForm({
   // multi-use). Default false (most tags are single-use). Hidden input
   // below maps back to single_use boolean for the server: !multiUse.
   const [multiUse, setMultiUse] = useState<boolean>(initial.single_use === false)
+  // v27.0b.6: species + species kind toggle. Species is now a controlled
+  // datalist autocomplete; the kind toggle filters which seed options
+  // appear in the list. Default kind: hunting (most common path).
+  const [speciesValue, setSpeciesValue] = useState<string>(initial.species ?? '')
+  const [speciesKind, setSpeciesKind] = useState<'hunting' | 'fishing'>('hunting')
   // v27.0a.15: photo state. Persisted on form submit via the hidden
   // document_url input below — the actual upload happens out-of-band
   // (already in Supabase Storage) by the time we reach submit.
@@ -382,20 +394,57 @@ export default function WalletItemForm({
             <h2 className="bb-form-section-head">Hunt details</h2>
             <div className="bb-form-grid-2">
               {SHOW.species(type) && (
-                <div className="bb-form-row">
-                  <label className="bb-form-label" htmlFor="species">Species <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+                  <label className="bb-form-label" htmlFor="species">
+                    Species <span style={{ opacity: 0.6 }}>(optional)</span>
+                  </label>
+                  {/* v27.0b.6: Hunting / Fishing kind toggle filters the
+                      datalist suggestions. The text input itself accepts
+                      free entry so outliers / regional names that aren't
+                      in the seed still save fine. */}
+                  <div
+                    className="bb-segmented"
+                    role="radiogroup"
+                    aria-label="Species category"
+                    style={{ marginBottom: '0.5rem' }}
+                  >
+                    <label>
+                      <input
+                        type="radio"
+                        name="species_kind"
+                        value="hunting"
+                        checked={speciesKind === 'hunting'}
+                        onChange={() => setSpeciesKind('hunting')}
+                      />
+                      Hunting
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="species_kind"
+                        value="fishing"
+                        checked={speciesKind === 'fishing'}
+                        onChange={() => setSpeciesKind('fishing')}
+                      />
+                      Fishing
+                    </label>
+                  </div>
                   <label className="bb-field">
                     <span className="bb-field-icon"><PawPrint size={18} aria-hidden="true" /></span>
-                    <input
+                    <SpeciesField
                       id="species"
                       name="species"
-                      type="text"
-                      defaultValue={initial.species ?? ''}
-                      placeholder="Black bear"
+                      value={speciesValue}
+                      onChange={setSpeciesValue}
+                      options={speciesOptions}
+                      kind={speciesKind}
+                      placeholder="Type or pick a species"
                       className="bb-input bb-input-iconed"
-                      autoComplete="off"
                     />
                   </label>
+                  <p className="bb-form-help">
+                    Pick from the list or type your own.
+                  </p>
                 </div>
               )}
               {SHOW.zone(type) && (

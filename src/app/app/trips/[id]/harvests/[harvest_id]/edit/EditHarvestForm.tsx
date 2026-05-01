@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save, Trash2 } from 'lucide-react'
 import { methodsForKind } from '@/lib/methods'
+import SpeciesField from '../../../../../_components/SpeciesField'
+import type { SpeciesOption } from '../../../../../_lib/queries'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import { updateHarvestAction, deleteHarvestAction } from '../../../actions'
 
@@ -48,12 +50,16 @@ type Props = {
   /** Per-hunter active tag inventory + default selection. */
   tagOptionsByHunter: Record<string, TagOptions>
   basePath: string
+  /** v27.0b.6: species seed for autocomplete, filtered by trip.kind. */
+  speciesOptions: SpeciesOption[]
+  /** v27.0b.6: trip kind (hunting | fishing) drives the SpeciesField filter. */
+  tripKind: 'hunting' | 'fishing'
 }
 
 // v27.0b.3: edit harvest form. Mirrors AddHarvestForm's auto-fill +
 // hunter-driven tag picker semantics, but in update mode against an
 // existing row. Delete button + ConfirmModal live alongside Save.
-export default function EditHarvestForm({ initial, participants, tagOptionsByHunter, basePath }: Props) {
+export default function EditHarvestForm({ initial, participants, tagOptionsByHunter, basePath, speciesOptions, tripKind }: Props) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -182,17 +188,16 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
           </select>
         </div>
         <div className="bb-form-row">
+          {/* v27.0b.6: species datalist filtered by trip.kind. */}
           <label className="bb-form-label" htmlFor="harvest_species">Species</label>
-          <input
+          <SpeciesField
             id="harvest_species"
             name="species_name"
-            type="text"
-            required
             value={speciesName}
-            onChange={(e) => setSpeciesName(e.target.value)}
-            className="bb-input"
-            autoComplete="off"
-            maxLength={120}
+            onChange={setSpeciesName}
+            options={speciesOptions}
+            kind={tripKind}
+            required
           />
         </div>
       </div>

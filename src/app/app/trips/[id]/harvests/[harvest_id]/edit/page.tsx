@@ -5,6 +5,7 @@ import { requireGuide } from '../../../../../_lib/auth'
 import {
   fetchHarvestTagOptions,
   fetchTripDetail,
+  fetchSpecies,
   type HarvestTagOptions,
 } from '../../../../../_lib/queries'
 import { createClient } from '@/lib/supabase/server'
@@ -95,6 +96,9 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
 
   const basePath = `/app/trips/${trip.id}`
 
+  // v27.0b.6: species seed for SpeciesField datalist, filtered to trip kind.
+  const speciesOptions = await fetchSpecies(trip.kind)
+
   return (
     <main className="bb-app-main">
       <Link
@@ -117,6 +121,8 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
           participants={harvestParticipants}
           tagOptionsByHunter={tagOptionsByHunter}
           basePath={basePath}
+          speciesOptions={speciesOptions}
+          tripKind={trip.kind}
         />
       </div>
     </main>

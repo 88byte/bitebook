@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../../_lib/auth'
+import { fetchSpecies } from '../../../_lib/queries'
 import WalletItemForm from '../../../_components/wallet/WalletItemForm'
 import { createClient } from '@/lib/supabase/server'
 
@@ -18,6 +19,8 @@ export default async function GuideWalletEditPage({ params }: { params: RoutePar
     .eq('user_id', profile.id)
     .maybeSingle()
   if (!item) notFound()
+
+  const speciesOptions = await fetchSpecies()
 
   return (
     <main className="bb-app-main">
@@ -38,6 +41,7 @@ export default async function GuideWalletEditPage({ params }: { params: RoutePar
         <WalletItemForm
           basePath="/app/wallet"
           userId={profile.id}
+          speciesOptions={speciesOptions}
           initial={{
             id: item.id,
             type: item.type,

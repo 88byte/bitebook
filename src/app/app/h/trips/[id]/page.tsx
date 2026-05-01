@@ -18,11 +18,17 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { requireHunter } from '../../../_lib/auth'
-import { fetchHunterTripDetail, fetchHunterTripReview } from '../../../_lib/queries'
+import {
+  fetchHunterTripDetail,
+  fetchHunterTripReview,
+  fetchHunterMatchingWalletItems,
+  fetchTripWalletLinks,
+} from '../../../_lib/queries'
 import StatusPill from '../../../_components/StatusPill'
 import { tripDateRange, timeOfDay, initials, relativeOrDate } from '../../../_lib/format'
 import { markStepDone } from '../../../_lib/onboarding'
 import ReviewForm from './ReviewForm'
+import ActionNeededCard, { type ActionItem } from './_components/ActionNeededCard'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -61,6 +67,41 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
   const otherHunters = participants.filter((p) => p.hunter_id !== profile.id)
 
+  // v27.0b.6 (B): derive Action Needed items for this hunter on this trip.
+  // Only on planned/active trips. Sane default set: 1 license action +
+  // 1 tag action when the trip targets a species. v27.1 will refine with
+  // real form-mapped requirements (per-state rules, etc.).
+  let actions: ActionItem[] = []
+  const isOpenForActions = trip.status === 'planned' || trip.status === 'active'
+  if (isOpenForActions) {
+    const linksMap = await fetchTripWalletLinks(trip.id)
+    const linked = linksMap.get(profile.id) ?? []
+    const haveLicense = linked.some((l) => l.type === 'license')
+    const haveTag = linked.some((l) => l.type === 'tag')
+    const stateForLink = trip.state || null
+
+    const draft: ActionItem[] = []
+    if (!haveLicense) {
+      draft.push({
+        key: 'license',
+        label: stateForLink ? `Add your ${stateForLink} hunting license` : 'Add your hunting license',
+        type: 'license',
+        candidates: await fetchHunterMatchingWalletItems(profile.id, 'license', stateForLink),
+        state: stateForLink,
+      })
+    }
+    if (!haveTag && trip.species_targeted) {
+      draft.push({
+        key: 'tag',
+        label: `Add your ${trip.species_targeted} tag`,
+        type: 'tag',
+        candidates: await fetchHunterMatchingWalletItems(profile.id, 'tag', stateForLink),
+        state: stateForLink,
+      })
+    }
+    actions = draft
+  }
+
   return (
     <main className="bb-app-main">
       <Link
@@ -84,6 +125,11 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
       </header>
 
       <div className="bb-form-narrow mt-4 flex flex-col gap-4">
+        {/* v27.0b.6 (B): Action-needed card. Renders only on planned/active
+            trips when the hunter still has unfulfilled actions (license +
+            tag-per-species). Returns null when actions array is empty. */}
+        <ActionNeededCard tripId={trip.id} actions={actions} />
+
         {/* GUIDE */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-guide">
           <div className="bb-tile-body">

@@ -24,6 +24,8 @@ import {
   fetchTripDetail,
   fetchAcceptedHunters,
   fetchHarvestTagOptions,
+  fetchSpecies,
+  fetchTripWalletLinks,
   type HarvestTagOptions,
 } from '../../_lib/queries'
 import StatusPill from '../../_components/StatusPill'
@@ -84,6 +86,15 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
 
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip)
+
+  // v27.0b.6: species seed for the harvest form's datalist autocomplete.
+  // Filtered to trip.kind in the form itself.
+  const speciesOptions = isOpen ? await fetchSpecies(trip.kind) : []
+
+  // v27.0b.6 (C): per-hunter wallet-item links for the participant chips.
+  // RLS lets the guide read participants' wallet items via the v27.0a.23
+  // trip-link policy.
+  const walletLinksByHunter = await fetchTripWalletLinks(trip.id)
 
   return (
     <main className="bb-app-main">
@@ -215,6 +226,18 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
               <div className="bb-detail-list">
                 {participants.map((p) => {
                   const name = p.profile?.display_name ?? p.guest_name ?? 'Unnamed hunter'
+                  // v27.0b.6 (C): wallet-item chips per hunter. Pulled from
+                  // trip_wallet_items by hunter_id. Pending badge appears
+                  // when no license OR no tag is linked (matches the
+                  // hunter's Action-Needed card).
+                  const links = p.hunter_id ? walletLinksByHunter.get(p.hunter_id) ?? [] : []
+                  const hasLicense = links.some((l) => l.type === 'license')
+                  const hasTag = links.some((l) => l.type === 'tag')
+                  const pending: string[] = []
+                  if (p.hunter_id) {
+                    if (!hasLicense) pending.push('license')
+                    if (!hasTag && trip.species_targeted) pending.push('tag')
+                  }
                   return (
                     <div key={p.id} className="bb-detail-row">
                       <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
@@ -223,6 +246,67 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                         <div className="bb-detail-sub">
                           {p.profile ? 'Bite Book hunter' : 'Guest'} · {p.role}
                         </div>
+                        {(links.length > 0 || pending.length > 0) && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: '0.35rem',
+                              marginTop: '0.4rem',
+                            }}
+                          >
+                            {links.map((l) => {
+                              const typeLabel =
+                                l.type === 'license'
+                                  ? 'License'
+                                  : l.type === 'tag'
+                                    ? 'Tag'
+                                    : l.type === 'permit'
+                                      ? 'Permit'
+                                      : l.type === 'stamp'
+                                        ? 'Stamp'
+                                        : 'Doc'
+                              return (
+                                <span
+                                  key={l.id}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '999px',
+                                    background: 'var(--color-paper-tint)',
+                                    border: '1px solid var(--color-ink-tint)',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--color-ink)',
+                                  }}
+                                >
+                                  <strong style={{ fontWeight: 600 }}>{typeLabel}:</strong>{' '}
+                                  {l.identifier}
+                                  {l.species ? ` · ${l.species}` : ''}
+                                  {' ✓'}
+                                </span>
+                              )
+                            })}
+                            {pending.map((kind) => (
+                              <span
+                                key={`pending-${kind}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '999px',
+                                  background: 'var(--color-copper)',
+                                  color: '#fff',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Pending: {kind}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -304,6 +388,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                   defaultSpecies={trip.species_targeted ?? null}
                   participants={harvestParticipants}
                   tagOptionsByHunter={tagOptionsByHunter}
+                  speciesOptions={speciesOptions}
                 />
               </div>
             )}

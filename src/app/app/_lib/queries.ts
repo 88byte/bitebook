@@ -2,6 +2,103 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { normalizeWeaponRestriction } from '@/lib/methods'
 
+// v27.0b.6: shared species lookup. Public-readable table (RLS:
+// authenticated SELECT). Returns common names sorted by display_order
+// then name. Use this on the wallet form + harvest forms to back the
+// datalist autocomplete. Free-text input still allowed downstream;
+// the list is suggestion-only.
+// v27.0b.6 (B + C): trip ↔ wallet linkage helpers.
+//
+// LinkedWalletItem — what a guide sees in the participant chip row, and
+// what the hunter sees in the action-needed card "use existing" dropdown.
+// Pulled from trip_wallet_items JOIN wallet_items.
+export type LinkedWalletItem = {
+  id: string
+  type: Database['public']['Enums']['wallet_item_type']
+  identifier: string
+  state: string | null
+  species: string | null
+  zone: string | null
+}
+
+// fetchTripWalletLinks — used by guide trip detail to render chips per
+// hunter. Returns Map<hunter_id, LinkedWalletItem[]>. RLS lets the guide
+// read the participants' wallet items via the v27.0a.23 trip-link policy.
+export async function fetchTripWalletLinks(
+  tripId: string
+): Promise<Map<string, LinkedWalletItem[]>> {
+  const supabase = await createClient()
+  const out = new Map<string, LinkedWalletItem[]>()
+  const { data: links, error } = await supabase
+    .from('trip_wallet_items')
+    .select(
+      'hunter_id, wallet_item_id, wallet_items!inner(id, type, identifier, state, species, zone)'
+    )
+    .eq('trip_id', tripId)
+    .order('linked_at', { ascending: true })
+  if (error || !links) {
+    if (error) console.warn('[queries.fetchTripWalletLinks]', { tripId, code: error.code, message: error.message })
+    return out
+  }
+  for (const link of links) {
+    const item = (link as unknown as { wallet_items: LinkedWalletItem | null }).wallet_items
+    if (!item) continue
+    const arr = out.get(link.hunter_id) ?? []
+    arr.push(item)
+    out.set(link.hunter_id, arr)
+  }
+  return out
+}
+
+// fetchHunterMatchingWalletItems — hunter-side dropdown for the action
+// queue card. Pulls the hunter's own active wallet items of a given
+// type (license or tag), optionally filtered by state.
+export async function fetchHunterMatchingWalletItems(
+  hunterId: string,
+  type: Database['public']['Enums']['wallet_item_type'],
+  state?: string | null
+): Promise<LinkedWalletItem[]> {
+  const supabase = await createClient()
+  const today = new Date().toISOString().slice(0, 10)
+  let q = supabase
+    .from('wallet_items')
+    .select('id, type, identifier, state, species, zone')
+    .eq('user_id', hunterId)
+    .eq('type', type)
+    .is('archived_at', null)
+    .is('tagged_out_at', null)
+    .gte('valid_to', today)
+  if (state) q = q.eq('state', state)
+  const { data, error } = await q.order('valid_to', { ascending: true })
+  if (error || !data) {
+    if (error) console.warn('[queries.fetchHunterMatchingWalletItems]', { hunterId, type, code: error.code, message: error.message })
+    return []
+  }
+  return data
+}
+
+export type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
+export async function fetchSpecies(
+  kind?: 'hunting' | 'fishing'
+): Promise<SpeciesOption[]> {
+  const supabase = await createClient()
+  let q = supabase
+    .from('species')
+    .select('common_name, kind')
+    .order('kind', { ascending: true })
+    .order('common_name', { ascending: true })
+  if (kind) q = q.eq('kind', kind)
+  const { data, error } = await q
+  if (error) {
+    console.warn('[queries.fetchSpecies]', { code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? []).map((r) => ({
+    name: r.common_name as string,
+    kind: r.kind as 'hunting' | 'fishing',
+  }))
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // /app data layer.
 //

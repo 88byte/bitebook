@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { requireHunter } from '../../../_lib/auth'
+import { fetchSpecies } from '../../../_lib/queries'
 import WalletItemForm from '../../../_components/wallet/WalletItemForm'
 import type { WalletItemType } from '../../../_lib/wallet'
 
-type SearchParams = Promise<{ type?: string }>
+// v27.0b.6: action-needed card on hunter trip detail deep-links here with
+// ?type=tag&state=CA. Both params prefill the form so the hunter only fills
+// out the unique fields.
+type SearchParams = Promise<{ type?: string; state?: string }>
 
 const VALID_TYPES: WalletItemType[] = [
   'license', 'tag', 'permit', 'stamp', 'harvest_report_card',
@@ -20,6 +24,9 @@ export default async function HunterWalletNewPage({
   const initialType = (sp.type && VALID_TYPES.includes(sp.type as WalletItemType))
     ? (sp.type as WalletItemType)
     : 'license'
+  const initialState =
+    sp.state && /^[A-Z]{2}$/.test(sp.state.toUpperCase()) ? sp.state.toUpperCase() : null
+  const speciesOptions = await fetchSpecies()
 
   return (
     <main className="bb-app-main">
@@ -41,11 +48,12 @@ export default async function HunterWalletNewPage({
         <WalletItemForm
           basePath="/app/h/wallet"
           userId={profile.id}
+          speciesOptions={speciesOptions}
           initial={{
             type: initialType,
             jurisdiction: 'state',
             identifier: '',
-            state: null,
+            state: initialState,
             species: null,
             zone: null,
             season_year: null,

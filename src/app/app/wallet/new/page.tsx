@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
+import { fetchSpecies } from '../../_lib/queries'
 import WalletItemForm from '../../_components/wallet/WalletItemForm'
 import type { WalletItemType } from '../../_lib/wallet'
 
@@ -21,6 +22,7 @@ export default async function GuideWalletNewPage({
   const initialType = (sp.type && VALID_TYPES.includes(sp.type as WalletItemType))
     ? (sp.type as WalletItemType)
     : 'guide_license'
+  const speciesOptions = await fetchSpecies()
 
   return (
     <main className="bb-app-main">
@@ -42,6 +44,7 @@ export default async function GuideWalletNewPage({
         <WalletItemForm
           basePath="/app/wallet"
           userId={profile.id}
+          speciesOptions={speciesOptions}
           initial={{
             type: initialType,
             jurisdiction: 'state',

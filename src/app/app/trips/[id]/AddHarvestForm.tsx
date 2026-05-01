@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { Plus, Check } from 'lucide-react'
 import { methodsForKind } from '@/lib/methods'
 import { addHarvestAction } from './actions'
+import SpeciesField from '../../_components/SpeciesField'
+import type { SpeciesOption } from '../../_lib/queries'
 
 type ParticipantOption = { id: string; display_name: string }
 
@@ -41,6 +43,9 @@ type Props = {
    * Always shows the hunter's full active tag list; trip_wallet_items
    * only drives the default selection. Guide can always override. */
   tagOptionsByHunter: Record<string, TagOptions>
+  /** v27.0b.6: species seed for autocomplete. Filtered by tripKind in
+   * the SpeciesField. Free-text still allowed for outliers. */
+  speciesOptions: SpeciesOption[]
 }
 
 // v26.3: per-trip harvest entry. Visible to the guide on planned/active
@@ -59,7 +64,7 @@ type Props = {
 // Data fetch lives in the parent server component (trips/[id]/page.tsx)
 // and is recomputed on every page load — no client-side memoization, so
 // hunter wallet edits propagate next time the guide reopens this page.
-export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaultSpecies, participants, tagOptionsByHunter }: Props) {
+export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaultSpecies, participants, tagOptionsByHunter, speciesOptions }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
@@ -221,18 +226,18 @@ export default function AddHarvestForm({ tripId, tripKind, defaultMethod, defaul
           </select>
         </div>
         <div className="bb-form-row">
+          {/* v27.0b.6: species datalist filtered by trip.kind. Free-text
+              entry still works for outliers / regional names. */}
           <label className="bb-form-label" htmlFor="harvest_species">Species</label>
-          <input
+          <SpeciesField
             id="harvest_species"
             name="species_name"
-            type="text"
-            required
             value={speciesName}
-            onChange={(e) => setSpeciesName(e.target.value)}
+            onChange={setSpeciesName}
+            options={speciesOptions}
+            kind={tripKind}
             placeholder={tripKind === 'fishing' ? 'Rainbow trout' : 'Black bear'}
-            className="bb-input"
-            autoComplete="off"
-            maxLength={120}
+            required
           />
         </div>
       </div>
