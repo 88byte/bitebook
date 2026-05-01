@@ -3350,12 +3350,14 @@ body {
   align-items: baseline;
   min-height: 1.1rem;
 }
-/* v27.0b.7.4: holder stays at 42% (locked); state / id / valid pulled
-   up 3-5pp to tighten alignment to their label baselines. */
+/* v27.0b.7.4 / .7.6: holder stays at 42% (locked); other three nudged
+   up in .7.4 then dialed back down 2pp each in .7.6 — Flavio said
+   .7.4 went a hair too high. Net change from .7.3 is still upward
+   but smaller than .7.4 was. */
 .bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="holder"] { top: 42%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 53%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 65%; }
-.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 77%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="state"]  { top: 55%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="id"]     { top: 67%; }
+.bb-wallet-card--guide-license .bb-wallet-card-gl-row[data-slot="valid"]  { top: 79%; }
 
 .bb-wallet-card-gl-value {
   font-family: var(--font-barlow-condensed), sans-serif;
