@@ -65,6 +65,11 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
   const [tagNumber, setTagNumber] = useState<string>(initial.tag_number ?? '')
   // v27.0b.4.3: track kind in state so the method dropdown filters by activity.
   const [harvestKind, setHarvestKind] = useState<'hunting' | 'fishing'>(initial.kind)
+  // v27.0b.5.3: method controlled so tag swaps in edit mode auto-fill it
+  // alongside species + tag_number. Initial value is the live-resolved
+  // method (page already runs the wallet → snapshot → trip chain at fetch
+  // time and passes the result through initial.method).
+  const [method, setMethod] = useState<string>(initial.method ?? '')
 
   const opts: TagOptions = hunterId
     ? tagOptionsByHunter[hunterId] ?? { tags: [], default_tag_id: null }
@@ -81,6 +86,9 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
   // Same auto-fill rule as AddHarvestForm — tag selection wins on switch,
   // manual edits survive between switches. Initialize lastApplied to the
   // initial tag so we don't clobber the prefilled values on first render.
+  // v27.0b.5.3: method now in the auto-fill set alongside species +
+  // tag_number, mirroring AddHarvestForm. Picking a different bound tag
+  // overwrites all three; manual edits between tag changes survive.
   const lastAppliedTagRef = useRef<string>(initial.consumed_wallet_item_id ?? '')
   useEffect(() => {
     if (boundTagId && boundTagId !== lastAppliedTagRef.current) {
@@ -88,6 +96,11 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
       if (tag) {
         setSpeciesName(tag.species ?? speciesName)
         setTagNumber(tag.identifier ?? '')
+        // tag.weapon_restriction is already normalized to a canonical
+        // method label or null in queries.ts. Fall through to the
+        // current method state (initial.method, which itself was
+        // resolved live at fetch time) when the tag has no weapon set.
+        setMethod(tag.weapon_restriction ?? method)
         lastAppliedTagRef.current = boundTagId
       }
     } else if (!boundTagId && lastAppliedTagRef.current !== '') {
@@ -256,7 +269,8 @@ export default function EditHarvestForm({ initial, participants, tagOptionsByHun
           <select
             id="harvest_method"
             name="method"
-            defaultValue={initial.method ?? ''}
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
             className="bb-input"
           >
             <option value="">Select method</option>
