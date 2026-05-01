@@ -8,6 +8,7 @@ import {
   type HarvestTagOptions,
 } from '../../../../../_lib/queries'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeWeaponRestriction } from '@/lib/methods'
 import EditHarvestForm, { type HarvestEditInitial } from './EditHarvestForm'
 
 type RouteParams = Promise<{ id: string; harvest_id: string }>
@@ -36,23 +37,30 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
     .maybeSingle()
   if (!harvest) notFound()
 
-  // v27.0b.3.1: re-pull species + identifier from the consumed wallet
-  // item (if linked). Wallet item is the source of truth — the harvest
-  // row's stored species_name/tag_number are denormalized snapshots and
-  // can drift if the hunter renamed the tag after the harvest was logged.
-  // Fall back to the harvest row's snapshot when the wallet item is
-  // missing or unlinked.
+  // v27.0b.3.1 / .4.7: re-pull species + identifier + weapon_restriction
+  // from the consumed wallet item (if linked). Wallet item is the source
+  // of truth — the harvest row's stored species_name / tag_number / method
+  // are denormalized snapshots and can drift if the hunter edited the tag
+  // after the harvest was logged. Fall back to the harvest row's snapshot
+  // when the wallet item is missing or unlinked. Same precedence chain
+  // as queries.ts method_display so the edit form opens with the value
+  // the trip detail is already showing.
   let liveSpecies: string | null = harvest.species_name
   let liveTagNumber: string | null = harvest.tag_number
+  let liveMethod: string | null = harvest.method
   if (harvest.consumed_wallet_item_id) {
     const { data: walletItem } = await sb
       .from('wallet_items')
-      .select('id, species, identifier')
+      .select('id, species, identifier, extras')
       .eq('id', harvest.consumed_wallet_item_id)
       .maybeSingle()
     if (walletItem) {
       liveSpecies = walletItem.species ?? harvest.species_name
       liveTagNumber = walletItem.identifier ?? harvest.tag_number
+      const extras = (walletItem.extras ?? null) as { weapon_restriction?: string } | null
+      const wallet_method = normalizeWeaponRestriction(extras?.weapon_restriction)
+      // method chain: wallet → harvest snapshot → trip default
+      liveMethod = wallet_method ?? harvest.method ?? trip.method ?? null
     }
   }
 
@@ -77,7 +85,7 @@ export default async function EditHarvestPage({ params }: { params: RouteParams 
     hunter_id: harvest.hunter_id,
     kind: harvest.kind,
     species_name: liveSpecies,
-    method: harvest.method,
+    method: liveMethod,
     quantity: harvest.quantity,
     tag_number: liveTagNumber,
     harvested_at: harvest.harvested_at,
