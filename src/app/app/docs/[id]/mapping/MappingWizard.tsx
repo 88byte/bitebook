@@ -11,23 +11,33 @@ import {
   type MappingInput,
 } from '../../../_lib/docs-actions'
 import {
-  DATA_SOURCES,
   CATEGORY_ORDER,
   CATEGORY_LABELS,
   STATIC_TEXT_PREFIX,
+  STATIC_DATE_PREFIX,
+  STATIC_DATE_RANGE_PREFIX,
+  SKIP_VALUE,
   isStaticText,
   staticTextValue,
+  isStaticDate,
+  staticDateValue,
+  isStaticDateRange,
+  staticDateRangeValue,
+  sourcesForFieldType,
+  type DataSourceOption,
 } from '../../../_lib/doc-data-sources'
 
-// v27.1.1.0 — wizard client. Hits extractDocFieldsAction on mount, renders
-// each PDF field with a grouped data-source dropdown + a static-text
-// fallback input. Save persists rows via saveDocMappingsAction.
+// v27.1.1.0   — initial wizard.
+// v27.1.1.0.1 — checkbox sources filtered by field type, name granularity
+//               (full / first / last) routed through the catalog, picker
+//               sentinels for static dates and date ranges, unmapped
+//               fields default to skip (no row) which means Mark Complete
+//               is no longer gated on row count.
 //
-// Layout: one card per field with type pill + name + dropdown. The static
-// text input shows below the dropdown when the user picks "Static text".
-// Save Draft saves all current selections; Save & Mark Complete additionally
-// flips docs.mapping_status to 'complete' so the library badge shows
-// "Mapped" instead of "Partial".
+// The dropdown choice and the typed/picked literal stay independent until
+// save: STATIC_TEXT_PREFIX, STATIC_DATE_PREFIX, STATIC_DATE_RANGE_PREFIX
+// are bare-prefix sentinels — when a guide picks one, the wizard reveals
+// the matching input and the actual saved value carries the literal.
 
 export default function MappingWizard({
   docId,
@@ -50,21 +60,30 @@ export default function MappingWizard({
   const [hasAcroForm, setHasAcroForm] = useState<boolean>(true)
   const [loadingFields, setLoadingFields] = useState<boolean>(true)
 
-  // Selection state: keyed by field_name → either a known path,
-  // STATIC_TEXT_PREFIX (means user picked Static text but hasn't typed yet),
-  // a literal "static:..." (real saved value), "skip", or "" for unmapped.
+  // Selection state. Bare prefixes mean "picker open, value not yet set"
+  // and never get persisted. Real saves carry the suffix.
   const [selection, setSelection] = useState<Record<string, string>>(existingByField)
-  // Mirror static-text payloads separately so the dropdown choice and the
-  // typed literal stay independent until the user navigates away.
-  const initialStaticText: Record<string, string> = {}
-  for (const [fname, path] of Object.entries(existingByField)) {
-    if (isStaticText(path)) initialStaticText[fname] = staticTextValue(path)
-  }
-  const [staticText, setStaticText] = useState<Record<string, string>>(initialStaticText)
 
-  // Discover fields on mount. Re-runnable via the Refresh button if the
-  // guide replaces the PDF (v27.1.x — file replace not built yet but the
-  // affordance is here).
+  // Mirror picker payloads so the dropdown choice stays stable when the
+  // user types/picks. These are wiped by a no-mapping reset.
+  const initStatic: Record<string, string> = {}
+  const initDate: Record<string, string> = {}
+  const initRangeStart: Record<string, string> = {}
+  const initRangeEnd: Record<string, string> = {}
+  for (const [fname, path] of Object.entries(existingByField)) {
+    if (isStaticText(path)) initStatic[fname] = staticTextValue(path)
+    else if (isStaticDate(path)) initDate[fname] = staticDateValue(path)
+    else if (isStaticDateRange(path)) {
+      const { start, end } = staticDateRangeValue(path)
+      initRangeStart[fname] = start
+      initRangeEnd[fname] = end
+    }
+  }
+  const [staticText, setStaticText] = useState<Record<string, string>>(initStatic)
+  const [staticDate, setStaticDate] = useState<Record<string, string>>(initDate)
+  const [rangeStart, setRangeStart] = useState<Record<string, string>>(initRangeStart)
+  const [rangeEnd, setRangeEnd] = useState<Record<string, string>>(initRangeEnd)
+
   useEffect(() => {
     discover()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,11 +111,9 @@ export default function MappingWizard({
       const next = { ...prev }
       if (choice === '') {
         delete next[fieldName]
-      } else if (choice === STATIC_TEXT_PREFIX) {
-        // Picked Static text — store the bare prefix until the user types.
-        // Save will skip empty static-text entries.
-        next[fieldName] = STATIC_TEXT_PREFIX
       } else {
+        // Picker sentinels are stored as bare prefix until the user fills
+        // in the literal. saveDocMappingsAction strips bare prefixes.
         next[fieldName] = choice
       }
       return next
@@ -115,13 +132,40 @@ export default function MappingWizard({
     setCompletedAt(null)
   }
 
+  function handleStaticDateChange(fieldName: string, iso: string) {
+    setStaticDate((prev) => ({ ...prev, [fieldName]: iso }))
+    setSelection((prev) => ({
+      ...prev,
+      [fieldName]: iso ? `${STATIC_DATE_PREFIX}${iso}` : STATIC_DATE_PREFIX,
+    }))
+    setSavedAt(null)
+    setCompletedAt(null)
+  }
+
+  function handleRangeChange(fieldName: string, which: 'start' | 'end', iso: string) {
+    if (which === 'start') setRangeStart((prev) => ({ ...prev, [fieldName]: iso }))
+    else setRangeEnd((prev) => ({ ...prev, [fieldName]: iso }))
+    const start = which === 'start' ? iso : (rangeStart[fieldName] ?? '')
+    const end = which === 'end' ? iso : (rangeEnd[fieldName] ?? '')
+    const finalPath =
+      start && end
+        ? `${STATIC_DATE_RANGE_PREFIX}${start}..${end}`
+        : STATIC_DATE_RANGE_PREFIX
+    setSelection((prev) => ({ ...prev, [fieldName]: finalPath }))
+    setSavedAt(null)
+    setCompletedAt(null)
+  }
+
   function buildPayload(): MappingInput[] {
     const out: MappingInput[] = []
     for (const f of fields ?? []) {
       const sel = selection[f.name] ?? ''
-      // Treat bare prefix (= picked static but didn't type) as no mapping,
-      // mirroring server behavior — keeps in-flight UI consistent.
-      const finalPath = sel === STATIC_TEXT_PREFIX ? '' : sel
+      // Bare picker prefix → no mapping (server strips it too).
+      const isBarePrefix =
+        sel === STATIC_TEXT_PREFIX ||
+        sel === STATIC_DATE_PREFIX ||
+        sel === STATIC_DATE_RANGE_PREFIX
+      const finalPath = isBarePrefix ? '' : sel
       out.push({ field_name: f.name, data_source_path: finalPath })
     }
     return out
@@ -169,13 +213,7 @@ export default function MappingWizard({
         <div className="bb-tile-body" style={{ padding: '1rem' }}>
           <p
             role="alert"
-            style={{
-              margin: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              color: '#8C3C2A',
-            }}
+            style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#8C3C2A' }}
           >
             <AlertCircle size={16} aria-hidden="true" />
             {extractError}
@@ -245,7 +283,8 @@ export default function MappingWizard({
         <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
           <p className="bb-form-help" style={{ margin: 0 }}>
             Found <strong>{fields.length}</strong> field{fields.length === 1 ? '' : 's'} in this PDF.
-            Pick a data source for each. Auto-fill ships in the next build (v27.1.1.1).
+            Map only the fields you need filled — anything left as &ldquo;No mapping&rdquo; is
+            intentionally skipped at fill time.
           </p>
         </div>
       </div>
@@ -255,9 +294,14 @@ export default function MappingWizard({
           key={f.name}
           field={f}
           value={selection[f.name] ?? ''}
-          staticTextValue={staticText[f.name] ?? ''}
+          staticText={staticText[f.name] ?? ''}
+          staticDate={staticDate[f.name] ?? ''}
+          rangeStart={rangeStart[f.name] ?? ''}
+          rangeEnd={rangeEnd[f.name] ?? ''}
           onChange={handleDropdownChange}
           onStaticTextChange={handleStaticTextChange}
+          onStaticDateChange={handleStaticDateChange}
+          onRangeChange={handleRangeChange}
         />
       ))}
 
@@ -306,29 +350,49 @@ export default function MappingWizard({
 function FieldRow({
   field,
   value,
-  staticTextValue,
+  staticText,
+  staticDate,
+  rangeStart,
+  rangeEnd,
   onChange,
   onStaticTextChange,
+  onStaticDateChange,
+  onRangeChange,
 }: {
   field: DocPdfField
   value: string
-  staticTextValue: string
+  staticText: string
+  staticDate: string
+  rangeStart: string
+  rangeEnd: string
   onChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
+  onStaticDateChange: (fieldName: string, value: string) => void
+  onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
 }) {
-  const showsStaticInput = value === STATIC_TEXT_PREFIX || isStaticText(value)
+  // Source list filtered by AcroForm field type so checkbox fields only
+  // see boolean sources.
+  const sources = useMemo(() => sourcesForFieldType(field.type), [field.type])
+  const grouped = useMemo(() => {
+    const out: Record<string, DataSourceOption[]> = {}
+    for (const cat of CATEGORY_ORDER) out[cat] = []
+    for (const src of sources) out[src.category].push(src)
+    return out
+  }, [sources])
+
+  // Resolve the dropdown's display value back to a sentinel when the
+  // saved selection is a literal payload (e.g. "static:My Outfit" maps
+  // back to STATIC_TEXT_PREFIX in the dropdown).
   const dropdownValue = useMemo(() => {
     if (isStaticText(value)) return STATIC_TEXT_PREFIX
+    if (isStaticDate(value)) return STATIC_DATE_PREFIX
+    if (isStaticDateRange(value)) return STATIC_DATE_RANGE_PREFIX
     return value
   }, [value])
 
-  // Group sources by category for the optgroups.
-  const grouped = useMemo(() => {
-    const out: Record<string, typeof DATA_SOURCES> = {}
-    for (const cat of CATEGORY_ORDER) out[cat] = []
-    for (const src of DATA_SOURCES) out[src.category].push(src)
-    return out
-  }, [])
+  const showsStaticInput = dropdownValue === STATIC_TEXT_PREFIX
+  const showsDatePicker = dropdownValue === STATIC_DATE_PREFIX
+  const showsRangePicker = dropdownValue === STATIC_DATE_RANGE_PREFIX
 
   return (
     <div
@@ -384,17 +448,19 @@ function FieldRow({
         value={dropdownValue}
         onChange={(e) => onChange(field.name, e.target.value)}
       >
-        <option value="">— No mapping —</option>
-        {CATEGORY_ORDER.map((cat) => (
-          <optgroup key={cat} label={CATEGORY_LABELS[cat]}>
-            {grouped[cat].map((src) => (
-              <option key={src.value} value={src.value}>
-                {src.label}
-                {src.perRow ? ' (per row)' : ''}
-              </option>
-            ))}
-          </optgroup>
-        ))}
+        <option value="">— No mapping (skip) —</option>
+        {CATEGORY_ORDER.map((cat) =>
+          grouped[cat].length > 0 ? (
+            <optgroup key={cat} label={CATEGORY_LABELS[cat]}>
+              {grouped[cat].map((src) => (
+                <option key={`${cat}:${src.value}`} value={src.value}>
+                  {src.label}
+                  {src.perRow ? ' (per row)' : ''}
+                </option>
+              ))}
+            </optgroup>
+          ) : null
+        )}
       </select>
 
       {showsStaticInput && (
@@ -402,10 +468,56 @@ function FieldRow({
           type="text"
           className="bb-input"
           placeholder="Type the value to write into this field"
-          value={staticTextValue}
+          value={staticText}
           onChange={(e) => onStaticTextChange(field.name, e.target.value)}
           maxLength={500}
         />
+      )}
+
+      {showsDatePicker && (
+        <input
+          type="date"
+          className="bb-input"
+          value={staticDate}
+          onChange={(e) => onStaticDateChange(field.name, e.target.value)}
+        />
+      )}
+
+      {showsRangePicker && (
+        <div className="bb-form-grid-2" style={{ gap: '0.5rem' }}>
+          <div className="bb-form-row">
+            <label
+              className="bb-form-label"
+              htmlFor={`${field.name}-rstart`}
+              style={{ marginBottom: '0.2rem' }}
+            >
+              Start
+            </label>
+            <input
+              id={`${field.name}-rstart`}
+              type="date"
+              className="bb-input"
+              value={rangeStart}
+              onChange={(e) => onRangeChange(field.name, 'start', e.target.value)}
+            />
+          </div>
+          <div className="bb-form-row">
+            <label
+              className="bb-form-label"
+              htmlFor={`${field.name}-rend`}
+              style={{ marginBottom: '0.2rem' }}
+            >
+              End
+            </label>
+            <input
+              id={`${field.name}-rend`}
+              type="date"
+              className="bb-input"
+              value={rangeEnd}
+              onChange={(e) => onRangeChange(field.name, 'end', e.target.value)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

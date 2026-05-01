@@ -1,26 +1,50 @@
-// v27.1.1.0 — Documents Module data-source catalog.
+// v27.1.1.0   — Documents Module data-source catalog (initial).
+// v27.1.1.0.1 — name granularity (full / first / last for guide + hunter),
+//               valueType discriminator (string vs boolean) so the wizard
+//               can filter sources by AcroForm field type, boolean sources
+//               for checkbox fields, and two new sentinels for picked
+//               dates and date ranges.
 //
 // The mapping wizard exposes these paths as a flat dropdown grouped by
 // category. The auto-fill engine (v27.1.1.1) reads each saved mapping's
 // `data_source_path` and resolves it against the trip + harvest + wallet
 // + profile data fetched at fill time.
 //
-// Special sentinels:
-//   STATIC_TEXT_PREFIX   → free-text override; the mapping row stores the
-//                          literal string after the prefix in
-//                          data_source_path (e.g. "static:Bigfork Outfitters").
-//   SKIP_VALUE           → mapping exists but the field is intentionally
-//                          left blank in the output. Distinct from "no
-//                          mapping" so the guide can lock in the choice
-//                          and the wizard renders a complete state.
+// Sentinels:
+//   STATIC_TEXT_PREFIX        → free-text override; literal stored after the
+//                               prefix, e.g. "static:Bigfork Outfitters".
+//   STATIC_DATE_PREFIX        → guide picks one date; ISO stored as
+//                               "static_date:2026-09-15". Engine formats per
+//                               the receiving field's expected layout.
+//   STATIC_DATE_RANGE_PREFIX  → guide picks two dates; stored as
+//                               "static_date_range:2026-09-15..2026-09-20".
+//   SKIP_VALUE                → explicit "leave blank" sentinel. NOTE: as of
+//                               v27.1.1.0.1 unmapped fields are also treated
+//                               as skip at fill time, so this sentinel is
+//                               redundant in most cases. Kept for guides who
+//                               want to lock in skip explicitly without
+//                               leaving the field ambiguous.
 //
-// Naming convention: dotted paths matching the spec for forward-compat
-// with the v27.1.1.1 fill engine. Paths under `harvest.*`, `hunter.*`,
-// and `wallet_consumed.*` resolve PER ROW when the form has indexed
-// fields (row1_*, row2_*) — engine handles the iteration.
+// Name fields: state PDFs are inconsistent — some want a single "Name"
+// field, others split into First / Last with a separate Middle. We expose
+// full + first + last for both guide and hunter; the engine splits naively
+// on whitespace at fill time. First chunk = first_name, everything after =
+// last_name (so middle names ride with last). Single-name accounts (e.g.
+// "Madonna") get full → first_name and empty last_name.
+//
+// Per-row sources (perRow=true) reference the harvest iteration. The fill
+// engine in v27.1.1.1 expands them against indexed fields (row1_*, row2_*).
 
 export const STATIC_TEXT_PREFIX = 'static:'
+export const STATIC_DATE_PREFIX = 'static_date:'
+export const STATIC_DATE_RANGE_PREFIX = 'static_date_range:'
 export const SKIP_VALUE = 'skip'
+
+// Sentinel "picker" values the wizard renders before the guide types a
+// literal. They never get persisted; saveDocMappingsAction strips them.
+export const PICKER_STATIC_TEXT = STATIC_TEXT_PREFIX
+export const PICKER_STATIC_DATE = STATIC_DATE_PREFIX
+export const PICKER_STATIC_DATE_RANGE = STATIC_DATE_RANGE_PREFIX
 
 export type DataSourceCategory =
   | 'trip'
@@ -31,67 +55,90 @@ export type DataSourceCategory =
   | 'wallet_consumed'
   | 'special'
 
+/** valueType drives wizard filtering by AcroForm field type. checkbox PDF
+ *  fields only see 'boolean' sources; text / radio / dropdown / optionList
+ *  see 'string' sources. */
+export type ValueType = 'string' | 'boolean'
+
 export type DataSourceOption = {
-  value: string                    // dotted path or sentinel
+  value: string
   label: string
   category: DataSourceCategory
-  /** Per-row sources reference the harvest iteration. The fill engine
-   *  treats them as templates the mapping-by-row resolver expands. */
+  valueType: ValueType
   perRow?: boolean
-  /** Type hint so the wizard can warn on obvious mismatches later (e.g.
-   *  trying to map a date source to a checkbox field). v27.1.1.0 just
-   *  records the hint; the engine in v27.1.1.1 will use it for coercion. */
+  /** Type hint used by the engine for formatting (date sources resolve to
+   *  the receiving field's expected layout). */
   type?: 'text' | 'date' | 'boolean' | 'number'
 }
 
 export const DATA_SOURCES: DataSourceOption[] = [
-  // Trip
-  { value: 'trip.title',            label: 'Trip title',            category: 'trip', type: 'text' },
-  { value: 'trip.location_city',    label: 'Trip city',             category: 'trip', type: 'text' },
-  { value: 'trip.location_state',   label: 'Trip state',            category: 'trip', type: 'text' },
-  { value: 'trip.location_zone',    label: 'Trip zone / unit',      category: 'trip', type: 'text' },
-  { value: 'trip.location_county',  label: 'Trip county',           category: 'trip', type: 'text' },
-  { value: 'trip.start_date',       label: 'Trip start date',       category: 'trip', type: 'date' },
-  { value: 'trip.end_date',         label: 'Trip end date',         category: 'trip', type: 'date' },
-  { value: 'trip.species_targeted', label: 'Trip target species',   category: 'trip', type: 'text' },
-  { value: 'trip.method',           label: 'Trip method',           category: 'trip', type: 'text' },
+  // ── Trip ────────────────────────────────────────────────────────────
+  { value: 'trip.title',            label: 'Trip title',            category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_city',    label: 'Trip city',             category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_state',   label: 'Trip state',            category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_zone',    label: 'Trip zone / unit',      category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.location_county',  label: 'Trip county',           category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.start_date',       label: 'Trip start date',       category: 'trip', valueType: 'string', type: 'date' },
+  { value: 'trip.end_date',         label: 'Trip end date',         category: 'trip', valueType: 'string', type: 'date' },
+  { value: 'trip.species_targeted', label: 'Trip target species',   category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'trip.method',           label: 'Trip method',           category: 'trip', valueType: 'string', type: 'text' },
+  // boolean sibling of trip.* used by checkbox fields
+  { value: 'trip.is_canceled',      label: 'Trip is canceled',      category: 'trip', valueType: 'boolean', type: 'boolean' },
 
-  // Guide profile
-  { value: 'guide.business_name',   label: 'Guide business name',   category: 'guide', type: 'text' },
-  { value: 'guide.display_name',    label: 'Guide name',            category: 'guide', type: 'text' },
+  // ── Guide profile ───────────────────────────────────────────────────
+  { value: 'guide.business_name', label: 'Guide business name', category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.full_name',     label: 'Guide full name',     category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.first_name',    label: 'Guide first name',    category: 'guide', valueType: 'string', type: 'text' },
+  { value: 'guide.last_name',     label: 'Guide last name',     category: 'guide', valueType: 'string', type: 'text' },
 
-  // Guide wallet (guide_license)
-  { value: 'guide_wallet.identifier',   label: 'Guide license number', category: 'guide_wallet', type: 'text' },
-  { value: 'guide_wallet.state',        label: 'Guide license state',  category: 'guide_wallet', type: 'text' },
-  { value: 'guide_wallet.holder_name',  label: 'Guide license holder', category: 'guide_wallet', type: 'text' },
-  { value: 'guide_wallet.valid_to',     label: 'Guide license expires',category: 'guide_wallet', type: 'date' },
+  // ── Guide wallet (guide_license) ────────────────────────────────────
+  { value: 'guide_wallet.identifier',  label: 'Guide license number',  category: 'guide_wallet', valueType: 'string', type: 'text' },
+  { value: 'guide_wallet.state',       label: 'Guide license state',   category: 'guide_wallet', valueType: 'string', type: 'text' },
+  { value: 'guide_wallet.holder_name', label: 'Guide license holder',  category: 'guide_wallet', valueType: 'string', type: 'text' },
+  { value: 'guide_wallet.valid_to',    label: 'Guide license expires', category: 'guide_wallet', valueType: 'string', type: 'date' },
 
-  // Hunter (per-row when form has indexed fields)
-  { value: 'hunter.display_name', label: 'Hunter name',  category: 'hunter', type: 'text', perRow: true },
-  { value: 'hunter.email',        label: 'Hunter email', category: 'hunter', type: 'text', perRow: true },
+  // ── Hunter (per-row) ────────────────────────────────────────────────
+  { value: 'hunter.full_name',  label: 'Hunter full name',  category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.first_name', label: 'Hunter first name', category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.last_name',  label: 'Hunter last name',  category: 'hunter', valueType: 'string', type: 'text', perRow: true },
+  { value: 'hunter.email',      label: 'Hunter email',      category: 'hunter', valueType: 'string', type: 'text', perRow: true },
 
-  // Harvest (per-row)
-  { value: 'harvest.species_name',  label: 'Harvest species',     category: 'harvest', type: 'text', perRow: true },
-  { value: 'harvest.tag_number',    label: 'Harvest tag number',  category: 'harvest', type: 'text', perRow: true },
-  { value: 'harvest.method',        label: 'Harvest method',      category: 'harvest', type: 'text', perRow: true },
-  { value: 'harvest.harvested_at',  label: 'Harvest date / time', category: 'harvest', type: 'date', perRow: true },
-  { value: 'harvest.location_text', label: 'Harvest location',    category: 'harvest', type: 'text', perRow: true },
-  { value: 'harvest.notes',         label: 'Harvest notes',       category: 'harvest', type: 'text', perRow: true },
+  // ── Harvest (per-row) ───────────────────────────────────────────────
+  { value: 'harvest.species_name',  label: 'Harvest species',     category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.tag_number',    label: 'Harvest tag number',  category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.method',        label: 'Harvest method',      category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.harvested_at',  label: 'Harvest date / time', category: 'harvest', valueType: 'string', type: 'date', perRow: true },
+  { value: 'harvest.location_text', label: 'Harvest location',    category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.notes',         label: 'Harvest notes',       category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  // boolean sibling
+  { value: 'harvest.exists',        label: 'Trip has any harvest', category: 'harvest', valueType: 'boolean', type: 'boolean' },
 
-  // Wallet item consumed by the harvest (the tag the harvest used)
-  { value: 'wallet_consumed.identifier',         label: 'Tag identifier',         category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.species',            label: 'Tag species',            category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.state',              label: 'Tag state',              category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.zone',               label: 'Tag zone',               category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.season_year',        label: 'Tag season year',        category: 'wallet_consumed', type: 'number', perRow: true },
-  { value: 'wallet_consumed.weapon_restriction', label: 'Tag weapon restriction', category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.tag_type',           label: 'Tag type',               category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.sex_restriction',    label: 'Tag sex restriction',    category: 'wallet_consumed', type: 'text', perRow: true },
-  { value: 'wallet_consumed.valid_to',           label: 'Tag valid through',      category: 'wallet_consumed', type: 'date', perRow: true },
+  // ── Wallet item consumed by the harvest (the tag the harvest used) ──
+  { value: 'wallet_consumed.identifier',         label: 'Tag identifier',         category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.species',            label: 'Tag species',            category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.state',              label: 'Tag state',              category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.zone',               label: 'Tag zone',               category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.season_year',        label: 'Tag season year',        category: 'wallet_consumed', valueType: 'string', type: 'number', perRow: true },
+  { value: 'wallet_consumed.weapon_restriction', label: 'Tag weapon restriction', category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.tag_type',           label: 'Tag type',               category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.sex_restriction',    label: 'Tag sex restriction',    category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },
+  { value: 'wallet_consumed.valid_to',           label: 'Tag valid through',      category: 'wallet_consumed', valueType: 'string', type: 'date', perRow: true },
+  // boolean siblings on the consumed tag — useful for state forms with
+  // "Single-use only?" or "Federal stamp?" checkboxes
+  { value: 'wallet_consumed.is_single_use', label: 'Tag is single-use', category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true },
+  { value: 'wallet_consumed.is_federal',    label: 'Tag is federal',    category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true },
 
-  // Special
-  { value: STATIC_TEXT_PREFIX, label: 'Static text — type a value',   category: 'special' },
-  { value: SKIP_VALUE,         label: 'Skip — leave field blank',     category: 'special' },
+  // ── Special ─────────────────────────────────────────────────────────
+  { value: STATIC_TEXT_PREFIX,        label: 'Static text — type a value',         category: 'special', valueType: 'string' },
+  { value: STATIC_DATE_PREFIX,        label: 'Pick a date',                         category: 'special', valueType: 'string', type: 'date' },
+  { value: STATIC_DATE_RANGE_PREFIX,  label: 'Pick a date range',                   category: 'special', valueType: 'string', type: 'date' },
+  { value: SKIP_VALUE,                label: 'Skip — leave field blank',            category: 'special', valueType: 'string' },
+
+  // Boolean special — applied to checkbox fields. "Static text" doesn't make
+  // sense for booleans so we skip it; STATIC_DATE_* are string-valued.
+  { value: 'static:checked',   label: 'Always checked',         category: 'special', valueType: 'boolean' },
+  { value: 'static:unchecked', label: 'Always unchecked',       category: 'special', valueType: 'boolean' },
+  { value: SKIP_VALUE,         label: 'Skip — leave unchecked', category: 'special', valueType: 'boolean' },
 ]
 
 export const CATEGORY_ORDER: DataSourceCategory[] = [
@@ -108,11 +155,49 @@ export const CATEGORY_LABELS: Record<DataSourceCategory, string> = {
   special:          'Special',
 }
 
+// ── Sentinels & helpers ────────────────────────────────────────────────
+
 export function isStaticText(path: string): boolean {
   return path.startsWith(STATIC_TEXT_PREFIX) && path.length > STATIC_TEXT_PREFIX.length
+    && !path.startsWith(STATIC_DATE_PREFIX) && !path.startsWith(STATIC_DATE_RANGE_PREFIX)
+    && path !== 'static:checked' && path !== 'static:unchecked'
 }
 
 export function staticTextValue(path: string): string {
-  if (!path.startsWith(STATIC_TEXT_PREFIX)) return ''
+  if (!isStaticText(path)) return ''
   return path.slice(STATIC_TEXT_PREFIX.length)
+}
+
+export function isStaticDate(path: string): boolean {
+  return path.startsWith(STATIC_DATE_PREFIX) && path.length > STATIC_DATE_PREFIX.length
+    && !path.startsWith(STATIC_DATE_RANGE_PREFIX)
+}
+export function staticDateValue(path: string): string {
+  if (!isStaticDate(path)) return ''
+  return path.slice(STATIC_DATE_PREFIX.length)
+}
+
+export function isStaticDateRange(path: string): boolean {
+  return path.startsWith(STATIC_DATE_RANGE_PREFIX) && path.length > STATIC_DATE_RANGE_PREFIX.length
+}
+export function staticDateRangeValue(path: string): { start: string; end: string } {
+  if (!isStaticDateRange(path)) return { start: '', end: '' }
+  const raw = path.slice(STATIC_DATE_RANGE_PREFIX.length)
+  const [start, end] = raw.split('..')
+  return { start: start ?? '', end: end ?? '' }
+}
+
+/** Filter the catalog by AcroForm field type. PDF checkbox fields receive
+ *  only boolean sources; everything else receives string sources. */
+export function valueTypeForFieldType(
+  fieldType: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown'
+): ValueType {
+  return fieldType === 'checkbox' ? 'boolean' : 'string'
+}
+
+export function sourcesForFieldType(
+  fieldType: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown'
+): DataSourceOption[] {
+  const want = valueTypeForFieldType(fieldType)
+  return DATA_SOURCES.filter((s) => s.valueType === want)
 }

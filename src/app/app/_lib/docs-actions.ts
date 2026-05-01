@@ -10,7 +10,12 @@ import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
 import { PDFDocument } from 'pdf-lib'
-import { SKIP_VALUE, STATIC_TEXT_PREFIX } from './doc-data-sources'
+import {
+  SKIP_VALUE,
+  STATIC_TEXT_PREFIX,
+  STATIC_DATE_PREFIX,
+  STATIC_DATE_RANGE_PREFIX,
+} from './doc-data-sources'
 
 export type DocKind = Database['public']['Enums']['doc_kind']
 type DocInsert = TablesInsert<'docs'>
@@ -409,11 +414,27 @@ export async function saveDocMappingsAction(
       toDelete.push(fieldName)
       continue
     }
-    // Reject obviously-malformed static-text values where the prefix is
-    // present but the literal is empty — caller should send "" instead.
-    if (path === STATIC_TEXT_PREFIX) {
+    // v27.1.1.0.1: bare picker sentinels (prefix only, no literal payload)
+    // mean the guide opened a picker but didn't fill it in. Treat them as
+    // no-mapping so unmapped/skip is the default and the wizard's "Save
+    // draft" never persists junk.
+    if (
+      path === STATIC_TEXT_PREFIX ||
+      path === STATIC_DATE_PREFIX ||
+      path === STATIC_DATE_RANGE_PREFIX
+    ) {
       toDelete.push(fieldName)
       continue
+    }
+    // Half-filled date range like "static_date_range:2026-09-15.." — the
+    // wizard guards against this but server stays defensive.
+    if (path.startsWith(STATIC_DATE_RANGE_PREFIX)) {
+      const raw = path.slice(STATIC_DATE_RANGE_PREFIX.length)
+      const [start, end] = raw.split('..')
+      if (!start || !end) {
+        toDelete.push(fieldName)
+        continue
+      }
     }
     toUpsert.push({
       doc_id: docId,
@@ -495,17 +516,9 @@ export async function markMappingCompleteAction(
   const sb = await createClient()
   const newStatus = complete ? 'complete' : 'partial'
 
-  // Sanity: don't let the guide mark complete with zero rows.
-  if (complete) {
-    const { count } = await sb
-      .from('doc_field_mappings')
-      .select('id', { count: 'exact', head: true })
-      .eq('doc_id', docId)
-      .eq('mapping_kind', 'field')
-    if (!count || count === 0) {
-      return { error: 'No mappings saved yet — nothing to mark complete.' }
-    }
-  }
+  // v27.1.1.0.1: zero-row "complete" is a valid state. A guide may
+  // legitimately want to mark a doc complete with every PDF field
+  // intentionally unmapped (= skip). Trust the guide; no row gating.
 
   const { error } = await sb
     .from('docs')
