@@ -129,7 +129,6 @@ export default async function DashboardPage() {
                 <TripRow
                   trip={t}
                   hunters={t.hunters}
-                  harvests={t.harvests}
                   rating={t.rating}
                   reviewCount={t.reviewCount}
                 />
@@ -167,7 +166,6 @@ export default async function DashboardPage() {
                 <TripRow
                   trip={t}
                   hunters={t.hunters}
-                  harvests={t.harvests}
                   rating={t.rating}
                   reviewCount={t.reviewCount}
                 />

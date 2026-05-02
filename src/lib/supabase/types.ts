@@ -272,99 +272,178 @@ export type Database = {
           },
         ]
       }
-      harvests: {
+      // v27.1.1.0.3a — harvest log architectural pivot. The old `harvests`
+      // table was dropped; replaced with the three blocks below.
+      harvest_log_entries: {
         Row: {
-          consumed_wallet_item_id: string | null
           created_at: string
-          harvested_at: string
+          guest_name: string | null
+          hunter_address_snapshot: Json | null
           hunter_id: string | null
+          hunter_phone_snapshot: string | null
           id: string
-          kind: Database["public"]["Enums"]["harvest_kind"]
-          length_in: number | null
-          location_lat: number | null
-          location_lng: number | null
-          method: string | null
+          include_in_report: boolean
+          license_wallet_item_id: string | null
+          log_id: string
           notes: string | null
-          ocr_confirmed: boolean
-          ocr_raw: Json | null
-          quantity: number
-          species_id: string | null
-          species_name: string | null
-          tag_number: string | null
-          trip_id: string
+          qty_harvested: number
+          qty_kept: number
+          qty_released: number
+          tag_wallet_item_id: string | null
           updated_at: string
-          weight_lbs: number | null
         }
         Insert: {
-          consumed_wallet_item_id?: string | null
           created_at?: string
-          harvested_at?: string
+          guest_name?: string | null
+          hunter_address_snapshot?: Json | null
           hunter_id?: string | null
+          hunter_phone_snapshot?: string | null
           id?: string
-          kind: Database["public"]["Enums"]["harvest_kind"]
-          length_in?: number | null
-          location_lat?: number | null
-          location_lng?: number | null
-          method?: string | null
+          include_in_report?: boolean
+          license_wallet_item_id?: string | null
+          log_id: string
           notes?: string | null
-          ocr_confirmed?: boolean
-          ocr_raw?: Json | null
-          quantity?: number
-          species_id?: string | null
-          species_name?: string | null
-          tag_number?: string | null
-          trip_id: string
+          qty_harvested?: number
+          qty_kept?: number
+          qty_released?: number
+          tag_wallet_item_id?: string | null
           updated_at?: string
-          weight_lbs?: number | null
         }
         Update: {
-          consumed_wallet_item_id?: string | null
           created_at?: string
-          harvested_at?: string
+          guest_name?: string | null
+          hunter_address_snapshot?: Json | null
           hunter_id?: string | null
+          hunter_phone_snapshot?: string | null
           id?: string
-          kind?: Database["public"]["Enums"]["harvest_kind"]
-          length_in?: number | null
-          location_lat?: number | null
-          location_lng?: number | null
-          method?: string | null
+          include_in_report?: boolean
+          license_wallet_item_id?: string | null
+          log_id?: string
           notes?: string | null
-          ocr_confirmed?: boolean
-          ocr_raw?: Json | null
-          quantity?: number
-          species_id?: string | null
-          species_name?: string | null
-          tag_number?: string | null
-          trip_id?: string
+          qty_harvested?: number
+          qty_kept?: number
+          qty_released?: number
+          tag_wallet_item_id?: string | null
           updated_at?: string
-          weight_lbs?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "harvests_consumed_wallet_item_id_fkey"
-            columns: ["consumed_wallet_item_id"]
-            isOneToOne: false
-            referencedRelation: "wallet_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "harvests_hunter_id_fkey"
+            foreignKeyName: "harvest_log_entries_hunter_id_fkey"
             columns: ["hunter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "harvests_species_id_fkey"
-            columns: ["species_id"]
+            foreignKeyName: "harvest_log_entries_license_wallet_item_id_fkey"
+            columns: ["license_wallet_item_id"]
             isOneToOne: false
-            referencedRelation: "species"
+            referencedRelation: "wallet_items"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "harvests_trip_id_fkey"
-            columns: ["trip_id"]
+            foreignKeyName: "harvest_log_entries_log_id_fkey"
+            columns: ["log_id"]
             isOneToOne: false
+            referencedRelation: "harvest_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_log_entries_tag_wallet_item_id_fkey"
+            columns: ["tag_wallet_item_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harvest_log_entry_species: {
+        Row: {
+          created_at: string
+          entry_id: string
+          id: string
+          position: number
+          qty_harvested: number
+          qty_kept: number
+          qty_released: number
+          species: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          id?: string
+          position?: number
+          qty_harvested?: number
+          qty_kept?: number
+          qty_released?: number
+          species?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          id?: string
+          position?: number
+          qty_harvested?: number
+          qty_kept?: number
+          qty_released?: number
+          species?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_log_entry_species_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "harvest_log_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harvest_logs: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          log_date: string | null
+          total_hours: number | null
+          trip_id: string
+          trip_purpose: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          log_date?: string | null
+          total_hours?: number | null
+          trip_id: string
+          trip_purpose?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          log_date?: string | null
+          total_hours?: number | null
+          trip_id?: string
+          trip_purpose?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_logs_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: true
             referencedRelation: "trips"
             referencedColumns: ["id"]
           },

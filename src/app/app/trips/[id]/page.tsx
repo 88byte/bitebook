@@ -23,15 +23,12 @@ import { requireGuide } from '../../_lib/auth'
 import {
   fetchTripDetail,
   fetchAcceptedHunters,
-  fetchHarvestTagOptions,
-  fetchSpecies,
   fetchTripWalletLinks,
-  type HarvestTagOptions,
 } from '../../_lib/queries'
+import { fetchHarvestLogSummary } from '../../_lib/harvest-log-queries'
 import StatusPill from '../../_components/StatusPill'
-import { tripDateRange, timeOfDay, initials, relativeOrDate, formatTripLocation } from '../../_lib/format'
+import { tripDateRange, initials, formatTripLocation } from '../../_lib/format'
 import AddParticipantsForm from './AddParticipantsForm'
-import AddHarvestForm from './AddHarvestForm'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
 import CancelTripButton from './CancelTripButton'
@@ -56,7 +53,9 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   const detail = await fetchTripDetail(profile.id, id)
   if (!detail) notFound()
 
-  const { trip, participants, harvests } = detail
+  // v27.1.1.0.3a: harvests pivoted to harvest_logs / harvest_log_entries.
+  const { trip, participants } = detail
+  const harvestLogSummary = await fetchHarvestLogSummary(trip.id)
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
 
@@ -66,31 +65,8 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
       )
     : []
 
-  const harvestParticipants = participants
-    .filter((p) => p.hunter_id && p.profile)
-    .map((p) => ({ id: p.hunter_id as string, display_name: p.profile!.display_name }))
-
-  // v27.0b.2: per-hunter linked-tag options for the harvest form. Map of
-  // hunter_id → list of active tag wallet items they can consume on this
-  // trip. Plain object so it serializes to the client component cleanly.
-  const tagOptionsByHunter: Record<string, HarvestTagOptions> = {}
-  if (isOpen) {
-    const tagOptionsMap = await fetchHarvestTagOptions(
-      profile.id,
-      trip.id,
-      harvestParticipants.map((p) => p.id)
-    )
-    tagOptionsMap.forEach((opts, hunterId) => {
-      tagOptionsByHunter[hunterId] = opts
-    })
-  }
-
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip)
-
-  // v27.0b.6: species seed for the harvest form's datalist autocomplete.
-  // Filtered to trip.kind in the form itself.
-  const speciesOptions = isOpen ? await fetchSpecies(trip.kind) : []
 
   // v27.0b.6 (C): per-hunter wallet-item links for the participant chips.
   // RLS lets the guide read participants' wallet items via the v27.0a.23
@@ -348,76 +324,38 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           </div>
         </section>
 
-        {/* HARVEST LOG */}
-        <section className="bb-tile bb-form-section" aria-labelledby="td-harvests">
+        {/* HUNT REPORT — v27.1.1.0.3a: links to /app/trips/[id]/log. The
+            log page itself idempotently generates the row + entries on
+            first visit (pre-fills license/tag from trip_wallet_items).
+            CTA copy flips between Generate / View based on whether the
+            log already exists. PDF generation ships v27.1.1.0.3b. */}
+        <section className="bb-tile bb-form-section" aria-labelledby="td-hunt-report">
           <div className="bb-tile-body">
-            <SectionHead id="td-harvests" icon={Activity} label="Harvest log" />
-            {harvests.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No harvests logged</div>
-                <p className="bb-empty-sub">
-                  {isOpen
-                    ? 'Tap "Add harvest" below once you have one to log.'
-                    : 'No harvests were logged on this trip.'}
-                </p>
-              </div>
+            <SectionHead id="td-hunt-report" icon={Activity} label="Hunt report" />
+            {harvestLogSummary.exists ? (
+              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
+                {harvestLogSummary.total_entries} hunter
+                {harvestLogSummary.total_entries === 1 ? '' : 's'} on the report
+                {harvestLogSummary.total_entries > 0 && (
+                  <>
+                    {' · '}
+                    {harvestLogSummary.included_entries} included
+                    {harvestLogSummary.excluded_entries > 0
+                      ? ` · ${harvestLogSummary.excluded_entries} excluded`
+                      : ''}
+                  </>
+                )}
+                .
+              </p>
             ) : (
-              <div className="bb-detail-list">
-                {harvests.map((h) => {
-                  const hunterName = h.hunter_name ?? 'Unknown hunter'
-                  // v27.0b.4.1: read live-source display values. wallet item
-                  // wins, harvest snapshot fallback, then trip-level fallback.
-                  // Renames or zone edits on the bound tag propagate without
-                  // touching the harvest row.
-                  const species = h.species_display ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
-                  const subParts: string[] = [hunterName, timeOfDay(h.harvested_at), relativeOrDate(h.harvested_at)]
-                  if (h.method_display) subParts.push(h.method_display)
-                  if (h.quantity > 1) subParts.push(`Qty ${h.quantity}`)
-                  return (
-                    <div key={h.id} className="bb-detail-row">
-                      <span className="bb-avatar" aria-hidden="true">{initials(hunterName)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="bb-detail-name">
-                          {species}
-                          {h.tag_number_display ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number_display}</span> : null}
-                        </div>
-                        <div className="bb-detail-sub">{subParts.join(' · ')}</div>
-                        {h.notes && (
-                          <div className="bb-detail-sub" style={{ marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
-                            {h.notes}
-                          </div>
-                        )}
-                      </div>
-                      {isOpen && (
-                        <Link
-                          href={`/app/trips/${trip.id}/harvests/${h.id}/edit`}
-                          className="bb-text-action bb-text-action-copper"
-                          aria-label={`Edit harvest ${species}`}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}
-                        >
-                          <Pencil size={14} aria-hidden="true" />
-                          Edit
-                        </Link>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
+                Generate the hunt report. One entry per hunter on the trip — auto-fills license,
+                tag, phone, and address from the wallet and profile.
+              </p>
             )}
-
-            {isOpen && (
-              <div className="mt-3">
-                <AddHarvestForm
-                  tripId={trip.id}
-                  tripKind={trip.kind}
-                  defaultMethod={trip.method ?? null}
-                  defaultSpecies={trip.species_targeted ?? null}
-                  participants={harvestParticipants}
-                  tagOptionsByHunter={tagOptionsByHunter}
-                  speciesOptions={speciesOptions}
-                />
-              </div>
-            )}
+            <Link href={`/app/trips/${trip.id}/log`} className="bb-cta-sm">
+              {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
+            </Link>
           </div>
         </section>
 

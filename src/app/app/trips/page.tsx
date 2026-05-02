@@ -108,7 +108,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
           <div role="list" className="flex flex-col gap-4">
             {rows.map((t) => (
               <div role="listitem" key={t.id}>
-                <TripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} reviewCount={t.reviewCount} />
+                <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />
               </div>
             ))}
           </div>

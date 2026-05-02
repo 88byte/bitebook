@@ -14,10 +14,13 @@ type Trip = Pick<
 // the left (month + big day), title + 2x2 meta grid in the middle, status
 // pill on the right.
 //
-// 2x2 meta grid uses the same lucide icon family locked in for trip detail
-// (per Flavio's icon-consistency rule):
-//   row 1: Calendar + date-range,   MapPin + location
-//   row 2: Users    + hunter count, Trophy + harvest count
+// v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending).
+// The harvest count cell + prop have been removed; the meta grid is now a
+// 3-cell row (date / location / hunters) until the new harvest_log
+// counter wires in.
+//
+// Locked icon family per Flavio's icon-consistency rule:
+//   Calendar + date-range, MapPin + location, Users + hunter count
 //
 // v26.5.9: wrapped trips (status completed|canceled) render an additional
 // star row below the meta grid. Guide cards show the AVERAGE rating across
@@ -26,25 +29,17 @@ type Trip = Pick<
 export default function TripRow({
   trip,
   hunters,
-  harvests,
   rating = null,
   reviewCount = 0,
 }: {
   trip: Trip
   hunters: number
-  harvests: number
   rating?: number | null
   reviewCount?: number
 }) {
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
   const huntersLabel = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`
-  // v27.0b.4.2: harvest count cell label changed from "X harvested" → "X harvest log"
-  // and the Trophy lucide icon replaced with the bb-harvest-log-icon.png art Flavio
-  // sent (file 16WZDeOkZgAbfLfSMpkc0XUGQ0g0pIOPp). Color treatment kept: copper-tinted
-  // when count > 0 via .bb-trip-meta-cell--harvest, muted when count = 0.
-  const harvestsLabel = `${harvests} harvest log`
-  const hasHarvest = harvests > 0
   const isWrapped = trip.status === 'completed' || trip.status === 'canceled'
 
   return (
@@ -77,18 +72,6 @@ export default function TripRow({
               <Users size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
-          </span>
-          <span className={`bb-trip-meta-cell${hasHarvest ? ' bb-trip-meta-cell--harvest' : ''}`}>
-            <span className="bb-trip-meta-cell-icon bb-trip-meta-cell-icon--img" aria-hidden="true">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/bb-harvest-log-icon.png"
-                alt=""
-                aria-hidden="true"
-                className={`bb-harvest-log-icon${hasHarvest ? ' bb-harvest-log-icon--filled' : ''}`}
-              />
-            </span>
-            <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>
         </div>
         {isWrapped && (

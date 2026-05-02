@@ -25,7 +25,7 @@ import {
   fetchTripWalletLinks,
 } from '../../../_lib/queries'
 import StatusPill from '../../../_components/StatusPill'
-import { tripDateRange, timeOfDay, initials, relativeOrDate } from '../../../_lib/format'
+import { tripDateRange, initials } from '../../../_lib/format'
 import { markStepDone } from '../../../_lib/onboarding'
 import ReviewForm from './ReviewForm'
 import ActionNeededCard, { type ActionItem } from './_components/ActionNeededCard'
@@ -62,7 +62,8 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
     ? Date.now() - new Date(existingReview.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
     : true
 
-  const { trip, guide, participants, myHarvests } = detail
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+  const { trip, guide, participants } = detail
   const guideLabel = guide ? (guide.business_name?.trim() || guide.display_name) : 'Your guide'
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
   const otherHunters = participants.filter((p) => p.hunter_id !== profile.id)
@@ -210,42 +211,18 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
           </section>
         )}
 
-        {/* YOUR HARVESTS */}
+        {/* YOUR HARVESTS — v27.1.1.0.3a: harvests dropped, real implementation
+            in harvest-log-queries.ts (pending). Placeholder card explains the
+            new flow. */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-my-harvests">
           <div className="bb-tile-body">
             <SectionHead id="td-my-harvests" icon={Activity} label="Your harvests" />
-            {myHarvests.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No harvests on this trip</div>
-                <p className="bb-empty-sub">
-                  Harvests your guide logs for you will show up here.
-                </p>
-              </div>
-            ) : (
-              <div className="bb-detail-list">
-                {myHarvests.map((h) => {
-                  // v27.0b.4.1: read live-source display values (wallet item
-                  // > harvest snapshot > trip fallback) so guide edits to the
-                  // bound tag's species/identifier propagate without touching
-                  // the harvest row.
-                  const species = h.species_display ?? (h.kind === 'fishing' ? 'Catch' : 'Harvest')
-                  return (
-                    <div key={h.id} className="bb-detail-row">
-                      <span className="bb-avatar" aria-hidden="true">{initials(species)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="bb-detail-name">
-                          {species}
-                          {h.tag_number_display ? <span style={{ color: 'var(--color-ink-soft)' }}> · Tag {h.tag_number_display}</span> : null}
-                        </div>
-                        <div className="bb-detail-sub">
-                          {timeOfDay(h.harvested_at)} · {relativeOrDate(h.harvested_at)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+            <div className="bb-empty">
+              <div className="bb-empty-title">No harvest entry yet</div>
+              <p className="bb-empty-sub">
+                Your entry will appear here once your guide generates the hunt report.
+              </p>
+            </div>
           </div>
         </section>
 

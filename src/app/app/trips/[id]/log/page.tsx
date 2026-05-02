@@ -1,0 +1,82 @@
+import Link from 'next/link'
+import { notFound, redirect } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
+import { requireGuide } from '../../../_lib/auth'
+import { fetchTripDetail } from '../../../_lib/queries'
+import { fetchHarvestLog } from '../../../_lib/harvest-log-queries'
+import { generateHarvestLogAction } from '../../../_lib/harvest-log-actions'
+import HarvestLogEditor from './HarvestLogEditor'
+
+type Params = Promise<{ id: string }>
+
+// v27.1.1.0.3a — guide-side hunt report editor.
+// If the trip has no harvest_log yet, we generate it idempotently here
+// (one log row + one entry per participant, with license + tag + phone +
+// address auto-filled from trip_wallet_items + profile). Then render the
+// accordion editor.
+//
+// PDF generation + Generate Filled PDFs button ship in v27.1.1.0.3b.
+export default async function TripHarvestLogPage({ params }: { params: Params }) {
+  const { profile } = await requireGuide()
+  const { id: tripId } = await params
+
+  const detail = await fetchTripDetail(profile.id, tripId)
+  if (!detail) notFound()
+  const trip = detail.trip
+
+  // Auto-generate on first visit. Idempotent — existing log returns its id
+  // unchanged; missing log creates one + entries.
+  let log = await fetchHarvestLog(tripId)
+  if (!log) {
+    const res = await generateHarvestLogAction(tripId)
+    if ('error' in res) {
+      return (
+        <main className="bb-app-main">
+          <div className="mb-3">
+            <Link
+              href={`/app/trips/${tripId}`}
+              className="bb-text-action"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <ArrowLeft size={14} aria-hidden="true" />
+              Back to trip
+            </Link>
+          </div>
+          <header>
+            <h1 className="bb-page-title">Hunt report</h1>
+            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
+              Could not generate the hunt report: {res.error}
+            </p>
+          </header>
+        </main>
+      )
+    }
+    log = await fetchHarvestLog(tripId)
+    if (!log) redirect(`/app/trips/${tripId}`)
+  }
+
+  return (
+    <main className="bb-app-main">
+      <div className="mb-3">
+        <Link
+          href={`/app/trips/${tripId}`}
+          className="bb-text-action"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+        >
+          <ArrowLeft size={14} aria-hidden="true" />
+          Back to trip
+        </Link>
+      </div>
+      <header>
+        <p className="bb-page-eyebrow">Hunt report</p>
+        <h1 className="bb-page-title">{trip.title}</h1>
+        <p className="bb-page-sub">
+          One entry per hunter on the trip. Edit qty + species, toggle &ldquo;Include in PDF
+          report&rdquo;, and generate filled state forms. Auto-fill PDFs ship in the next build.
+        </p>
+      </header>
+
+      <HarvestLogEditor tripId={tripId} log={log} />
+    </main>
+  )
+}

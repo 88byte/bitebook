@@ -170,20 +170,24 @@ export async function swapTripWalletItemAction(
     return { error: `Type mismatch — current link is a ${oldItem.type}; can't swap to a ${newItem.type}.` }
   }
 
-  // Tag-specific edge case: if a harvest references the OLD tag, block.
-  // Guide must edit the harvest to retarget the consumed_wallet_item_id
+  // Tag-specific edge case: if a harvest_log_entry references the OLD tag,
+  // block. Guide must edit the entry to retarget the tag_wallet_item_id
   // first. Keeps the audit trail clean.
+  // v27.1.1.0.3a: replaces the harvests.consumed_wallet_item_id check with
+  // the new harvest_log_entries.tag_wallet_item_id column. The new schema
+  // ties entries to harvest_logs (one log per trip), so we filter via the
+  // log's trip_id.
   if (oldItem.type === 'tag') {
-    const { data: linkedHarvests } = await sb
-      .from('harvests')
-      .select('id')
-      .eq('trip_id', tripId)
-      .eq('consumed_wallet_item_id', oldWalletItemId)
+    const { data: linkedEntries } = await sb
+      .from('harvest_log_entries')
+      .select('id, harvest_logs!inner(trip_id)')
+      .eq('tag_wallet_item_id', oldWalletItemId)
+      .eq('harvest_logs.trip_id', tripId)
       .limit(1)
-    if (linkedHarvests && linkedHarvests.length > 0) {
+    if (linkedEntries && linkedEntries.length > 0) {
       return {
         error:
-          "This tag has been used for a harvest. Ask the guide to edit the harvest to change the tag.",
+          "This tag has been used for a harvest. Ask the guide to edit the entry to change the tag.",
       }
     }
   }

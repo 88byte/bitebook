@@ -12,7 +12,9 @@ type Trip = Pick<
 
 // v25.1: hunter-side trip row. Same visuals as the guide TripRow but the
 // href targets /app/h/trips/[id] (read-only hunter detail).
-// v26.5.4: 2x2 icon meta grid mirrors guide TripRow rebuild.
+// v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending).
+// The harvest count cell + prop have been removed; the meta grid is now a
+// 3-cell row (date / location / hunters).
 // v26.5.9: wrapped trips show the hunter's OWN star rating (not the trip
 // average — that's on guide-side cards). If they haven't rated yet, the
 // row shows outlined stars + "Rate this trip" hint. Pre-trip / in-field
@@ -20,21 +22,15 @@ type Trip = Pick<
 export default function HunterTripRow({
   trip,
   hunters,
-  harvests,
   rating = null,
 }: {
   trip: Trip
   hunters: number
-  harvests: number
   rating?: number | null
 }) {
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
   const huntersLabel = `${hunters} ${hunters === 1 ? 'hunter' : 'hunters'}`
-  // v27.0b.4.2: harvest count cell uses the bb-harvest-log-icon.png art and
-  // the "X harvest log" label. Mirrors guide-side TripRow.
-  const harvestsLabel = `${harvests} harvest log`
-  const hasHarvest = harvests > 0
   const isWrapped = trip.status === 'completed' || trip.status === 'canceled'
 
   return (
@@ -67,18 +63,6 @@ export default function HunterTripRow({
               <Users size={14} strokeWidth={1.5} />
             </span>
             <span className="bb-trip-meta-cell-text">{huntersLabel}</span>
-          </span>
-          <span className={`bb-trip-meta-cell${hasHarvest ? ' bb-trip-meta-cell--harvest' : ''}`}>
-            <span className="bb-trip-meta-cell-icon bb-trip-meta-cell-icon--img" aria-hidden="true">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/bb-harvest-log-icon.png"
-                alt=""
-                aria-hidden="true"
-                className={`bb-harvest-log-icon${hasHarvest ? ' bb-harvest-log-icon--filled' : ''}`}
-              />
-            </span>
-            <span className="bb-trip-meta-cell-text">{harvestsLabel}</span>
           </span>
         </div>
         {isWrapped && <HunterRatingRow rating={rating} />}

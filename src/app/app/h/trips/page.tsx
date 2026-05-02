@@ -98,7 +98,7 @@ export default async function HunterTripsListPage({
           <div role="list" className="flex flex-col gap-4">
             {rows.map((t) => (
               <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} harvests={t.harvests} rating={t.rating} />
+                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} />
               </div>
             ))}
           </div>

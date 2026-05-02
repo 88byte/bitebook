@@ -172,7 +172,7 @@ const TRIP_ROW_COLS = `id, title, status, starts_at, ends_at, location_name, kin
 
 function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
   const tp = t.trip_participants as { count: number }[] | null | undefined
-  const hv = t.harvests as { count: number }[] | null | undefined
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
   return {
     id: t.id as string,
     title: t.title as string,
@@ -186,7 +186,7 @@ function shapeTripWithCounts(t: Record<string, unknown>): TripRowWithCounts {
     zone: (t.zone as string | null) ?? null,
     county: (t.county as string | null) ?? null,
     hunters: tp?.[0]?.count ?? 0,
-    harvests: hv?.[0]?.count ?? 0,
+    harvests: 0,
     rating: null,
     reviewCount: 0,
   }
@@ -244,8 +244,9 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('trips')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(`${TRIP_ROW_COLS},
-             trip_participants(count), harvests(count)`)
+             trip_participants(count)`)
     .eq('guide_id', guideId)
     .in('status', ['completed', 'canceled'])
     .order('updated_at', { ascending: false })
@@ -270,8 +271,9 @@ export async function fetchUpcomingTrips(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('trips')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(`${TRIP_ROW_COLS},
-             trip_participants(count), harvests(count)`)
+             trip_participants(count)`)
     .eq('guide_id', guideId)
     .in('status', ['planned', 'active'])
     .order('starts_at', { ascending: true })
@@ -305,9 +307,10 @@ export async function fetchTripsPage(
   const supabase = await createClient()
   let query = supabase
     .from('trips')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(
       `${TRIP_ROW_COLS},
-       trip_participants(count), harvests(count)`,
+       trip_participants(count)`,
       { count: 'exact' }
     )
     .eq('guide_id', guideId)
@@ -334,7 +337,8 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
   const supabase = await createClient()
   const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
 
-  const [{ count: tripsThisYear }, hunterRows, harvestRows] = await Promise.all([
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+  const [{ count: tripsThisYear }, hunterRows] = await Promise.all([
     supabase
       .from('trips')
       .select('id', { count: 'exact', head: true })
@@ -345,18 +349,12 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
       .select('hunter_id, guest_name, trips!inner(guide_id, starts_at)')
       .eq('trips.guide_id', guideId)
       .gte('trips.starts_at', yearStart),
-    supabase
-      .from('harvests')
-      .select('quantity, trips!inner(guide_id, starts_at)')
-      .eq('trips.guide_id', guideId)
-      .gte('trips.starts_at', yearStart),
   ])
 
   const huntersServed = new Set(
     (hunterRows.data ?? []).map((r) => r.hunter_id ?? `guest:${r.guest_name ?? ''}`)
   ).size
-  const harvests = (harvestRows.data ?? []).reduce((acc, r) => acc + (r.quantity ?? 0), 0)
-  return { tripsThisYear: tripsThisYear ?? 0, huntersServed, harvests }
+  return { tripsThisYear: tripsThisYear ?? 0, huntersServed, harvests: 0 }
 }
 
 export type TripDetail = {
@@ -400,24 +398,17 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
     .maybeSingle()
   if (tripErr || !trip) return null
 
-  const [participantsRes, harvestsRes] = await Promise.all([
-    supabase
-      .from('trip_participants')
-      .select('id, role, guest_name, hunter_id')
-      .eq('trip_id', tripId),
-    supabase
-      .from('harvests')
-      .select('id, kind, species_name, harvested_at, tag_number, notes, hunter_id, quantity, method, consumed_wallet_item_id')
-      .eq('trip_id', tripId)
-      .order('harvested_at', { ascending: false }),
-  ])
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+  const { data: participantsData } = await supabase
+    .from('trip_participants')
+    .select('id, role, guest_name, hunter_id')
+    .eq('trip_id', tripId)
 
-  // Resolve participant + harvest hunter names in code rather than via embed.
+  // Resolve participant hunter names in code rather than via embed.
   // RLS on profiles allows the trip's guide to read participant profiles via
   // the profiles_guide_sees_participants policy.
   const hunterIds = new Set<string>()
-  ;(participantsRes.data ?? []).forEach((p) => p.hunter_id && hunterIds.add(p.hunter_id))
-  ;(harvestsRes.data ?? []).forEach((h) => h.hunter_id && hunterIds.add(h.hunter_id))
+  ;(participantsData ?? []).forEach((p) => p.hunter_id && hunterIds.add(p.hunter_id))
 
   const profilesMap = new Map<string, { id: string; display_name: string }>()
   if (hunterIds.size > 0) {
@@ -428,80 +419,17 @@ export async function fetchTripDetail(guideId: string, tripId: string): Promise<
     ;(profiles ?? []).forEach((p) => profilesMap.set(p.id, p))
   }
 
-  // v27.0b.4.1: pull live wallet items for any harvest with a bound tag,
-  // so display reads from the source of truth (rename/zone/etc edits
-  // propagate). Snapshot fields (species_name, tag_number) are fallback.
-  const consumedIds = Array.from(
-    new Set(
-      (harvestsRes.data ?? [])
-        .map((h) => h.consumed_wallet_item_id)
-        .filter((v): v is string => !!v)
-    )
-  )
-  // v27.0b.4.2 / .4.5: extras lives in wallet_items.extras JSON. We pull
-  // weapon_restriction out of it for the method_display chain. Normalize
-  // legacy lowercase values + filter "Any" via normalizeWeaponRestriction.
-  const walletMap = new Map<
-    string,
-    { species: string | null; identifier: string | null; weapon_restriction: string | null }
-  >()
-  if (consumedIds.length > 0) {
-    const { data: walletItems } = await supabase
-      .from('wallet_items')
-      .select('id, species, identifier, extras')
-      .in('id', consumedIds)
-    ;(walletItems ?? []).forEach((w) => {
-      const extras = (w.extras ?? null) as { weapon_restriction?: string } | null
-      walletMap.set(w.id, {
-        species: w.species,
-        identifier: w.identifier,
-        weapon_restriction: normalizeWeaponRestriction(extras?.weapon_restriction),
-      })
-    })
-  }
-
   return {
     trip,
-    participants: (participantsRes.data ?? []).map((p) => ({
+    participants: (participantsData ?? []).map((p) => ({
       id: p.id,
       role: p.role,
       guest_name: p.guest_name,
       hunter_id: p.hunter_id,
       profile: p.hunter_id ? profilesMap.get(p.hunter_id) ?? null : null,
     })),
-    harvests: (harvestsRes.data ?? []).map((h) => {
-      const live = h.consumed_wallet_item_id ? walletMap.get(h.consumed_wallet_item_id) : undefined
-      return {
-        id: h.id,
-        kind: h.kind,
-        species_name: h.species_name,
-        harvested_at: h.harvested_at,
-        tag_number: h.tag_number,
-        notes: h.notes,
-        hunter_id: h.hunter_id,
-        quantity: h.quantity,
-        method: h.method ?? null,
-        // Hunter name is read fresh from profiles each call — profile renames
-        // propagate without touching the harvest row.
-        hunter_name: h.hunter_id ? profilesMap.get(h.hunter_id)?.display_name ?? null : null,
-        // v27.0b.4.5: live-source display resolution. WALLET WINS in all
-        // three chains so hunter wallet edits propagate to the harvest
-        // display without the guide having to re-save the harvest.
-        // species: wallet → snapshot → trip
-        // tag #:   wallet → snapshot
-        // method:  wallet.weapon_restriction → harvest.method → trip.method
-        // Trade-off: if a guide manually overrode the harvest method to
-        // something different from the bound tag's weapon (e.g. tag says
-        // Rifle but the guide logged "Crossbow" because the hunter swapped
-        // mid-hunt), the next hunter wallet edit clobbers that override.
-        // Edge case for v27.0b.4.5. If it bites in production, add a
-        // harvest.method_from_tag boolean flag and treat false (manual
-        // override) as the new winner.
-        species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
-        tag_number_display: live?.identifier ?? h.tag_number ?? null,
-        method_display: live?.weapon_restriction ?? h.method ?? trip.method ?? null,
-      }
-    }),
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+    harvests: [],
   }
 }
 
@@ -835,44 +763,7 @@ export async function fetchHarvestTagOptions(
   return out
 }
 
-export async function insertHarvest(
-  guideId: string,
-  input: {
-    trip_id: string
-    hunter_id: string | null
-    kind: 'hunting' | 'fishing'
-    species_name: string | null
-    method: string | null
-    quantity: number
-    tag_number: string | null
-    harvested_at: string
-    notes: string | null
-    consumed_wallet_item_id?: string | null
-  }
-): Promise<{ id: string } | { error: string }> {
-  const supabase = await createClient()
-  const { data: trip } = await supabase
-    .from('trips')
-    .select('id, status')
-    .eq('id', input.trip_id)
-    .eq('guide_id', guideId)
-    .maybeSingle()
-  if (!trip) return { error: 'Trip not found.' }
-  if (trip.status !== 'planned' && trip.status !== 'active') {
-    return { error: 'This trip is closed; reopen it before logging more harvests.' }
-  }
-
-  const { data, error } = await supabase
-    .from('harvests')
-    .insert(input)
-    .select('id')
-    .single()
-  if (error || !data) {
-    console.warn('[queries.insertHarvest]', { guideId, code: error?.code, message: error?.message })
-    return { error: error?.message ?? 'Could not save the harvest.' }
-  }
-  return { id: data.id }
-}
+// v27.1.1.0.3a: insertHarvest dropped, real implementation in harvest-log-queries.ts (pending)
 
 export async function insertTripParticipants(
   guideId: string,
@@ -942,10 +833,11 @@ export async function fetchHunterTrips(
   // exactly once (a hunter only has one participant row per trip).
   const { data, error } = await supabase
     .from('trip_participants')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(
       `trip:trips!inner(
         ${TRIP_ROW_COLS},
-        trip_participants(count), harvests(count)
+        trip_participants(count)
       )`
     )
     .eq('hunter_id', hunterId)
@@ -972,10 +864,11 @@ export async function fetchHunterUpcomingTrips(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('trip_participants')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(
       `trip:trips!inner(
         ${TRIP_ROW_COLS},
-        trip_participants(count), harvests(count)
+        trip_participants(count)
       )`
     )
     .eq('hunter_id', hunterId)
@@ -1009,10 +902,11 @@ export async function fetchHunterRecentTrips(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('trip_participants')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(
       `trip:trips!inner(
         ${TRIP_ROW_COLS},
-        trip_participants(count), harvests(count)
+        trip_participants(count)
       )`
     )
     .eq('hunter_id', hunterId)
@@ -1049,10 +943,11 @@ export async function fetchHunterTripsPage(
   // page in memory.
   let query = supabase
     .from('trip_participants')
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
     .select(
       `trip:trips!inner(
         ${TRIP_ROW_COLS},
-        trip_participants(count), harvests(count)
+        trip_participants(count)
       )`
     )
     .eq('hunter_id', hunterId)
@@ -1124,17 +1019,12 @@ export async function fetchHunterTripDetail(
     .maybeSingle()
   if (tripErr || !trip) return null
 
-  const [participantsRes, harvestsRes, guideProfileRes, guideBusinessRes] = await Promise.all([
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+  const [participantsRes, guideProfileRes, guideBusinessRes] = await Promise.all([
     supabase
       .from('trip_participants')
       .select('id, role, guest_name, hunter_id')
       .eq('trip_id', tripId),
-    supabase
-      .from('harvests')
-      .select('id, kind, species_name, harvested_at, tag_number, notes, quantity, hunter_id, method, consumed_wallet_item_id')
-      .eq('trip_id', tripId)
-      .eq('hunter_id', hunterId)
-      .order('harvested_at', { ascending: false }),
     supabase
       .from('profiles')
       .select('id, display_name')
@@ -1166,36 +1056,7 @@ export async function fetchHunterTripDetail(
     ;(profiles ?? []).forEach((p) => profilesMap.set(p.id, p))
   }
 
-  // v27.0b.4.1/.4.2: pull live wallet items for any harvest with a bound tag,
-  // so display reads from the source of truth — same rule as guide-side
-  // fetchTripDetail. wallet_items RLS lets the hunter read their own tags.
-  // .4.2 widens this to also pull extras.weapon_restriction for the method
-  // fallback chain.
-  const consumedIds = Array.from(
-    new Set(
-      (harvestsRes.data ?? [])
-        .map((h) => h.consumed_wallet_item_id)
-        .filter((v): v is string => !!v)
-    )
-  )
-  const walletMap = new Map<
-    string,
-    { species: string | null; identifier: string | null; weapon_restriction: string | null }
-  >()
-  if (consumedIds.length > 0) {
-    const { data: walletItems } = await supabase
-      .from('wallet_items')
-      .select('id, species, identifier, extras')
-      .in('id', consumedIds)
-    ;(walletItems ?? []).forEach((w) => {
-      const extras = (w.extras ?? null) as { weapon_restriction?: string } | null
-      walletMap.set(w.id, {
-        species: w.species,
-        identifier: w.identifier,
-        weapon_restriction: normalizeWeaponRestriction(extras?.weapon_restriction),
-      })
-    })
-  }
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
 
   return {
     trip: {
@@ -1228,26 +1089,8 @@ export async function fetchHunterTripDetail(
       hunter_id: p.hunter_id,
       profile: p.hunter_id ? profilesMap.get(p.hunter_id) ?? null : null,
     })),
-    myHarvests: (harvestsRes.data ?? []).map((h) => {
-      const live = h.consumed_wallet_item_id ? walletMap.get(h.consumed_wallet_item_id) : undefined
-      return {
-        id: h.id,
-        kind: h.kind,
-        species_name: h.species_name,
-        harvested_at: h.harvested_at,
-        tag_number: h.tag_number,
-        notes: h.notes,
-        quantity: h.quantity,
-        // v27.0b.4.5: wallet wins in all three chains. Mirrors guide-side
-        // fetchTripDetail. See the trade-off comment there.
-        // species: wallet → snapshot → trip
-        // tag #:   wallet → snapshot
-        // method:  wallet.weapon_restriction → harvest.method → trip.method
-        species_display: live?.species ?? h.species_name ?? trip.species_targeted ?? null,
-        tag_number_display: live?.identifier ?? h.tag_number ?? null,
-        method_display: live?.weapon_restriction ?? h.method ?? trip.method ?? null,
-      }
-    }),
+    // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+    myHarvests: [],
   }
 }
 
@@ -1324,13 +1167,14 @@ export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
   // canceled trips from the "Trips you've been on" + "Guides" counts.
   // PostgREST nested filtering is unreliable, so we filter in JS after
   // the fetch — same belt-and-suspenders rule as fetchHunterUpcomingTrips.
+  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
   const [participantsRes, harvestsRes] = await Promise.all([
     supabase
       .from('trip_participants')
       .select('trip_id, trips!inner(guide_id, status)')
       .eq('hunter_id', hunterId),
     supabase
-      .from('harvests')
+      .from('harvest_log_entries')
       .select('id', { count: 'exact', head: true })
       .eq('hunter_id', hunterId),
   ])

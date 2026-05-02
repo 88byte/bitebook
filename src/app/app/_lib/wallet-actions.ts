@@ -351,26 +351,28 @@ export async function tagOutWalletItemAction(itemId: string): Promise<WalletActi
   return { ok: true, id: itemId }
 }
 
-// v27.0b.1: reverse manual tag-out. Refused if a harvest references this
-// wallet item via consumed_wallet_item_id (those go through harvest edit
-// or delete to unflip).
+// v27.0b.1: reverse manual tag-out. Refused if a harvest_log_entry references
+// this wallet item via tag_wallet_item_id (those go through entry edit or
+// delete to unflip).
+// v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending).
+// Updated to scan harvest_log_entries.tag_wallet_item_id instead.
 export async function untagWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
-  // Block if a harvest currently consumes this tag.
-  const { data: linkedHarvests, error: hErr } = await sb
-    .from('harvests')
+  // Block if a harvest_log_entry currently consumes this tag.
+  const { data: linkedEntries, error: hErr } = await sb
+    .from('harvest_log_entries')
     .select('id')
-    .eq('consumed_wallet_item_id', itemId)
+    .eq('tag_wallet_item_id', itemId)
     .limit(1)
   if (hErr) {
     return { error: hErr.message || 'Could not verify harvest links.' }
   }
-  if (linkedHarvests && linkedHarvests.length > 0) {
+  if (linkedEntries && linkedEntries.length > 0) {
     return {
       error:
-        "This tag is linked to a harvest, can't unmark. Edit or delete the harvest first.",
+        "This tag is linked to a harvest, can't unmark. Edit or delete the harvest entry first.",
     }
   }
   const { error } = await sb
