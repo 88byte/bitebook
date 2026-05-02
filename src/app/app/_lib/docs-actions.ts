@@ -16,6 +16,7 @@ import {
   STATIC_DATE_PREFIX,
   STATIC_DATE_RANGE_PREFIX,
 } from './doc-data-sources'
+import { parseFieldName } from './harvest-log-fill-types'
 
 export type DocKind = Database['public']['Enums']['doc_kind']
 type DocInsert = TablesInsert<'docs'>
@@ -380,12 +381,16 @@ export type MappingInput = {
    *  string means "no mapping" and that row should be DELETED if it exists. */
   data_source_path: string
   /** v27.1.1.0.3c.1: manual slot override. 0 = auto-detect via field-name
-   *  regex; 1+ = explicit hunter slot. Persisted to
-   *  doc_field_mappings.hunter_slot. */
+   *  regex; 1+ = explicit hunter slot. */
   hunter_slot?: number
+  /** v27.1.1.0.3c.2: when true, this slot's mapping is decoupled from
+   *  Hunter 1 auto-mirroring and stays exactly what the guide picked. */
+  is_override?: boolean
 }
 
-export type SaveMappingsResult = { ok: true; mapping_status: string } | { error: string }
+export type SaveMappingsResult =
+  | { ok: true; mapping_status: string; mirrored_count: number }
+  | { error: string }
 
 export async function saveDocMappingsAction(
   docId: string,
@@ -407,51 +412,89 @@ export async function saveDocMappingsAction(
     return { error: 'Field mapping is only available for log and waiver docs.' }
   }
 
-  // Split into upsert vs delete sets.
-  const toUpsert: TablesInsert<'doc_field_mappings'>[] = []
-  const toDelete: string[] = []
+  // First pass: parse incoming mappings into a per-field staging map. We
+  // keep both the path AND the slot/override so the v27.1.1.0.3c.2 mirror
+  // pass below can read every field's effective slot to identify
+  // candidates.
+  type Staged = {
+    path: string  // empty string = pending delete
+    hunterSlot: number
+    isOverride: boolean
+    explicit: boolean  // user touched this field this save
+  }
+  const staged = new Map<string, Staged>()
   for (const m of mappings) {
     const fieldName = m.field_name?.trim()
     if (!fieldName) continue
-    const path = (m.data_source_path ?? '').trim()
-    if (!path) {
-      toDelete.push(fieldName)
-      continue
-    }
-    // v27.1.1.0.1: bare picker sentinels (prefix only, no literal payload)
-    // mean the guide opened a picker but didn't fill it in. Treat them as
-    // no-mapping so unmapped/skip is the default and the wizard's "Save
-    // draft" never persists junk.
+    let path = (m.data_source_path ?? '').trim()
+    // Bare picker sentinels (prefix only, no literal payload) mean the
+    // guide opened a picker but didn't fill it in. Treat as no-mapping.
     if (
       path === STATIC_TEXT_PREFIX ||
       path === STATIC_DATE_PREFIX ||
       path === STATIC_DATE_RANGE_PREFIX
     ) {
-      toDelete.push(fieldName)
-      continue
+      path = ''
     }
-    // Half-filled date range like "static_date_range:2026-09-15.." — the
-    // wizard guards against this but server stays defensive.
+    // Half-filled date range — wizard guards against this but server
+    // stays defensive.
     if (path.startsWith(STATIC_DATE_RANGE_PREFIX)) {
       const raw = path.slice(STATIC_DATE_RANGE_PREFIX.length)
       const [start, end] = raw.split('..')
-      if (!start || !end) {
-        toDelete.push(fieldName)
-        continue
-      }
+      if (!start || !end) path = ''
     }
-    // v27.1.1.0.3c.1: persist the manual slot override. Clamp to 0..99
-    // (matches CHECK constraint on the column).
     const rawSlot = typeof m.hunter_slot === 'number' && Number.isFinite(m.hunter_slot)
       ? Math.floor(m.hunter_slot)
       : 0
     const hunterSlot = Math.max(0, Math.min(99, rawSlot))
+    const isOverride = m.is_override === true
+    staged.set(fieldName, { path, hunterSlot, isOverride, explicit: true })
+  }
+
+  // v27.1.1.0.3c.2: auto-mirror Hunter 1 → slots 2..N.
+  // For each slot-1 field with a non-empty path, compute the base name
+  // (parseFieldName strips the slot pattern). For every other staged
+  // field whose effective slot is 2..N AND whose base name matches AND
+  // whose is_override is false, override the path with the slot-1 path.
+  // is_override=true preserves the user's explicit choice for that slot.
+  const slot1ByBase = new Map<string, string>()
+  for (const [fieldName, s] of staged) {
+    if (!s.path) continue
+    const parsed = parseFieldName(fieldName)
+    const effSlot = s.hunterSlot > 0 ? s.hunterSlot : parsed.slot
+    if (effSlot === 1) {
+      slot1ByBase.set(parsed.base, s.path)
+    }
+  }
+  let mirroredCount = 0
+  for (const [fieldName, s] of staged) {
+    if (s.isOverride) continue
+    const parsed = parseFieldName(fieldName)
+    const effSlot = s.hunterSlot > 0 ? s.hunterSlot : parsed.slot
+    if (effSlot < 2) continue
+    const mirror = slot1ByBase.get(parsed.base)
+    if (!mirror) continue
+    if (s.path !== mirror) {
+      s.path = mirror
+      mirroredCount += 1
+    }
+  }
+
+  // Now translate staged → upsert/delete.
+  const toUpsert: TablesInsert<'doc_field_mappings'>[] = []
+  const toDelete: string[] = []
+  for (const [fieldName, s] of staged) {
+    if (!s.path) {
+      toDelete.push(fieldName)
+      continue
+    }
     toUpsert.push({
       doc_id: docId,
       mapping_kind: 'field',
       field_name: fieldName,
-      data_source_path: path,
-      hunter_slot: hunterSlot,
+      data_source_path: s.path,
+      hunter_slot: s.hunterSlot,
+      is_override: s.isOverride,
     })
   }
 
@@ -507,7 +550,7 @@ export async function saveDocMappingsAction(
   revalidatePath('/app/docs')
   revalidatePath(`/app/docs/${docId}`)
   revalidatePath(`/app/docs/${docId}/mapping`)
-  return { ok: true, mapping_status: newStatus }
+  return { ok: true, mapping_status: newStatus, mirrored_count: mirroredCount }
 }
 
 // --- markMappingCompleteAction --------------------------------------------

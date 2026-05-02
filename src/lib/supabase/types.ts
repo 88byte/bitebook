@@ -104,6 +104,7 @@ export type Database = {
           field_name: string
           hunter_slot: number
           id: string
+          is_override: boolean
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index: number | null
           signature_role: string | null
@@ -117,6 +118,7 @@ export type Database = {
           field_name: string
           hunter_slot?: number
           id?: string
+          is_override?: boolean
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
           signature_role?: string | null
@@ -130,6 +132,7 @@ export type Database = {
           field_name?: string
           hunter_slot?: number
           id?: string
+          is_override?: boolean
           mapping_kind?: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
           signature_role?: string | null

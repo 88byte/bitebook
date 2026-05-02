@@ -32,16 +32,18 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, hunter_slot')
+    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
   const existingByField: Record<string, string> = {}
   const existingSlotByField: Record<string, number> = {}
+  const existingOverrideByField: Record<string, boolean> = {}
   for (const r of existingRows ?? []) {
     if (r.field_name) {
       existingByField[r.field_name] = r.data_source_path ?? ''
       existingSlotByField[r.field_name] = typeof r.hunter_slot === 'number' ? r.hunter_slot : 0
+      existingOverrideByField[r.field_name] = r.is_override === true
     }
   }
 
@@ -74,6 +76,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         docKind={doc.kind}
         existingByField={existingByField}
         existingSlotByField={existingSlotByField}
+        existingOverrideByField={existingOverrideByField}
         currentStatus={doc.mapping_status}
       />
     </main>

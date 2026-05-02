@@ -44,12 +44,14 @@ export default function MappingWizard({
   docKind,
   existingByField,
   existingSlotByField,
+  existingOverrideByField,
   currentStatus,
 }: {
   docId: string
   docKind: 'log' | 'waiver'
   existingByField: Record<string, string>
   existingSlotByField: Record<string, number>
+  existingOverrideByField: Record<string, boolean>
   currentStatus: string
 }) {
   const router = useRouter()
@@ -92,8 +94,23 @@ export default function MappingWizard({
     () => ({ ...existingSlotByField })
   )
 
+  // v27.1.1.0.3c.2: per-field is_override flag. true = decoupled from
+  // Hunter 1 auto-mirroring. Hydrated from doc_field_mappings.is_override.
+  const [overrideFlags, setOverrideFlags] = useState<Record<string, boolean>>(
+    () => ({ ...existingOverrideByField })
+  )
+  // Mirror count from the last save, surfaced as a small toast in the
+  // status bar (e.g. "Updated 3 mirrored fields").
+  const [mirroredCount, setMirroredCount] = useState<number>(0)
+
   function handleSlotChange(fieldName: string, slot: number) {
     setSlotOverrides((prev) => ({ ...prev, [fieldName]: slot }))
+    setSavedAt(null)
+    setCompletedAt(null)
+  }
+
+  function handleOverrideToggle(fieldName: string, isOverride: boolean) {
+    setOverrideFlags((prev) => ({ ...prev, [fieldName]: isOverride }))
     setSavedAt(null)
     setCompletedAt(null)
   }
@@ -174,14 +191,19 @@ export default function MappingWizard({
     const out: MappingInput[] = []
     for (const f of fields ?? []) {
       const sel = selection[f.name] ?? ''
-      // Bare picker prefix → no mapping (server strips it too).
       const isBarePrefix =
         sel === STATIC_TEXT_PREFIX ||
         sel === STATIC_DATE_PREFIX ||
         sel === STATIC_DATE_RANGE_PREFIX
       const finalPath = isBarePrefix ? '' : sel
       const slot = slotOverrides[f.name] ?? 0
-      out.push({ field_name: f.name, data_source_path: finalPath, hunter_slot: slot })
+      const isOverride = overrideFlags[f.name] === true
+      out.push({
+        field_name: f.name,
+        data_source_path: finalPath,
+        hunter_slot: slot,
+        is_override: isOverride,
+      })
     }
     return out
   }
@@ -190,6 +212,7 @@ export default function MappingWizard({
     setSaveError(null)
     setSavedAt(null)
     setCompletedAt(null)
+    setMirroredCount(0)
     const payload = buildPayload()
     startTransition(async () => {
       const res = await saveDocMappingsAction(docId, payload)
@@ -198,6 +221,7 @@ export default function MappingWizard({
         return
       }
       setSavedAt(Date.now())
+      setMirroredCount(res.mirrored_count)
       if (thenComplete) {
         const r2 = await markMappingCompleteAction(docId, true)
         if ('error' in r2) {
@@ -304,23 +328,40 @@ export default function MappingWizard({
         </div>
       </div>
 
-      {fields.map((f) => (
-        <FieldRow
-          key={f.name}
-          field={f}
-          value={selection[f.name] ?? ''}
-          staticText={staticText[f.name] ?? ''}
-          staticDate={staticDate[f.name] ?? ''}
-          rangeStart={rangeStart[f.name] ?? ''}
-          rangeEnd={rangeEnd[f.name] ?? ''}
-          slotOverride={slotOverrides[f.name] ?? 0}
-          onChange={handleDropdownChange}
-          onStaticTextChange={handleStaticTextChange}
-          onStaticDateChange={handleStaticDateChange}
-          onRangeChange={handleRangeChange}
-          onSlotChange={handleSlotChange}
-        />
-      ))}
+      {/* v27.1.1.0.3c.2: build slot1 path-by-base map for live mirror
+          display. Walks current selections; the SAVE-time mirror pass on
+          the server is the source of truth — this is just so the UI can
+          surface "Mirrored from Hunter 1" tags + the inherited dropdown
+          value before the next save round-trip. */}
+      {(() => null)()}
+      {fields.map((f) => {
+        const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
+        const parsed = parseFieldNameInline(f.name)
+        const effSlot = (slotOverrides[f.name] ?? 0) > 0
+          ? (slotOverrides[f.name] ?? 0)
+          : parsed.slot
+        const mirrorPath = effSlot >= 2 ? slot1ByBase.get(parsed.base) ?? null : null
+        return (
+          <FieldRow
+            key={f.name}
+            field={f}
+            value={selection[f.name] ?? ''}
+            staticText={staticText[f.name] ?? ''}
+            staticDate={staticDate[f.name] ?? ''}
+            rangeStart={rangeStart[f.name] ?? ''}
+            rangeEnd={rangeEnd[f.name] ?? ''}
+            slotOverride={slotOverrides[f.name] ?? 0}
+            isOverride={overrideFlags[f.name] === true}
+            mirrorPath={mirrorPath}
+            onChange={handleDropdownChange}
+            onStaticTextChange={handleStaticTextChange}
+            onStaticDateChange={handleStaticDateChange}
+            onRangeChange={handleRangeChange}
+            onSlotChange={handleSlotChange}
+            onOverrideToggle={handleOverrideToggle}
+          />
+        )
+      })}
 
       {saveError && (
         <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
@@ -346,6 +387,11 @@ export default function MappingWizard({
         >
           {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
         </button>
+        {savedAt !== null && mirroredCount > 0 && (
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-copper)' }}>
+            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'}.
+          </span>
+        )}
         <button
           type="button"
           className="bb-cta-sm"
@@ -364,6 +410,54 @@ export default function MappingWizard({
   )
 }
 
+// v27.1.1.0.3c.2: parseFieldName equivalent inline (so wizard doesn't
+// import the engine module). Mirror of harvest-log-fill-types.parseFieldName.
+function parseFieldNameInline(name: string): { slot: number; base: string } {
+  const prefix = /^(?:hunter|h|row)[_-]?(\d+)[_-]?(.*)$/i.exec(name)
+  if (prefix) {
+    const n = Number(prefix[1])
+    if (Number.isFinite(n) && n >= 1 && n <= 99) {
+      return { slot: n, base: (prefix[2] || '').trim() }
+    }
+  }
+  const suffix = /^(.*?)[_-](\d+)$/i.exec(name)
+  if (suffix) {
+    const n = Number(suffix[2])
+    if (Number.isFinite(n) && n >= 1 && n <= 99) {
+      return { slot: n, base: (suffix[1] || '').trim() }
+    }
+  }
+  return { slot: 0, base: name }
+}
+
+// Walk current wizard state to derive slot-1 paths keyed by base. Used by
+// the FieldRow render to surface "Mirrored from Hunter 1" tags + the
+// inherited dropdown value live, before save round-trips.
+function computeSlot1ByBase(
+  fields: DocPdfField[] | null,
+  selection: Record<string, string>,
+  slotOverrides: Record<string, number>
+): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const f of fields ?? []) {
+    const sel = selection[f.name]
+    if (!sel) continue
+    if (
+      sel === STATIC_TEXT_PREFIX ||
+      sel === STATIC_DATE_PREFIX ||
+      sel === STATIC_DATE_RANGE_PREFIX
+    ) {
+      continue
+    }
+    const parsed = parseFieldNameInline(f.name)
+    const effSlot = (slotOverrides[f.name] ?? 0) > 0 ? slotOverrides[f.name] : parsed.slot
+    if (effSlot === 1) {
+      out.set(parsed.base, sel)
+    }
+  }
+  return out
+}
+
 function FieldRow({
   field,
   value,
@@ -372,11 +466,14 @@ function FieldRow({
   rangeStart,
   rangeEnd,
   slotOverride,
+  isOverride,
+  mirrorPath,
   onChange,
   onStaticTextChange,
   onStaticDateChange,
   onRangeChange,
   onSlotChange,
+  onOverrideToggle,
 }: {
   field: DocPdfField
   value: string
@@ -385,11 +482,14 @@ function FieldRow({
   rangeStart: string
   rangeEnd: string
   slotOverride: number
+  isOverride: boolean
+  mirrorPath: string | null
   onChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
   onStaticDateChange: (fieldName: string, value: string) => void
   onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
   onSlotChange: (fieldName: string, slot: number) => void
+  onOverrideToggle: (fieldName: string, isOverride: boolean) => void
 }) {
   // v27.1.1.0.3c: source list slot-aware (per-hunter vs trip-level filter).
   // v27.1.1.0.3c.1: slotOverride from doc_field_mappings.hunter_slot wins
@@ -529,10 +629,58 @@ function FieldRow({
         </select>
       </div>
 
+      {/* v27.1.1.0.3c.2: mirror tag + override toggle. Renders only on
+          slot 2..N fields whose base name has a saved Hunter 1 source.
+          When isOverride=false, the dropdown is read-only and shows the
+          mirrored value. Toggle on -> dropdown becomes editable. */}
+      {mirrorPath !== null && slot >= 2 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            padding: '0.4rem 0.55rem',
+            borderRadius: 8,
+            background: isOverride ? 'transparent' : 'rgba(168, 92, 50, 0.08)',
+            border: '1px dashed var(--color-ink-tint)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.8rem',
+              color: isOverride ? 'var(--color-ink-soft)' : 'var(--color-copper)',
+              fontWeight: 600,
+            }}
+          >
+            {isOverride ? 'Custom for this slot' : 'Mirrored from Hunter 1'}
+          </span>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.85rem',
+              color: 'var(--color-ink-soft)',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isOverride}
+              onChange={(e) => onOverrideToggle(field.name, e.target.checked)}
+            />
+            Use a different source for this slot
+          </label>
+        </div>
+      )}
+
       <select
         className="bb-input"
-        value={dropdownValue}
+        value={mirrorPath !== null && !isOverride && slot >= 2 ? mirrorPath : dropdownValue}
         onChange={(e) => onChange(field.name, e.target.value)}
+        disabled={mirrorPath !== null && !isOverride && slot >= 2}
       >
         <option value="">— No mapping (skip) —</option>
         {CATEGORY_ORDER.map((cat) =>
