@@ -8,6 +8,7 @@ import {
   updateHarvestLogAction,
   updateHarvestLogEntryAction,
   addEntrySpeciesAction,
+  createEntrySpeciesAction,
   updateEntrySpeciesAction,
   removeEntrySpeciesAction,
   deleteHarvestLogAndRedirectAction,
@@ -118,13 +119,17 @@ export default function HarvestLogEditor({
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Trip-level details</h2>
           <div className="bb-form-row">
-            <label className="bb-form-label" htmlFor="log_date">Log date</label>
+            <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
+            {/* v27.1.1.0.3a.2: cap the date input width so it doesn't
+                stretch across the whole card. 12rem accommodates the
+                native date control on every browser at 375px+. */}
             <input
               id="log_date"
               type="date"
               className="bb-input"
               value={logDate}
               onChange={(e) => setLogDate(e.target.value)}
+              style={{ maxWidth: '12rem' }}
             />
             <p className="bb-form-help">
               Hours per hunter live on each hunter&rsquo;s entry below.
@@ -442,8 +447,11 @@ function EntryAccordion({
             </p>
           )}
 
+          {/* v27.1.1.0.3a.2: renamed "Auto-filled identity" → "Hunter info"
+              per Flavio's plain-English ask. The data is the same — just
+              cleaner labeling. */}
           <section className="bb-form-row" style={{ marginTop: '0.6rem' }}>
-            <span className="bb-form-label">Auto-filled identity</span>
+            <span className="bb-form-label">Hunter info</span>
             <div
               className="bb-tile"
               style={{ padding: '0.6rem 0.75rem', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}
@@ -518,6 +526,17 @@ function EntryAccordion({
             </div>
           </div>
 
+          {/* v27.1.1.0.3a.2: species breakdown.
+              When the entry has 0 saved species rows AND the linked tag
+              has a species set, render a "phantom" row pre-filled from
+              the tag (live-pull — re-rendered from entry.tag.species,
+              not snapshotted at log generation, so wallet edits to the
+              tag's species propagate on next refresh). On first save,
+              the phantom is promoted to a real row via
+              createEntrySpeciesAction (one-shot insert with values).
+              "Add species" button is hidden until at least one real row
+              exists, so a hunter with one species doesn't have to think
+              about sub-rows at all. */}
           <section style={{ marginTop: '0.75rem' }}>
             <div
               style={{
@@ -527,28 +546,50 @@ function EntryAccordion({
                 marginBottom: '0.4rem',
               }}
             >
-              <span className="bb-form-label" style={{ marginBottom: 0 }}>Species breakdown</span>
-              <button
-                type="button"
-                className="bb-text-action bb-text-action-copper"
-                onClick={addSpecies}
-                disabled={pending}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-              >
-                <Plus size={14} aria-hidden="true" />
-                Add species
-              </button>
+              <span className="bb-form-label" style={{ marginBottom: 0 }}>Species</span>
+              {entry.species_rows.length > 0 && (
+                <button
+                  type="button"
+                  className="bb-text-action bb-text-action-copper"
+                  onClick={addSpecies}
+                  disabled={pending}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Plus size={14} aria-hidden="true" />
+                  Add species
+                </button>
+              )}
             </div>
+
             {entry.species_rows.length === 0 ? (
-              <p className="bb-form-help" style={{ margin: 0 }}>
-                Optional. Useful when one hunter took multiple species.
-              </p>
+              entry.tag?.species ? (
+                <>
+                  <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
+                    Pre-filled from your tag. Add more species below if needed.
+                  </p>
+                  <PhantomSpeciesRow
+                    entryId={entry.id}
+                    tagSpecies={entry.tag.species}
+                  />
+                </>
+              ) : (
+                <p className="bb-form-help" style={{ margin: 0 }}>
+                  Optional. Add a species if this hunter took game on the trip.
+                </p>
+              )
             ) : (
-              <div className="flex flex-col gap-2">
-                {entry.species_rows.map((s) => (
-                  <SpeciesRow key={s.id} row={s} />
-                ))}
-              </div>
+              <>
+                {entry.tag?.species && (
+                  <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
+                    Pre-filled from your tag. Add more species below if needed.
+                  </p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {entry.species_rows.map((s) => (
+                    <SpeciesRow key={s.id} row={s} />
+                  ))}
+                </div>
+              </>
             )}
           </section>
 
@@ -677,6 +718,96 @@ function SpeciesRow({
         >
           <Trash2 size={14} aria-hidden="true" />
           Remove
+        </button>
+      </div>
+      {error && (
+        <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.3rem' }}>
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// v27.1.1.0.3a.2: phantom species row.
+// Rendered when an entry has 0 saved species rows AND its linked tag has
+// a species set. Pre-fills species from entry.tag.species (live-pull from
+// the tag, not snapshotted at log generation — the parent re-passes
+// tag.species on every render so wallet edits to the tag's species
+// surface here on the next page refresh).
+//
+// First Save calls createEntrySpeciesAction (single-shot insert with all
+// fields populated). The page refresh then renders a real SpeciesRow
+// instead of this phantom.
+function PhantomSpeciesRow({
+  entryId,
+  tagSpecies,
+}: {
+  entryId: string
+  tagSpecies: string
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [species, setSpecies] = useState(tagSpecies)
+  const [qH, setQH] = useState('0')
+  const [qK, setQK] = useState('0')
+  const [qR, setQR] = useState('0')
+
+  function save() {
+    setError(null)
+    setSavedAt(null)
+    const fd = new FormData()
+    fd.set('entry_id', entryId)
+    fd.set('species', species)
+    fd.set('qty_harvested', qH || '0')
+    fd.set('qty_kept', qK || '0')
+    fd.set('qty_released', qR || '0')
+    startTransition(async () => {
+      const res = await createEntrySpeciesAction(fd)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      setSavedAt(Date.now())
+      router.refresh()
+    })
+  }
+
+  return (
+    <div
+      className="bb-tile"
+      style={{ padding: '0.6rem 0.75rem', borderColor: 'var(--color-ink-tint)' }}
+    >
+      <div className="bb-form-grid-2" style={{ gap: '0.4rem' }}>
+        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+          <label className="bb-form-label" htmlFor={`phantom_sp_${entryId}`}>Species</label>
+          <input
+            id={`phantom_sp_${entryId}`}
+            type="text"
+            className="bb-input"
+            value={species}
+            onChange={(e) => setSpecies(e.target.value)}
+            placeholder="e.g. Mule deer"
+          />
+        </div>
+        <div className="bb-form-row">
+          <label className="bb-form-label">Harvested</label>
+          <input type="number" min="0" className="bb-input" value={qH} onChange={(e) => setQH(e.target.value)} />
+        </div>
+        <div className="bb-form-row">
+          <label className="bb-form-label">Kept</label>
+          <input type="number" min="0" className="bb-input" value={qK} onChange={(e) => setQK(e.target.value)} />
+        </div>
+        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+          <label className="bb-form-label">Released</label>
+          <input type="number" min="0" className="bb-input" value={qR} onChange={(e) => setQR(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button type="button" className="bb-btn-secondary" onClick={save} disabled={pending}>
+          {savedAt !== null ? 'Saved' : pending ? 'Saving…' : 'Save row'}
         </button>
       </div>
       {error && (

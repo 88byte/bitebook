@@ -236,6 +236,64 @@ export async function addEntrySpeciesAction(
   return { ok: true, id: data.id }
 }
 
+// v27.1.1.0.3a.2: phantom-row save path. Creates a species row with all
+// fields populated in a single call so the editor can promote a
+// tag-prefilled phantom into a real row on first Save without a
+// two-call dance (insert blank → update). Mirrors updateEntrySpeciesAction's
+// validation. Returns the new row id.
+export async function createEntrySpeciesAction(
+  formData: FormData
+): Promise<{ ok: true; id: string } | { error: string }> {
+  await requireGuide()
+  const entryId = String(formData.get('entry_id') ?? '').trim()
+  if (!entryId) return { error: 'Missing entry id.' }
+
+  const num = (k: string): number | null => {
+    const v = String(formData.get(k) ?? '').trim()
+    if (!v) return 0
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
+  }
+  const qHarv = num('qty_harvested')
+  const qKept = num('qty_kept')
+  const qRel = num('qty_released')
+  if (qHarv === null || qKept === null || qRel === null) {
+    return { error: 'Quantities must be non-negative whole numbers.' }
+  }
+  const species = String(formData.get('species') ?? '').trim() || null
+
+  const sb = await createClient()
+
+  const { data: max } = await sb
+    .from('harvest_log_entry_species')
+    .select('position')
+    .eq('entry_id', entryId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const nextPos = (max?.position ?? -1) + 1
+
+  const { data, error } = await sb
+    .from('harvest_log_entry_species')
+    .insert({
+      entry_id: entryId,
+      position: nextPos,
+      species,
+      qty_harvested: qHarv,
+      qty_kept: qKept,
+      qty_released: qRel,
+    })
+    .select('id')
+    .single()
+  if (error || !data) {
+    console.warn('[harvestLog.createSpecies]', { code: error?.code, message: error?.message })
+    return { error: error?.message || 'Could not save species row.' }
+  }
+
+  revalidatePath('/app/trips', 'layout')
+  return { ok: true, id: data.id }
+}
+
 export async function updateEntrySpeciesAction(
   formData: FormData
 ): Promise<{ ok: true } | { error: string }> {
