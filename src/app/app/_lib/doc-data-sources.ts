@@ -69,6 +69,11 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'harvest_log.purpose.has_fishing',     label: 'Trip purpose: fishing',         category: 'trip', valueType: 'boolean', type: 'boolean' },
   { value: 'harvest_log.purpose.has_fly_fishing', label: 'Trip purpose: fly fishing',     category: 'trip', valueType: 'boolean', type: 'boolean' },
   { value: 'harvest_log.purpose.has_other',       label: 'Trip purpose: other',           category: 'trip', valueType: 'boolean', type: 'boolean' },
+  // v27.1.1.0.3c.1: string variants for PDFs whose trip-purpose field is a
+  // text input rather than a checkbox. summary joins all checked purposes
+  // ("Hunting, Fly fishing"); first returns the first checked label.
+  { value: 'harvest_log.purpose.summary',         label: 'Trip purpose summary (joined)', category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'harvest_log.purpose.first',           label: 'Trip purpose (first picked)',   category: 'trip', valueType: 'string', type: 'text' },
 
   // ── Guide profile ──────────────────────────────────────────────────
   { value: 'guide.business_name',  label: 'Guide business name',                   category: 'guide', valueType: 'string', type: 'text' },

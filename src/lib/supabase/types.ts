@@ -102,6 +102,7 @@ export type Database = {
           data_source_path: string | null
           doc_id: string
           field_name: string
+          hunter_slot: number
           id: string
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index: number | null
@@ -114,6 +115,7 @@ export type Database = {
           data_source_path?: string | null
           doc_id: string
           field_name: string
+          hunter_slot?: number
           id?: string
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
@@ -126,6 +128,7 @@ export type Database = {
           data_source_path?: string | null
           doc_id?: string
           field_name?: string
+          hunter_slot?: number
           id?: string
           mapping_kind?: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null

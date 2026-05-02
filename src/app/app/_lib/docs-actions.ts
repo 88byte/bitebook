@@ -379,6 +379,10 @@ export type MappingInput = {
   /** Either a known data-source path, "static:<value>", or "skip". An empty
    *  string means "no mapping" and that row should be DELETED if it exists. */
   data_source_path: string
+  /** v27.1.1.0.3c.1: manual slot override. 0 = auto-detect via field-name
+   *  regex; 1+ = explicit hunter slot. Persisted to
+   *  doc_field_mappings.hunter_slot. */
+  hunter_slot?: number
 }
 
 export type SaveMappingsResult = { ok: true; mapping_status: string } | { error: string }
@@ -436,11 +440,18 @@ export async function saveDocMappingsAction(
         continue
       }
     }
+    // v27.1.1.0.3c.1: persist the manual slot override. Clamp to 0..99
+    // (matches CHECK constraint on the column).
+    const rawSlot = typeof m.hunter_slot === 'number' && Number.isFinite(m.hunter_slot)
+      ? Math.floor(m.hunter_slot)
+      : 0
+    const hunterSlot = Math.max(0, Math.min(99, rawSlot))
     toUpsert.push({
       doc_id: docId,
       mapping_kind: 'field',
       field_name: fieldName,
       data_source_path: path,
+      hunter_slot: hunterSlot,
     })
   }
 

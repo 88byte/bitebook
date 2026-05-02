@@ -43,11 +43,13 @@ export default function MappingWizard({
   docId,
   docKind,
   existingByField,
+  existingSlotByField,
   currentStatus,
 }: {
   docId: string
   docKind: 'log' | 'waiver'
   existingByField: Record<string, string>
+  existingSlotByField: Record<string, number>
   currentStatus: string
 }) {
   const router = useRouter()
@@ -83,6 +85,18 @@ export default function MappingWizard({
   const [staticDate, setStaticDate] = useState<Record<string, string>>(initDate)
   const [rangeStart, setRangeStart] = useState<Record<string, string>>(initRangeStart)
   const [rangeEnd, setRangeEnd] = useState<Record<string, string>>(initRangeEnd)
+
+  // v27.1.1.0.3c.1: per-field manual slot override. 0 = auto-detect via
+  // regex; 1+ = explicit slot. Hydrated from doc_field_mappings.hunter_slot.
+  const [slotOverrides, setSlotOverrides] = useState<Record<string, number>>(
+    () => ({ ...existingSlotByField })
+  )
+
+  function handleSlotChange(fieldName: string, slot: number) {
+    setSlotOverrides((prev) => ({ ...prev, [fieldName]: slot }))
+    setSavedAt(null)
+    setCompletedAt(null)
+  }
 
   useEffect(() => {
     discover()
@@ -166,7 +180,8 @@ export default function MappingWizard({
         sel === STATIC_DATE_PREFIX ||
         sel === STATIC_DATE_RANGE_PREFIX
       const finalPath = isBarePrefix ? '' : sel
-      out.push({ field_name: f.name, data_source_path: finalPath })
+      const slot = slotOverrides[f.name] ?? 0
+      out.push({ field_name: f.name, data_source_path: finalPath, hunter_slot: slot })
     }
     return out
   }
@@ -298,10 +313,12 @@ export default function MappingWizard({
           staticDate={staticDate[f.name] ?? ''}
           rangeStart={rangeStart[f.name] ?? ''}
           rangeEnd={rangeEnd[f.name] ?? ''}
+          slotOverride={slotOverrides[f.name] ?? 0}
           onChange={handleDropdownChange}
           onStaticTextChange={handleStaticTextChange}
           onStaticDateChange={handleStaticDateChange}
           onRangeChange={handleRangeChange}
+          onSlotChange={handleSlotChange}
         />
       ))}
 
@@ -354,10 +371,12 @@ function FieldRow({
   staticDate,
   rangeStart,
   rangeEnd,
+  slotOverride,
   onChange,
   onStaticTextChange,
   onStaticDateChange,
   onRangeChange,
+  onSlotChange,
 }: {
   field: DocPdfField
   value: string
@@ -365,19 +384,18 @@ function FieldRow({
   staticDate: string
   rangeStart: string
   rangeEnd: string
+  slotOverride: number
   onChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
   onStaticDateChange: (fieldName: string, value: string) => void
   onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
+  onSlotChange: (fieldName: string, slot: number) => void
 }) {
-  // v27.1.1.0.3c: source list now slot-aware. Per-hunter slot fields
-  // show only perRow sources; trip-level fields show only non-perRow.
-  // parseFieldName lives in harvest-log-fill-types — same regex the
-  // fill engine uses, so the wizard scoping matches the engine's slot
-  // resolution exactly.
-  const slot = useMemo(() => {
-    // Inline mini-version of parseFieldName to avoid pulling the engine
-    // import into a client module.
+  // v27.1.1.0.3c: source list slot-aware (per-hunter vs trip-level filter).
+  // v27.1.1.0.3c.1: slotOverride from doc_field_mappings.hunter_slot wins
+  // when > 0; otherwise we fall back to the regex auto-detect, matching
+  // the engine's resolution rule exactly.
+  const detectedSlot = useMemo(() => {
     const prefix = /^(?:hunter|h|row)[_-]?(\d+)[_-]?(.*)$/i.exec(field.name)
     if (prefix) {
       const n = Number(prefix[1])
@@ -390,6 +408,8 @@ function FieldRow({
     }
     return 0
   }, [field.name])
+
+  const slot = slotOverride > 0 ? slotOverride : detectedSlot
 
   const sources = useMemo(() => sourcesForFieldOnSlot(field.type, slot), [field.type, slot])
   const grouped = useMemo(() => {
@@ -478,6 +498,36 @@ function FieldRow({
           Form expects one of: {field.options.join(' · ')}
         </p>
       )}
+
+      {/* v27.1.1.0.3c.1: manual slot picker. Default to auto-detect (0)
+          which uses the regex parse; guide can pin to a specific hunter
+          slot when the field name doesn't follow the conventions. Cap
+          at Hunter 5 — covers common state forms; engine accepts up
+          to 99 if needed later. */}
+      <div className="bb-form-row" style={{ marginBottom: '0.1rem' }}>
+        <label
+          className="bb-form-label"
+          htmlFor={`slot-${field.name}`}
+          style={{ marginBottom: '0.2rem' }}
+        >
+          Field belongs to
+        </label>
+        <select
+          id={`slot-${field.name}`}
+          className="bb-input"
+          value={slotOverride}
+          onChange={(e) => onSlotChange(field.name, Number(e.target.value))}
+        >
+          <option value={0}>
+            Auto-detect{detectedSlot > 0 ? ` (Hunter ${detectedSlot})` : ' (Trip-level)'}
+          </option>
+          <option value={1}>Hunter 1</option>
+          <option value={2}>Hunter 2</option>
+          <option value={3}>Hunter 3</option>
+          <option value={4}>Hunter 4</option>
+          <option value={5}>Hunter 5</option>
+        </select>
+      </div>
 
       <select
         className="bb-input"

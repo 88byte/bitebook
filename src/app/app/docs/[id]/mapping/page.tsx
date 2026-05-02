@@ -32,13 +32,17 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind')
+    .select('field_name, data_source_path, mapping_kind, hunter_slot')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
   const existingByField: Record<string, string> = {}
+  const existingSlotByField: Record<string, number> = {}
   for (const r of existingRows ?? []) {
-    if (r.field_name) existingByField[r.field_name] = r.data_source_path ?? ''
+    if (r.field_name) {
+      existingByField[r.field_name] = r.data_source_path ?? ''
+      existingSlotByField[r.field_name] = typeof r.hunter_slot === 'number' ? r.hunter_slot : 0
+    }
   }
 
   return (
@@ -69,6 +73,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         docId={doc.id}
         docKind={doc.kind}
         existingByField={existingByField}
+        existingSlotByField={existingSlotByField}
         currentStatus={doc.mapping_status}
       />
     </main>

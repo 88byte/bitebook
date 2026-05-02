@@ -202,6 +202,15 @@ function resolveSource(
     const key = path.slice('harvest_log.purpose.has_'.length)
     return ctx.log.trip_purpose.includes(key)
   }
+  // v27.1.1.0.3c.1: string variants — comma-joined summary or the first
+  // picked label. Snake_case keys converted to Title Case for display.
+  if (path === 'harvest_log.purpose.summary') {
+    return ctx.log.trip_purpose.map(formatPurposeLabel).join(', ')
+  }
+  if (path === 'harvest_log.purpose.first') {
+    const first = ctx.log.trip_purpose[0]
+    return first ? formatPurposeLabel(first) : ''
+  }
 
   // Per-row sources — resolve against entries[slot-1]. If slot=0 use first
   // entry as a sane fallback for non-slotted PDFs (engine handles overflow
@@ -314,16 +323,21 @@ export async function generateFilledHarvestLogPDFsAction(
     .maybeSingle()
   if (!trip) return { error: 'Trip not found.' }
 
-  // Mappings.
+  // Mappings. v27.1.1.0.3c.1: hunter_slot column lets the wizard
+  // override the regex-detected slot per field.
   const { data: mappings } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind')
+    .select('field_name, data_source_path, mapping_kind, hunter_slot')
     .eq('doc_id', docId)
     .eq('mapping_kind', 'field')
-  const mappingByField = new Map<string, string>()
+  type MappingEntry = { path: string; manualSlot: number }
+  const mappingByField = new Map<string, MappingEntry>()
   for (const m of mappings ?? []) {
     if (m.field_name && m.data_source_path) {
-      mappingByField.set(m.field_name, m.data_source_path)
+      mappingByField.set(m.field_name, {
+        path: m.data_source_path,
+        manualSlot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
+      })
     }
   }
   if (mappingByField.size === 0) {
@@ -478,11 +492,19 @@ export async function generateFilledHarvestLogPDFsAction(
   }
   const baseBytes = new Uint8Array(await blob.arrayBuffer())
 
-  // Inspect once to detect slots.
+  // Inspect once to detect slots. v27.1.1.0.3c.1: a field's effective slot
+  // is the manual hunter_slot override when > 0, else the regex parse.
+  // maxSlot considers both sources so a PDF whose names don't follow the
+  // patterns but where the guide explicitly assigned slots still
+  // overflows correctly.
   const introspect = await PDFDocument.load(baseBytes, { ignoreEncryption: true })
   const introspectFields = introspect.getForm().getFields()
-  const parsed = introspectFields.map((f) => parseFieldName(f.getName()))
-  const slotsInPdf = parsed.filter((p) => p.slot > 0).map((p) => p.slot)
+  const slotForField = (name: string): number => {
+    const manual = mappingByField.get(name)?.manualSlot ?? 0
+    if (manual > 0) return manual
+    return parseFieldName(name).slot
+  }
+  const slotsInPdf = introspectFields.map((f) => slotForField(f.getName())).filter((s) => s > 0)
   const maxSlot = slotsInPdf.length > 0 ? Math.max(...slotsInPdf) : 0
   const slotsPerPdf = maxSlot > 0 ? maxSlot : 1
   const passes = Math.ceil(entries.length / slotsPerPdf)
@@ -506,12 +528,12 @@ export async function generateFilledHarvestLogPDFsAction(
     const form = pdf.getForm()
     for (const field of form.getFields()) {
       const name = field.getName()
-      const path = mappingByField.get(name)
-      if (!path) continue
-      const parsedField = parseFieldName(name)
-      // Cap slot index — if the PDF has slot 5 and we're on a pass with
-      // only 2 entries, leave slots 3-5 blank.
-      const effectiveSlot = parsedField.slot
+      const mapping = mappingByField.get(name)
+      if (!mapping) continue
+      const path = mapping.path
+      // Manual override wins over regex auto-detect.
+      const detectedSlot = slotForField(name)
+      const effectiveSlot = detectedSlot
       if (effectiveSlot > passEntries.length) continue
       const value = resolveSource(path, passCtx, effectiveSlot)
       try {
@@ -640,4 +662,17 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
+}
+
+// v27.1.1.0.3c.1: snake_case purpose key → human label. Mirror of the
+// PURPOSES list in the editor; kept inline so we don't import client UI.
+const PURPOSE_LABELS: Record<string, string> = {
+  hunting: 'Hunting',
+  big_game: 'Big game',
+  fishing: 'Fishing',
+  fly_fishing: 'Fly fishing',
+  other: 'Other',
+}
+function formatPurposeLabel(key: string): string {
+  return PURPOSE_LABELS[key] ?? key
 }
