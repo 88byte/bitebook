@@ -9,7 +9,16 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
-import { PDFDocument } from 'pdf-lib'
+import {
+  PDFDocument,
+  PDFTextField,
+  PDFCheckBox,
+  PDFRadioGroup,
+  PDFDropdown,
+  PDFOptionList,
+  PDFButton,
+  PDFSignature,
+} from 'pdf-lib'
 import {
   SKIP_VALUE,
   STATIC_TEXT_PREFIX,
@@ -318,14 +327,23 @@ export async function extractDocFieldsAction(docId: string): Promise<ExtractFiel
   const form = pdf.getForm()
   const rawFields = form.getFields()
 
+  // v27.1.1.0.3c.4: switched from `f.constructor.name === 'PDFCheckBox'`
+  // to `instanceof PDFCheckBox`. Bundling under Vercel/Turbopack mangled
+  // pdf-lib's class names in production builds, so checkboxes were
+  // showing up as type='unknown' and the wizard was falling back to
+  // string-only source filtering. instanceof relies on the prototype
+  // chain rather than the JS class-name string and survives bundling.
+  // We keep a constructor.name fallback as defense-in-depth in case a
+  // duplicate pdf-lib import lands on a different prototype across
+  // server/client splits.
   const fields: DocPdfField[] = rawFields.map((f) => {
     const name = f.getName()
-    const ctorName = f.constructor.name
+    const ctorName = f.constructor?.name ?? ''
     let type: DocPdfField['type'] = 'unknown'
     let options: string[] | undefined
-    if (ctorName === 'PDFTextField') type = 'text'
-    else if (ctorName === 'PDFCheckBox') type = 'checkbox'
-    else if (ctorName === 'PDFRadioGroup') {
+    if (f instanceof PDFTextField || ctorName === 'PDFTextField') type = 'text'
+    else if (f instanceof PDFCheckBox || ctorName === 'PDFCheckBox') type = 'checkbox'
+    else if (f instanceof PDFRadioGroup || ctorName === 'PDFRadioGroup') {
       type = 'radio'
       const rg = f as unknown as { getOptions: () => string[] }
       try {
@@ -333,7 +351,7 @@ export async function extractDocFieldsAction(docId: string): Promise<ExtractFiel
       } catch {
         /* noop */
       }
-    } else if (ctorName === 'PDFDropdown') {
+    } else if (f instanceof PDFDropdown || ctorName === 'PDFDropdown') {
       type = 'dropdown'
       const dd = f as unknown as { getOptions: () => string[] }
       try {
@@ -341,7 +359,7 @@ export async function extractDocFieldsAction(docId: string): Promise<ExtractFiel
       } catch {
         /* noop */
       }
-    } else if (ctorName === 'PDFOptionList') {
+    } else if (f instanceof PDFOptionList || ctorName === 'PDFOptionList') {
       type = 'optionList'
       const ol = f as unknown as { getOptions: () => string[] }
       try {
@@ -349,8 +367,8 @@ export async function extractDocFieldsAction(docId: string): Promise<ExtractFiel
       } catch {
         /* noop */
       }
-    } else if (ctorName === 'PDFButton') type = 'button'
-    else if (ctorName === 'PDFSignature') type = 'signature'
+    } else if (f instanceof PDFButton || ctorName === 'PDFButton') type = 'button'
+    else if (f instanceof PDFSignature || ctorName === 'PDFSignature') type = 'signature'
     return { name, type, options }
   })
 

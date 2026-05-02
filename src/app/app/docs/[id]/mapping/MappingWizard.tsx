@@ -137,6 +137,21 @@ export default function MappingWizard({
       } else {
         setFields(res.fields)
         setHasAcroForm(res.hasAcroForm)
+        // v27.1.1.0.3c.4: implicit slot-1 derivation. CDFW-style forms
+        // name Hunter 1 fields without any slot suffix and only suffix
+        // Hunter 2..N as `_2`, `_3`, etc. — promote bare-base fields
+        // whose `<base>_<N>` siblings exist (N>=2) to slot 1 unless the
+        // guide already saved an override for them.
+        const names = res.fields.map((f) => f.name)
+        const implicit1 = detectImplicitSlot1Set(names)
+        setSlotOverrides((prev) => {
+          const next = { ...prev }
+          for (const n of implicit1) {
+            // Don't clobber an existing saved/manual override.
+            if (next[n] === undefined || next[n] === 0) next[n] = 1
+          }
+          return next
+        })
       }
       setLoadingFields(false)
     })
@@ -416,21 +431,57 @@ export default function MappingWizard({
   )
 }
 
+// v27.1.1.0.3c.4: implicit slot-1 derivation, inline mirror of
+// harvest-log-fill-types.detectImplicitSlot1. Walks all field names and
+// returns a Set of names that should be treated as slot 1 because their
+// base has a slot >= 2 sibling (e.g. "FULL NAME" alongside "FULL NAME_2",
+// "FULL NAME_3" — common on CDFW-style state forms).
+function detectImplicitSlot1Set(fieldNames: string[]): Set<string> {
+  const out = new Set<string>()
+  const bySlot = new Map<string, Set<number>>()
+  for (const raw of fieldNames) {
+    const parsed = parseFieldNameInline(raw)
+    if (!bySlot.has(parsed.base)) bySlot.set(parsed.base, new Set())
+    bySlot.get(parsed.base)!.add(parsed.slot)
+  }
+  for (const raw of fieldNames) {
+    const parsed = parseFieldNameInline(raw)
+    if (parsed.slot !== 0) continue
+    const slots = bySlot.get(parsed.base)
+    if (!slots) continue
+    let hasSibling = false
+    for (const slot of slots) {
+      if (slot >= 2) { hasSibling = true; break }
+    }
+    if (hasSibling) out.add(raw)
+  }
+  return out
+}
+
 // v27.1.1.0.3c.2: parseFieldName equivalent inline (so wizard doesn't
 // import the engine module). Mirror of harvest-log-fill-types.parseFieldName.
+// v27.1.1.0.3c.4: regex loosened — adds space separator (` 1`) and parens
+// suffix (`(2)`) on top of existing prefix/suffix patterns.
 function parseFieldNameInline(name: string): { slot: number; base: string } {
-  const prefix = /^(?:hunter|h|row)[_-]?(\d+)[_-]?(.*)$/i.exec(name)
+  const prefix = /^(?:hunter|h|row)[\s_-]?(\d+)[\s_-]?(.*)$/i.exec(name)
   if (prefix) {
     const n = Number(prefix[1])
     if (Number.isFinite(n) && n >= 1 && n <= 99) {
       return { slot: n, base: (prefix[2] || '').trim() }
     }
   }
-  const suffix = /^(.*?)[_-](\d+)$/i.exec(name)
+  const suffix = /^(.*?)[\s_-](\d+)$/i.exec(name)
   if (suffix) {
     const n = Number(suffix[2])
     if (Number.isFinite(n) && n >= 1 && n <= 99) {
       return { slot: n, base: (suffix[1] || '').trim() }
+    }
+  }
+  const parens = /^(.*?)\s*\((\d+)\)$/.exec(name)
+  if (parens) {
+    const n = Number(parens[2])
+    if (Number.isFinite(n) && n >= 1 && n <= 99) {
+      return { slot: n, base: (parens[1] || '').trim() }
     }
   }
   return { slot: 0, base: name }
@@ -481,9 +532,13 @@ function SlotBadgeButton({
   onSlotChange: (slot: number) => void
 }) {
   const [editing, setEditing] = useState(false)
-  // v27.1.1.0.3c.3: trip-level fields render no badge by default. Only
-  // hunter-detected (or hunter-overridden) fields surface the pill.
-  if (slot === 0 && !editing) return null
+  // v27.1.1.0.3c.4: badge is always tappable, even for slot 0
+  // ("TRIP-LEVEL"). State forms with non-standard hunter naming
+  // (e.g. CDFW 992-A's bare-name Hunter 1 fields whose siblings live
+  // at `_2`/`_3`) need a manual override path. Implicit-1 derivation
+  // catches the common case automatically; this badge is the escape
+  // hatch for everything else. Trip-level pill stays subtle so hunter
+  // pills still pop visually.
   const isOverridden = slotOverride > 0 && slotOverride !== detectedSlot
   const label = slot > 0 ? `HUNTER ${slot}` : 'TRIP-LEVEL'
   if (editing) {
