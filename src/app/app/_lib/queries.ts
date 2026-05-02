@@ -319,7 +319,15 @@ export async function fetchTripsPage(
     .eq('guide_id', guideId)
     .order('starts_at', { ascending: false })
     .range(opts.from, opts.to)
-  if (opts.status !== 'all') query = query.eq('status', opts.status)
+  // v27.1.1.0.3a.5: ALL filter excludes canceled trips. Canceled lives
+  // exclusively under its own CANCELED chip so the default trips list
+  // stays focused on planned/active/completed (the happy path). Pass
+  // status='canceled' explicitly to surface them.
+  if (opts.status === 'all') {
+    query = query.in('status', ['planned', 'active', 'completed'])
+  } else {
+    query = query.eq('status', opts.status)
+  }
   const { data, count, error } = await query
   if (error) {
     console.warn('[queries.fetchTripsPage]', { guideId, code: error.code, message: error.message })
@@ -957,7 +965,13 @@ export async function fetchHunterTripsPage(
       )`
     )
     .eq('hunter_id', hunterId)
-  if (opts.status !== 'all') query = query.eq('trip.status', opts.status)
+  // v27.1.1.0.3a.5: ALL filter excludes canceled trips on the hunter
+  // trips list, mirroring the guide-side fix.
+  if (opts.status === 'all') {
+    query = query.in('trip.status', ['planned', 'active', 'completed'])
+  } else {
+    query = query.eq('trip.status', opts.status)
+  }
   const { data, error } = await query
   if (error) {
     console.warn('[queries.fetchHunterTripsPage]', { hunterId, code: error.code, message: error.message })
@@ -966,6 +980,13 @@ export async function fetchHunterTripsPage(
   const all = (data ?? [])
     .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
     .filter((t): t is Record<string, unknown> => !!t)
+    // Defense-in-depth: PostgREST nested filters can be unreliable. If
+    // ALL is selected, drop canceled here too.
+    .filter((t) => {
+      if (opts.status !== 'all') return true
+      const s = (t as { status?: string }).status
+      return s !== 'canceled'
+    })
     .map(shapeHunterTripRow)
     .sort((a, b) => (a.starts_at < b.starts_at ? 1 : -1))
   const total = all.length
