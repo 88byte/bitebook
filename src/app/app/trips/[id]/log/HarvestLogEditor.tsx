@@ -13,11 +13,14 @@ import {
   removeEntrySpeciesAction,
   deleteHarvestLogAndRedirectAction,
 } from '../../../_lib/harvest-log-actions'
+import { generateFilledHarvestLogPDFsAction } from '../../../_lib/harvest-log-fill'
 import type {
   HarvestLogWithEntries,
   HarvestLogEntryWithRelations,
   HarvestLogEntrySpeciesRow,
+  MappedLogDoc,
 } from '../../../_lib/harvest-log-queries'
+import { Download, ExternalLink } from 'lucide-react'
 
 // v27.1.1.0.3a   — accordion editor.
 // v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
@@ -98,9 +101,11 @@ function useFadingSavedStatus(): [SaveStatus, (s: SaveStatus) => void] {
 export default function HarvestLogEditor({
   tripId,
   log,
+  mappedDocs,
 }: {
   tripId: string
   log: HarvestLogWithEntries
+  mappedDocs: MappedLogDoc[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -251,15 +256,9 @@ export default function HarvestLogEditor({
         )}
       </section>
 
-      {/* Generate Filled PDFs section — placeholder for v27.1.1.0.3b */}
-      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-        <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Generate filled PDFs</h2>
-          <p className="bb-form-help" style={{ margin: 0 }}>
-            Filled state-form generation ships in the next build (v27.1.1.0.3b).
-          </p>
-        </div>
-      </section>
+      {/* v27.1.1.0.3b: Generate filled PDFs */}
+      <GeneratePdfsSection logId={log.id} mappedDocs={mappedDocs} />
+
 
       {/* Danger zone — delete + start over */}
       <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
@@ -828,6 +827,188 @@ function PhantomSpeciesRow({
       {/* eslint-disable-next-line @typescript-eslint/no-unused-expressions */}
       {pending}
     </div>
+  )
+}
+
+// ── GeneratePdfsSection ─────────────────────────────────────────────────
+//
+// v27.1.1.0.3b. Doc picker + Generate button at the bottom of /log.
+// Auto-selects the only mapped log doc when there's exactly one. Empty
+// state when none are mapped: copy + link out to Documents library.
+// Generated artifacts render inline as a list with per-PDF Open
+// (new-tab signed URL) + Download buttons. Soft warnings from the
+// engine surface above the list.
+
+type FilledArtifact = {
+  doc_id: string
+  file_path: string
+  signed_url: string
+  label: string
+  index: number
+  total: number
+}
+
+function GeneratePdfsSection({
+  logId,
+  mappedDocs,
+}: {
+  logId: string
+  mappedDocs: MappedLogDoc[]
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [docId, setDocId] = useState<string>(mappedDocs[0]?.id ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [artifacts, setArtifacts] = useState<FilledArtifact[]>([])
+
+  function generate() {
+    setError(null)
+    setWarnings([])
+    setArtifacts([])
+    if (!docId) {
+      setError('Pick a mapped log doc first.')
+      return
+    }
+    startTransition(async () => {
+      const res = await generateFilledHarvestLogPDFsAction(logId, docId)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      setArtifacts(res.artifacts)
+      setWarnings(res.warnings)
+      router.refresh()
+    })
+  }
+
+  if (mappedDocs.length === 0) {
+    return (
+      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Generate filled PDFs</h2>
+          <p className="bb-form-help" style={{ margin: 0 }}>
+            No mapped log docs yet. Upload a state harvest log under Documents and map its
+            fields, then come back here to fill it from this report.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+      <div className="bb-tile-body">
+        <h2 className="bb-form-section-head">Generate filled PDFs</h2>
+        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+          Fills the picked state form with this report. Hunters with
+          &ldquo;Include in report&rdquo; unchecked are skipped. Forms with
+          per-hunter slots overflow into multiple PDFs when needed.
+        </p>
+
+        {mappedDocs.length > 1 && (
+          <div className="bb-form-row" style={{ marginTop: '0.5rem' }}>
+            <label className="bb-form-label" htmlFor="fill_doc_picker">Pick a log doc</label>
+            <select
+              id="fill_doc_picker"
+              className="bb-input"
+              value={docId}
+              onChange={(e) => setDocId(e.target.value)}
+            >
+              {mappedDocs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                  {d.state ? ` (${d.state})` : ''}
+                  {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {mappedDocs.length === 1 && (
+          <p className="bb-form-help" style={{ margin: '0.4rem 0' }}>
+            Using <strong>{mappedDocs[0].label}</strong>
+            {mappedDocs[0].state ? ` (${mappedDocs[0].state})` : ''}
+            {mappedDocs[0].mapping_status === 'partial' ? ' · partial mapping' : ''}.
+          </p>
+        )}
+
+        <div style={{ marginTop: '0.6rem' }}>
+          <button
+            type="button"
+            className="bb-cta-sm"
+            onClick={generate}
+            disabled={pending || !docId}
+          >
+            {pending ? 'Generating…' : 'Generate filled PDFs'}
+          </button>
+        </div>
+
+        {error && (
+          <p
+            className="bb-form-help"
+            role="alert"
+            style={{ color: '#8C3C2A', marginTop: '0.5rem' }}
+          >
+            {error}
+          </p>
+        )}
+
+        {warnings.length > 0 && (
+          <ul style={{ marginTop: '0.5rem', paddingLeft: '1.1rem', color: 'var(--color-ink-soft)', fontSize: '0.85rem' }}>
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        )}
+
+        {artifacts.length > 0 && (
+          <div className="flex flex-col gap-2 mt-3">
+            {artifacts.map((a) => (
+              <div
+                key={a.file_path}
+                className="bb-tile"
+                style={{
+                  padding: '0.6rem 0.75rem',
+                  borderColor: 'var(--color-ink-tint)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>{a.label}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
+                    Saved to your trip docs · part {a.index} of {a.total}
+                  </div>
+                </div>
+                <a
+                  href={a.signed_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="bb-cta-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <ExternalLink size={14} aria-hidden="true" />
+                  Open
+                </a>
+                <a
+                  href={a.signed_url}
+                  download
+                  className="bb-btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Download size={14} aria-hidden="true" />
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 

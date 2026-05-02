@@ -344,42 +344,9 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           </div>
         </section>
 
-        {/* v27.1.1.0.3a.5: Hunt report section always renders (no gate).
-            Top action row is the primary entry; this in-page section is
-            the belt-and-suspenders fallback so the CTA is always visible
-            even when the top row wraps on small viewports. */}
-        <section
-          className="bb-tile bb-form-section"
-          aria-labelledby="td-hunt-report"
-        >
-          <div className="bb-tile-body">
-            <SectionHead id="td-hunt-report" icon={Activity} label="Hunt report" />
-            {harvestLogSummary.exists ? (
-              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
-                {harvestLogSummary.total_entries} hunter
-                {harvestLogSummary.total_entries === 1 ? '' : 's'} on the report
-                {harvestLogSummary.total_entries > 0 && (
-                  <>
-                    {' · '}
-                    {harvestLogSummary.included_entries} included
-                    {harvestLogSummary.excluded_entries > 0
-                      ? ` · ${harvestLogSummary.excluded_entries} excluded`
-                      : ''}
-                  </>
-                )}
-                .
-              </p>
-            ) : (
-              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
-                Generate the hunt report. One entry per hunter on the trip — auto-fills license,
-                tag, phone, and address from the wallet and profile.
-              </p>
-            )}
-            <Link href={`/app/trips/${trip.id}/log`} className="bb-cta-sm">
-              {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
-            </Link>
-          </div>
-        </section>
+        {/* v27.1.1.0.3b: mid-page Hunt report section dropped. Top action
+            row button is the only entry point; the fallback isn't
+            needed now that the gate is removed. */}
 
         {/* v27.0b.9.1: Trip actions section relocated to the top of the
             page (under the header). The bottom-of-page action row was

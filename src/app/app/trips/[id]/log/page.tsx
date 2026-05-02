@@ -3,7 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../../_lib/auth'
 import { fetchTripDetail } from '../../../_lib/queries'
-import { fetchHarvestLog, ensureHarvestLog } from '../../../_lib/harvest-log-queries'
+import {
+  fetchHarvestLog,
+  ensureHarvestLog,
+  fetchMappedLogDocs,
+} from '../../../_lib/harvest-log-queries'
 import HarvestLogEditor from './HarvestLogEditor'
 
 type Params = Promise<{ id: string }>
@@ -59,6 +63,9 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
     if (!log) redirect(`/app/trips/${tripId}`)
   }
 
+  // v27.1.1.0.3b: fetch mapped log docs for the Generate PDF picker.
+  const mappedDocs = await fetchMappedLogDocs(profile.id)
+
   return (
     <main className="bb-app-main">
       <div className="mb-3">
@@ -75,12 +82,12 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         <p className="bb-page-eyebrow">Hunt report</p>
         <h1 className="bb-page-title">{trip.title}</h1>
         <p className="bb-page-sub">
-          One entry per hunter on the trip. Edit qty + species, toggle &ldquo;Include in PDF
-          report&rdquo;, and generate filled state forms. Auto-fill PDFs ship in the next build.
+          One entry per hunter on the trip. Edit qty + species, toggle &ldquo;Include in
+          report&rdquo;, then generate filled state forms.
         </p>
       </header>
 
-      <HarvestLogEditor tripId={tripId} log={log} />
+      <HarvestLogEditor tripId={tripId} log={log} mappedDocs={mappedDocs} />
     </main>
   )
 }

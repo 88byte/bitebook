@@ -140,15 +140,30 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'hunter_license.valid_to',    label: 'Hunter license expires',          category: 'hunter_license', valueType: 'string', type: 'date', perRow: true },
   { value: 'hunter_license.holder_name', label: 'Hunter license holder',           category: 'hunter_license', valueType: 'string', type: 'text', perRow: true },
 
-  // ── Harvest (per-row) ───────────────────────────────────────────────
-  { value: 'harvest.species_name',  label: 'Harvest species',     category: 'harvest', valueType: 'string', type: 'text', perRow: true },
-  { value: 'harvest.tag_number',    label: 'Harvest tag number',  category: 'harvest', valueType: 'string', type: 'text', perRow: true },
-  { value: 'harvest.method',        label: 'Harvest method',      category: 'harvest', valueType: 'string', type: 'text', perRow: true },
-  { value: 'harvest.harvested_at',  label: 'Harvest date / time', category: 'harvest', valueType: 'string', type: 'date', perRow: true },
-  { value: 'harvest.location_text', label: 'Harvest location',    category: 'harvest', valueType: 'string', type: 'text', perRow: true },
-  { value: 'harvest.notes',         label: 'Harvest notes',       category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  // ── Harvest (per-row, resolved from harvest_log_entries[N].species_rows[0]
+  //    when slot detected — first species row of the per-slot entry. Also
+  //    used for trip-level fields with no slot pattern, in which case the
+  //    engine joins species across all included entries.) ─────────────────
+  { value: 'harvest.species',       label: 'Harvest species',     category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.qty_harvested', label: 'Qty harvested',       category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest.qty_released',  label: 'Qty released',        category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest.method',        label: 'Method',              category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.notes',         label: 'Hunter entry notes',  category: 'harvest', valueType: 'string', type: 'text', perRow: true },
+  { value: 'harvest.total_hours',   label: 'Hunter total hours',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
   // boolean sibling
-  { value: 'harvest.exists',        label: 'Trip has any harvest', category: 'harvest', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest.exists',        label: 'Trip has any harvest',category: 'harvest', valueType: 'boolean', type: 'boolean' },
+
+  // ── Trip-level harvest log (derived) ────────────────────────────────
+  { value: 'harvest_log.log_date',         label: 'Hunt date',                     category: 'harvest', valueType: 'string', type: 'date' },
+  { value: 'harvest_log.total_hours_sum',  label: 'Total hours (sum across hunters)', category: 'harvest', valueType: 'string', type: 'number' },
+  // Trip purpose checkbox sources — boolean-valued so they map to
+  // checkbox PDF fields. The engine reads harvest_logs.trip_purpose
+  // (jsonb array) and resolves to true if the value is present.
+  { value: 'harvest_log.purpose.has_hunting',     label: 'Trip purpose: hunting',     category: 'harvest', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest_log.purpose.has_big_game',    label: 'Trip purpose: big game',    category: 'harvest', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest_log.purpose.has_fishing',     label: 'Trip purpose: fishing',     category: 'harvest', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest_log.purpose.has_fly_fishing', label: 'Trip purpose: fly fishing', category: 'harvest', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest_log.purpose.has_other',       label: 'Trip purpose: other',       category: 'harvest', valueType: 'boolean', type: 'boolean' },
 
   // ── Wallet item consumed by the harvest (the tag the harvest used) ──
   { value: 'wallet_consumed.identifier',         label: 'Tag identifier',         category: 'wallet_consumed', valueType: 'string', type: 'text', perRow: true },

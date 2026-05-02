@@ -238,6 +238,35 @@ export async function ensureHarvestLog(
   return { ok: true, id: logId }
 }
 
+// v27.1.1.0.3b: log-type docs the guide has mapped that can be used as
+// fill templates. mapping_status must be 'partial' or 'complete' (we
+// allow partial so a guide can fill the fields they've set up even if
+// the rest of the form isn't fully mapped). Resource and waiver docs
+// are skipped — only logs.
+export type MappedLogDoc = {
+  id: string
+  label: string
+  state: string | null
+  mapping_status: string
+}
+
+export async function fetchMappedLogDocs(guideId: string): Promise<MappedLogDoc[]> {
+  const sb = await createClient()
+  const { data, error } = await sb
+    .from('docs')
+    .select('id, label, state, mapping_status')
+    .eq('guide_id', guideId)
+    .eq('kind', 'log')
+    .is('archived_at', null)
+    .in('mapping_status', ['partial', 'complete'])
+    .order('updated_at', { ascending: false })
+  if (error) {
+    console.warn('[fetchMappedLogDocs]', { code: error.code, message: error.message })
+    return []
+  }
+  return data ?? []
+}
+
 export async function fetchHarvestLogSummary(tripId: string): Promise<HarvestLogSummary> {
   const sb = await createClient()
   const { data: log } = await sb
