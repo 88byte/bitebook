@@ -23,7 +23,7 @@ import {
   staticDateValue,
   isStaticDateRange,
   staticDateRangeValue,
-  sourcesForFieldType,
+  sourcesForFieldOnSlot,
   type DataSourceOption,
 } from '../../../_lib/doc-data-sources'
 
@@ -370,9 +370,28 @@ function FieldRow({
   onStaticDateChange: (fieldName: string, value: string) => void
   onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
 }) {
-  // Source list filtered by AcroForm field type so checkbox fields only
-  // see boolean sources.
-  const sources = useMemo(() => sourcesForFieldType(field.type), [field.type])
+  // v27.1.1.0.3c: source list now slot-aware. Per-hunter slot fields
+  // show only perRow sources; trip-level fields show only non-perRow.
+  // parseFieldName lives in harvest-log-fill-types — same regex the
+  // fill engine uses, so the wizard scoping matches the engine's slot
+  // resolution exactly.
+  const slot = useMemo(() => {
+    // Inline mini-version of parseFieldName to avoid pulling the engine
+    // import into a client module.
+    const prefix = /^(?:hunter|h|row)[_-]?(\d+)[_-]?(.*)$/i.exec(field.name)
+    if (prefix) {
+      const n = Number(prefix[1])
+      if (Number.isFinite(n) && n >= 1 && n <= 99) return n
+    }
+    const suffix = /^(.*?)[_-](\d+)$/i.exec(field.name)
+    if (suffix) {
+      const n = Number(suffix[2])
+      if (Number.isFinite(n) && n >= 1 && n <= 99) return n
+    }
+    return 0
+  }, [field.name])
+
+  const sources = useMemo(() => sourcesForFieldOnSlot(field.type, slot), [field.type, slot])
   const grouped = useMemo(() => {
     const out: Record<string, DataSourceOption[]> = {}
     for (const cat of CATEGORY_ORDER) out[cat] = []
@@ -419,22 +438,39 @@ function FieldRow({
         >
           {field.name}
         </div>
-        <span
-          aria-label={`Field type ${field.type}`}
-          style={{
-            flexShrink: 0,
-            fontSize: '0.7rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-            padding: '0.15rem 0.45rem',
-            borderRadius: 999,
-            background: 'var(--color-paper-tint)',
-            color: 'var(--color-ink-soft)',
-          }}
-        >
-          {field.type}
-        </span>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+          {slot > 0 && (
+            <span
+              aria-label={`Hunter ${slot}`}
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.15rem 0.5rem',
+                borderRadius: 999,
+                background: 'rgba(168, 92, 50, 0.12)',
+                color: 'var(--color-copper)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              HUNTER {slot}
+            </span>
+          )}
+          <span
+            aria-label={`Field type ${field.type}`}
+            style={{
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              padding: '0.15rem 0.45rem',
+              borderRadius: 999,
+              background: 'var(--color-paper-tint)',
+              color: 'var(--color-ink-soft)',
+            }}
+          >
+            {field.type}
+          </span>
+        </div>
       </div>
 
       {field.options && field.options.length > 0 && (

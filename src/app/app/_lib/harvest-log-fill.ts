@@ -183,11 +183,14 @@ function resolveSource(
       .join(', ')
   }
 
-  // Guide wallet (license)
-  if (path === 'guide_wallet.identifier') return ctx.guide_license.identifier ?? ''
-  if (path === 'guide_wallet.state') return ctx.guide_license.state ?? ''
-  if (path === 'guide_wallet.holder_name') return ctx.guide.full_name ?? ''
-  if (path === 'guide_wallet.valid_to') return fmtDateMMDDYYYY(ctx.guide_license.valid_to)
+  // Guide license (renamed from guide_wallet in v27.1.1.0.3c).
+  // guide_wallet.* aliases preserved as a defensive back-compat in case
+  // any unmigrated mappings remain — DB migration in v27.1.1.0.3c
+  // already moved Flavio's saved mappings.
+  if (path === 'guide_license.identifier' || path === 'guide_wallet.identifier') return ctx.guide_license.identifier ?? ''
+  if (path === 'guide_license.state' || path === 'guide_wallet.state') return ctx.guide_license.state ?? ''
+  if (path === 'guide_license.holder_name' || path === 'guide_wallet.holder_name') return ctx.guide.full_name ?? ''
+  if (path === 'guide_license.valid_to' || path === 'guide_wallet.valid_to') return fmtDateMMDDYYYY(ctx.guide_license.valid_to)
 
   // Trip-level harvest_log
   if (path === 'harvest_log.log_date') return fmtDateMMDDYYYY(ctx.log.log_date)
@@ -236,16 +239,35 @@ function resolveSource(
   if (path === 'wallet_consumed.is_single_use') return false  // not tracked at fill time
   if (path === 'wallet_consumed.is_federal') return false
 
-  // Harvest (per-species-row[0] of the per-slot entry).
-  const sp = entry.species_rows[0]
-  if (path === 'harvest.species') {
-    return sp?.species ?? entry.tag?.species ?? ''
+  // v27.1.1.0.3c: harvest_log_entry.* (entry-level scalars per slot).
+  if (path === 'harvest_log_entry.notes') return entry.notes ?? ''
+  if (path === 'harvest_log_entry.total_hours') {
+    return entry.total_hours !== null && entry.total_hours !== undefined ? String(entry.total_hours) : ''
   }
-  if (path === 'harvest.qty_harvested') return sp ? String(sp.qty_harvested) : ''
-  if (path === 'harvest.qty_released') return sp ? String(sp.qty_released) : ''
+
+  // harvest_log_entry_species[N].field — N is 1-indexed.
+  const speciesMatch = /^harvest_log_entry_species\[(\d+)\]\.(species|qty_harvested|qty_released)$/.exec(path)
+  if (speciesMatch) {
+    const idx = Number(speciesMatch[1]) - 1
+    const sp = entry.species_rows[idx]
+    if (!sp) return ''
+    if (speciesMatch[2] === 'species') return sp.species ?? ''
+    if (speciesMatch[2] === 'qty_harvested') return String(sp.qty_harvested)
+    if (speciesMatch[2] === 'qty_released') return String(sp.qty_released)
+  }
+
+  // Legacy harvest.* paths — back-compat aliases that resolve to species[0]
+  // and the entry-level scalars. Catalog no longer surfaces these but
+  // stale mappings shouldn't error.
+  const sp0 = entry.species_rows[0]
+  if (path === 'harvest.species') return sp0?.species ?? entry.tag?.species ?? ''
+  if (path === 'harvest.qty_harvested') return sp0 ? String(sp0.qty_harvested) : ''
+  if (path === 'harvest.qty_released') return sp0 ? String(sp0.qty_released) : ''
   if (path === 'harvest.method') return entry.tag?.weapon_restriction ?? ctx.trip.method ?? ''
   if (path === 'harvest.notes') return entry.notes ?? ''
-  if (path === 'harvest.total_hours') return entry.total_hours !== null ? String(entry.total_hours) : ''
+  if (path === 'harvest.total_hours') {
+    return entry.total_hours !== null && entry.total_hours !== undefined ? String(entry.total_hours) : ''
+  }
   if (path === 'harvest.exists') {
     return ctx.entries.some((e) => e.species_rows.some((s) => (s.qty_harvested || 0) > 0))
   }
