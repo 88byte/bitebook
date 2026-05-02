@@ -25,56 +25,8 @@ import {
   isStaticDateRange,
   staticDateRangeValue,
 } from './doc-data-sources'
-
-export type FilledPdfArtifact = {
-  doc_id: string
-  file_path: string
-  signed_url: string
-  label: string
-  /** 1-indexed page in the multi-PDF overflow series. */
-  index: number
-  total: number
-}
-
-export type GenerateFilledLogResult =
-  | { ok: true; artifacts: FilledPdfArtifact[]; warnings: string[] }
-  | { error: string }
-
-// ── Slot pattern detection ─────────────────────────────────────────────
-
-// Field name patterns we recognize as per-hunter "slot" fields. The
-// captured group is the 1-indexed slot number; everything else is the
-// field's logical name (used for de-duping across slots).
-//   hunter1_species  -> slot 1, base "species"
-//   h2_tag_number    -> slot 2, base "tag_number"
-//   row3_kept        -> slot 3, base "kept"
-//   species_4        -> slot 4, base "species"
-const SLOT_REGEX_PREFIX = /^(?:hunter|h|row)[_-]?(\d+)[_-]?(.*)$/i
-const SLOT_REGEX_SUFFIX = /^(.*?)[_-](\d+)$/i
-
-export type ParsedFieldName = {
-  raw: string
-  slot: number  // 0 = trip-level, 1+ = per-hunter slot
-  base: string  // logical name without slot decoration
-}
-
-export function parseFieldName(name: string): ParsedFieldName {
-  const prefix = SLOT_REGEX_PREFIX.exec(name)
-  if (prefix) {
-    const slot = Number(prefix[1])
-    if (Number.isFinite(slot) && slot >= 1 && slot <= 99) {
-      return { raw: name, slot, base: (prefix[2] || '').trim() }
-    }
-  }
-  const suffix = SLOT_REGEX_SUFFIX.exec(name)
-  if (suffix) {
-    const slot = Number(suffix[2])
-    if (Number.isFinite(slot) && slot >= 1 && slot <= 99) {
-      return { raw: name, slot, base: (suffix[1] || '').trim() }
-    }
-  }
-  return { raw: name, slot: 0, base: name }
-}
+import { parseFieldName } from './harvest-log-fill-types'
+import type { FilledPdfArtifact, GenerateFilledLogResult } from './harvest-log-fill-types'
 
 // ── Source resolution ─────────────────────────────────────────────────
 
@@ -174,7 +126,7 @@ function joinAddress(snapshot: Record<string, string | null> | null): {
 
 // Resolve a saved data_source_path to a value. Slot is 1-indexed (slot 0
 // means trip-level).
-export function resolveSource(
+function resolveSource(
   path: string,
   ctx: LogContext,
   slot: number
