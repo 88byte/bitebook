@@ -248,7 +248,10 @@ export async function fetchRecentTrips(guideId: string): Promise<TripRowWithCoun
     .select(`${TRIP_ROW_COLS},
              trip_participants(count)`)
     .eq('guide_id', guideId)
-    .in('status', ['completed', 'canceled'])
+    // v27.1.1.0.3a.4: drop canceled from the dashboard Recent widget.
+    // Canceled trips are visible only via the trips list CANCELED filter
+    // chip — they don't belong on the happy-path dashboard.
+    .eq('status', 'completed')
     .order('updated_at', { ascending: false })
     .limit(RECENT_LIMIT)
   if (error) {
@@ -910,23 +913,26 @@ export async function fetchHunterRecentTrips(
       )`
     )
     .eq('hunter_id', hunterId)
-    .in('trip.status', ['completed', 'canceled'])
+    // v27.1.1.0.3a.4: Recent widget = completed only. Canceled trips
+    // were cluttering the hunter's dashboard and don't belong on the
+    // happy path. They remain accessible via the trips list page.
+    .eq('trip.status', 'completed')
     .order('updated_at', { foreignTable: 'trip', ascending: false })
     .limit(limit)
   if (error) {
     console.warn('[queries.fetchHunterRecentTrips]', { hunterId, code: error.code, message: error.message })
     return []
   }
-  // v27.0b.8: same defense-in-depth status filter as
-  // fetchHunterUpcomingTrips. The Recent widget only wants trips that
-  // are actually wrapped (completed | canceled). Filter in JS so we
-  // don't depend on PostgREST nested-filter behavior.
+  // Defense-in-depth JS filter — PostgREST nested-table filters can be
+  // unreliable, and the result shape includes the joined trip on each
+  // participant row. Reject anything that slipped through with a
+  // non-completed status.
   const shaped = (data ?? [])
     .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
     .filter((t): t is Record<string, unknown> => {
       if (!t) return false
       const s = (t as { status?: string }).status
-      return s === 'completed' || s === 'canceled'
+      return s === 'completed'
     })
     .map(shapeHunterTripRow)
   return attachRatings(shaped, { kind: 'hunter-own', hunterId })
