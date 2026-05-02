@@ -3,8 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../../_lib/auth'
 import { fetchTripDetail } from '../../../_lib/queries'
-import { fetchHarvestLog } from '../../../_lib/harvest-log-queries'
-import { generateHarvestLogAction } from '../../../_lib/harvest-log-actions'
+import { fetchHarvestLog, ensureHarvestLog } from '../../../_lib/harvest-log-queries'
 import HarvestLogEditor from './HarvestLogEditor'
 
 type Params = Promise<{ id: string }>
@@ -24,11 +23,16 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   if (!detail) notFound()
   const trip = detail.trip
 
-  // Auto-generate on first visit. Idempotent — existing log returns its id
-  // unchanged; missing log creates one + entries.
+  // v27.1.1.0.3a.1: ensure-or-create via a plain async helper (NOT a
+  // server action) so revalidatePath isn't fired from inside this render.
+  // The previous v27.1.1.0.3a flow called generateHarvestLogAction here,
+  // and Next.js can't reconcile a revalidate fired during a render pass —
+  // first visit briefly flashed the error boundary before the page
+  // resolved. ensureHarvestLog does the same insert work without the
+  // revalidate, so the render is clean.
   let log = await fetchHarvestLog(tripId)
   if (!log) {
-    const res = await generateHarvestLogAction(tripId)
+    const res = await ensureHarvestLog(tripId, profile.id)
     if ('error' in res) {
       return (
         <main className="bb-app-main">

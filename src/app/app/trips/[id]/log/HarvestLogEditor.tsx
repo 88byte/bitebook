@@ -3,26 +3,29 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   updateHarvestLogAction,
   updateHarvestLogEntryAction,
   addEntrySpeciesAction,
   updateEntrySpeciesAction,
   removeEntrySpeciesAction,
+  deleteHarvestLogAndRedirectAction,
 } from '../../../_lib/harvest-log-actions'
 import type {
   HarvestLogWithEntries,
   HarvestLogEntryWithRelations,
 } from '../../../_lib/harvest-log-queries'
 
-// v27.1.1.0.3a — accordion editor. Top: log-level fields (date / hours /
-// purpose). Below: one card per entry. Each entry has an include-in-PDF
-// checkbox + dynamic slot badge derived from the include_in_report order
-// across all entries (Hunter 1 / Hunter 2 / etc — visible only on
-// included entries). Inside the accordion: read-only auto-filled identity,
-// multi-species table, qty fields, notes.
-//
-// PDF generation button + slot resolution at fill time ship v27.1.1.0.3b.
+// v27.1.1.0.3a   — accordion editor.
+// v27.1.1.0.3a.1 — total_hours moved to per-entry. Log-level fields shrink
+//                  to date + purpose. "Include in PDF" relabeled
+//                  "Include in report". Delete report button + ConfirmModal
+//                  at the bottom. Top fields stack on narrow viewports —
+//                  with only a date input remaining at log-level the
+//                  earlier 2-col collision is gone, but the per-entry qty
+//                  grid keeps .bb-form-grid-2 (which already collapses to
+//                  1-col under 640px).
 
 const PURPOSES: { value: string; label: string }[] = [
   { value: 'hunting', label: 'Hunting' },
@@ -44,11 +47,8 @@ export default function HarvestLogEditor({
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
-  // Log-level state
+  // Log-level state (date + purpose only as of v27.1.1.0.3a.1)
   const [logDate, setLogDate] = useState<string>(log.log_date ?? '')
-  const [totalHours, setTotalHours] = useState<string>(
-    log.total_hours !== null && log.total_hours !== undefined ? String(log.total_hours) : ''
-  )
   const initialPurposes = useMemo(() => {
     const raw = log.trip_purpose
     if (Array.isArray(raw)) return new Set(raw.map((v) => String(v)))
@@ -56,15 +56,18 @@ export default function HarvestLogEditor({
   }, [log.trip_purpose])
   const [purposes, setPurposes] = useState<Set<string>>(initialPurposes)
 
-  // Slot map: each included entry gets a slot index in trip-participant
-  // order (which the queries already preserve via order-by created_at).
+  // Confirm-modal state for the destructive Delete report flow.
+  const [confirmDelete, setConfirmDelete] = useState<boolean>(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Slot map for the dynamic Hunter N badge — only included entries get a
+  // slot, ordered by participant order (which the query preserves via
+  // created_at ascending).
   const slotByEntryId = useMemo(() => {
     const map = new Map<string, number>()
     let slot = 1
     for (const e of log.entries) {
-      if (e.include_in_report) {
-        map.set(e.id, slot++)
-      }
+      if (e.include_in_report) map.set(e.id, slot++)
     }
     return map
   }, [log.entries])
@@ -84,7 +87,6 @@ export default function HarvestLogEditor({
     const fd = new FormData()
     fd.set('log_id', log.id)
     if (logDate) fd.set('log_date', logDate)
-    if (totalHours) fd.set('total_hours', totalHours)
     for (const p of purposes) fd.append('trip_purpose', p)
     startTransition(async () => {
       const res = await updateHarvestLogAction(fd)
@@ -97,36 +99,36 @@ export default function HarvestLogEditor({
     })
   }
 
+  function runDelete() {
+    setDeleteError(null)
+    startTransition(async () => {
+      const res = await deleteHarvestLogAndRedirectAction(log.id)
+      // The server action redirects on success; if we get here with an
+      // error envelope, surface it.
+      if (res && 'error' in res) {
+        setDeleteError(res.error)
+      }
+    })
+  }
+
   return (
     <div className="flex flex-col gap-4 mt-4">
-      {/* Log-level fields */}
+      {/* Log-level fields — date + trip purpose only */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Trip-level details</h2>
-          <div className="bb-form-grid-2">
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="log_date">Log date</label>
-              <input
-                id="log_date"
-                type="date"
-                className="bb-input"
-                value={logDate}
-                onChange={(e) => setLogDate(e.target.value)}
-              />
-            </div>
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="total_hours">Total hours</label>
-              <input
-                id="total_hours"
-                type="number"
-                step="0.25"
-                min="0"
-                className="bb-input"
-                value={totalHours}
-                onChange={(e) => setTotalHours(e.target.value)}
-                placeholder="0.0"
-              />
-            </div>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="log_date">Log date</label>
+            <input
+              id="log_date"
+              type="date"
+              className="bb-input"
+              value={logDate}
+              onChange={(e) => setLogDate(e.target.value)}
+            />
+            <p className="bb-form-help">
+              Hours per hunter live on each hunter&rsquo;s entry below.
+            </p>
           </div>
           <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
             <span className="bb-form-label" style={{ marginBottom: '0.4rem' }}>
@@ -211,6 +213,46 @@ export default function HarvestLogEditor({
         </div>
       </section>
 
+      {/* Danger zone — delete + start over */}
+      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Danger zone</h2>
+          <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+            Deletes this report and starts over. Tags consumed by entries get released.
+          </p>
+          <button
+            type="button"
+            className="bb-cta-sm bb-cta-sm-destructive"
+            onClick={() => setConfirmDelete(true)}
+            disabled={pending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Trash2 size={14} aria-hidden="true" />
+            Delete report
+          </button>
+          {deleteError && (
+            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
+              {deleteError}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Delete this hunt report and start over?"
+        body="The report and every hunter's entry will be removed. Any tags consumed by these entries will be released. This can't be undone."
+        confirmLabel="Delete report"
+        destructive
+        typeToConfirm="DELETE"
+        isPending={pending}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          setConfirmDelete(false)
+          runDelete()
+        }}
+      />
+
       <input type="hidden" name="trip_id" value={tripId} />
     </div>
   )
@@ -231,11 +273,13 @@ function EntryAccordion({
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
-  // Editable state (mirrors the row + species rows)
   const [include, setInclude] = useState<boolean>(entry.include_in_report)
   const [qHarv, setQHarv] = useState<string>(String(entry.qty_harvested))
   const [qKept, setQKept] = useState<string>(String(entry.qty_kept))
   const [qRel, setQRel] = useState<string>(String(entry.qty_released))
+  const [totalHours, setTotalHours] = useState<string>(
+    entry.total_hours !== null && entry.total_hours !== undefined ? String(entry.total_hours) : ''
+  )
   const [notes, setNotes] = useState<string>(entry.notes ?? '')
 
   const headerName = useMemo(() => {
@@ -248,7 +292,6 @@ function EntryAccordion({
     [entry.species_rows]
   )
 
-  // Soft warning if include is being unchecked while harvest qty > 0.
   const showExcludeWarning =
     !include && (Number(qHarv || 0) > 0 || totalSpeciesQty > 0)
 
@@ -260,6 +303,7 @@ function EntryAccordion({
     fd.set('qty_harvested', qHarv || '0')
     fd.set('qty_kept', qKept || '0')
     fd.set('qty_released', qRel || '0')
+    if (totalHours) fd.set('total_hours', totalHours)
     fd.set('notes', notes)
     if (include) fd.set('include_in_report', 'on')
     startTransition(async () => {
@@ -287,7 +331,6 @@ function EntryAccordion({
 
   return (
     <div className="bb-tile" style={{ overflow: 'hidden' }}>
-      {/* Header row — always visible */}
       <div
         className="bb-tile-body"
         style={{
@@ -295,6 +338,7 @@ function EntryAccordion({
           alignItems: 'center',
           gap: '0.5rem',
           padding: '0.75rem 1rem',
+          flexWrap: 'wrap',
         }}
       >
         <button
@@ -308,6 +352,7 @@ function EntryAccordion({
             padding: 0,
             cursor: 'pointer',
             color: 'var(--color-ink-soft)',
+            flexShrink: 0,
           }}
         >
           {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -368,11 +413,10 @@ function EntryAccordion({
             checked={include}
             onChange={(e) => setInclude(e.target.checked)}
           />
-          Include in PDF
+          Include in report
         </label>
       </div>
 
-      {/* Body — collapsed when not open */}
       {open && (
         <div
           style={{
@@ -398,7 +442,6 @@ function EntryAccordion({
             </p>
           )}
 
-          {/* Auto-filled identity (read-only summary) */}
           <section className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <span className="bb-form-label">Auto-filled identity</span>
             <div
@@ -424,7 +467,21 @@ function EntryAccordion({
             </div>
           </section>
 
-          {/* Per-entry quantities */}
+          {/* v27.1.1.0.3a.1: Total hours per hunter */}
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor={`hours_${entry.id}`}>Total hours</label>
+            <input
+              id={`hours_${entry.id}`}
+              type="number"
+              step="0.25"
+              min="0"
+              className="bb-input"
+              value={totalHours}
+              onChange={(e) => setTotalHours(e.target.value)}
+              placeholder="0.0"
+            />
+          </div>
+
           <div className="bb-form-grid-2" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor={`qh_${entry.id}`}>Qty harvested</label>
@@ -461,7 +518,6 @@ function EntryAccordion({
             </div>
           </div>
 
-          {/* Multi-species */}
           <section style={{ marginTop: '0.75rem' }}>
             <div
               style={{
@@ -496,7 +552,6 @@ function EntryAccordion({
             )}
           </section>
 
-          {/* Notes */}
           <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
             <label className="bb-form-label" htmlFor={`notes_${entry.id}`}>Notes</label>
             <textarea
@@ -632,8 +687,6 @@ function SpeciesRow({
     </div>
   )
 }
-
-// ── AddressLine helper ──────────────────────────────────────────────────
 
 function AddressLine({ snapshot }: { snapshot: unknown }) {
   if (!snapshot || typeof snapshot !== 'object') return null

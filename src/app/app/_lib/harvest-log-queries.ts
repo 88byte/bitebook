@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { Database } from '@/lib/supabase/types'
+import type { Database, TablesInsert } from '@/lib/supabase/types'
 
 // v27.1.1.0.3a — read paths for the harvest_logs / harvest_log_entries /
 // harvest_log_entry_species pivot. The fill engine (v27.1.1.0.3b) consumes
@@ -26,7 +26,7 @@ export async function fetchHarvestLog(
   const sb = await createClient()
   const { data: log, error: logErr } = await sb
     .from('harvest_logs')
-    .select('id, trip_id, created_by, log_date, total_hours, trip_purpose, created_at, updated_at')
+    .select('id, trip_id, created_by, log_date, trip_purpose, created_at, updated_at')
     .eq('trip_id', tripId)
     .maybeSingle()
   if (logErr) {
@@ -38,7 +38,7 @@ export async function fetchHarvestLog(
   const { data: entries } = await sb
     .from('harvest_log_entries')
     .select(
-      'id, log_id, hunter_id, guest_name, license_wallet_item_id, tag_wallet_item_id, qty_harvested, qty_kept, qty_released, notes, include_in_report, hunter_phone_snapshot, hunter_address_snapshot, created_at, updated_at'
+      'id, log_id, hunter_id, guest_name, license_wallet_item_id, tag_wallet_item_id, qty_harvested, qty_kept, qty_released, total_hours, notes, include_in_report, hunter_phone_snapshot, hunter_address_snapshot, created_at, updated_at'
     )
     .eq('log_id', log.id)
     .order('created_at', { ascending: true })
@@ -93,6 +93,149 @@ export type HarvestLogSummary = {
   total_entries: number
   included_entries: number
   excluded_entries: number
+}
+
+// v27.1.1.0.3a.1 — render-safe bootstrap. Idempotent ensure-or-create
+// for the harvest_log + auto-populated entries. Does NOT call
+// revalidatePath, so it's safe to invoke from a server component
+// render. The 'use server' generateHarvestLogAction wraps this for
+// client-triggered flows where revalidate matters.
+//
+// The error flash on /app/trips/[id]/log first-visit was caused by
+// calling generateHarvestLogAction (a server action with
+// revalidatePath inside) from the page render. Next.js can't cleanly
+// reconcile a revalidate fired during render, so the user briefly
+// saw the error boundary before the redirect resolved. Pulling this
+// helper out of the 'use server' module fixes that — the page render
+// now does plain DB work and never invokes a server action.
+
+export type EnsureHarvestLogResult =
+  | { ok: true; id: string }
+  | { error: string }
+
+export async function ensureHarvestLog(
+  tripId: string,
+  guideId: string
+): Promise<EnsureHarvestLogResult> {
+  if (!tripId) return { error: 'Missing trip id.' }
+
+  const sb = await createClient()
+
+  const { data: trip } = await sb
+    .from('trips')
+    .select('id, guide_id')
+    .eq('id', tripId)
+    .eq('guide_id', guideId)
+    .maybeSingle()
+  if (!trip) return { error: 'Trip not found.' }
+
+  const { data: existing } = await sb
+    .from('harvest_logs')
+    .select('id')
+    .eq('trip_id', tripId)
+    .maybeSingle()
+  if (existing) return { ok: true, id: existing.id }
+
+  const { data: created, error: insErr } = await sb
+    .from('harvest_logs')
+    .insert({ trip_id: tripId, created_by: guideId })
+    .select('id')
+    .single()
+  if (insErr || !created) {
+    console.warn('[ensureHarvestLog:insert]', { code: insErr?.code, message: insErr?.message })
+    return { error: insErr?.message || 'Could not create harvest log.' }
+  }
+  const logId = created.id
+
+  const { data: parts } = await sb
+    .from('trip_participants')
+    .select('id, hunter_id, guest_name, added_at')
+    .eq('trip_id', tripId)
+    .order('added_at', { ascending: true })
+  const participants = parts ?? []
+
+  if (participants.length > 0) {
+    const hunterIds = participants
+      .map((p) => p.hunter_id)
+      .filter((x): x is string => !!x)
+
+    const [twiRes, profilesRes] = await Promise.all([
+      hunterIds.length
+        ? sb
+            .from('trip_wallet_items')
+            .select(
+              'hunter_id, wallet_item_id, linked_at, wallet_items!inner(id, type)'
+            )
+            .eq('trip_id', tripId)
+            .in('hunter_id', hunterIds)
+            .order('linked_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
+      hunterIds.length
+        ? sb
+            .from('profiles')
+            .select(
+              'id, phone, address_street, address_street2, address_city, address_state, address_zip'
+            )
+            .in('id', hunterIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    type TwiRow = {
+      hunter_id: string
+      wallet_item_id: string
+      linked_at: string
+      wallet_items: { id: string; type: string }
+    }
+    const twiRows: TwiRow[] = (twiRes.data ?? []) as TwiRow[]
+
+    const licenseByHunter = new Map<string, string>()
+    const tagByHunter = new Map<string, string>()
+    for (const r of twiRows) {
+      if (r.wallet_items.type === 'license' && !licenseByHunter.has(r.hunter_id)) {
+        licenseByHunter.set(r.hunter_id, r.wallet_items.id)
+      }
+      if (r.wallet_items.type === 'tag' && !tagByHunter.has(r.hunter_id)) {
+        tagByHunter.set(r.hunter_id, r.wallet_items.id)
+      }
+    }
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p) => [p.id, p]))
+
+    const inserts: TablesInsert<'harvest_log_entries'>[] = participants.map((p) => {
+      const profileRow = p.hunter_id ? profileMap.get(p.hunter_id) : null
+      const license = p.hunter_id ? licenseByHunter.get(p.hunter_id) ?? null : null
+      const tag = p.hunter_id ? tagByHunter.get(p.hunter_id) ?? null : null
+      const address = profileRow
+        ? {
+            street1: profileRow.address_street ?? null,
+            street2: profileRow.address_street2 ?? null,
+            city: profileRow.address_city ?? null,
+            state: profileRow.address_state ?? null,
+            postal_code: profileRow.address_zip ?? null,
+          }
+        : null
+      return {
+        log_id: logId,
+        hunter_id: p.hunter_id,
+        guest_name: p.hunter_id ? null : p.guest_name,
+        license_wallet_item_id: license,
+        tag_wallet_item_id: tag,
+        hunter_phone_snapshot: profileRow?.phone ?? null,
+        hunter_address_snapshot: address,
+      }
+    })
+
+    const { error: entryErr } = await sb.from('harvest_log_entries').insert(inserts)
+    if (entryErr) {
+      console.warn('[ensureHarvestLog:entries]', {
+        code: entryErr.code,
+        message: entryErr.message,
+      })
+      // Don't fail the whole bootstrap — log row is in place.
+    }
+  }
+
+  return { ok: true, id: logId }
 }
 
 export async function fetchHarvestLogSummary(tripId: string): Promise<HarvestLogSummary> {

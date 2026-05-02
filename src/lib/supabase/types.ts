@@ -290,6 +290,7 @@ export type Database = {
           qty_kept: number
           qty_released: number
           tag_wallet_item_id: string | null
+          total_hours: number | null
           updated_at: string
         }
         Insert: {
@@ -307,6 +308,7 @@ export type Database = {
           qty_kept?: number
           qty_released?: number
           tag_wallet_item_id?: string | null
+          total_hours?: number | null
           updated_at?: string
         }
         Update: {
@@ -324,6 +326,7 @@ export type Database = {
           qty_kept?: number
           qty_released?: number
           tag_wallet_item_id?: string | null
+          total_hours?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -407,7 +410,6 @@ export type Database = {
           created_by: string
           id: string
           log_date: string | null
-          total_hours: number | null
           trip_id: string
           trip_purpose: Json | null
           updated_at: string
@@ -417,7 +419,6 @@ export type Database = {
           created_by: string
           id?: string
           log_date?: string | null
-          total_hours?: number | null
           trip_id: string
           trip_purpose?: Json | null
           updated_at?: string
@@ -427,7 +428,6 @@ export type Database = {
           created_by?: string
           id?: string
           log_date?: string | null
-          total_hours?: number | null
           trip_id?: string
           trip_purpose?: Json | null
           updated_at?: string
