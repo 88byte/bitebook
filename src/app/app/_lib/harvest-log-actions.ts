@@ -90,20 +90,10 @@ export async function updateHarvestLogEntryAction(
   const entryId = String(formData.get('entry_id') ?? '').trim()
   if (!entryId) return { error: 'Missing entry id.' }
 
-  const intField = (k: string): number | null => {
-    const v = String(formData.get(k) ?? '').trim()
-    if (!v) return 0
-    const n = Number(v)
-    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
-  }
-  const qHarv = intField('qty_harvested')
-  const qKept = intField('qty_kept')
-  const qRel = intField('qty_released')
-  if (qHarv === null || qKept === null || qRel === null) {
-    return { error: 'Quantities must be non-negative whole numbers.' }
-  }
-
-  // v27.1.1.0.3a.1: total_hours per entry. Numeric, allows decimals.
+  // v27.1.1.0.3a.3: entry-level qty fields dropped (duplicated species
+  // rows). Total hours, notes, include_in_report are now the only
+  // editable scalars on the entry — license / tag links may also be
+  // overridden but those are guarded separately.
   const hoursRaw = String(formData.get('total_hours') ?? '').trim()
   let totalHours: number | null = null
   if (hoursRaw) {
@@ -121,9 +111,6 @@ export async function updateHarvestLogEntryAction(
   const tagRaw = String(formData.get('tag_wallet_item_id') ?? '').trim()
 
   const update: EntryUpdate = {
-    qty_harvested: qHarv,
-    qty_kept: qKept,
-    qty_released: qRel,
     total_hours: totalHours,
     notes,
     include_in_report: includeInReport,
@@ -255,9 +242,8 @@ export async function createEntrySpeciesAction(
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
   }
   const qHarv = num('qty_harvested')
-  const qKept = num('qty_kept')
   const qRel = num('qty_released')
-  if (qHarv === null || qKept === null || qRel === null) {
+  if (qHarv === null || qRel === null) {
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
@@ -280,7 +266,6 @@ export async function createEntrySpeciesAction(
       position: nextPos,
       species,
       qty_harvested: qHarv,
-      qty_kept: qKept,
       qty_released: qRel,
     })
     .select('id')
@@ -308,9 +293,8 @@ export async function updateEntrySpeciesAction(
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
   }
   const qHarv = num('qty_harvested')
-  const qKept = num('qty_kept')
   const qRel = num('qty_released')
-  if (qHarv === null || qKept === null || qRel === null) {
+  if (qHarv === null || qRel === null) {
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
@@ -318,7 +302,7 @@ export async function updateEntrySpeciesAction(
   const sb = await createClient()
   const { error } = await sb
     .from('harvest_log_entry_species')
-    .update({ species, qty_harvested: qHarv, qty_kept: qKept, qty_released: qRel })
+    .update({ species, qty_harvested: qHarv, qty_released: qRel })
     .eq('id', speciesId)
   if (error) {
     console.warn('[harvestLog.updateSpecies]', { code: error.code, message: error.message })

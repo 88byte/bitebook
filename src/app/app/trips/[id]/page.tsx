@@ -117,6 +117,23 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         {isOpen && <WrapUpTripButton tripId={trip.id} />}
         {isOpen && <CancelTripButton tripId={trip.id} />}
         {isClosed && <ReopenTripButton tripId={trip.id} />}
+        {/* v27.1.1.0.3a.3: hunt report button promoted into the top
+            action row alongside Edit / Wrap up / Cancel / Reopen. Gated
+            to wrapped/completed trips (isClosed) — planned/active trips
+            don't surface it. Copy flips between Generate / View based
+            on whether a log already exists. The standalone mid-page
+            "Hunt report" section was deleted; this button is the only
+            access point. */}
+        {isClosed && (
+          <Link
+            href={`/app/trips/${trip.id}/log`}
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Activity size={14} aria-hidden="true" />
+            {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
+          </Link>
+        )}
         <button
           type="button"
           className="bb-btn-secondary"
@@ -324,40 +341,10 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           </div>
         </section>
 
-        {/* HUNT REPORT — v27.1.1.0.3a: links to /app/trips/[id]/log. The
-            log page itself idempotently generates the row + entries on
-            first visit (pre-fills license/tag from trip_wallet_items).
-            CTA copy flips between Generate / View based on whether the
-            log already exists. PDF generation ships v27.1.1.0.3b. */}
-        <section className="bb-tile bb-form-section" aria-labelledby="td-hunt-report">
-          <div className="bb-tile-body">
-            <SectionHead id="td-hunt-report" icon={Activity} label="Hunt report" />
-            {harvestLogSummary.exists ? (
-              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
-                {harvestLogSummary.total_entries} hunter
-                {harvestLogSummary.total_entries === 1 ? '' : 's'} on the report
-                {harvestLogSummary.total_entries > 0 && (
-                  <>
-                    {' · '}
-                    {harvestLogSummary.included_entries} included
-                    {harvestLogSummary.excluded_entries > 0
-                      ? ` · ${harvestLogSummary.excluded_entries} excluded`
-                      : ''}
-                  </>
-                )}
-                .
-              </p>
-            ) : (
-              <p className="bb-form-help" style={{ marginBottom: '0.75rem' }}>
-                Generate the hunt report. One entry per hunter on the trip — auto-fills license,
-                tag, phone, and address from the wallet and profile.
-              </p>
-            )}
-            <Link href={`/app/trips/${trip.id}/log`} className="bb-cta-sm">
-              {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
-            </Link>
-          </div>
-        </section>
+        {/* v27.1.1.0.3a.3: standalone Hunt report section removed. The
+            top action row now hosts Generate / View hunt report (gated
+            to isClosed). harvestLogSummary still fetched above so the
+            top-row button can reflect existence. */}
 
         {/* v27.0b.9.1: Trip actions section relocated to the top of the
             page (under the header). The bottom-of-page action row was

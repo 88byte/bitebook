@@ -286,9 +286,6 @@ export type Database = {
           license_wallet_item_id: string | null
           log_id: string
           notes: string | null
-          qty_harvested: number
-          qty_kept: number
-          qty_released: number
           tag_wallet_item_id: string | null
           total_hours: number | null
           updated_at: string
@@ -304,9 +301,6 @@ export type Database = {
           license_wallet_item_id?: string | null
           log_id: string
           notes?: string | null
-          qty_harvested?: number
-          qty_kept?: number
-          qty_released?: number
           tag_wallet_item_id?: string | null
           total_hours?: number | null
           updated_at?: string
@@ -322,9 +316,6 @@ export type Database = {
           license_wallet_item_id?: string | null
           log_id?: string
           notes?: string | null
-          qty_harvested?: number
-          qty_kept?: number
-          qty_released?: number
           tag_wallet_item_id?: string | null
           total_hours?: number | null
           updated_at?: string
@@ -367,7 +358,6 @@ export type Database = {
           id: string
           position: number
           qty_harvested: number
-          qty_kept: number
           qty_released: number
           species: string | null
           updated_at: string
@@ -378,7 +368,6 @@ export type Database = {
           id?: string
           position?: number
           qty_harvested?: number
-          qty_kept?: number
           qty_released?: number
           species?: string | null
           updated_at?: string
@@ -389,7 +378,6 @@ export type Database = {
           id?: string
           position?: number
           qty_harvested?: number
-          qty_kept?: number
           qty_released?: number
           species?: string | null
           updated_at?: string

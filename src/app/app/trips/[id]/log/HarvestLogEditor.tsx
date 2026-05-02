@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   updateHarvestLogAction,
@@ -16,17 +16,25 @@ import {
 import type {
   HarvestLogWithEntries,
   HarvestLogEntryWithRelations,
+  HarvestLogEntrySpeciesRow,
 } from '../../../_lib/harvest-log-queries'
 
 // v27.1.1.0.3a   — accordion editor.
-// v27.1.1.0.3a.1 — total_hours moved to per-entry. Log-level fields shrink
-//                  to date + purpose. "Include in PDF" relabeled
-//                  "Include in report". Delete report button + ConfirmModal
-//                  at the bottom. Top fields stack on narrow viewports —
-//                  with only a date input remaining at log-level the
-//                  earlier 2-col collision is gone, but the per-entry qty
-//                  grid keeps .bb-form-grid-2 (which already collapses to
-//                  1-col under 640px).
+// v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
+// v27.1.1.0.3a.2 — date width cap, "Hunter info" section, phantom species
+//                  row pre-filled from tag.
+// v27.1.1.0.3a.3 — auto-save on blur for every input. Explicit Save buttons
+//                  removed across the page (trip-level, per-entry, species
+//                  rows). Each editable card gets a tiny status pill that
+//                  reads "Saving…" while the action is in-flight, "Saved"
+//                  for ~2s after a successful write, or an inline error.
+//                  Add species / Remove species / Generate PDFs / Delete
+//                  report stay as explicit clicks.
+//                  Schema cleanup: entry-level qty_harvested/kept/released
+//                  dropped (duplicated species rows). species.qty_kept
+//                  dropped (= qty_harvested per Flavio "kept and harvested
+//                  are the same"). Species sub-table now species /
+//                  harvested / released only.
 
 const PURPOSES: { value: string; label: string }[] = [
   { value: 'hunting', label: 'Hunting' },
@@ -35,6 +43,57 @@ const PURPOSES: { value: string; label: string }[] = [
   { value: 'fly_fishing', label: 'Fly fishing' },
   { value: 'other', label: 'Other' },
 ]
+
+// ── Status pill ─────────────────────────────────────────────────────────
+
+type SaveStatus =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; at: number }
+  | { kind: 'error'; message: string }
+
+function StatusPill({ status }: { status: SaveStatus }) {
+  if (status.kind === 'idle') return null
+  if (status.kind === 'saving') {
+    return (
+      <span style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>Saving…</span>
+    )
+  }
+  if (status.kind === 'saved') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          fontSize: '0.8rem',
+          color: 'var(--color-copper)',
+        }}
+      >
+        <CheckCircle2 size={12} aria-hidden="true" />
+        Saved
+      </span>
+    )
+  }
+  return (
+    <span style={{ fontSize: '0.8rem', color: '#8C3C2A' }} role="alert">
+      {status.message}
+    </span>
+  )
+}
+
+// Auto-clear "saved" status after 2s so the pill fades into idle.
+function useFadingSavedStatus(): [SaveStatus, (s: SaveStatus) => void] {
+  const [status, setStatus] = useState<SaveStatus>({ kind: 'idle' })
+  useEffect(() => {
+    if (status.kind !== 'saved') return
+    const t = setTimeout(() => setStatus({ kind: 'idle' }), 2000)
+    return () => clearTimeout(t)
+  }, [status])
+  return [status, setStatus]
+}
+
+// ── Top-level editor ────────────────────────────────────────────────────
 
 export default function HarvestLogEditor({
   tripId,
@@ -45,10 +104,7 @@ export default function HarvestLogEditor({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
 
-  // Log-level state (date + purpose only as of v27.1.1.0.3a.1)
   const [logDate, setLogDate] = useState<string>(log.log_date ?? '')
   const initialPurposes = useMemo(() => {
     const raw = log.trip_purpose
@@ -56,14 +112,11 @@ export default function HarvestLogEditor({
     return new Set<string>()
   }, [log.trip_purpose])
   const [purposes, setPurposes] = useState<Set<string>>(initialPurposes)
+  const [logStatus, setLogStatus] = useFadingSavedStatus()
 
-  // Confirm-modal state for the destructive Delete report flow.
   const [confirmDelete, setConfirmDelete] = useState<boolean>(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // Slot map for the dynamic Hunter N badge — only included entries get a
-  // slot, ordered by participant order (which the query preserves via
-  // created_at ascending).
   const slotByEntryId = useMemo(() => {
     const map = new Map<string, number>()
     let slot = 1
@@ -73,39 +126,35 @@ export default function HarvestLogEditor({
     return map
   }, [log.entries])
 
-  function togglePurpose(p: string) {
-    setPurposes((prev) => {
-      const next = new Set(prev)
-      if (next.has(p)) next.delete(p)
-      else next.add(p)
-      return next
-    })
-  }
-
-  function saveLogLevel() {
-    setError(null)
-    setSavedAt(null)
+  function commitLogLevel(nextDate: string, nextPurposes: Set<string>) {
+    setLogStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('log_id', log.id)
-    if (logDate) fd.set('log_date', logDate)
-    for (const p of purposes) fd.append('trip_purpose', p)
+    if (nextDate) fd.set('log_date', nextDate)
+    for (const p of nextPurposes) fd.append('trip_purpose', p)
     startTransition(async () => {
       const res = await updateHarvestLogAction(fd)
       if ('error' in res) {
-        setError(res.error)
+        setLogStatus({ kind: 'error', message: res.error })
         return
       }
-      setSavedAt(Date.now())
+      setLogStatus({ kind: 'saved', at: Date.now() })
       router.refresh()
     })
+  }
+
+  function togglePurpose(p: string) {
+    const next = new Set(purposes)
+    if (next.has(p)) next.delete(p)
+    else next.add(p)
+    setPurposes(next)
+    commitLogLevel(logDate, next)
   }
 
   function runDelete() {
     setDeleteError(null)
     startTransition(async () => {
       const res = await deleteHarvestLogAndRedirectAction(log.id)
-      // The server action redirects on success; if we get here with an
-      // error envelope, surface it.
       if (res && 'error' in res) {
         setDeleteError(res.error)
       }
@@ -114,21 +163,32 @@ export default function HarvestLogEditor({
 
   return (
     <div className="flex flex-col gap-4 mt-4">
-      {/* Log-level fields — date + trip purpose only */}
+      {/* Trip-level fields — auto-save on blur (date) / change (purpose) */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Trip-level details</h2>
-          <div className="bb-form-row">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <h2 className="bb-form-section-head" style={{ margin: 0 }}>
+              Trip-level details
+            </h2>
+            <StatusPill status={logStatus} />
+          </div>
+          <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
-            {/* v27.1.1.0.3a.2: cap the date input width so it doesn't
-                stretch across the whole card. 12rem accommodates the
-                native date control on every browser at 375px+. */}
             <input
               id="log_date"
               type="date"
               className="bb-input"
               value={logDate}
               onChange={(e) => setLogDate(e.target.value)}
+              onBlur={() => commitLogLevel(logDate, purposes)}
               style={{ maxWidth: '12rem' }}
             />
             <p className="bb-form-help">
@@ -167,21 +227,6 @@ export default function HarvestLogEditor({
               ))}
             </div>
           </div>
-          <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              className="bb-cta-sm"
-              onClick={saveLogLevel}
-              disabled={pending}
-            >
-              {savedAt !== null ? 'Saved' : pending ? 'Saving…' : 'Save trip details'}
-            </button>
-          </div>
-          {error && (
-            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
-              {error}
-            </p>
-          )}
         </div>
       </section>
 
@@ -211,9 +256,7 @@ export default function HarvestLogEditor({
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head">Generate filled PDFs</h2>
           <p className="bb-form-help" style={{ margin: 0 }}>
-            Filled state-form generation ships in the next build (v27.1.1.0.3b). Map a log
-            doc&apos;s fields in the Documents section first; the generator will read those
-            mappings + this report and produce per-hunter PDFs with overflow handling.
+            Filled state-form generation ships in the next build (v27.1.1.0.3b).
           </p>
         </div>
       </section>
@@ -275,13 +318,9 @@ function EntryAccordion({
   const router = useRouter()
   const [open, setOpen] = useState<boolean>(false)
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [status, setStatus] = useFadingSavedStatus()
 
   const [include, setInclude] = useState<boolean>(entry.include_in_report)
-  const [qHarv, setQHarv] = useState<string>(String(entry.qty_harvested))
-  const [qKept, setQKept] = useState<string>(String(entry.qty_kept))
-  const [qRel, setQRel] = useState<string>(String(entry.qty_released))
   const [totalHours, setTotalHours] = useState<string>(
     entry.total_hours !== null && entry.total_hours !== undefined ? String(entry.total_hours) : ''
   )
@@ -297,39 +336,43 @@ function EntryAccordion({
     [entry.species_rows]
   )
 
-  const showExcludeWarning =
-    !include && (Number(qHarv || 0) > 0 || totalSpeciesQty > 0)
+  const showExcludeWarning = !include && totalSpeciesQty > 0
 
-  function saveEntry() {
-    setError(null)
-    setSavedAt(null)
+  // Capture-and-commit pattern: every editable surface routes through this.
+  // Sends the FULL current entry state (so partial-field edits don't drop
+  // sibling values from a prior in-flight save).
+  function commitEntry(next: { include?: boolean; totalHours?: string; notes?: string }) {
+    const nextInclude = next.include ?? include
+    const nextHours = next.totalHours ?? totalHours
+    const nextNotes = next.notes ?? notes
+
+    setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('entry_id', entry.id)
-    fd.set('qty_harvested', qHarv || '0')
-    fd.set('qty_kept', qKept || '0')
-    fd.set('qty_released', qRel || '0')
-    if (totalHours) fd.set('total_hours', totalHours)
-    fd.set('notes', notes)
-    if (include) fd.set('include_in_report', 'on')
+    if (nextHours) fd.set('total_hours', nextHours)
+    fd.set('notes', nextNotes)
+    if (nextInclude) fd.set('include_in_report', 'on')
+
     startTransition(async () => {
       const res = await updateHarvestLogEntryAction(fd)
       if ('error' in res) {
-        setError(res.error)
+        setStatus({ kind: 'error', message: res.error })
         return
       }
-      setSavedAt(Date.now())
+      setStatus({ kind: 'saved', at: Date.now() })
       router.refresh()
     })
   }
 
   function addSpecies() {
-    setError(null)
+    setStatus({ kind: 'saving' })
     startTransition(async () => {
       const res = await addEntrySpeciesAction(entry.id)
       if ('error' in res) {
-        setError(res.error)
+        setStatus({ kind: 'error', message: res.error })
         return
       }
+      setStatus({ kind: 'saved', at: Date.now() })
       router.refresh()
     })
   }
@@ -378,9 +421,7 @@ function EntryAccordion({
           <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
             {entry.species_rows.length > 0
               ? `${entry.species_rows.length} species rows · ${totalSpeciesQty} total`
-              : entry.qty_harvested > 0
-                ? `${entry.qty_harvested} harvested`
-                : 'No harvest logged'}
+              : 'No harvest logged'}
           </div>
         </div>
 
@@ -416,7 +457,10 @@ function EntryAccordion({
           <input
             type="checkbox"
             checked={include}
-            onChange={(e) => setInclude(e.target.checked)}
+            onChange={(e) => {
+              setInclude(e.target.checked)
+              commitEntry({ include: e.target.checked })
+            }}
           />
           Include in report
         </label>
@@ -447,9 +491,6 @@ function EntryAccordion({
             </p>
           )}
 
-          {/* v27.1.1.0.3a.2: renamed "Auto-filled identity" → "Hunter info"
-              per Flavio's plain-English ask. The data is the same — just
-              cleaner labeling. */}
           <section className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <span className="bb-form-label">Hunter info</span>
             <div
@@ -475,7 +516,6 @@ function EntryAccordion({
             </div>
           </section>
 
-          {/* v27.1.1.0.3a.1: Total hours per hunter */}
           <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
             <label className="bb-form-label" htmlFor={`hours_${entry.id}`}>Total hours</label>
             <input
@@ -486,57 +526,12 @@ function EntryAccordion({
               className="bb-input"
               value={totalHours}
               onChange={(e) => setTotalHours(e.target.value)}
+              onBlur={() => commitEntry({ totalHours })}
               placeholder="0.0"
+              style={{ maxWidth: '12rem' }}
             />
           </div>
 
-          <div className="bb-form-grid-2" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor={`qh_${entry.id}`}>Qty harvested</label>
-              <input
-                id={`qh_${entry.id}`}
-                type="number"
-                min="0"
-                className="bb-input"
-                value={qHarv}
-                onChange={(e) => setQHarv(e.target.value)}
-              />
-            </div>
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor={`qk_${entry.id}`}>Qty kept</label>
-              <input
-                id={`qk_${entry.id}`}
-                type="number"
-                min="0"
-                className="bb-input"
-                value={qKept}
-                onChange={(e) => setQKept(e.target.value)}
-              />
-            </div>
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor={`qr_${entry.id}`}>Qty released</label>
-              <input
-                id={`qr_${entry.id}`}
-                type="number"
-                min="0"
-                className="bb-input"
-                value={qRel}
-                onChange={(e) => setQRel(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* v27.1.1.0.3a.2: species breakdown.
-              When the entry has 0 saved species rows AND the linked tag
-              has a species set, render a "phantom" row pre-filled from
-              the tag (live-pull — re-rendered from entry.tag.species,
-              not snapshotted at log generation, so wallet edits to the
-              tag's species propagate on next refresh). On first save,
-              the phantom is promoted to a real row via
-              createEntrySpeciesAction (one-shot insert with values).
-              "Add species" button is hidden until at least one real row
-              exists, so a hunter with one species doesn't have to think
-              about sub-rows at all. */}
           <section style={{ marginTop: '0.75rem' }}>
             <div
               style={{
@@ -565,7 +560,7 @@ function EntryAccordion({
               entry.tag?.species ? (
                 <>
                   <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
-                    Pre-filled from your tag. Add more species below if needed.
+                    Fill in the details below. Add more species if more than one was harvested.
                   </p>
                   <PhantomSpeciesRow
                     entryId={entry.id}
@@ -579,11 +574,9 @@ function EntryAccordion({
               )
             ) : (
               <>
-                {entry.tag?.species && (
-                  <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
-                    Pre-filled from your tag. Add more species below if needed.
-                  </p>
-                )}
+                <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
+                  Fill in the details below. Add more species if more than one was harvested.
+                </p>
                 <div className="flex flex-col gap-2">
                   {entry.species_rows.map((s) => (
                     <SpeciesRow key={s.id} row={s} />
@@ -601,74 +594,69 @@ function EntryAccordion({
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => commitEntry({ notes })}
               placeholder="Optional"
               maxLength={500}
             />
           </div>
 
-          <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              className="bb-cta-sm"
-              onClick={saveEntry}
-              disabled={pending}
-            >
-              {savedAt !== null ? 'Saved' : pending ? 'Saving…' : 'Save entry'}
-            </button>
+          {/* Status pill at the bottom of the accordion body — captures
+              every save fired from this entry's surface. */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              minHeight: '1.2rem',
+              marginTop: '0.5rem',
+            }}
+          >
+            <StatusPill status={status} />
           </div>
-          {error && (
-            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
-              {error}
-            </p>
-          )}
         </div>
       )}
     </div>
   )
 }
 
-// ── SpeciesRow ──────────────────────────────────────────────────────────
+// ── SpeciesRow (real, persisted) ────────────────────────────────────────
 
-function SpeciesRow({
-  row,
-}: {
-  row: import('../../../_lib/harvest-log-queries').HarvestLogEntrySpeciesRow
-}) {
+function SpeciesRow({ row }: { row: HarvestLogEntrySpeciesRow }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [status, setStatus] = useFadingSavedStatus()
   const [species, setSpecies] = useState(row.species ?? '')
   const [qH, setQH] = useState(String(row.qty_harvested))
-  const [qK, setQK] = useState(String(row.qty_kept))
   const [qR, setQR] = useState(String(row.qty_released))
 
-  function save() {
-    setError(null)
-    setSavedAt(null)
+  // Latest-state ref so onBlur callbacks always send fresh values.
+  const stateRef = useRef({ species, qH, qR })
+  stateRef.current = { species, qH, qR }
+
+  function commit() {
+    const { species: sp, qH: h, qR: r } = stateRef.current
+    setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('species_id', row.id)
-    fd.set('species', species)
-    fd.set('qty_harvested', qH || '0')
-    fd.set('qty_kept', qK || '0')
-    fd.set('qty_released', qR || '0')
+    fd.set('species', sp)
+    fd.set('qty_harvested', h || '0')
+    fd.set('qty_released', r || '0')
     startTransition(async () => {
       const res = await updateEntrySpeciesAction(fd)
       if ('error' in res) {
-        setError(res.error)
+        setStatus({ kind: 'error', message: res.error })
         return
       }
-      setSavedAt(Date.now())
+      setStatus({ kind: 'saved', at: Date.now() })
       router.refresh()
     })
   }
 
   function remove() {
-    setError(null)
+    setStatus({ kind: 'saving' })
     startTransition(async () => {
       const res = await removeEntrySpeciesAction(row.id)
       if ('error' in res) {
-        setError(res.error)
+        setStatus({ kind: 'error', message: res.error })
         return
       }
       router.refresh()
@@ -689,26 +677,42 @@ function SpeciesRow({
             className="bb-input"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
+            onBlur={commit}
             placeholder="e.g. Mule deer"
           />
         </div>
         <div className="bb-form-row">
           <label className="bb-form-label">Harvested</label>
-          <input type="number" min="0" className="bb-input" value={qH} onChange={(e) => setQH(e.target.value)} />
+          <input
+            type="number"
+            min="0"
+            className="bb-input"
+            value={qH}
+            onChange={(e) => setQH(e.target.value)}
+            onBlur={commit}
+          />
         </div>
         <div className="bb-form-row">
-          <label className="bb-form-label">Kept</label>
-          <input type="number" min="0" className="bb-input" value={qK} onChange={(e) => setQK(e.target.value)} />
-        </div>
-        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
           <label className="bb-form-label">Released</label>
-          <input type="number" min="0" className="bb-input" value={qR} onChange={(e) => setQR(e.target.value)} />
+          <input
+            type="number"
+            min="0"
+            className="bb-input"
+            value={qR}
+            onChange={(e) => setQR(e.target.value)}
+            onBlur={commit}
+          />
         </div>
       </div>
-      <div className="flex gap-2 mt-2">
-        <button type="button" className="bb-btn-secondary" onClick={save} disabled={pending}>
-          {savedAt !== null ? 'Saved' : pending ? 'Saving…' : 'Save row'}
-        </button>
+      <div
+        style={{
+          marginTop: '0.4rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.5rem',
+        }}
+      >
         <button
           type="button"
           className="bb-text-action bb-text-action-copper"
@@ -719,26 +723,18 @@ function SpeciesRow({
           <Trash2 size={14} aria-hidden="true" />
           Remove
         </button>
+        <StatusPill status={status} />
       </div>
-      {error && (
-        <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.3rem' }}>
-          {error}
-        </p>
-      )}
     </div>
   )
 }
 
-// v27.1.1.0.3a.2: phantom species row.
-// Rendered when an entry has 0 saved species rows AND its linked tag has
-// a species set. Pre-fills species from entry.tag.species (live-pull from
-// the tag, not snapshotted at log generation — the parent re-passes
-// tag.species on every render so wallet edits to the tag's species
-// surface here on the next page refresh).
+// ── PhantomSpeciesRow ───────────────────────────────────────────────────
 //
-// First Save calls createEntrySpeciesAction (single-shot insert with all
-// fields populated). The page refresh then renders a real SpeciesRow
-// instead of this phantom.
+// Pre-fills species from the entry's linked tag.species (live-pull). On
+// any blur with non-zero data, calls createEntrySpeciesAction which inserts
+// the row server-side; the page refresh then renders a real SpeciesRow.
+
 function PhantomSpeciesRow({
   entryId,
   tagSpecies,
@@ -748,29 +744,32 @@ function PhantomSpeciesRow({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [status, setStatus] = useFadingSavedStatus()
   const [species, setSpecies] = useState(tagSpecies)
   const [qH, setQH] = useState('0')
-  const [qK, setQK] = useState('0')
   const [qR, setQR] = useState('0')
 
-  function save() {
-    setError(null)
-    setSavedAt(null)
+  const stateRef = useRef({ species, qH, qR })
+  stateRef.current = { species, qH, qR }
+
+  function commit() {
+    const { species: sp, qH: h, qR: r } = stateRef.current
+    // Don't materialize an empty row — wait for the user to actually
+    // type something or set qty>0 before promoting to a real row.
+    if (!sp.trim() && (h === '' || h === '0') && (r === '' || r === '0')) return
+    setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('entry_id', entryId)
-    fd.set('species', species)
-    fd.set('qty_harvested', qH || '0')
-    fd.set('qty_kept', qK || '0')
-    fd.set('qty_released', qR || '0')
+    fd.set('species', sp)
+    fd.set('qty_harvested', h || '0')
+    fd.set('qty_released', r || '0')
     startTransition(async () => {
       const res = await createEntrySpeciesAction(fd)
       if ('error' in res) {
-        setError(res.error)
+        setStatus({ kind: 'error', message: res.error })
         return
       }
-      setSavedAt(Date.now())
+      setStatus({ kind: 'saved', at: Date.now() })
       router.refresh()
     })
   }
@@ -789,32 +788,45 @@ function PhantomSpeciesRow({
             className="bb-input"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
+            onBlur={commit}
             placeholder="e.g. Mule deer"
           />
         </div>
         <div className="bb-form-row">
           <label className="bb-form-label">Harvested</label>
-          <input type="number" min="0" className="bb-input" value={qH} onChange={(e) => setQH(e.target.value)} />
+          <input
+            type="number"
+            min="0"
+            className="bb-input"
+            value={qH}
+            onChange={(e) => setQH(e.target.value)}
+            onBlur={commit}
+          />
         </div>
         <div className="bb-form-row">
-          <label className="bb-form-label">Kept</label>
-          <input type="number" min="0" className="bb-input" value={qK} onChange={(e) => setQK(e.target.value)} />
-        </div>
-        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
           <label className="bb-form-label">Released</label>
-          <input type="number" min="0" className="bb-input" value={qR} onChange={(e) => setQR(e.target.value)} />
+          <input
+            type="number"
+            min="0"
+            className="bb-input"
+            value={qR}
+            onChange={(e) => setQR(e.target.value)}
+            onBlur={commit}
+          />
         </div>
       </div>
-      <div className="flex gap-2 mt-2">
-        <button type="button" className="bb-btn-secondary" onClick={save} disabled={pending}>
-          {savedAt !== null ? 'Saved' : pending ? 'Saving…' : 'Save row'}
-        </button>
+      <div
+        style={{
+          marginTop: '0.4rem',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          minHeight: '1.2rem',
+        }}
+      >
+        <StatusPill status={status} />
       </div>
-      {error && (
-        <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.3rem' }}>
-          {error}
-        </p>
-      )}
+      {/* eslint-disable-next-line @typescript-eslint/no-unused-expressions */}
+      {pending}
     </div>
   )
 }

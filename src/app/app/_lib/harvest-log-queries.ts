@@ -38,7 +38,7 @@ export async function fetchHarvestLog(
   const { data: entries } = await sb
     .from('harvest_log_entries')
     .select(
-      'id, log_id, hunter_id, guest_name, license_wallet_item_id, tag_wallet_item_id, qty_harvested, qty_kept, qty_released, total_hours, notes, include_in_report, hunter_phone_snapshot, hunter_address_snapshot, created_at, updated_at'
+      'id, log_id, hunter_id, guest_name, license_wallet_item_id, tag_wallet_item_id, total_hours, notes, include_in_report, hunter_phone_snapshot, hunter_address_snapshot, created_at, updated_at'
     )
     .eq('log_id', log.id)
     .order('created_at', { ascending: true })
@@ -61,7 +61,7 @@ export async function fetchHarvestLog(
       : Promise.resolve({ data: [] }),
     entryIds.length
       ? sb.from('harvest_log_entry_species')
-          .select('id, entry_id, species, qty_harvested, qty_kept, qty_released, position, created_at, updated_at')
+          .select('id, entry_id, species, qty_harvested, qty_released, position, created_at, updated_at')
           .in('entry_id', entryIds)
           .order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
