@@ -16,7 +16,6 @@ import {
   STATIC_TEXT_PREFIX,
   STATIC_DATE_PREFIX,
   STATIC_DATE_RANGE_PREFIX,
-  SKIP_VALUE,
   isStaticText,
   staticTextValue,
   isStaticDate,
@@ -33,6 +32,12 @@ import {
 //               sentinels for static dates and date ranges, unmapped
 //               fields default to skip (no row) which means Mark Complete
 //               is no longer gated on row count.
+// v27.1.1.0.3c.3 — UX cleanup. Slot picker hidden on auto-detected fields
+//               (replaced with tap-to-edit badge); only fields that need
+//               disambiguation expose the dropdown. Plain-English copy
+//               throughout (intro, dropdown labels via doc-data-sources,
+//               "Fill this field with" label, "Use a different value for
+//               this hunter" override toggle).
 //
 // The dropdown choice and the typed/picked literal stay independent until
 // save: STATIC_TEXT_PREFIX, STATIC_DATE_PREFIX, STATIC_DATE_RANGE_PREFIX
@@ -282,10 +287,10 @@ export default function MappingWizard({
             This PDF has no fillable fields
           </h2>
           <p className="bb-form-help" style={{ margin: 0 }}>
-            Form mapping needs an AcroForm — a PDF with embedded fillable fields. This file looks
-            like a flat scan or a non-fillable export. Try uploading the official version from
-            your state agency, which is usually fillable. OCR-based mapping for flat forms is
-            slated for a later build.
+            We can&rsquo;t auto-fill this PDF because it doesn&rsquo;t have any fillable
+            boxes built in. Try downloading the official version from your state&rsquo;s
+            wildlife agency website &mdash; those are usually fillable. We&rsquo;ll add
+            support for flat (non-fillable) forms in a later release.
           </p>
           <div style={{ marginTop: '0.75rem' }}>
             <button
@@ -321,9 +326,10 @@ export default function MappingWizard({
       <div className="bb-tile">
         <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
           <p className="bb-form-help" style={{ margin: 0 }}>
-            Found <strong>{fields.length}</strong> field{fields.length === 1 ? '' : 's'} in this PDF.
-            Map only the fields you need filled — anything left as &ldquo;No mapping&rdquo; is
-            intentionally skipped at fill time.
+            Pick what fills each box on your PDF. We&rsquo;ll auto-fill them when you generate
+            the report. Found <strong>{fields.length}</strong> box{fields.length === 1 ? '' : 'es'} in
+            this PDF &mdash; you only need to map the ones you actually want filled. Anything you
+            leave on &ldquo;Skip&rdquo; will stay blank.
           </p>
         </div>
       </div>
@@ -458,6 +464,78 @@ function computeSlot1ByBase(
   return out
 }
 
+// v27.1.1.0.3c.3: tap-to-edit slot badge. Default render is a pill
+// reading "HUNTER N" or "TRIP-LEVEL"; tapping flips it into a small
+// inline picker so guides can correct auto-detect when the field name
+// doesn't match the regex conventions. Replaces the always-on "Field
+// belongs to" dropdown that took up real estate on every field card.
+function SlotBadgeButton({
+  slot,
+  slotOverride,
+  detectedSlot,
+  onSlotChange,
+}: {
+  slot: number
+  slotOverride: number
+  detectedSlot: number
+  onSlotChange: (slot: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  // v27.1.1.0.3c.3: trip-level fields render no badge by default. Only
+  // hunter-detected (or hunter-overridden) fields surface the pill.
+  if (slot === 0 && !editing) return null
+  const isOverridden = slotOverride > 0 && slotOverride !== detectedSlot
+  const label = slot > 0 ? `HUNTER ${slot}` : 'TRIP-LEVEL'
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        className="bb-input"
+        value={slotOverride}
+        onChange={(e) => {
+          onSlotChange(Number(e.target.value))
+          setEditing(false)
+        }}
+        onBlur={() => setEditing(false)}
+        style={{ fontSize: '0.85rem', padding: '0.15rem 0.45rem', height: 'auto', width: 'auto' }}
+        aria-label="Pick which hunter this field belongs to"
+      >
+        <option value={0}>
+          Auto-detect{detectedSlot > 0 ? ` (Hunter ${detectedSlot})` : ' (Trip-level)'}
+        </option>
+        <option value={1}>Hunter 1</option>
+        <option value={2}>Hunter 2</option>
+        <option value={3}>Hunter 3</option>
+        <option value={4}>Hunter 4</option>
+        <option value={5}>Hunter 5</option>
+      </select>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      aria-label={`${label} (tap to change)`}
+      title="Tap to change which hunter this is for"
+      style={{
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        padding: '0.15rem 0.5rem',
+        borderRadius: 999,
+        border: isOverridden ? '1px solid var(--color-copper)' : '1px solid transparent',
+        background: slot > 0 ? 'rgba(168, 92, 50, 0.12)' : 'var(--color-paper-tint)',
+        color: slot > 0 ? 'var(--color-copper)' : 'var(--color-ink-soft)',
+        letterSpacing: '0.04em',
+        cursor: 'pointer',
+        lineHeight: 1.4,
+      }}
+    >
+      {label}
+      {isOverridden ? ' ·' : ''}
+    </button>
+  )
+}
+
 function FieldRow({
   field,
   value,
@@ -559,22 +637,16 @@ function FieldRow({
           {field.name}
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-          {slot > 0 && (
-            <span
-              aria-label={`Hunter ${slot}`}
-              style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                padding: '0.15rem 0.5rem',
-                borderRadius: 999,
-                background: 'rgba(168, 92, 50, 0.12)',
-                color: 'var(--color-copper)',
-                letterSpacing: '0.04em',
-              }}
-            >
-              HUNTER {slot}
-            </span>
-          )}
+          {/* v27.1.1.0.3c.3: tap-to-edit slot badge. Default state shows
+              the auto-detected slot or "Trip-level"; tapping reveals an
+              inline picker so guides can override only when needed.
+              The dedicated "Field belongs to" select below is removed. */}
+          <SlotBadgeButton
+            slot={slot}
+            slotOverride={slotOverride}
+            detectedSlot={detectedSlot}
+            onSlotChange={(s) => onSlotChange(field.name, s)}
+          />
           <span
             aria-label={`Field type ${field.type}`}
             style={{
@@ -599,40 +671,17 @@ function FieldRow({
         </p>
       )}
 
-      {/* v27.1.1.0.3c.1: manual slot picker. Default to auto-detect (0)
-          which uses the regex parse; guide can pin to a specific hunter
-          slot when the field name doesn't follow the conventions. Cap
-          at Hunter 5 — covers common state forms; engine accepts up
-          to 99 if needed later. */}
-      <div className="bb-form-row" style={{ marginBottom: '0.1rem' }}>
-        <label
-          className="bb-form-label"
-          htmlFor={`slot-${field.name}`}
-          style={{ marginBottom: '0.2rem' }}
-        >
-          Field belongs to
-        </label>
-        <select
-          id={`slot-${field.name}`}
-          className="bb-input"
-          value={slotOverride}
-          onChange={(e) => onSlotChange(field.name, Number(e.target.value))}
-        >
-          <option value={0}>
-            Auto-detect{detectedSlot > 0 ? ` (Hunter ${detectedSlot})` : ' (Trip-level)'}
-          </option>
-          <option value={1}>Hunter 1</option>
-          <option value={2}>Hunter 2</option>
-          <option value={3}>Hunter 3</option>
-          <option value={4}>Hunter 4</option>
-          <option value={5}>Hunter 5</option>
-        </select>
-      </div>
+      {/* v27.1.1.0.3c.3: standalone slot picker dropdown removed. The
+          "Hunter N" / "Trip-level" badge above is the new tap-to-edit
+          UI for slot assignment. */}
 
       {/* v27.1.1.0.3c.2: mirror tag + override toggle. Renders only on
           slot 2..N fields whose base name has a saved Hunter 1 source.
           When isOverride=false, the dropdown is read-only and shows the
-          mirrored value. Toggle on -> dropdown becomes editable. */}
+          mirrored value. Toggle on -> dropdown becomes editable.
+          v27.1.1.0.3c.3: copy refresh — "Use a different value for this
+          hunter" reads more naturally than "Use a different source for
+          this slot" to a non-technical guide. */}
       {mirrorPath !== null && slot >= 2 && (
         <div
           style={{
@@ -654,7 +703,7 @@ function FieldRow({
               fontWeight: 600,
             }}
           >
-            {isOverride ? 'Custom for this slot' : 'Mirrored from Hunter 1'}
+            {isOverride ? 'Custom value for this hunter' : 'Same as Hunter 1'}
           </span>
           <label
             style={{
@@ -671,25 +720,33 @@ function FieldRow({
               checked={isOverride}
               onChange={(e) => onOverrideToggle(field.name, e.target.checked)}
             />
-            Use a different source for this slot
+            Use a different value for this hunter
           </label>
         </div>
       )}
 
+      {/* v27.1.1.0.3c.3: relabel "Source" to plain English. */}
+      <label
+        className="bb-form-label"
+        htmlFor={`src-${field.name}`}
+        style={{ marginBottom: '0.2rem' }}
+      >
+        Fill this field with
+      </label>
       <select
+        id={`src-${field.name}`}
         className="bb-input"
         value={mirrorPath !== null && !isOverride && slot >= 2 ? mirrorPath : dropdownValue}
         onChange={(e) => onChange(field.name, e.target.value)}
         disabled={mirrorPath !== null && !isOverride && slot >= 2}
       >
-        <option value="">— No mapping (skip) —</option>
+        <option value="">— Skip — leave blank —</option>
         {CATEGORY_ORDER.map((cat) =>
           grouped[cat].length > 0 ? (
             <optgroup key={cat} label={CATEGORY_LABELS[cat]}>
               {grouped[cat].map((src) => (
                 <option key={`${cat}:${src.value}`} value={src.value}>
                   {src.label}
-                  {src.perRow ? ' (per row)' : ''}
                 </option>
               ))}
             </optgroup>
