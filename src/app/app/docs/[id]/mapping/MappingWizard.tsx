@@ -139,6 +139,35 @@ export default function MappingWizard({
   const [aiSuggesting, setAiSuggesting] = useState<boolean>(false)
   const [aiResultMsg, setAiResultMsg] = useState<string | null>(null)
   const [aiNeedsSetup, setAiNeedsSetup] = useState<boolean>(false)
+
+  // v27.1.5.4: "Show advanced" toggle. Hides the slot picker pill,
+  // override toggle, AI restore link, and "+ Add fallback source" link
+  // by default so most guides see only:
+  //   field name + type pill + source dropdown + AI badge.
+  // Power users flip it on to reveal the full toolkit. Persists per
+  // browser via localStorage so re-visits respect the prior choice.
+  // Initialized false on the server / first paint so SSR + first-render
+  // markup match; the useEffect below hydrates from localStorage on
+  // mount.
+  const [advancedMode, setAdvancedMode] = useState<boolean>(false)
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const saved = window.localStorage.getItem('bb-mapping-wizard-advanced')
+      if (saved === '1') setAdvancedMode(true)
+    } catch {
+      // localStorage can throw in strict-privacy modes; default-off is fine.
+    }
+  }, [])
+  function handleToggleAdvanced(next: boolean) {
+    setAdvancedMode(next)
+    try {
+      if (typeof window === 'undefined') return
+      window.localStorage.setItem('bb-mapping-wizard-advanced', next ? '1' : '0')
+    } catch {
+      // ignore — UI state still flips, just doesn't persist.
+    }
+  }
   // v27.1.1.0.3d.2.2: success banner. Flips true for 3 seconds after a
   // successful suggestion run; renders an "✨ AI suggested N fields"
   // toast with a green-ish copper accent before collapsing.
@@ -648,6 +677,7 @@ export default function MappingWizard({
         isAiSuggested={aiSuggestedFlags[f.name] === true}
         aiOriginalPath={aiDiffers ? aiOriginalPath : null}
         mirrorPath={mirrorPath}
+        advanced={advancedMode}
         onChange={handleDropdownChange}
         onFallbackChange={handleFallbackChange}
         onStaticTextChange={handleStaticTextChange}
@@ -828,6 +858,39 @@ export default function MappingWizard({
           straight to the first field card. */}
       <div ref={fieldsAreaRef} />
 
+      {/* v27.1.5.4: "Show advanced" toggle. Hides slot picker pill,
+          override checkbox, AI restore link, and +Add fallback link by
+          default so the wizard reads as a clean source-pick-per-field
+          flow. Default OFF; persists per browser via localStorage. */}
+      {fields.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.1rem 0',
+          }}
+        >
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.85rem',
+              color: 'var(--color-ink-soft)',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={advancedMode}
+              onChange={(e) => handleToggleAdvanced(e.target.checked)}
+            />
+            Show advanced
+          </label>
+        </div>
+      )}
 
       {/* v27.1.1.0.3c.5: render groups instead of raw fields. Three group
           kinds: 'single' (no siblings), 'simple-mirror' (slots 1..N, N<=5
@@ -1284,6 +1347,7 @@ function FieldRow({
   isAiSuggested,
   aiOriginalPath,
   mirrorPath,
+  advanced,
   onChange,
   onFallbackChange,
   onStaticTextChange,
@@ -1302,6 +1366,7 @@ function FieldRow({
   rangeEnd: string
   slotOverride: number
   isOverride: boolean
+  advanced: boolean
   isAiSuggested: boolean
   aiOriginalPath: string | null
   mirrorPath: string | null
@@ -1409,13 +1474,18 @@ function FieldRow({
           {/* v27.1.1.0.3c.3: tap-to-edit slot badge. Default state shows
               the auto-detected slot or "Trip-level"; tapping reveals an
               inline picker so guides can override only when needed.
-              The dedicated "Field belongs to" select below is removed. */}
-          <SlotBadgeButton
-            slot={slot}
-            slotOverride={slotOverride}
-            detectedSlot={detectedSlot}
-            onSlotChange={(s) => onSlotChange(field.name, s)}
-          />
+              The dedicated "Field belongs to" select below is removed.
+              v27.1.5.4: hidden by default behind "Show advanced". The
+              auto-detected slot still applies silently; this badge is
+              the manual escape hatch. */}
+          {advanced && (
+            <SlotBadgeButton
+              slot={slot}
+              slotOverride={slotOverride}
+              detectedSlot={detectedSlot}
+              onSlotChange={(s) => onSlotChange(field.name, s)}
+            />
+          )}
           <span
             aria-label={`Field type ${field.type}`}
             style={{
@@ -1451,7 +1521,12 @@ function FieldRow({
           v27.1.1.0.3c.3: copy refresh — "Use a different value for this
           hunter" reads more naturally than "Use a different source for
           this slot" to a non-technical guide. */}
-      {mirrorPath !== null && slot >= 2 && (
+      {/* v27.1.5.4: hidden by default. When advanced is OFF the dropdown
+          below still respects the existing isOverride flag (mirrors
+          slot 1 unless the guide previously enabled override in
+          advanced mode), so behavior is preserved — only the toggle
+          UI is hidden. */}
+      {advanced && mirrorPath !== null && slot >= 2 && (
         <div
           style={{
             display: 'flex',
@@ -1526,8 +1601,11 @@ function FieldRow({
       {/* v27.1.1.0.3d.2.8: "Use AI suggestion" restore link. Renders only
           when the AI's saved recommendation differs from the guide's
           current pick. Tap reverts data_source_path + hunter_slot to
-          the AI values without re-running the whole form. */}
-      {aiOriginalPath !== null && (
+          the AI values without re-running the whole form.
+          v27.1.5.4: also gated to advanced mode — the simple flow only
+          shows the source dropdown the guide has now, no "go back to
+          AI" affordance. */}
+      {advanced && aiOriginalPath !== null && (
         <button
           type="button"
           onClick={() => onRestoreAi(field.name)}
@@ -1615,15 +1693,20 @@ function FieldRow({
           returns null/empty. Lets a single PDF field accept either-or
           sources (e.g. CDFW "TAG / REPORT CARD"). Static literals
           (text/date/range) are intentionally NOT surfaced here — fallback
-          only supports clean source paths to keep the UI simple. */}
-      <FallbackSourceEditor
-        fieldName={field.name}
-        fallbackValue={fallbackValue}
-        sources={sources}
-        grouped={grouped}
-        primaryDropdownValue={dropdownValue}
-        onChange={onFallbackChange}
-      />
+          only supports clean source paths to keep the UI simple.
+          v27.1.5.4: hidden behind advanced mode unless a fallback is
+          already saved (in which case we always render the editor —
+          can't silently strand existing data). */}
+      {(advanced || !!fallbackValue) && (
+        <FallbackSourceEditor
+          fieldName={field.name}
+          fallbackValue={fallbackValue}
+          sources={sources}
+          grouped={grouped}
+          primaryDropdownValue={dropdownValue}
+          onChange={onFallbackChange}
+        />
+      )}
     </div>
   )
 }
