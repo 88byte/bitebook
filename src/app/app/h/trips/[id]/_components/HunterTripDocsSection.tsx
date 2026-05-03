@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { completeHunterActionAction } from '../../../../_lib/trip-doc-actions'
 import type { TripDocRow } from '../../../../_lib/trip-doc-queries'
+import SignWaiverModal from './SignWaiverModal'
 
 export type HunterTripDoc = Omit<TripDocRow, 'actions'> & {
   my_action: TripDocRow['actions'][number] | null
@@ -239,7 +240,12 @@ function HunterDocRow({ row }: { row: HunterTripDoc }) {
           </>
         )}
         {requiredOpen && action && (
-          <CompleteActionButton actionId={action.id} actionType={action.action_type} />
+          <CompleteActionButton
+            actionId={action.id}
+            actionType={action.action_type}
+            docLabel={row.doc.label}
+            unsignedUrl={row.signed_url ?? null}
+          />
         )}
       </div>
     </div>
@@ -249,17 +255,33 @@ function HunterDocRow({ row }: { row: HunterTripDoc }) {
 function CompleteActionButton({
   actionId,
   actionType,
+  docLabel,
+  unsignedUrl,
 }: {
   actionId: string
   actionType: string
+  docLabel: string
+  unsignedUrl: string | null
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [signOpen, setSignOpen] = useState(false)
 
-  const label = actionType === 'sign' ? 'Acknowledge' : 'Mark as viewed'
+  // v27.2.0.2: 'sign' action now opens the SignWaiverModal instead of
+  // firing completeHunterActionAction with a placeholder
+  // acknowledged_at jsonb. The modal posts to signWaiverAction which
+  // produces a signed PDF + flips completed_at + writes a
+  // doc_signatures audit row. 'view' actions keep the simple "Mark as
+  // viewed" path — no signature needed there.
+  const isSignKind = actionType === 'sign'
+  const label = isSignKind ? 'Sign now' : 'Mark as viewed'
 
   function onClick() {
+    if (isSignKind) {
+      setSignOpen(true)
+      return
+    }
     setError(null)
     startTransition(async () => {
       const res = await completeHunterActionAction(actionId)
@@ -292,6 +314,15 @@ function CompleteActionButton({
         <span style={{ color: '#8C3C2A', fontSize: '0.78rem' }} role="alert">
           {error}
         </span>
+      )}
+      {isSignKind && (
+        <SignWaiverModal
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          actionId={actionId}
+          docLabel={docLabel}
+          unsignedUrl={unsignedUrl}
+        />
       )}
     </span>
   )

@@ -111,6 +111,7 @@ export type Database = {
           ai_suggested_slot: number | null
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index: number | null
+          placement_coords: Json | null
           signature_role: string | null
           updated_at: string
         }
@@ -129,6 +130,7 @@ export type Database = {
           ai_suggested_slot?: number | null
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
+          placement_coords?: Json | null
           signature_role?: string | null
           updated_at?: string
         }
@@ -147,6 +149,7 @@ export type Database = {
           ai_suggested_slot?: number | null
           mapping_kind?: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
+          placement_coords?: Json | null
           signature_role?: string | null
           updated_at?: string
         }
