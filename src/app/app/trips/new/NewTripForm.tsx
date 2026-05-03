@@ -8,6 +8,9 @@ import { createTripAction } from '../actions'
 import { createTripFromTemplateAction } from '../../_lib/trip-template-actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import DateTimeField from '../../_components/DateTimeField'
+import SpeciesField from '../../_components/SpeciesField'
+
+type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
 
 // v27.1.4: optional initial values for the "Use template" flow. When the
 // caller passes initial+templateId, the form pre-fills activity/location/
@@ -33,10 +36,14 @@ export default function NewTripForm({
   hunters,
   initial = null,
   templateId = null,
+  speciesOptions,
 }: {
   hunters: HunterOption[]
   initial?: NewTripInitial | null
   templateId?: string | null
+  // v27.1.3.0.2: full species pool from the species table for the
+  // Hunt details Species picker. Same source as wallet/harvest forms.
+  speciesOptions: SpeciesOption[]
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +55,9 @@ export default function NewTripForm({
   // without a full server round-trip. The canonical list refreshes when the
   // page revalidates after submit.
   const [hunterList, setHunterList] = useState<HunterOption[]>(hunters)
+  // v27.1.3.0.2: controlled value for the SpeciesField so kind-toggle and
+  // template pre-fill flow through cleanly.
+  const [species, setSpecies] = useState<string>(initial?.species_targeted ?? '')
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -247,18 +257,16 @@ export default function NewTripForm({
           <div className="bb-form-grid-2">
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
-              <label className="bb-field">
-                <span className="bb-field-icon"><PawPrint size={18} aria-hidden="true" /></span>
-                <input
-                  id="species_targeted"
-                  name="species_targeted"
-                  type="text"
-                  placeholder="Black bear, wild pig"
-                  className="bb-input bb-input-iconed"
-                  autoComplete="off"
-                  defaultValue={initial?.species_targeted ?? ''}
-                />
-              </label>
+              {/* v27.1.3.0.2: SpeciesField — full pool, kind-filtered. */}
+              <SpeciesField
+                id="species_targeted"
+                name="species_targeted"
+                value={species}
+                onChange={setSpecies}
+                options={speciesOptions}
+                kind={kind}
+                placeholder="Pick a species"
+              />
             </div>
             <div className="bb-form-row">
               <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>

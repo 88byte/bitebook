@@ -9,6 +9,7 @@ import { requireGuide } from '../../_lib/auth'
 import {
   fetchTripDetail,
   fetchAcceptedHunters,
+  fetchSpecies,
 } from '../../_lib/queries'
 import { fetchHarvestLogSummary } from '../../_lib/harvest-log-queries'
 import {
@@ -40,10 +41,13 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const [harvestLogSummary, tripDocs, attachableDocs] = await Promise.all([
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
+    // v27.1.3.0.2: full species pool for the Hunt details Species picker
+    // inside TripDetailEditor (replaces the plain text input).
+    fetchSpecies(),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -155,6 +159,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           }}
           candidates={candidates}
           initialSelectedIds={initialSelectedIds}
+          speciesOptions={speciesOptions}
         />
         <div className="bb-form-narrow">
           <TripDocsCard

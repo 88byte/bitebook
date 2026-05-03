@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft, Bookmark } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
-import { fetchAcceptedHunters } from '../../_lib/queries'
+import { fetchAcceptedHunters, fetchSpecies } from '../../_lib/queries'
 import {
   fetchGuideTripTemplate,
   fetchGuideTripTemplates,
@@ -22,12 +22,13 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   const sp = await searchParams
   const templateId = typeof sp.template === 'string' && sp.template.length > 0 ? sp.template : null
 
-  const [hunters, templates, templateData] = await Promise.all([
+  const [hunters, templates, templateData, speciesOptions] = await Promise.all([
     fetchAcceptedHunters(profile.id),
     fetchGuideTripTemplates(profile.id, { includeArchived: false }),
     templateId
       ? fetchGuideTripTemplate(profile.id, templateId)
       : Promise.resolve(null),
+    fetchSpecies(),
   ])
 
   // Build the initial values payload from the template (if present + active).
@@ -111,6 +112,7 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
           hunters={hunters}
           initial={initial}
           templateId={templateData ? templateData.template.id : null}
+          speciesOptions={speciesOptions}
         />
       </div>
     </main>

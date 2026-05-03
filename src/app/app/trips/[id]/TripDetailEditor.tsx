@@ -23,6 +23,9 @@ import { methodsForKind } from '@/lib/methods'
 import { updateTripAction } from './actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import DateTimeField from '../../_components/DateTimeField'
+import SpeciesField from '../../_components/SpeciesField'
+
+type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
 
 // v27.1.1.0.3e.6 — inline editor for /app/trips/[id]. Replaces the
 // separate /edit page. Trip Overview card stays expanded with auto-save
@@ -95,11 +98,15 @@ export default function TripDetailEditor({
   initial,
   candidates,
   initialSelectedIds,
+  speciesOptions,
 }: {
   tripId: string
   initial: Initial
   candidates: HunterOption[]
   initialSelectedIds: string[]
+  // v27.1.3.0.2: full species pool from the species table (40 hunting +
+  // 41 fishing). SpeciesField filters to the trip's current activity.
+  speciesOptions: SpeciesOption[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -465,18 +472,25 @@ export default function TripDetailEditor({
         <div className="bb-form-grid-2">
           <div className="bb-form-row">
             <label className="bb-form-label" htmlFor="species_targeted">Species targeted <span style={{ opacity: 0.6 }}>(optional)</span></label>
-            <label className="bb-field">
-              <span className="bb-field-icon"><PawPrint size={18} aria-hidden="true" /></span>
-              <input
-                id="species_targeted"
-                type="text"
-                value={speciesTargeted}
-                onChange={(e) => setSpeciesTargeted(e.target.value)}
-                onBlur={() => autoSave()}
-                className="bb-input bb-input-iconed"
-                autoComplete="off"
-              />
-            </label>
+            {/* v27.1.3.0.2: replace plain text input with the shared
+                SpeciesField — full hunting / fishing pool (40 / 41
+                species), kind-filtered by the current trip activity.
+                Picking from the dropdown auto-saves; switching to "Other"
+                opens a free-text input that auto-saves on blur. */}
+            <SpeciesField
+              id="species_targeted"
+              name="species_targeted"
+              value={speciesTargeted}
+              onChange={(next) => {
+                setSpeciesTargeted(next)
+                // Defer the save by a tick so React's state update flushes
+                // into fieldsRef before buildFormData reads it.
+                setTimeout(() => autoSave(), 0)
+              }}
+              options={speciesOptions}
+              kind={kind}
+              placeholder="Pick a species"
+            />
           </div>
           <div className="bb-form-row">
             <label className="bb-form-label" htmlFor="method">Method <span style={{ opacity: 0.6 }}>(optional)</span></label>
