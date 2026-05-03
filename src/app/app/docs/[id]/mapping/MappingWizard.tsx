@@ -700,22 +700,43 @@ export default function MappingWizard({
       )}
 
       {stage === 'success' && (
-        <StepCard
-          stepNumber={3}
-          title={`AI suggested ${aiSuccessCount ?? 0} field${aiSuccessCount === 1 ? '' : 's'}`}
-          tone="success"
+        <div
+          className="bb-tile"
+          style={{
+            padding: '0.875rem 1rem',
+            background:
+              'linear-gradient(180deg, rgba(78, 130, 70, 0.10), rgba(78, 130, 70, 0.02))',
+            borderColor: '#3F6B3A',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.25rem',
+          }}
+          role="status"
+          aria-live="polite"
         >
-          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontWeight: 700,
+              color: '#3F6B3A',
+            }}
+          >
+            <Sparkles size={16} aria-hidden="true" />
+            AI suggested {aiSuccessCount ?? 0} field{aiSuccessCount === 1 ? '' : 's'}
+          </span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
             We pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
             Review them below &mdash; edit anything wrong, then tap{' '}
             <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
-          </p>
-        </StepCard>
+          </span>
+        </div>
       )}
 
       {stage === 'review' && (
         <StepCard
-          stepNumber={4}
+          stepNumber={3}
           title="Review your mappings"
           tone="ink"
         >
@@ -822,11 +843,11 @@ export default function MappingWizard({
         </p>
       )}
 
-      {/* v27.1.1.0.3d.2.4: Step 5 — Mark mapping complete. Promoted from
-          a tight save bar to a full step card with primary CTA + helper
-          copy + status indicator. */}
+      {/* v27.1.1.0.3d.2.10: renumbered to Step 4 (was Step 5). The
+          success banner above is now a non-numbered info tile, so the
+          numbered actions are: 1=Start, 2=Working, 3=Review, 4=Complete. */}
       <StepCard
-        stepNumber={5}
+        stepNumber={4}
         title="Done? Mark this mapping complete"
         tone="copper"
       >
