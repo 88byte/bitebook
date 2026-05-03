@@ -1145,8 +1145,8 @@ DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
 - "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → "wallet_consumed.identifier" (the harvest tag the hunter punched).
 
-SIGNATURE FIELDS (always skip):
-- "Date Signed" / "Date of Signature" / "Signature Date" / any signature-date placeholder → MUST map to "skip". These are filled when the document is signed via e-signature, NEVER from harvest_log.log_date or wallet.valid_to or any other source.
+SIGNATURE FIELDS (signature-date catch + signature placeholder skip):
+- "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line / any signature-date placeholder → MUST map to "signature_date.now" (the new sentinel in the special category). NEVER "harvest_log.log_date" (hunt date), NEVER "wallet_consumed.valid_to" (tag expiry), NEVER any other date source. These fields fill ONLY when the document is actually signed via e-signature, NOT at PDF generation. The fill engine resolves "signature_date.now" to NULL at generate-time so the box stays blank until the signing flow runs.
 - "Signature" / "Sign Here" / "Initials" / "Hunter Signature" / "Guide Signature" / signature-type form fields → MUST map to "skip". Signature-block placement ships in v27.2 with the e-signature engine; auto-fill leaves these alone.
 
 EITHER-OR FIELDS (use fallback_path):

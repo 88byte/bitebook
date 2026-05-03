@@ -138,6 +138,13 @@ function resolveSource(
 ): ResolvedValue {
   if (!path || path === SKIP_VALUE) return null
 
+  // v27.1.5.4.1: signature_date.now sentinel resolves to NULL at fill
+  // time. The field stays blank in the generated PDF; the e-signature
+  // engine (v27.2) overlays the actual signing date when the document
+  // is signed. This is intentional — auto-filling with today's date
+  // would lie about when the document was actually executed.
+  if (path === 'signature_date.now') return null
+
   // Static prefixes
   if (path === 'static:checked') return true
   if (path === 'static:unchecked') return false

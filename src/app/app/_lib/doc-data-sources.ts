@@ -174,6 +174,13 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: STATIC_TEXT_PREFIX,        label: 'Type your own value',                 category: 'special', valueType: 'string' },
   { value: STATIC_DATE_PREFIX,        label: 'Pick a date',                         category: 'special', valueType: 'string', type: 'date' },
   { value: STATIC_DATE_RANGE_PREFIX,  label: 'Pick a date range',                   category: 'special', valueType: 'string', type: 'date' },
+  // v27.1.5.4.1: signature_date.now sentinel. The fill engine resolves
+  // this to NULL at PDF generation (leaves the field blank); the e-
+  // signature engine fills it with the actual signing timestamp at the
+  // moment the document is signed. Use for any "Date Signed", "Date of
+  // Signature", or "Signature Date" field — NEVER map those to
+  // harvest_log.log_date (hunt date) or wallet.valid_to.
+  { value: 'signature_date.now',      label: 'Date when document is signed (fills at signing)', category: 'special', valueType: 'string', type: 'date' },
   { value: SKIP_VALUE,                label: 'Skip — leave blank',                  category: 'special', valueType: 'string' },
   { value: 'static:checked',          label: 'Always checked',                      category: 'special', valueType: 'boolean' },
   { value: 'static:unchecked',        label: 'Always unchecked',                    category: 'special', valueType: 'boolean' },
