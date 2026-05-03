@@ -60,6 +60,21 @@ export default async function HunterDashboardPage() {
         </div>
       )}
 
+      {/* v27.1.5.2: Pending actions promoted to slot 2 (right under the
+          hero, ahead of stats + Upcoming). License/tag link prompts and
+          trip-doc actions are the most time-sensitive thing for a hunter
+          to see — they shouldn't be buried between Upcoming and Recent.
+          Renders only when there's at least one pending item; otherwise
+          the stats row becomes the first content tile after the hero. */}
+      {(pendingActions.length > 0 || pendingWalletLinks.length > 0) && (
+        <div className="mt-4">
+          <PendingActionsCard
+            actions={pendingActions}
+            walletLinks={pendingWalletLinks}
+          />
+        </div>
+      )}
+
       <div className="bb-stat-row mt-4">
         <StatIconedCard icon={Calendar} value={stats.trips} label="Trips you've been on" />
         <StatIconedCard icon={Trophy} value={stats.harvests} label="Harvests" />
@@ -92,15 +107,6 @@ export default async function HunterDashboardPage() {
           </div>
         )}
       </section>
-
-      {(pendingActions.length > 0 || pendingWalletLinks.length > 0) && (
-        <div className="mt-5">
-          <PendingActionsCard
-            actions={pendingActions}
-            walletLinks={pendingWalletLinks}
-          />
-        </div>
-      )}
 
       <section className="mt-5">
         <div className="bb-dash-section-head">
