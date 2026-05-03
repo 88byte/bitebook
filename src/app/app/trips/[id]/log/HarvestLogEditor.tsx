@@ -35,7 +35,7 @@ import type {
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
-import { Download, ExternalLink, Pencil, Check, X as XIcon } from 'lucide-react'
+import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw } from 'lucide-react'
 
 // v27.1.1.0.3a   — accordion editor.
 // v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
@@ -192,7 +192,7 @@ export default function HarvestLogEditor({
         {/* v27.1.1.0.3e.3: top-of-page tile listing already-generated PDFs
             for this trip, with Open / Download / Delete per row. Empty
             state nudges the guide to fill out the log + tap Generate. */}
-        <GeneratedReportsTile generatedLogs={generatedLogs} />
+        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} />
 
         {/* Trip-level fields — auto-save on blur (date) / change (purpose).
             v27.1.1.0.3e.4 layout: 2-col grid (date | purpose), purpose
@@ -1192,7 +1192,15 @@ function GeneratePdfsSection({
 // v27.1.1.0.3e.4: per-row buttons restyled as 3 square icon-tiles
 // (Open / Download / Delete) with stacked icon+label, ~3.25rem square.
 
-function GeneratedReportsTile({ generatedLogs }: { generatedLogs: TripGeneratedLog[] }) {
+function GeneratedReportsTile({
+  generatedLogs,
+  logId,
+}: {
+  generatedLogs: TripGeneratedLog[]
+  // v27.1.3.0.3: thread logId so each row's Re-generate button can call
+  // generateFilledHarvestLogPDFsAction(logId, source_doc_id, ..., row.id).
+  logId: string
+}) {
   if (generatedLogs.length === 0) {
     return (
       <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
@@ -1215,7 +1223,7 @@ function GeneratedReportsTile({ generatedLogs }: { generatedLogs: TripGeneratedL
         </p>
         <div className="flex flex-col gap-2">
           {generatedLogs.map((g) => (
-            <GeneratedReportRow key={g.id} row={g} />
+            <GeneratedReportRow key={g.id} row={g} logId={logId} />
           ))}
         </div>
       </div>
@@ -1223,10 +1231,20 @@ function GeneratedReportsTile({ generatedLogs }: { generatedLogs: TripGeneratedL
   )
 }
 
-function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
+function GeneratedReportRow({
+  row,
+  logId,
+}: {
+  row: TripGeneratedLog
+  // v27.1.3.0.3: logId threaded down so the Re-generate button can
+  // invoke the fill action with the same (logId, source_doc_id) pair
+  // that originally produced this row.
+  logId: string
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmRegen, setConfirmRegen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // v27.1.4.0.1: inline rename. Tap pencil → swap filename for an
@@ -1264,6 +1282,35 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
     setDraft(stripPdfExt(row.file_name))
     setEditing(false)
     setError(null)
+  }
+
+  // v27.1.3.0.3: Re-generate this PDF in place. Reuses the existing
+  // file_path so any cached signed-URL references stay live; the row's
+  // file_name + page_count + updated_at refresh, but no new row is
+  // inserted. Skips when source_doc_id is missing (rare — happens when
+  // the original log doc was deleted with ON DELETE SET NULL).
+  function runRegenerate() {
+    setError(null)
+    if (!row.source_doc_id) {
+      setError('The original log doc is no longer available — re-generate isn\'t possible.')
+      return
+    }
+    const sourceDocId = row.source_doc_id
+    // Strip the suffix the engine reapplies on save (filledLabel + .pdf).
+    const customName = stripPdfExt(row.file_name)
+    startTransition(async () => {
+      const res = await generateFilledHarvestLogPDFsAction(
+        logId,
+        sourceDocId,
+        customName,
+        row.id,
+      )
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      router.refresh()
+    })
   }
 
   return (
@@ -1409,6 +1456,21 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
         )}
         <button
           type="button"
+          className="bb-icon-tile"
+          onClick={() => setConfirmRegen(true)}
+          disabled={pending || !row.source_doc_id}
+          aria-label={`Re-generate ${row.file_name}`}
+          title={
+            row.source_doc_id
+              ? 'Re-generate this PDF with fresh data from the harvest log'
+              : 'Original log doc no longer available'
+          }
+        >
+          <RotateCw size={16} aria-hidden="true" />
+          <span>Re-generate</span>
+        </button>
+        <button
+          type="button"
           className="bb-icon-tile bb-icon-tile--destructive"
           onClick={() => setConfirmOpen(true)}
           disabled={pending}
@@ -1429,6 +1491,18 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
         onConfirm={() => {
           setConfirmOpen(false)
           runDelete()
+        }}
+      />
+      <ConfirmModal
+        open={confirmRegen}
+        title="Re-generate this PDF?"
+        body="The current file will be overwritten with fresh data from your harvest log. The download link stays the same; the report's name doesn't change unless you rename it after."
+        confirmLabel="Re-generate"
+        isPending={pending}
+        onCancel={() => setConfirmRegen(false)}
+        onConfirm={() => {
+          setConfirmRegen(false)
+          runRegenerate()
         }}
       />
     </div>

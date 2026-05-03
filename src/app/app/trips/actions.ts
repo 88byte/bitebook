@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from '../_lib/auth'
 import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
+import { ensureHarvestLog } from '../_lib/harvest-log-queries'
 import { markStepDone } from '../_lib/onboarding'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
@@ -64,6 +65,14 @@ export async function createTripAction(formData: FormData) {
       // rolling back. The detail screen can show "no participants yet" and the
       // guide can re-add from there.
       console.warn('[createTripAction] participants insert failed', partResult.error)
+    } else {
+      // v27.1.3.0.3: auto-create the harvest log on first hunter join.
+      // Idempotent — safe to call even if a future fix re-runs this path.
+      try {
+        await ensureHarvestLog(insertResult.id, profile.id)
+      } catch (e) {
+        console.warn('[createTripAction:ensureHarvestLog]', e)
+      }
     }
   }
 

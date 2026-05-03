@@ -1211,6 +1211,7 @@ export type Database = {
           pass_total: number
           source_doc_id: string | null
           trip_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -1224,6 +1225,7 @@ export type Database = {
           pass_total?: number
           source_doc_id?: string | null
           trip_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -1237,6 +1239,7 @@ export type Database = {
           pass_total?: number
           source_doc_id?: string | null
           trip_id?: string
+          updated_at?: string
         }
         Relationships: [
           {

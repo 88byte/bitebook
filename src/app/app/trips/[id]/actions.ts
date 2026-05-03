@@ -14,6 +14,7 @@ import {
   reopenTrip,
   closeTrip,
 } from '../../_lib/queries'
+import { ensureHarvestLog } from '../../_lib/harvest-log-queries'
 import { createClient } from '@/lib/supabase/server'
 import { isValidMethod } from '@/lib/methods'
 import type { Database } from '@/lib/supabase/types'
@@ -51,6 +52,17 @@ export async function addTripParticipantsAction(
 
   const result = await insertTripParticipants(profile.id, tripId, hunterIds)
   if ('error' in result) return { error: result.error }
+
+  // v27.1.3.0.3: auto-create the harvest log on first hunter join. The
+  // helper is idempotent — if the log already exists it returns the
+  // existing row id and inserts no new entries. Best-effort: if it fails
+  // we don't block the participant add (guide can still tap Generate
+  // hunt report from the action row).
+  try {
+    await ensureHarvestLog(tripId, profile.id)
+  } catch (e) {
+    console.warn('[addTripParticipants:ensureHarvestLog]', e)
+  }
 
   revalidatePath(`/app/trips/${tripId}`)
   revalidatePath('/app/trips')

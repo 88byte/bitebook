@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { isValidMethod } from '@/lib/methods'
 import { insertTrip, insertTripParticipants } from './queries'
+import { ensureHarvestLog } from './harvest-log-queries'
 
 type Kind = Database['public']['Enums']['harvest_kind']
 
@@ -157,6 +158,14 @@ export async function createTripFromTemplateAction(formData: FormData) {
     const partResult = await insertTripParticipants(profile.id, newTripId, hunterIds)
     if ('error' in partResult) {
       console.warn('[trip-template.create:participants]', { error: partResult.error })
+    } else {
+      // v27.1.3.0.3: auto-create the harvest log on first hunter join.
+      // Idempotent.
+      try {
+        await ensureHarvestLog(newTripId, profile.id)
+      } catch (e) {
+        console.warn('[trip-template.create:ensureHarvestLog]', e)
+      }
     }
   }
 

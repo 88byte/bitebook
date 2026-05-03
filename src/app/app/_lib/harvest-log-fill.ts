@@ -310,7 +310,8 @@ function resolveSource(
 export async function generateFilledHarvestLogPDFsAction(
   logId: string,
   docId: string,
-  customName?: string
+  customName?: string,
+  overwriteId?: string
 ): Promise<GenerateFilledLogResult> {
   const { profile } = await requireGuide()
   if (!logId || !docId) return { error: 'Missing log or doc id.' }
@@ -318,6 +319,12 @@ export async function generateFilledHarvestLogPDFsAction(
   // fall through to the auto-generated `{trip.title} — {doc.label}`
   // pattern below. Capped at 120 chars defensively.
   const cleanCustomName = (customName ?? '').trim().slice(0, 120)
+  // v27.1.3.0.3: optional overwrite target. When set, the engine
+  // upserts the storage object at the EXISTING file_path of this row
+  // (no new row inserted) and bumps the row's updated_at. Multi-pass
+  // overflow forms aren't supported via overwrite — rejected if the
+  // generation would create more than 1 pass.
+  const cleanOverwriteId = (overwriteId ?? '').trim() || null
 
   const sb = await createClient()
 
@@ -591,6 +598,36 @@ export async function generateFilledHarvestLogPDFsAction(
     )
   }
 
+  // v27.1.3.0.3: load the overwrite target if requested. Verify the row
+  // belongs to this trip + this guide before letting the engine reuse
+  // its file_path. Reject overwrite when the new generation would split
+  // into multiple passes — a single PDF can't be re-generated as a
+  // multi-pass overflow without leaving stale companion rows behind.
+  type OverwriteTarget = { id: string; file_path: string; pass_index: number; pass_total: number }
+  let overwriteTarget: OverwriteTarget | null = null
+  if (cleanOverwriteId) {
+    if (passes > 1) {
+      return {
+        error:
+          'Re-generate skipped — this report now splits across multiple PDFs. Delete the old single-PDF report and Generate fresh to produce the multi-pass set.',
+      }
+    }
+    const { data: ow } = await sb
+      .from('trip_generated_logs')
+      .select('id, trip_id, file_path, pass_index, pass_total, created_by')
+      .eq('id', cleanOverwriteId)
+      .maybeSingle()
+    if (!ow) return { error: 'Could not load the report to re-generate.' }
+    if (ow.trip_id !== log.trip_id) return { error: 'Re-generate target belongs to a different trip.' }
+    if (ow.created_by !== profile.id) return { error: 'Not allowed to re-generate this report.' }
+    overwriteTarget = {
+      id: ow.id,
+      file_path: ow.file_path,
+      pass_index: ow.pass_index,
+      pass_total: ow.pass_total,
+    }
+  }
+
   // v27.1.1.0.3e.3 — diagnostic data-side warnings.
   //
   // Many "blank field" reports come from missing snapshot data, not a
@@ -763,10 +800,19 @@ export async function generateFilledHarvestLogPDFsAction(
 
     const filledBytes = await pdf.save()
 
-    const ts = Date.now()
-    const passSuffix = passes > 1 ? `-pt${pass + 1}of${passes}` : ''
-    const filename = `${slugify(doc.label)}-${ts}${passSuffix}.pdf`
-    const filePath = `logs/${profile.id}/${log.trip_id}/${filename}`
+    // v27.1.3.0.3: when overwriting, reuse the existing storage path so
+    // any cached signed-URL references stay live (URLs themselves rotate
+    // every hour but the underlying object key is stable). For fresh
+    // generations, slug+timestamp keeps a unique path per pass.
+    let filePath: string
+    if (overwriteTarget) {
+      filePath = overwriteTarget.file_path
+    } else {
+      const ts = Date.now()
+      const passSuffix = passes > 1 ? `-pt${pass + 1}of${passes}` : ''
+      const filename = `${slugify(doc.label)}-${ts}${passSuffix}.pdf`
+      filePath = `logs/${profile.id}/${log.trip_id}/${filename}`
+    }
 
     const { error: upErr } = await sb.storage
       .from('bb-private')
@@ -806,32 +852,60 @@ export async function generateFilledHarvestLogPDFsAction(
     // renders it directly). Persist filledLabel + .pdf instead of the
     // slug+timestamp filename — storage path stays at filePath, so the
     // download button still resolves the underlying object.
+    // v27.1.3.0.3: when overwriting, UPDATE the target row's file_name +
+    // page_count + updated_at instead of inserting a new row. Storage
+    // upload(... { upsert: true }) above already replaced the bytes at
+    // the existing file_path. The trigger keeps updated_at synced.
     const displayFileName = `${filledLabel}.pdf`
-    const { data: genRow, error: genErr } = await sb
-      .from('trip_generated_logs')
-      .insert({
-        trip_id: log.trip_id,
-        log_id: log.id,
-        source_doc_id: docId,
-        file_path: filePath,
-        file_name: displayFileName,
-        page_count: pageCount,
-        pass_index: pass + 1,
-        pass_total: passes,
-        created_by: profile.id,
-      })
-      .select('id')
-      .single()
-    if (genErr) {
-      console.warn('[harvestLog.fill:trip_generated_logs.insert]', {
-        code: genErr.code,
-        message: genErr.message,
-        path: filePath,
-      })
+    let genRowId: string | null = null
+    if (overwriteTarget && pass === 0) {
+      const { error: updErr } = await sb
+        .from('trip_generated_logs')
+        .update({
+          file_name: displayFileName,
+          page_count: pageCount,
+          source_doc_id: docId,
+        })
+        .eq('id', overwriteTarget.id)
+        .eq('created_by', profile.id)
+      if (updErr) {
+        console.warn('[harvestLog.fill:trip_generated_logs.update]', {
+          code: updErr.code,
+          message: updErr.message,
+          id: overwriteTarget.id,
+        })
+      } else {
+        genRowId = overwriteTarget.id
+      }
+    } else {
+      const { data: genRow, error: genErr } = await sb
+        .from('trip_generated_logs')
+        .insert({
+          trip_id: log.trip_id,
+          log_id: log.id,
+          source_doc_id: docId,
+          file_path: filePath,
+          file_name: displayFileName,
+          page_count: pageCount,
+          pass_index: pass + 1,
+          pass_total: passes,
+          created_by: profile.id,
+        })
+        .select('id')
+        .single()
+      if (genErr) {
+        console.warn('[harvestLog.fill:trip_generated_logs.insert]', {
+          code: genErr.code,
+          message: genErr.message,
+          path: filePath,
+        })
+      } else {
+        genRowId = genRow?.id ?? null
+      }
     }
 
     artifacts.push({
-      id: genRow?.id ?? '',
+      id: genRowId ?? '',
       file_path: filePath,
       signed_url: signed?.signedUrl ?? '',
       label: filledLabel,
