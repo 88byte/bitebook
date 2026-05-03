@@ -297,6 +297,14 @@ export type TripGeneratedLog = {
   // timestamp is newer with a "Generated"/"Updated" prefix.
   updated_at: string
   signed_url: string
+  // v27.2.0.1: signed copy. Populated when the guide has signed the
+  // generated PDF. signed_url_signed is a separate signed URL pointing
+  // at the bb-private/signed/{guide}/{trip}/... object so Open /
+  // Download switch to the signed copy when present.
+  signed_at: string | null
+  signed_file_path: string | null
+  signed_file_name: string | null
+  signed_url_signed: string | null
 }
 
 export async function fetchTripGeneratedLogs(tripId: string): Promise<TripGeneratedLog[]> {
@@ -304,7 +312,7 @@ export async function fetchTripGeneratedLogs(tripId: string): Promise<TripGenera
   const { data, error } = await sb
     .from('trip_generated_logs')
     .select(
-      'id, trip_id, log_id, source_doc_id, file_path, file_name, page_count, pass_index, pass_total, created_at, updated_at'
+      'id, trip_id, log_id, source_doc_id, file_path, file_name, page_count, pass_index, pass_total, created_at, updated_at, signed_at, signed_file_path, signed_file_name'
     )
     .eq('trip_id', tripId)
     // v27.1.3.0.4: order by whichever is newer so a re-generated PDF
@@ -319,12 +327,20 @@ export async function fetchTripGeneratedLogs(tripId: string): Promise<TripGenera
 
   // Sign URLs in parallel. Best-effort — if a row's storage object is
   // gone, signed_url is empty and the UI shows a disabled state.
+  // v27.2.0.1: also sign the signed-PDF copy when present so the UI
+  // can flip Open / Download to the executed version.
   const signed = await Promise.all(
     rows.map(async (r) => {
-      const { data: s } = await sb.storage
-        .from('bb-private')
-        .createSignedUrl(r.file_path, 3600)
-      return { ...r, signed_url: s?.signedUrl ?? '' } as TripGeneratedLog
+      const baseUrlPromise = sb.storage.from('bb-private').createSignedUrl(r.file_path, 3600)
+      const signedUrlPromise = r.signed_file_path
+        ? sb.storage.from('bb-private').createSignedUrl(r.signed_file_path, 3600)
+        : Promise.resolve({ data: null })
+      const [baseRes, signedRes] = await Promise.all([baseUrlPromise, signedUrlPromise])
+      return {
+        ...r,
+        signed_url: baseRes.data?.signedUrl ?? '',
+        signed_url_signed: signedRes.data?.signedUrl ?? null,
+      } as TripGeneratedLog
     })
   )
   return signed

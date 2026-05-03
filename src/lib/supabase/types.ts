@@ -160,6 +160,42 @@ export type Database = {
           },
         ]
       }
+      doc_signatures: {
+        Row: {
+          id: string
+          trip_doc_hunter_action_id: string | null
+          trip_generated_log_id: string | null
+          signer_id: string
+          signature_field_index: number | null
+          signature_data: string
+          signed_at: string
+          ip_address: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          id?: string
+          trip_doc_hunter_action_id?: string | null
+          trip_generated_log_id?: string | null
+          signer_id: string
+          signature_field_index?: number | null
+          signature_data: string
+          signed_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          id?: string
+          trip_doc_hunter_action_id?: string | null
+          trip_generated_log_id?: string | null
+          signer_id?: string
+          signature_field_index?: number | null
+          signature_data?: string
+          signed_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       docs: {
         Row: {
           archived_at: string | null
@@ -1218,6 +1254,9 @@ export type Database = {
           page_count: number | null
           pass_index: number
           pass_total: number
+          signed_at: string | null
+          signed_file_name: string | null
+          signed_file_path: string | null
           source_doc_id: string | null
           trip_id: string
           updated_at: string
@@ -1232,6 +1271,9 @@ export type Database = {
           page_count?: number | null
           pass_index?: number
           pass_total?: number
+          signed_at?: string | null
+          signed_file_name?: string | null
+          signed_file_path?: string | null
           source_doc_id?: string | null
           trip_id: string
           updated_at?: string
@@ -1246,6 +1288,9 @@ export type Database = {
           page_count?: number | null
           pass_index?: number
           pass_total?: number
+          signed_at?: string | null
+          signed_file_name?: string | null
+          signed_file_path?: string | null
           source_doc_id?: string | null
           trip_id?: string
           updated_at?: string

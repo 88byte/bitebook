@@ -35,7 +35,8 @@ import type {
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
-import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw } from 'lucide-react'
+import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw, PenLine } from 'lucide-react'
+import SignModal from './SignModal'
 
 // v27.1.1.0.3a   — accordion editor.
 // v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
@@ -1246,12 +1247,22 @@ function GeneratedReportRow({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmRegen, setConfirmRegen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // v27.2.0.1: sign-modal open state. Signed files use the same Open /
+  // Download buttons but point at signed_url_signed when set.
+  const [signOpen, setSignOpen] = useState(false)
 
   // v27.1.4.0.1: inline rename. Tap pencil → swap filename for an
   // editable input → Save calls renameTripGeneratedLogAction → row
   // refreshes with new file_name. Storage path is untouched.
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>(() => stripPdfExt(row.file_name))
+
+  // v27.2.0.1: when the row has been signed, prefer the signed copy
+  // for Open / Download. The unsigned PDF is still accessible via the
+  // sign modal ("Open unsigned PDF in a new tab") for audit.
+  const isSigned = !!row.signed_at && !!row.signed_url_signed
+  const displayUrl = isSigned ? row.signed_url_signed! : row.signed_url
+  const displayName = isSigned ? row.signed_file_name ?? row.file_name : row.file_name
 
   function runDelete() {
     setError(null)
@@ -1439,24 +1450,48 @@ function GeneratedReportRow({
           </p>
         )}
       </div>
-      <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0 }}>
-        {row.signed_url ? (
+      <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* v27.2.0.1: Signed-on pill rendered before the action tiles
+            when the report has been signed. */}
+        {isSigned && (
+          <span
+            aria-label={`Signed ${new Date(row.signed_at!).toLocaleDateString()}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              padding: '0.2rem 0.5rem',
+              borderRadius: 999,
+              background: '#DDEEDD',
+              color: '#2E5E2E',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <PenLine size={12} aria-hidden="true" />
+            Signed {new Date(row.signed_at!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+        )}
+        {displayUrl ? (
           <>
             <a
-              href={row.signed_url}
+              href={displayUrl}
               target="_blank"
               rel="noreferrer noopener"
               className="bb-icon-tile"
-              aria-label={`Open ${row.file_name}`}
+              aria-label={`Open ${displayName}`}
             >
               <ExternalLink size={16} aria-hidden="true" />
               <span>Open</span>
             </a>
             <a
-              href={row.signed_url}
-              download={row.file_name}
+              href={displayUrl}
+              download={displayName}
               className="bb-icon-tile"
-              aria-label={`Download ${row.file_name}`}
+              aria-label={`Download ${displayName}`}
             >
               <Download size={16} aria-hidden="true" />
               <span>Download</span>
@@ -1465,6 +1500,25 @@ function GeneratedReportRow({
         ) : (
           <span style={{ fontSize: '0.8rem', color: '#8C3C2A' }}>File missing</span>
         )}
+        {/* v27.2.0.1: Sign and finalize. Button label flips to
+            "Re-sign" when a prior signature exists; the modal copies
+            the same wording. Disabled when the unsigned PDF is missing
+            (nothing to sign). */}
+        <button
+          type="button"
+          className="bb-icon-tile"
+          onClick={() => setSignOpen(true)}
+          disabled={pending || !row.signed_url}
+          aria-label={isSigned ? `Re-sign ${row.file_name}` : `Sign ${row.file_name}`}
+          title={
+            isSigned
+              ? 'Replace the existing signature with a new one'
+              : 'Draw your signature and stamp today’s date on the report'
+          }
+        >
+          <PenLine size={16} aria-hidden="true" />
+          <span>{isSigned ? 'Re-sign' : 'Sign'}</span>
+        </button>
         <button
           type="button"
           className="bb-icon-tile"
@@ -1491,6 +1545,14 @@ function GeneratedReportRow({
           <span>Delete</span>
         </button>
       </div>
+      <SignModal
+        open={signOpen}
+        onClose={() => setSignOpen(false)}
+        generatedLogId={row.id}
+        fileName={row.file_name}
+        unsignedUrl={row.signed_url}
+        alreadySigned={isSigned}
+      />
       <ConfirmModal
         open={confirmOpen}
         title="Delete this generated PDF?"
