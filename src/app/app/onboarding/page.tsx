@@ -32,13 +32,22 @@ import {
 // onboarded_at = created_at by the v27.1.5.1 migration, so they never
 // see this wizard.
 
-type SearchParams = Promise<{ step?: string; error?: string }>
+type SearchParams = Promise<{ step?: string; error?: string; detail?: string }>
 
-const ERROR_COPY: Record<string, string> = {
-  missing_first_name: 'Enter your first name to continue.',
-  missing_last_name: 'Enter your last name to continue.',
-  missing_state: 'Pick the state you primarily operate in.',
-  missing_fields: 'Fill out every license field, or skip this step.',
+// v27.1.5.2: split the v27.1.5.1 single-banner ERROR_COPY into two layers.
+// Per-field errors render INLINE under the relevant input — the user
+// sees "State is required" right next to the dropdown, not a generic
+// banner above. Genuine server failures (RLS / DB hiccups) still get
+// the banner so the user knows the action didn't take.
+const FIELD_ERROR: Record<string, { field: 'first_name' | 'last_name' | 'state' | 'license' | 'tag'; message: string }> = {
+  missing_first_name: { field: 'first_name', message: 'First name is required.' },
+  missing_last_name: { field: 'last_name', message: 'Last name is required.' },
+  missing_state: { field: 'state', message: 'State is required.' },
+  missing_fields: { field: 'license', message: 'Fill out every license field, or skip this step.' },
+}
+const BANNER_ERROR: Record<string, string> = {
+  profile_save_failed: 'Couldn’t save your name. Please try again.',
+  guide_save_failed: 'Couldn’t save business basics. Please try again.',
   save_failed: 'Couldn’t save. Please try again.',
   finish_failed: 'Couldn’t finalize setup. Please try again.',
 }
@@ -50,7 +59,15 @@ export default async function GuideOnboardingPage({
 }) {
   const params = await searchParams
   const stepNum = clampStep(params.step)
-  const errorMsg = params.error ? (ERROR_COPY[params.error] ?? 'Something went wrong.') : null
+  const errorKey = params.error ?? null
+  const fieldErrorEntry = errorKey ? FIELD_ERROR[errorKey] ?? null : null
+  const bannerError = errorKey && !fieldErrorEntry ? (BANNER_ERROR[errorKey] ?? 'Something went wrong.') : null
+  const fieldErrors = {
+    first_name: fieldErrorEntry?.field === 'first_name' ? fieldErrorEntry.message : null,
+    last_name: fieldErrorEntry?.field === 'last_name' ? fieldErrorEntry.message : null,
+    state: fieldErrorEntry?.field === 'state' ? fieldErrorEntry.message : null,
+    license: fieldErrorEntry?.field === 'license' ? fieldErrorEntry.message : null,
+  }
 
   const { profile, guide } = await requireGuideForOnboarding()
 
@@ -67,7 +84,7 @@ export default async function GuideOnboardingPage({
 
         <ProgressBar current={stepNum} total={4} />
 
-        {errorMsg && (
+        {bannerError && (
           <div
             role="alert"
             style={{
@@ -82,7 +99,12 @@ export default async function GuideOnboardingPage({
             }}
           >
             <AlertCircle size={16} aria-hidden="true" />
-            {errorMsg}
+            {bannerError}
+            {params.detail && (
+              <span style={{ marginLeft: '0.4rem', fontStyle: 'italic', opacity: 0.8 }}>
+                ({params.detail})
+              </span>
+            )}
           </div>
         )}
 
@@ -92,9 +114,15 @@ export default async function GuideOnboardingPage({
             initialLastName={profile.last_name ?? ''}
             initialState={guide?.state ?? ''}
             initialBusinessName={guide?.business_name ?? ''}
+            fieldErrors={fieldErrors}
           />
         )}
-        {stepNum === 2 && <Step2GuideLicense initialState={guide?.state ?? ''} />}
+        {stepNum === 2 && (
+          <Step2GuideLicense
+            initialState={guide?.state ?? ''}
+            licenseError={fieldErrors.license}
+          />
+        )}
         {stepNum === 3 && <Step3StateLog />}
         {stepNum === 4 && <Step4Done />}
       </div>
@@ -166,11 +194,17 @@ function Step1BusinessBasics({
   initialLastName,
   initialState,
   initialBusinessName,
+  fieldErrors,
 }: {
   initialFirstName: string
   initialLastName: string
   initialState: string
   initialBusinessName: string
+  fieldErrors: {
+    first_name: string | null
+    last_name: string | null
+    state: string | null
+  }
 }) {
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step1">
@@ -197,7 +231,9 @@ function Step1BusinessBasics({
                 required
                 defaultValue={initialFirstName}
                 className="bb-input"
+                aria-invalid={!!fieldErrors.first_name}
               />
+              <FieldError message={fieldErrors.first_name} />
             </label>
             <label className="bb-field flex flex-col gap-1">
               <span className="bb-form-label">Last name</span>
@@ -208,7 +244,9 @@ function Step1BusinessBasics({
                 required
                 defaultValue={initialLastName}
                 className="bb-input"
+                aria-invalid={!!fieldErrors.last_name}
               />
+              <FieldError message={fieldErrors.last_name} />
             </label>
           </div>
           <label className="bb-field flex flex-col gap-1">
@@ -218,12 +256,14 @@ function Step1BusinessBasics({
               required
               defaultValue={initialState}
               className="bb-input"
+              aria-invalid={!!fieldErrors.state}
             >
               <option value="">Pick a state</option>
               {US_STATES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            <FieldError message={fieldErrors.state} />
           </label>
           <label className="bb-field flex flex-col gap-1">
             <span
@@ -243,9 +283,7 @@ function Step1BusinessBasics({
               className="bb-input"
             />
           </label>
-          <button type="submit" className="bb-cta mt-1">
-            Save and continue <ArrowRight size={14} aria-hidden="true" />
-          </button>
+          <CtaSubmit label="Save and continue" />
         </form>
       </div>
     </section>
@@ -254,7 +292,13 @@ function Step1BusinessBasics({
 
 // ── Step 2 ────────────────────────────────────────────────────────────────
 
-function Step2GuideLicense({ initialState }: { initialState: string }) {
+function Step2GuideLicense({
+  initialState,
+  licenseError,
+}: {
+  initialState: string
+  licenseError: string | null
+}) {
   const yearEnd = `${new Date().getFullYear()}-12-31`
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step2">
@@ -307,13 +351,12 @@ function Step2GuideLicense({ initialState }: { initialState: string }) {
               className="bb-input"
             />
           </label>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <FieldError message={licenseError} />
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <BackLink toStep={1} />
             <span style={{ flex: 1 }} />
             <SkipForm next={3} />
-            <button type="submit" className="bb-cta">
-              Save and continue <ArrowRight size={14} aria-hidden="true" />
-            </button>
+            <CtaSubmit label="Save and continue" inline />
           </div>
         </form>
       </div>
@@ -357,7 +400,7 @@ function Step3StateLog() {
           </Link>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <BackLink toStep={2} />
           <span style={{ flex: 1 }} />
           <SkipForm next={4} label="Skip and finish" />
@@ -366,9 +409,7 @@ function Step3StateLog() {
             style={{ display: 'inline-flex' }}
           >
             <input type="hidden" name="next" value="4" />
-            <button type="submit" className="bb-cta">
-              Continue <ArrowRight size={14} aria-hidden="true" />
-            </button>
+            <CtaSubmit label="Continue" inline />
           </form>
         </div>
       </div>
@@ -395,12 +436,10 @@ function Step4Done() {
           You can revisit any of these from Settings or the wallet later.
         </p>
         <form action={finishOnboardingAction}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <BackLink toStep={3} />
             <span style={{ flex: 1 }} />
-            <button type="submit" className="bb-cta">
-              Take me to my dashboard <ArrowRight size={14} aria-hidden="true" />
-            </button>
+            <CtaSubmit label="Take me to my dashboard" inline />
           </div>
         </form>
       </div>
@@ -409,6 +448,54 @@ function Step4Done() {
 }
 
 // ── Shared bits ───────────────────────────────────────────────────────────
+
+// v27.1.5.2: explicit inline-flex layout on the wizard's primary CTA so the
+// label + ArrowRight icon center as a unit and the icon sits to the RIGHT
+// of the text. Without this, .bb-cta's default text-align: center on a
+// width:100% button + the inline SVG icon was rendering with the icon
+// floated oddly off to one side on certain viewports/browsers.
+//
+// `inline` mode shrinks the button to its content width — used in step
+// 2/3/4 footer rows where the CTA shares a row with Back / Skip and
+// shouldn't stretch across the full row.
+function CtaSubmit({ label, inline = false }: { label: string; inline?: boolean }) {
+  return (
+    <button
+      type="submit"
+      className={inline ? 'bb-cta' : 'bb-cta mt-1'}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        ...(inline ? { width: 'auto', paddingLeft: '1.25rem', paddingRight: '1.25rem' } : null),
+      }}
+    >
+      <span>{label}</span>
+      <ArrowRight size={14} aria-hidden="true" />
+    </button>
+  )
+}
+
+function FieldError({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <span
+      role="alert"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.3rem',
+        fontSize: '0.78rem',
+        color: '#8C3C2A',
+        marginTop: '0.15rem',
+      }}
+    >
+      <AlertCircle size={12} aria-hidden="true" />
+      {message}
+    </span>
+  )
+}
 
 function BackLink({ toStep }: { toStep: 1 | 2 | 3 }) {
   return (

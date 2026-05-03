@@ -47,25 +47,25 @@ export async function saveBusinessBasicsAction(formData: FormData): Promise<void
 
   const { supabase, user } = await getUserOrRedirect()
 
-  // 1. profiles — write first/last and keep display_name in sync. Upsert
-  //    on id with role=guide so a freshly-created guide whose row didn't
-  //    yet exist gets one.
+  // 1. profiles — write first/last and keep display_name in sync.
+  //    v27.1.5.2: dropped `role: 'guide'` from the upsert payload. By the
+  //    time a user reaches /app/onboarding their role is already 'guide'
+  //    (requireGuideForOnboarding redirects hunters to /app/h before this
+  //    runs), and many RLS policies lock down role updates to prevent
+  //    privilege escalation — including a redundant write to it could
+  //    fail the whole upsert.
   const displayName = `${firstName} ${lastName}`
   const { error: profileErr } = await supabase
     .from('profiles')
-    .upsert(
-      {
-        id: user.id,
-        first_name: firstName,
-        last_name: lastName,
-        display_name: displayName,
-        role: 'guide',
-      },
-      { onConflict: 'id' }
-    )
+    .update({
+      first_name: firstName,
+      last_name: lastName,
+      display_name: displayName,
+    })
+    .eq('id', user.id)
   if (profileErr) {
     console.warn('[onboarding.saveBusinessBasics.profile]', { code: profileErr.code, message: profileErr.message })
-    redirect('/app/onboarding?step=1&error=save_failed')
+    redirect(`/app/onboarding?step=1&error=profile_save_failed&detail=${encodeURIComponent(profileErr.message)}`)
   }
 
   // 2. guide_profiles — state + optional business_name. NULL business_name
@@ -78,7 +78,7 @@ export async function saveBusinessBasicsAction(formData: FormData): Promise<void
     )
   if (guideErr) {
     console.warn('[onboarding.saveBusinessBasics.guide]', { code: guideErr.code, message: guideErr.message })
-    redirect('/app/onboarding?step=1&error=save_failed')
+    redirect(`/app/onboarding?step=1&error=guide_save_failed&detail=${encodeURIComponent(guideErr.message)}`)
   }
 
   revalidatePath('/app/onboarding')
