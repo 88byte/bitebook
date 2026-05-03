@@ -243,19 +243,30 @@ export async function ensureHarvestLog(
 // allow partial so a guide can fill the fields they've set up even if
 // the rest of the form isn't fully mapped). Resource and waiver docs
 // are skipped — only logs.
+//
+// v27.1.1.0.3e.2: also surfaces Bite Book templates (is_template=true,
+// any owner) so a guide can fill against a curated template without
+// having uploaded their own copy. Owner field exposed so the picker
+// can render a "Bite Book template" vs "your library" badge.
 export type MappedLogDoc = {
   id: string
   label: string
   state: string | null
   mapping_status: string
+  guide_id: string
+  is_template: boolean
 }
 
 export async function fetchMappedLogDocs(guideId: string): Promise<MappedLogDoc[]> {
   const sb = await createClient()
+  // RLS handles the visibility: owner sees their own rows via
+  // docs_guide_self_all, anyone sees is_template=true rows via
+  // docs_template_select. The OR below is the explicit predicate so
+  // PostgREST plans a single-statement query rather than a UNION.
   const { data, error } = await sb
     .from('docs')
-    .select('id, label, state, mapping_status')
-    .eq('guide_id', guideId)
+    .select('id, label, state, mapping_status, guide_id, is_template')
+    .or(`guide_id.eq.${guideId},is_template.eq.true`)
     .eq('kind', 'log')
     .is('archived_at', null)
     .in('mapping_status', ['partial', 'complete'])

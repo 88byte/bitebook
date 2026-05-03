@@ -87,7 +87,13 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         </p>
       </header>
 
-      <HarvestLogEditor tripId={tripId} log={log} mappedDocs={mappedDocs} />
+      <HarvestLogEditor
+        tripId={tripId}
+        log={log}
+        mappedDocs={mappedDocs}
+        tripState={trip.state ?? null}
+        guideId={profile.id}
+      />
     </main>
   )
 }

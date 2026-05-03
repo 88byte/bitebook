@@ -102,10 +102,14 @@ export default function HarvestLogEditor({
   tripId,
   log,
   mappedDocs,
+  tripState,
+  guideId,
 }: {
   tripId: string
   log: HarvestLogWithEntries
   mappedDocs: MappedLogDoc[]
+  tripState: string | null
+  guideId: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -256,8 +260,16 @@ export default function HarvestLogEditor({
         )}
       </section>
 
-      {/* v27.1.1.0.3b: Generate filled PDFs */}
-      <GeneratePdfsSection logId={log.id} mappedDocs={mappedDocs} />
+      {/* v27.1.1.0.3b: Generate filled PDFs.
+          v27.1.1.0.3e.2: state-aware filtering — picker auto-narrows to
+          mapped docs whose state === trip.state, with a fallback warning
+          when the trip's state has no matching log. */}
+      <GeneratePdfsSection
+        logId={log.id}
+        mappedDocs={mappedDocs}
+        tripState={tripState}
+        guideId={guideId}
+      />
 
 
       {/* Danger zone — delete + start over */}
@@ -851,16 +863,74 @@ type FilledArtifact = {
 function GeneratePdfsSection({
   logId,
   mappedDocs,
+  tripState,
+  guideId,
 }: {
   logId: string
   mappedDocs: MappedLogDoc[]
+  tripState: string | null
+  guideId: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [docId, setDocId] = useState<string>(mappedDocs[0]?.id ?? '')
   const [error, setError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [artifacts, setArtifacts] = useState<FilledArtifact[]>([])
+
+  // v27.1.1.0.3e.2: smart state filtering. When the trip has a state,
+  // narrow to docs that match — auto-select the single match, surface
+  // only matches in the picker on multi-match, fall through to all
+  // docs (with a warning) on zero match. Trip state null → all docs,
+  // existing behavior. Bite Book templates count as matches if their
+  // state field is set; templates with state=null fall into the "any"
+  // pool below.
+  const stateMatches = useMemo(() => {
+    if (!tripState) return mappedDocs
+    return mappedDocs.filter((d) => d.state === tripState)
+  }, [mappedDocs, tripState])
+
+  const usingFallback = !!tripState && stateMatches.length === 0
+  const visibleDocs = usingFallback ? mappedDocs : stateMatches
+
+  // Sort: matching state first, then non-matching. Stable across
+  // renders by mapping back to mappedDocs order within each bucket.
+  const sortedDocs = useMemo(() => {
+    if (!tripState || usingFallback) {
+      // No state filter (or fallback showing all) — sort: matching
+      // state first, then everything else.
+      const match: MappedLogDoc[] = []
+      const other: MappedLogDoc[] = []
+      for (const d of mappedDocs) {
+        if (tripState && d.state === tripState) match.push(d)
+        else other.push(d)
+      }
+      return [...match, ...other]
+    }
+    return visibleDocs
+  }, [mappedDocs, visibleDocs, tripState, usingFallback])
+
+  // Default-pick the first doc in the visible/sorted list. Auto-select
+  // sticks when sortedDocs reduces to length 1.
+  const [docId, setDocId] = useState<string>(sortedDocs[0]?.id ?? '')
+  // If the visible list changes (e.g. tripState arrives async), keep
+  // the selected doc valid.
+  useEffect(() => {
+    if (sortedDocs.length === 0) return
+    if (!sortedDocs.some((d) => d.id === docId)) {
+      setDocId(sortedDocs[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedDocs.map((d) => d.id).join(',')])
+
+  function describeDoc(d: MappedLogDoc): string {
+    const ownerTag = d.is_template
+      ? 'Bite Book template'
+      : d.guide_id === guideId
+      ? 'your library'
+      : 'your library'
+    const stateTag = d.state ?? 'no state'
+    return `${stateTag} · ${ownerTag}`
+  }
 
   function generate() {
     setError(null)
@@ -906,7 +976,26 @@ function GeneratePdfsSection({
           per-hunter slots overflow into multiple PDFs when needed.
         </p>
 
-        {mappedDocs.length > 1 && (
+        {/* v27.1.1.0.3e.2: warning banner when the trip's state has no
+            matching mapped log. Falls through to showing all docs. */}
+        {usingFallback && (
+          <p
+            className="bb-form-help"
+            role="alert"
+            style={{
+              margin: '0.5rem 0',
+              padding: '0.5rem 0.75rem',
+              borderRadius: 6,
+              background: 'rgba(140, 60, 42, 0.08)',
+              color: '#8C3C2A',
+            }}
+          >
+            No log template found for <strong>{tripState}</strong>. Pick one below or upload a{' '}
+            <strong>{tripState}</strong> log first.
+          </p>
+        )}
+
+        {sortedDocs.length > 1 && (
           <div className="bb-form-row" style={{ marginTop: '0.5rem' }}>
             <label className="bb-form-label" htmlFor="fill_doc_picker">Pick a log doc</label>
             <select
@@ -915,10 +1004,9 @@ function GeneratePdfsSection({
               value={docId}
               onChange={(e) => setDocId(e.target.value)}
             >
-              {mappedDocs.map((d) => (
+              {sortedDocs.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.label}
-                  {d.state ? ` (${d.state})` : ''}
+                  {d.label} ({describeDoc(d)})
                   {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
                 </option>
               ))}
@@ -926,11 +1014,10 @@ function GeneratePdfsSection({
           </div>
         )}
 
-        {mappedDocs.length === 1 && (
+        {sortedDocs.length === 1 && (
           <p className="bb-form-help" style={{ margin: '0.4rem 0' }}>
-            Using <strong>{mappedDocs[0].label}</strong>
-            {mappedDocs[0].state ? ` (${mappedDocs[0].state})` : ''}
-            {mappedDocs[0].mapping_status === 'partial' ? ' · partial mapping' : ''}.
+            Using <strong>{sortedDocs[0].label}</strong> ({describeDoc(sortedDocs[0])})
+            {sortedDocs[0].mapping_status === 'partial' ? ' · partial mapping' : ''}.
           </p>
         )}
 
