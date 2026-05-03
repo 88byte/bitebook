@@ -88,7 +88,9 @@ export async function requireGuideForOnboarding() {
       .maybeSingle(),
     supabase
       .from('guide_profiles')
-      .select('business_name, state, license_number, guide_license_expires_at, onboarded_at')
+      // v27.1.5.2.1: also pull default_log_doc_id so Step 3 can mark
+      // the guide's previous selection as the active radio.
+      .select('business_name, state, license_number, guide_license_expires_at, onboarded_at, default_log_doc_id')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])

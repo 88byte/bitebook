@@ -9,11 +9,12 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { requireGuideForOnboarding } from '../_lib/auth'
+import { fetchBiteBookTemplates } from '../_lib/docs-queries'
 import { US_STATES } from '@/lib/us-states'
 import {
   saveBusinessBasicsAction,
   saveGuideLicenseAction,
-  skipToStepAction,
+  saveDefaultLogDocAction,
   finishOnboardingAction,
 } from './actions'
 
@@ -71,6 +72,12 @@ export default async function GuideOnboardingPage({
 
   const { profile, guide } = await requireGuideForOnboarding()
 
+  // v27.1.5.2.1: Step 3 inline templates picker. Fetch every Bite Book
+  // template once on render; the picker filters to the guide's state on
+  // the client (or shows the full list when state is null). Cheap query —
+  // template list is small and RLS-cached. Other steps don't read it.
+  const templates = stepNum === 3 ? await fetchBiteBookTemplates(profile.id) : []
+
   return (
     <main className="bb-app-main">
       <div className="bb-form-narrow flex flex-col gap-4">
@@ -123,7 +130,13 @@ export default async function GuideOnboardingPage({
             licenseError={fieldErrors.license}
           />
         )}
-        {stepNum === 3 && <Step3StateLog />}
+        {stepNum === 3 && (
+          <Step3StateLog
+            templates={templates}
+            guideState={guide?.state ?? null}
+            currentDefaultDocId={guide?.default_log_doc_id ?? null}
+          />
+        )}
         {stepNum === 4 && <Step4Done />}
       </div>
     </main>
@@ -352,12 +365,12 @@ function Step2GuideLicense({
             />
           </label>
           <FieldError message={licenseError} />
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <BackLink toStep={1} />
-            <span style={{ flex: 1 }} />
-            <SkipForm next={3} />
-            <CtaSubmit label="Save and continue" inline />
-          </div>
+          <FooterRow
+            backToStep={1}
+            skipToStep={3}
+            skipLabel="Skip for now"
+            primary={<CtaSubmit label="Save and continue" inline />}
+          />
         </form>
       </div>
     </section>
@@ -366,7 +379,29 @@ function Step2GuideLicense({
 
 // ── Step 3 ────────────────────────────────────────────────────────────────
 
-function Step3StateLog() {
+type TemplateRow = {
+  id: string
+  label: string
+  state: string | null
+}
+
+function Step3StateLog({
+  templates,
+  guideState,
+  currentDefaultDocId,
+}: {
+  templates: TemplateRow[]
+  guideState: string | null
+  currentDefaultDocId: string | null
+}) {
+  // Filter to the guide's state when known. If the guide hasn't set a state
+  // yet (shouldn't happen — Step 1 enforces it — but be defensive), show
+  // every template so the picker isn't empty for no good reason.
+  const stateMatched = guideState
+    ? templates.filter((t) => t.state === guideState)
+    : templates
+  const hasMatches = stateMatched.length > 0
+
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step3">
       <div className="bb-tile-body flex flex-col gap-3">
@@ -379,39 +414,110 @@ function Step3StateLog() {
           State harvest log
         </h2>
         <p className="bb-form-help" style={{ marginTop: '-0.3rem' }}>
-          Pick a Bite Book template for your state, or upload your own PDF.
-          Either way the auto-fill engine handles the rest.
+          Guides are required to submit trip logs for their hunters. Pick a
+          Bite Book template for your state to use as your default — or
+          upload your own if you prefer or if Bite Book doesn’t have one for
+          your state.
         </p>
 
-        <div className="bb-form-grid-2">
-          <Link href="/app/docs?tab=templates" className="bb-tile" style={tileLinkStyle}>
-            <span style={tileBadgeStyle}>Templates</span>
-            <span style={tileTitleStyle}>Use a Bite Book template</span>
-            <span style={tileSubStyle}>
-              Pre-mapped state forms — pick yours and you’re done.
-            </span>
-          </Link>
-          <Link href="/app/docs" className="bb-tile" style={tileLinkStyle}>
-            <span style={tileBadgeStyle}>Upload</span>
-            <span style={tileTitleStyle}>Upload your own state log</span>
-            <span style={tileSubStyle}>
-              We’ll auto-suggest the field mappings from the PDF.
-            </span>
-          </Link>
-        </div>
+        <form action={saveDefaultLogDocAction} className="flex flex-col gap-3">
+          {hasMatches ? (
+            <fieldset
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                border: 0,
+                padding: 0,
+                margin: 0,
+              }}
+            >
+              <legend className="sr-only">
+                Bite Book templates for {guideState ?? 'your state'}
+              </legend>
+              {stateMatched.map((t) => {
+                const checked = currentDefaultDocId === t.id
+                return (
+                  <label
+                    key={t.id}
+                    className="bb-tile"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      padding: '0.7rem 0.85rem',
+                      borderColor: checked ? 'var(--color-copper)' : 'var(--color-ink-tint)',
+                      borderWidth: 1,
+                      borderStyle: 'solid',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="default_log_doc_id"
+                      value={t.id}
+                      defaultChecked={checked}
+                    />
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1 }}>
+                      <span style={tileTitleStyle}>{t.label}</span>
+                      <span style={tileSubStyle}>
+                        {t.state ?? 'No state assigned'} · Bite Book template
+                      </span>
+                    </span>
+                  </label>
+                )
+              })}
+              <label
+                className="bb-tile"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  padding: '0.7rem 0.85rem',
+                  borderColor: 'var(--color-ink-tint)',
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="default_log_doc_id"
+                  value=""
+                  defaultChecked={!currentDefaultDocId}
+                />
+                <span style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1 }}>
+                  <span style={tileTitleStyle}>None of these — I’ll upload my own</span>
+                  <span style={tileSubStyle}>
+                    Finish setup and upload from your Documents library after.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          ) : (
+            <div className="bb-empty">
+              <div className="bb-empty-title">
+                {guideState
+                  ? `No Bite Book templates for ${guideState} yet`
+                  : 'No Bite Book templates available'}
+              </div>
+              <p className="bb-empty-sub">
+                Once you finish setup, head to Documents to upload your own
+                state log PDF — we’ll auto-suggest the field mappings.
+              </p>
+              {/* Submit empty value so the action just clears any prior
+                  default and advances to Step 4. */}
+              <input type="hidden" name="default_log_doc_id" value="" />
+            </div>
+          )}
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <BackLink toStep={2} />
-          <span style={{ flex: 1 }} />
-          <SkipForm next={4} label="Skip and finish" />
-          <form
-            action={skipToStepAction}
-            style={{ display: 'inline-flex' }}
-          >
-            <input type="hidden" name="next" value="4" />
-            <CtaSubmit label="Continue" inline />
-          </form>
-        </div>
+          <FooterRow
+            backToStep={2}
+            skipToStep={4}
+            skipLabel="Skip for now"
+            primary={<CtaSubmit label="Save and continue" inline />}
+          />
+        </form>
       </div>
     </section>
   )
@@ -436,11 +542,10 @@ function Step4Done() {
           You can revisit any of these from Settings or the wallet later.
         </p>
         <form action={finishOnboardingAction}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <BackLink toStep={3} />
-            <span style={{ flex: 1 }} />
-            <CtaSubmit label="Take me to my dashboard" inline />
-          </div>
+          <FooterRow
+            backToStep={3}
+            primary={<CtaSubmit label="Take me to my dashboard" inline />}
+          />
         </form>
       </div>
     </section>
@@ -507,6 +612,9 @@ function BackLink({ toStep }: { toStep: 1 | 2 | 3 }) {
         alignItems: 'center',
         gap: '0.25rem',
         fontSize: '0.85rem',
+        // Match the bb-cta-sm height so the row reads as one unit instead
+        // of three disconnected pieces.
+        minHeight: '2.5rem',
       }}
     >
       <ArrowLeft size={14} aria-hidden="true" />
@@ -515,52 +623,80 @@ function BackLink({ toStep }: { toStep: 1 | 2 | 3 }) {
   )
 }
 
-function SkipForm({ next, label = 'Skip for now' }: { next: 2 | 3 | 4; label?: string }) {
+// v27.1.5.2.1: Skip is a plain Link instead of a nested <form>. Inside
+// Step 2's saveGuideLicenseAction <form>, a nested skip form is invalid
+// HTML — browsers strip the inner form on parse, so clicking the inner
+// submit button fired the OUTER action (saveGuideLicenseAction) and
+// either failed validation or wrote a partial license. A Link sidesteps
+// the issue entirely: it just navigates the URL, which the page re-reads
+// to render the next step.
+//
+// Styled as a ghost copper secondary button (.bb-btn-secondary base +
+// copper text + transparent bg) so the footer hierarchy reads as
+// tertiary (Back text link) → secondary (Skip ghost button) → primary
+// (Continue filled CTA).
+function SkipLink({ next, label = 'Skip for now' }: { next: 2 | 3 | 4; label?: string }) {
   return (
-    <form action={skipToStepAction} style={{ display: 'inline-flex' }}>
-      <input type="hidden" name="next" value={String(next)} />
-      <button
-        type="submit"
-        className="bb-text-action bb-text-action-copper"
-        style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          fontSize: '0.85rem',
-          cursor: 'pointer',
-        }}
-      >
-        {label}
-      </button>
-    </form>
+    <Link
+      href={`/app/onboarding?step=${next}`}
+      className="bb-btn-secondary"
+      style={{
+        background: 'transparent',
+        borderColor: 'rgba(176, 108, 60, 0.45)',
+        color: 'var(--color-copper)',
+        fontFamily: 'var(--font-barlow-condensed)',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.16em',
+        fontSize: '0.78rem',
+        minHeight: '2.5rem',
+        padding: '0 0.95rem',
+      }}
+    >
+      {label}
+    </Link>
   )
 }
 
-const tileLinkStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  padding: '0.85rem 0.95rem',
-  borderColor: 'var(--color-ink-tint)',
-  borderWidth: 1,
-  borderStyle: 'solid',
-  borderRadius: 12,
-  textDecoration: 'none',
-  color: 'inherit',
+// v27.1.5.2.1: shared footer row for Steps 2 / 3 / 4. Three slots:
+//   left: Back text link (or empty spacer on Step 1)
+//   middle: Skip ghost button (omitted when skipToStep is undefined —
+//     used on Step 4 since "skip the dashboard" makes no sense)
+//   right: Primary submit CTA
+// Same height/padding scale across all three controls (minHeight 2.5rem)
+// so the row reads as one tidy bar.
+function FooterRow({
+  backToStep,
+  skipToStep,
+  skipLabel,
+  primary,
+}: {
+  backToStep?: 1 | 2 | 3
+  skipToStep?: 2 | 3 | 4
+  skipLabel?: string
+  primary: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: '0.5rem',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        marginTop: '0.25rem',
+      }}
+    >
+      {backToStep ? <BackLink toStep={backToStep} /> : null}
+      <span style={{ flex: 1 }} />
+      {skipToStep ? <SkipLink next={skipToStep} label={skipLabel} /> : null}
+      {primary}
+    </div>
+  )
 }
 
-const tileBadgeStyle: React.CSSProperties = {
-  alignSelf: 'flex-start',
-  padding: '0.15rem 0.45rem',
-  borderRadius: 999,
-  background: 'var(--color-copper)',
-  color: '#fff',
-  fontSize: '0.7rem',
-  fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-}
-
+// v27.1.5.2.1: tileLinkStyle / tileBadgeStyle dropped — Step 3 no longer
+// renders the redirect-out tile pair (the new inline radio picker uses
+// flat label rows instead).
 const tileTitleStyle: React.CSSProperties = {
   fontWeight: 700,
   color: 'var(--color-ink)',

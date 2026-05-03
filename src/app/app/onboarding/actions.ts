@@ -132,9 +132,37 @@ export async function saveGuideLicenseAction(formData: FormData): Promise<void> 
 }
 
 // Step 2 / Step 3 — skip. Pure routing actions, no DB writes.
+//
+// v27.1.5.2.1 NOTE: Skip in the UI is now a plain Link, not a form, so
+// this server action is no longer the primary skip mechanism. Kept
+// exported (without removal in the same release) in case any other
+// route still posts to it; safe to drop in a future cleanup pass.
 export async function skipToStepAction(formData: FormData): Promise<void> {
   const next = String(formData.get('next') ?? '3')
   redirect(`/app/onboarding?step=${next}`)
+}
+
+// v27.1.5.2.1: Step 3 — save the chosen Bite Book template / doc as the
+// guide's default state harvest log, then advance to Step 4. Empty
+// doc_id (= "Skip / pick later") is allowed — clears any prior default
+// and just advances. This way Step 3 is always a single submit path
+// regardless of whether the user picked something.
+export async function saveDefaultLogDocAction(formData: FormData): Promise<void> {
+  const docIdRaw = String(formData.get('default_log_doc_id') ?? '').trim()
+  const docId = docIdRaw === '' ? null : docIdRaw
+  const { supabase, user } = await getUserOrRedirect()
+  const { error } = await supabase
+    .from('guide_profiles')
+    .upsert(
+      { user_id: user.id, default_log_doc_id: docId },
+      { onConflict: 'user_id' }
+    )
+  if (error) {
+    console.warn('[onboarding.saveDefaultLogDoc]', { code: error.code, message: error.message })
+    redirect(`/app/onboarding?step=3&error=guide_save_failed&detail=${encodeURIComponent(error.message)}`)
+  }
+  revalidatePath('/app/onboarding')
+  redirect('/app/onboarding?step=4')
 }
 
 // Step 4 — finish. Stamps guide_profiles.onboarded_at = now() so future

@@ -248,6 +248,7 @@ export type Database = {
           bio: string | null
           business_name: string | null
           created_at: string
+          default_log_doc_id: string | null
           guide_license_expires_at: string | null
           id: string
           license_number: string | null
@@ -262,6 +263,7 @@ export type Database = {
           bio?: string | null
           business_name?: string | null
           created_at?: string
+          default_log_doc_id?: string | null
           guide_license_expires_at?: string | null
           id?: string
           license_number?: string | null
@@ -276,6 +278,7 @@ export type Database = {
           bio?: string | null
           business_name?: string | null
           created_at?: string
+          default_log_doc_id?: string | null
           guide_license_expires_at?: string | null
           id?: string
           license_number?: string | null
