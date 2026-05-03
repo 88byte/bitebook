@@ -336,51 +336,102 @@ export default function MappingWizard({
     )
   }
 
+  // v27.1.1.0.3c.5: group fields by base name + slot pattern so the
+  // wizard collapses repeating Hunter 1-5 fields under a single primary
+  // row (mirror covers slots 2..N) and tucks complex sequential groups
+  // (10-slot SPECIES TAKEN, 10-slot Tag Report Card) into single
+  // expandable accordions. On Flavio's CDFW 992-B PDF this trims the
+  // visible row count from 83 -> 23.
+  const groups = buildFieldGroups(fields, slotOverrides)
+  const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
+
+  function renderFieldRow(f: DocPdfField) {
+    const parsed = parseFieldNameInline(f.name)
+    const effSlot = (slotOverrides[f.name] ?? 0) > 0
+      ? (slotOverrides[f.name] ?? 0)
+      : parsed.slot
+    const mirrorPath = effSlot >= 2 ? slot1ByBase.get(parsed.base) ?? null : null
+    return (
+      <FieldRow
+        key={f.name}
+        field={f}
+        value={selection[f.name] ?? ''}
+        staticText={staticText[f.name] ?? ''}
+        staticDate={staticDate[f.name] ?? ''}
+        rangeStart={rangeStart[f.name] ?? ''}
+        rangeEnd={rangeEnd[f.name] ?? ''}
+        slotOverride={slotOverrides[f.name] ?? 0}
+        isOverride={overrideFlags[f.name] === true}
+        mirrorPath={mirrorPath}
+        onChange={handleDropdownChange}
+        onStaticTextChange={handleStaticTextChange}
+        onStaticDateChange={handleStaticDateChange}
+        onRangeChange={handleRangeChange}
+        onSlotChange={handleSlotChange}
+        onOverrideToggle={handleOverrideToggle}
+      />
+    )
+  }
+
   return (
     <section className="mt-4 flex flex-col gap-3">
       <div className="bb-tile">
         <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
           <p className="bb-form-help" style={{ margin: 0 }}>
             Pick what fills each box on your PDF. We&rsquo;ll auto-fill them when you generate
-            the report. Found <strong>{fields.length}</strong> box{fields.length === 1 ? '' : 'es'} in
-            this PDF &mdash; you only need to map the ones you actually want filled. Anything you
-            leave on &ldquo;Skip&rdquo; will stay blank.
+            the report. This PDF has <strong>{fields.length}</strong> total box{fields.length === 1 ? '' : 'es'},
+            grouped into <strong>{groups.length}</strong> rows below &mdash; repeating Hunter 1-5
+            fields collapse under their slot 1 mapping (auto-mirrored on save), and any
+            sequential groups (e.g. SPECIES TAKEN_1..10) tuck into a single accordion you can
+            expand. Anything left on &ldquo;Skip&rdquo; stays blank.
           </p>
         </div>
       </div>
 
-      {/* v27.1.1.0.3c.2: build slot1 path-by-base map for live mirror
-          display. Walks current selections; the SAVE-time mirror pass on
-          the server is the source of truth — this is just so the UI can
-          surface "Mirrored from Hunter 1" tags + the inherited dropdown
-          value before the next save round-trip. */}
-      {(() => null)()}
-      {fields.map((f) => {
-        const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
-        const parsed = parseFieldNameInline(f.name)
-        const effSlot = (slotOverrides[f.name] ?? 0) > 0
-          ? (slotOverrides[f.name] ?? 0)
-          : parsed.slot
-        const mirrorPath = effSlot >= 2 ? slot1ByBase.get(parsed.base) ?? null : null
+      {/* v27.1.1.0.3c.5: render groups instead of raw fields. Three group
+          kinds: 'single' (no siblings), 'simple-mirror' (slots 1..N, N<=5
+          contiguous — slot 1 visible, siblings tucked under <details>),
+          'complex' (everything else — fully collapsed accordion). */}
+      {groups.map((g) => {
+        if (g.kind === 'single') {
+          return renderFieldRow(g.field)
+        }
+        if (g.kind === 'simple-mirror') {
+          return (
+            <div key={`simple-${g.base}`} className="bb-tile" style={{ padding: 0 }}>
+              <div style={{ padding: '0.5rem 1rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-copper)', letterSpacing: '0.04em' }}>
+                  {g.siblings.length + 1} HUNTERS · MIRRORED
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-ink-soft)' }}>
+                  Map Hunter 1 below — slots {g.siblings.map((s) => parseFieldNameInline(s.name).slot || '?').join(', ')} inherit on save.
+                </span>
+              </div>
+              {renderFieldRow(g.primary)}
+              <details style={{ padding: '0 1rem 0.875rem' }}>
+                <summary style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)', cursor: 'pointer', padding: '0.4rem 0' }}>
+                  Edit Hunter 2-{g.siblings.length + 1} individually ({g.siblings.length} field{g.siblings.length === 1 ? '' : 's'})
+                </summary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' }}>
+                  {g.siblings.map(renderFieldRow)}
+                </div>
+              </details>
+            </div>
+          )
+        }
+        // complex group — single accordion with all fields nested.
         return (
-          <FieldRow
-            key={f.name}
-            field={f}
-            value={selection[f.name] ?? ''}
-            staticText={staticText[f.name] ?? ''}
-            staticDate={staticDate[f.name] ?? ''}
-            rangeStart={rangeStart[f.name] ?? ''}
-            rangeEnd={rangeEnd[f.name] ?? ''}
-            slotOverride={slotOverrides[f.name] ?? 0}
-            isOverride={overrideFlags[f.name] === true}
-            mirrorPath={mirrorPath}
-            onChange={handleDropdownChange}
-            onStaticTextChange={handleStaticTextChange}
-            onStaticDateChange={handleStaticDateChange}
-            onRangeChange={handleRangeChange}
-            onSlotChange={handleSlotChange}
-            onOverrideToggle={handleOverrideToggle}
-          />
+          <details key={`complex-${g.base}`} className="bb-tile" style={{ padding: '0.875rem 1rem' }}>
+            <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-ink)' }}>{g.base}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-ink-soft)' }}>
+                {g.fields.length} sequential fields &mdash; tap to map individually
+              </span>
+            </summary>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
+              {g.fields.map(renderFieldRow)}
+            </div>
+          </details>
         )
       })}
 
@@ -429,6 +480,81 @@ export default function MappingWizard({
       </div>
     </section>
   )
+}
+
+// v27.1.1.0.3c.5: field grouping for the wizard list. Three kinds:
+//
+//   single        — no siblings, render as a normal FieldRow.
+//   simple-mirror — 2..5 siblings with slots [1..N] contiguous (after
+//                   implicit-1 promotion). Slot 1 renders as the visible
+//                   primary; slots 2..N tuck under <details>. Mirror
+//                   covers them on save so the guide doesn't need to
+//                   touch each one.
+//   complex       — anything else (sequential 6+ slots like CDFW's 10x
+//                   SPECIES TAKEN with hunter×species 2D layout, or
+//                   non-contiguous slot ranges). Renders as one
+//                   <details> accordion with all fields nested. Guide
+//                   maps each individually but the row count drops to 1.
+//
+// Order: groups appear in the order their primary field first appears
+// in the PDF's natural form-tab order (preserving the guide's mental
+// flow through the document).
+type FieldGroup =
+  | { kind: 'single'; field: DocPdfField }
+  | { kind: 'simple-mirror'; base: string; primary: DocPdfField; siblings: DocPdfField[] }
+  | { kind: 'complex'; base: string; fields: DocPdfField[] }
+
+function buildFieldGroups(
+  fields: DocPdfField[] | null,
+  slotOverrides: Record<string, number>
+): FieldGroup[] {
+  if (!fields || fields.length === 0) return []
+  // Effective slot per field = manual override > 0 wins, else regex.
+  const effSlot = (f: DocPdfField): number => {
+    const ov = slotOverrides[f.name] ?? 0
+    if (ov > 0) return ov
+    return parseFieldNameInline(f.name).slot
+  }
+  // bucket fields by base
+  const byBase = new Map<string, DocPdfField[]>()
+  const baseOrder: string[] = []
+  for (const f of fields) {
+    const base = parseFieldNameInline(f.name).base
+    if (!byBase.has(base)) {
+      byBase.set(base, [])
+      baseOrder.push(base)
+    }
+    byBase.get(base)!.push(f)
+  }
+  const out: FieldGroup[] = []
+  for (const base of baseOrder) {
+    const members = byBase.get(base)!
+    if (members.length === 1) {
+      out.push({ kind: 'single', field: members[0] })
+      continue
+    }
+    // Group analysis: collect effective slots, find slot 1 primary.
+    const slotMap = new Map<number, DocPdfField>()
+    for (const m of members) {
+      const s = effSlot(m)
+      if (!slotMap.has(s)) slotMap.set(s, m)
+    }
+    const slots = [...slotMap.keys()].filter((s) => s >= 1).sort((a, b) => a - b)
+    const primary = slotMap.get(1)
+    // Simple-mirror requires: a slot-1 anchor + slots [1..N] contiguous + N <= 5.
+    const isContiguous =
+      slots.length >= 2 &&
+      slots.length <= 5 &&
+      slots[0] === 1 &&
+      slots.every((s, i) => s === i + 1)
+    if (primary && isContiguous) {
+      const siblings = slots.slice(1).map((s) => slotMap.get(s)!).filter(Boolean)
+      out.push({ kind: 'simple-mirror', base, primary, siblings })
+    } else {
+      out.push({ kind: 'complex', base, fields: members })
+    }
+  }
+  return out
 }
 
 // v27.1.1.0.3c.4: implicit slot-1 derivation, inline mirror of
