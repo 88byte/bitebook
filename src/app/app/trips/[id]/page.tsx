@@ -4,12 +4,15 @@ import {
   ArrowLeft,
   Share2,
   Activity,
+  Users,
 } from 'lucide-react'
+import { initials } from '../../_lib/format'
 import { requireGuide } from '../../_lib/auth'
 import {
   fetchTripDetail,
   fetchAcceptedHunters,
   fetchSpecies,
+  fetchTripWalletLinks,
 } from '../../_lib/queries'
 import { fetchHarvestLogSummary } from '../../_lib/harvest-log-queries'
 import {
@@ -41,13 +44,17 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions] = await Promise.all([
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
     // v27.1.3.0.2: full species pool for the Hunt details Species picker
     // inside TripDetailEditor (replaces the plain text input).
     fetchSpecies(),
+    // v27.1.3.0.5: per-hunter wallet-link chips on the participant
+    // status panel (license / tag / pending — restored from v27.0b.6
+    // which was lost in the v27.1.1.0.3e.6 edit-merge).
+    fetchTripWalletLinks(trip.id),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -148,6 +155,111 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           Share with warden
         </button>
       </div>
+
+      {/* v27.1.3.0.5: participant status panel — restored from v27.0b.6
+          (was lost when v27.1.1.0.3e.6 merged read-only DetailCells into
+          the inline TripDetailEditor). Read-only by design — the
+          collapsed Hunters section in the editor below owns the
+          add/remove flow; this panel only visualizes who's on the trip
+          and whether they've linked their license + tag. */}
+      {participants.length > 0 && (
+        <section className="bb-tile bb-form-section mt-4">
+          <div className="bb-tile-body">
+            <h2
+              className="bb-form-section-head"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Users size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
+              Hunters on this trip
+            </h2>
+            <div className="bb-detail-list">
+              {participants.map((p) => {
+                const name = p.profile?.display_name ?? p.guest_name ?? 'Unnamed hunter'
+                const links = p.hunter_id ? walletLinksByHunter.get(p.hunter_id) ?? [] : []
+                const hasLicense = links.some((l) => l.type === 'license')
+                const hasTag = links.some((l) => l.type === 'tag')
+                const pending: string[] = []
+                if (p.hunter_id) {
+                  if (!hasLicense) pending.push('license')
+                  if (!hasTag && trip.species_targeted) pending.push('tag')
+                }
+                return (
+                  <div key={p.id} className="bb-detail-row">
+                    <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="bb-detail-name">{name}</div>
+                      <div className="bb-detail-sub">
+                        {p.profile ? 'Bite Book hunter' : 'Guest'} · {p.role}
+                      </div>
+                      {(links.length > 0 || pending.length > 0) && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.35rem',
+                            marginTop: '0.4rem',
+                          }}
+                        >
+                          {links.map((l) => {
+                            const typeLabel =
+                              l.type === 'license'
+                                ? 'License'
+                                : l.type === 'tag'
+                                  ? 'Tag'
+                                  : l.type === 'permit'
+                                    ? 'Permit'
+                                    : l.type === 'stamp'
+                                      ? 'Stamp'
+                                      : 'Doc'
+                            return (
+                              <span
+                                key={l.id}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '999px',
+                                  background: 'var(--color-paper-tint)',
+                                  border: '1px solid var(--color-ink-tint)',
+                                  fontSize: '0.78rem',
+                                  color: 'var(--color-ink)',
+                                }}
+                              >
+                                <strong style={{ fontWeight: 600 }}>{typeLabel}:</strong>{' '}
+                                {l.identifier}
+                                {l.species ? ` · ${l.species}` : ''}
+                                {' ✓'}
+                              </span>
+                            )
+                          })}
+                          {pending.map((kind) => (
+                            <span
+                              key={`pending-${kind}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '999px',
+                                background: 'var(--color-copper)',
+                                color: '#fff',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Pending: {kind}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="mt-4">
         <TripDetailEditor
