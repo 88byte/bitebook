@@ -455,6 +455,12 @@ export default function MappingWizard({
           return
         }
         setCompletedAt(Date.now())
+        // v27.1.1.0.3d.2.10: after marking complete, send the guide to
+        // the docs library so they land somewhere useful with a sense
+        // of "I'm done". `?just_completed=<docId>` lets the library
+        // show a one-time success banner.
+        router.push(`/app/docs?just_completed=${encodeURIComponent(docId)}`)
+        return
       }
       router.refresh()
     })
@@ -571,13 +577,10 @@ export default function MappingWizard({
     stage = 'start'
   }
 
-  function scrollToFirstField() {
-    // v27.1.1.0.3d.2.9: tapping the Step 3 CTA dismisses the success
-    // banner AND scrolls to the field list. No more 3s timer — user
-    // controls when Step 3 collapses.
-    setAiSuccessCount(null)
-    fieldsAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // v27.1.1.0.3d.2.10: scrollToFirstField removed — Step 3 is now a
+  // passive info banner with no CTA. Field cards render directly below
+  // it, so scrolling is implicit. fieldsAreaRef stays for ref stability
+  // but is no longer dereferenced.
 
   function renderFieldRow(f: DocPdfField) {
     const parsed = parseFieldNameInline(f.name)
@@ -703,28 +706,8 @@ export default function MappingWizard({
           tone="success"
         >
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-            AI pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'} in
-            your form. They&rsquo;re saved as suggestions &mdash; nothing&rsquo;s locked in yet.
-          </p>
-          <div style={{ marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              className="bb-cta"
-              onClick={scrollToFirstField}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <Sparkles size={16} aria-hidden="true" />
-              See the suggestions →
-            </button>
-          </div>
-          <p
-            style={{
-              margin: '0.6rem 0 0',
-              fontSize: '0.8rem',
-              color: 'var(--color-ink-soft)',
-            }}
-          >
-            We&rsquo;ll scroll to the field list. Edit anything wrong, then tap{' '}
+            We pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
+            Review them below &mdash; edit anything wrong, then tap{' '}
             <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
           </p>
         </StepCard>

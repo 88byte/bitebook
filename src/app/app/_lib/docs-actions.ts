@@ -769,6 +769,11 @@ DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "License" / "License #" / "License Number" / "License DOC ID" → "hunter_license.identifier" (or "guide_license.identifier" if the field sits in a guide section).
 - "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
 - "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → "wallet_consumed.identifier" (the harvest tag the hunter punched).
+
+SIGNATURE FIELDS (always skip):
+- "Date Signed" / "Date of Signature" / "Signature Date" / any signature-date placeholder → MUST map to "skip". These are filled when the document is signed via e-signature, NEVER from harvest_log.log_date or wallet.valid_to or any other source.
+- "Signature" / "Sign Here" / "Initials" / "Hunter Signature" / "Guide Signature" / signature-type form fields → MUST map to "skip". Signature-block placement ships in v27.2 with the e-signature engine; auto-fill leaves these alone.
+
 When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`
 
   const userText = `Form-field list (${fieldsForLLM.length} total):

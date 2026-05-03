@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import { FileText, ClipboardCheck, BookOpen, Plus, AlertCircle, Archive } from 'lucide-react'
+import { FileText, ClipboardCheck, BookOpen, Plus, AlertCircle, Archive, CheckCircle2 } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
 import { fetchGuideDocs, fetchGuideDocCounts, type DocKind, type DocSummary } from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
 
-type SearchParams = Promise<{ kind?: string; archived?: string }>
+type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string }>
 
 const KIND_FILTERS: { value: DocKind | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -32,6 +32,14 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
     fetchGuideDocCounts(profile.id),
   ])
 
+  // v27.1.1.0.3d.2.10: success toast after the mapping wizard's
+  // "Mark mapping complete" redirect lands here. The query param is
+  // the just-completed doc id; we look up its label for the message.
+  const justCompletedId = typeof sp.just_completed === 'string' ? sp.just_completed : null
+  const justCompletedDoc = justCompletedId
+    ? docs.find((d) => d.id === justCompletedId)
+    : null
+
   return (
     <main className="bb-app-main">
       <header className="flex items-start justify-between gap-3">
@@ -53,6 +61,34 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
           </Link>
         </div>
       </header>
+
+      {/* v27.1.1.0.3d.2.10: success toast after Mark mapping complete
+          redirects here. Renders only when the query param targets a
+          doc the guide currently sees in their library. */}
+      {justCompletedDoc && (
+        <section
+          className="bb-tile mt-3"
+          style={{
+            padding: '0.75rem 1rem',
+            background: 'linear-gradient(180deg, rgba(78, 130, 70, 0.10), rgba(78, 130, 70, 0.02))',
+            borderColor: '#3F6B3A',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <CheckCircle2 size={18} aria-hidden="true" style={{ color: '#3F6B3A' }} />
+          <span style={{ fontWeight: 600, color: '#3F6B3A' }}>
+            Mapping complete
+          </span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+            &ldquo;{justCompletedDoc.label}&rdquo; is ready to use on your trips.
+          </span>
+        </section>
+      )}
 
       {/* Filter chips. URL-driven so the browser back button works and links
           can be shared. Active state = copper underline matching the
