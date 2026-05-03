@@ -215,6 +215,68 @@ export default function MappingWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingAiSuggestedByField])
 
+  // v27.1.1.0.3d.2.3: prop->state sync. Wizard's state hooks (selection,
+  // slotOverrides, overrideFlags, aiSuggestedFlags) only seed on first
+  // mount via useState's initializer — when router.refresh() re-runs
+  // page.tsx after suggestMappingsAction inserts new is_ai_suggested
+  // rows, the parent passes new prop maps but the stale useState wins.
+  // Result: the success banner fires "AI suggested 82 fields" but no
+  // rows actually populate in the form.
+  //
+  // Fix: re-sync state from props whenever the prop maps change by
+  // reference identity. We MERGE rather than replace so any in-flight
+  // unsaved edit the guide is mid-typing isn't clobbered. Specifically:
+  // for each prop entry, only push into state when state doesn't have
+  // that key yet OR when the existing state value matches the previous
+  // server value (i.e. nothing dirty to lose).
+  useEffect(() => {
+    setSelection((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(existingByField)) {
+        if (next[k] !== v && (next[k] === undefined || next[k] === '')) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setSlotOverrides((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(existingSlotByField)) {
+        if (next[k] !== v && (next[k] === undefined || next[k] === 0)) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setOverrideFlags((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(existingOverrideByField)) {
+        if (next[k] !== v && next[k] === undefined) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setAiSuggestedFlags((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(existingAiSuggestedByField)) {
+        if (next[k] !== v) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingByField, existingSlotByField, existingOverrideByField, existingAiSuggestedByField])
+
   function discover() {
     setLoadingFields(true)
     setExtractError(null)
@@ -535,16 +597,24 @@ export default function MappingWizard({
           <div
             style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: '0.5rem',
+              gap: '0.25rem',
               fontWeight: 600,
               color: '#3F6B3A',
+              textAlign: 'center',
             }}
             role="status"
             aria-live="polite"
           >
-            <Sparkles size={16} aria-hidden="true" />
-            AI suggested {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'} — review the ✨ AI badges below.
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Sparkles size={16} aria-hidden="true" />
+              AI suggested {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
+            </span>
+            <span style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+              Scroll down to see the ✨ AI badges next to each pre-filled field. Tap any field
+              to confirm or change.
+            </span>
           </div>
         ) : (
           <>
@@ -579,15 +649,62 @@ export default function MappingWizard({
         )}
       </div>
 
+      {/* v27.1.1.0.3d.2.3: numbered step-by-step intro replacing the
+          dense paragraph. Linear and obvious so a non-technical guide
+          knows exactly what to do at each stage. */}
       <div className="bb-tile">
         <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
-          <p className="bb-form-help" style={{ margin: 0 }}>
-            Pick what fills each box on your PDF. We&rsquo;ll auto-fill them when you generate
-            the report. This PDF has <strong>{fields.length}</strong> total box{fields.length === 1 ? '' : 'es'},
-            grouped into <strong>{groups.length}</strong> rows below &mdash; repeating Hunter 1-5
-            fields collapse under their slot 1 mapping (auto-mirrored on save), and any
-            sequential groups (e.g. SPECIES TAKEN_1..10) tuck into a single accordion you can
-            expand. Anything left on &ldquo;Skip&rdquo; stays blank.
+          <p
+            style={{
+              margin: 0,
+              marginBottom: '0.5rem',
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              color: 'var(--color-ink)',
+            }}
+          >
+            How this works
+          </p>
+          <ol
+            style={{
+              margin: 0,
+              paddingLeft: '1.4rem',
+              fontSize: '0.9rem',
+              lineHeight: 1.5,
+              color: 'var(--color-ink-soft)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.3rem',
+            }}
+          >
+            <li>
+              We&rsquo;re pre-filling each box with AI suggestions. Tap{' '}
+              <strong>Auto-suggest mappings</strong> above to run (or re-run) it.
+            </li>
+            <li>
+              Look for the <strong>✨ AI</strong> badge on rows below &mdash; that means it&rsquo;s an
+              AI suggestion you should confirm or change.
+            </li>
+            <li>
+              Tap a field to pick a different source from the dropdown. Anything left on
+              &ldquo;Skip&rdquo; stays blank in the final PDF.
+            </li>
+            <li>
+              When you&rsquo;re done, tap <strong>Save &amp; mark complete</strong> at the
+              bottom &mdash; the auto-fill engine will use these mappings on every report
+              you generate.
+            </li>
+          </ol>
+          <p
+            style={{
+              margin: '0.6rem 0 0',
+              fontSize: '0.8rem',
+              color: 'var(--color-ink-soft)',
+            }}
+          >
+            This PDF has <strong>{fields.length}</strong> total box{fields.length === 1 ? '' : 'es'},
+            grouped into <strong>{groups.length}</strong> rows below. Repeating Hunter 1-5
+            fields collapse under their slot 1 mapping (auto-mirrored on save).
           </p>
         </div>
       </div>
