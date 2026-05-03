@@ -7,6 +7,7 @@ import {
   fetchHarvestLog,
   ensureHarvestLog,
   fetchMappedLogDocs,
+  fetchTripGeneratedLogs,
 } from '../../../_lib/harvest-log-queries'
 import HarvestLogEditor from './HarvestLogEditor'
 
@@ -64,7 +65,11 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   }
 
   // v27.1.1.0.3b: fetch mapped log docs for the Generate PDF picker.
-  const mappedDocs = await fetchMappedLogDocs(profile.id)
+  // v27.1.1.0.3e.3: also fetch the trip's generated PDF history.
+  const [mappedDocs, generatedLogs] = await Promise.all([
+    fetchMappedLogDocs(profile.id),
+    fetchTripGeneratedLogs(tripId),
+  ])
 
   return (
     <main className="bb-app-main">
@@ -93,6 +98,7 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         mappedDocs={mappedDocs}
         tripState={trip.state ?? null}
         guideId={profile.id}
+        generatedLogs={generatedLogs}
       />
     </main>
   )

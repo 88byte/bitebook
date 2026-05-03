@@ -278,6 +278,52 @@ export async function fetchMappedLogDocs(guideId: string): Promise<MappedLogDoc[
   return data ?? []
 }
 
+// v27.1.1.0.3e.3 — generated PDF rows for a trip. One row per fill pass,
+// freshest first. Each comes pre-signed for 1h so the editor can render
+// Open / Download buttons directly.
+export type TripGeneratedLog = {
+  id: string
+  trip_id: string
+  log_id: string | null
+  source_doc_id: string | null
+  file_path: string
+  file_name: string
+  page_count: number | null
+  pass_index: number
+  pass_total: number
+  created_at: string
+  signed_url: string
+}
+
+export async function fetchTripGeneratedLogs(tripId: string): Promise<TripGeneratedLog[]> {
+  const sb = await createClient()
+  const { data, error } = await sb
+    .from('trip_generated_logs')
+    .select(
+      'id, trip_id, log_id, source_doc_id, file_path, file_name, page_count, pass_index, pass_total, created_at'
+    )
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.warn('[fetchTripGeneratedLogs]', { code: error.code, message: error.message })
+    return []
+  }
+  const rows = data ?? []
+  if (rows.length === 0) return []
+
+  // Sign URLs in parallel. Best-effort — if a row's storage object is
+  // gone, signed_url is empty and the UI shows a disabled state.
+  const signed = await Promise.all(
+    rows.map(async (r) => {
+      const { data: s } = await sb.storage
+        .from('bb-private')
+        .createSignedUrl(r.file_path, 3600)
+      return { ...r, signed_url: s?.signedUrl ?? '' } as TripGeneratedLog
+    })
+  )
+  return signed
+}
+
 export async function fetchHarvestLogSummary(tripId: string): Promise<HarvestLogSummary> {
   const sb = await createClient()
   const { data: log } = await sb

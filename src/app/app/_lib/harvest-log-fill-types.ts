@@ -4,7 +4,8 @@
 // helpers don't satisfy that, so they live here.
 
 export type FilledPdfArtifact = {
-  doc_id: string
+  /** v27.1.1.0.3e.3: trip_generated_logs.id (replaces the old auto-doc id). */
+  id: string
   file_path: string
   signed_url: string
   label: string

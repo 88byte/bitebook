@@ -1195,6 +1195,77 @@ export type Database = {
           },
         ]
       }
+      trip_generated_logs: {
+        Row: {
+          created_at: string
+          created_by: string
+          file_name: string
+          file_path: string
+          id: string
+          log_id: string | null
+          page_count: number | null
+          pass_index: number
+          pass_total: number
+          source_doc_id: string | null
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          file_name: string
+          file_path: string
+          id?: string
+          log_id?: string | null
+          page_count?: number | null
+          pass_index?: number
+          pass_total?: number
+          source_doc_id?: string | null
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          log_id?: string | null
+          page_count?: number | null
+          pass_index?: number
+          pass_total?: number
+          source_doc_id?: string | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_generated_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_generated_logs_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "harvest_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_generated_logs_source_doc_id_fkey"
+            columns: ["source_doc_id"]
+            isOneToOne: false
+            referencedRelation: "docs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_generated_logs_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_reviews: {
         Row: {
           comment: string | null

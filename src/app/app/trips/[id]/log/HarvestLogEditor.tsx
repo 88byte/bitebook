@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   updateHarvestLogAction,
@@ -13,12 +13,16 @@ import {
   removeEntrySpeciesAction,
   deleteHarvestLogAndRedirectAction,
 } from '../../../_lib/harvest-log-actions'
-import { generateFilledHarvestLogPDFsAction } from '../../../_lib/harvest-log-fill'
+import {
+  generateFilledHarvestLogPDFsAction,
+  deleteTripGeneratedLogAction,
+} from '../../../_lib/harvest-log-fill'
 import type {
   HarvestLogWithEntries,
   HarvestLogEntryWithRelations,
   HarvestLogEntrySpeciesRow,
   MappedLogDoc,
+  TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
 import { Download, ExternalLink } from 'lucide-react'
 
@@ -104,12 +108,14 @@ export default function HarvestLogEditor({
   mappedDocs,
   tripState,
   guideId,
+  generatedLogs,
 }: {
   tripId: string
   log: HarvestLogWithEntries
   mappedDocs: MappedLogDoc[]
   tripState: string | null
   guideId: string
+  generatedLogs: TripGeneratedLog[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -172,6 +178,11 @@ export default function HarvestLogEditor({
 
   return (
     <div className="flex flex-col gap-4 mt-4">
+      {/* v27.1.1.0.3e.3: top-of-page tile listing already-generated PDFs
+          for this trip, with Open / Download / Delete per row. Empty
+          state nudges the guide to fill out the log + tap Generate. */}
+      <GeneratedReportsTile generatedLogs={generatedLogs} />
+
       {/* Trip-level fields — auto-save on blur (date) / change (purpose) */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
@@ -847,18 +858,12 @@ function PhantomSpeciesRow({
 // v27.1.1.0.3b. Doc picker + Generate button at the bottom of /log.
 // Auto-selects the only mapped log doc when there's exactly one. Empty
 // state when none are mapped: copy + link out to Documents library.
-// Generated artifacts render inline as a list with per-PDF Open
-// (new-tab signed URL) + Download buttons. Soft warnings from the
-// engine surface above the list.
-
-type FilledArtifact = {
-  doc_id: string
-  file_path: string
-  signed_url: string
-  label: string
-  index: number
-  total: number
-}
+//
+// v27.1.1.0.3e.3: artifacts no longer rendered locally — generated PDFs
+// surface from the server-rendered <GeneratedReportsTile> at the top
+// of the page. After generation we call router.refresh() to re-pull
+// that list. Warnings still render inline so the guide sees them in
+// context with the Generate button.
 
 function GeneratePdfsSection({
   logId,
@@ -875,7 +880,6 @@ function GeneratePdfsSection({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
-  const [artifacts, setArtifacts] = useState<FilledArtifact[]>([])
 
   // v27.1.1.0.3e.2: smart state filtering. When the trip has a state,
   // narrow to docs that match — auto-select the single match, surface
@@ -935,7 +939,6 @@ function GeneratePdfsSection({
   function generate() {
     setError(null)
     setWarnings([])
-    setArtifacts([])
     if (!docId) {
       setError('Pick a mapped log doc first.')
       return
@@ -946,7 +949,6 @@ function GeneratePdfsSection({
         setError(res.error)
         return
       }
-      setArtifacts(res.artifacts)
       setWarnings(res.warnings)
       router.refresh()
     })
@@ -1049,54 +1051,190 @@ function GeneratePdfsSection({
             ))}
           </ul>
         )}
-
-        {artifacts.length > 0 && (
-          <div className="flex flex-col gap-2 mt-3">
-            {artifacts.map((a) => (
-              <div
-                key={a.file_path}
-                className="bb-tile"
-                style={{
-                  padding: '0.6rem 0.75rem',
-                  borderColor: 'var(--color-ink-tint)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>{a.label}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
-                    Saved to your trip docs · part {a.index} of {a.total}
-                  </div>
-                </div>
-                <a
-                  href={a.signed_url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="bb-cta-sm"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <ExternalLink size={14} aria-hidden="true" />
-                  Open
-                </a>
-                <a
-                  href={a.signed_url}
-                  download
-                  className="bb-btn-secondary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <Download size={14} aria-hidden="true" />
-                  Download
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </section>
   )
+}
+
+// ── GeneratedReportsTile ────────────────────────────────────────────────
+//
+// v27.1.1.0.3e.3 — server-rendered list of every PDF that's been
+// generated for this trip. Replaces the local artifacts state in
+// GeneratePdfsSection so reports persist across reloads / hunters /
+// devices and don't depend on the latest in-memory generate() call.
+
+function GeneratedReportsTile({ generatedLogs }: { generatedLogs: TripGeneratedLog[] }) {
+  if (generatedLogs.length === 0) {
+    return (
+      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Reports</h2>
+          <p className="bb-form-help" style={{ margin: 0 }}>
+            No reports yet. Fill out the log below and tap{' '}
+            <strong>Generate filled PDFs</strong> to create one.
+          </p>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+      <div className="bb-tile-body">
+        <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Reports</h2>
+        <p className="bb-form-help" style={{ marginTop: 0, marginBottom: '0.6rem' }}>
+          Filled state forms generated from this report. Tap any to open or download.
+        </p>
+        <div className="flex flex-col gap-2">
+          {generatedLogs.map((g) => (
+            <GeneratedReportRow key={g.id} row={g} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function runDelete() {
+    setError(null)
+    startTransition(async () => {
+      const res = await deleteTripGeneratedLogAction(row.id)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  return (
+    <div
+      className="bb-tile"
+      style={{
+        padding: '0.6rem 0.75rem',
+        borderColor: 'var(--color-ink-tint)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        flexWrap: 'wrap',
+      }}
+    >
+      <FileText size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--color-ink-soft)' }} />
+      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 600,
+            color: 'var(--color-ink)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={row.file_name}
+        >
+          {row.file_name}
+        </div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          <span>{relativeTime(row.created_at)}</span>
+          {row.pass_total > 1 && <span>· Pass {row.pass_index} of {row.pass_total}</span>}
+          {row.page_count !== null && row.page_count !== undefined && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '0 0.4rem',
+                borderRadius: 999,
+                background: 'rgba(168, 92, 50, 0.1)',
+                color: 'var(--color-copper)',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              {row.page_count} {row.page_count === 1 ? 'PAGE' : 'PAGES'}
+            </span>
+          )}
+        </div>
+        {error && (
+          <p
+            className="bb-form-help"
+            role="alert"
+            style={{ color: '#8C3C2A', marginTop: '0.25rem' }}
+          >
+            {error}
+          </p>
+        )}
+      </div>
+      {row.signed_url ? (
+        <>
+          <a
+            href={row.signed_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <ExternalLink size={14} aria-hidden="true" />
+            Open
+          </a>
+          <a
+            href={row.signed_url}
+            download={row.file_name}
+            className="bb-btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <Download size={14} aria-hidden="true" />
+            Download
+          </a>
+        </>
+      ) : (
+        <span style={{ fontSize: '0.8rem', color: '#8C3C2A' }}>File missing</span>
+      )}
+      <button
+        type="button"
+        className="bb-cta-sm bb-cta-sm-destructive"
+        onClick={() => setConfirmOpen(true)}
+        disabled={pending}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+        aria-label="Delete report"
+      >
+        <Trash2 size={14} aria-hidden="true" />
+        Delete
+      </button>
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete this generated PDF?"
+        body="The file is removed from your trip and from storage. This can't be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={pending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false)
+          runDelete()
+        }}
+      />
+    </div>
+  )
+}
+
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return ''
+  const diff = Date.now() - t
+  const sec = Math.round(diff / 1000)
+  if (sec < 60) return 'just now'
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${min} min ago`
+  const hr = Math.round(min / 60)
+  if (hr < 24) return `${hr} hr ago`
+  const day = Math.round(hr / 24)
+  if (day < 7) return `${day} day${day === 1 ? '' : 's'} ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 function AddressLine({ snapshot }: { snapshot: unknown }) {

@@ -5,9 +5,14 @@
 // items + the doc's field mappings + the original PDF binary, detects slot
 // patterns in the PDF's AcroForm field names, fills each field via
 // pdf-lib, splits across multiple PDFs on overflow, saves outputs to
-// bb-private/logs/{guide_id}/{trip_id}/..., creates trip_docs rows so the
-// generated PDFs surface in the trip's docs section, and returns signed
-// URLs for inline display on the log page.
+// bb-private/logs/{guide_id}/{trip_id}/..., and returns signed URLs for
+// inline display on the log page.
+//
+// v27.1.1.0.3e.3 — generated PDFs now write a row to
+// public.trip_generated_logs (per-pass) instead of auto-creating
+// docs + trip_docs rows. Keeps the doc library clean. Adds a diagnostic
+// pass that pushes warnings when an entry's snapshot data resolves to
+// blank for fields the doc's mappings actually reference.
 
 import { revalidatePath } from 'next/cache'
 import { requireGuide } from './auth'
@@ -527,6 +532,101 @@ export async function generateFilledHarvestLogPDFsAction(
     )
   }
 
+  // v27.1.1.0.3e.3 — diagnostic data-side warnings.
+  //
+  // Many "blank field" reports come from missing snapshot data, not a
+  // bug in the engine. Scan the doc's mappings to find which categories
+  // (license / address) are referenced per slot, then check each
+  // included entry's snapshot. Push a human-fix message when the
+  // mapping references data that the entry doesn't have.
+  //
+  // Categories handled here:
+  //   - hunter_license.* (identifier / state / valid_to / holder_name)
+  //   - hunter.address_full / .street1 / .street2 / .city / .state /
+  //     .postal_code / .city_state
+  //
+  // Slot resolution mirrors the fill loop: manual hunter_slot override
+  // when > 0, else parseFieldName regex. Slot 0 means trip-level — the
+  // resolver swaps in the per-pass entries[0], so for a slot-0 mapping
+  // we warn against entry-1 only.
+  {
+    type Cat = 'license' | 'address'
+    const categoryRefsBySlot = new Map<number, Set<Cat>>()
+    for (const [fieldName, entry] of mappingByField.entries()) {
+      const path = entry.path
+      let cat: Cat | null = null
+      if (path.startsWith('hunter_license.')) cat = 'license'
+      else if (
+        path === 'hunter.address_full' ||
+        path === 'hunter.street1' ||
+        path === 'hunter.street2' ||
+        path === 'hunter.city' ||
+        path === 'hunter.state' ||
+        path === 'hunter.postal_code' ||
+        path === 'hunter.city_state'
+      ) {
+        cat = 'address'
+      }
+      if (!cat) continue
+      const manual = entry.manualSlot
+      const slot = manual > 0 ? manual : parseFieldName(fieldName).slot
+      const set = categoryRefsBySlot.get(slot) ?? new Set<Cat>()
+      set.add(cat)
+      categoryRefsBySlot.set(slot, set)
+    }
+
+    function hunterDisplayName(e: EntrySnapshot): string {
+      return e.hunter?.display_name?.trim() || e.guest_name || 'Unknown hunter'
+    }
+    function addressIsBlank(e: EntrySnapshot): boolean {
+      const s = e.hunter_address_snapshot
+      if (!s) return true
+      const vals = [s.street1, s.street2, s.city, s.state, s.postal_code]
+      return vals.every((v) => !v || String(v).trim() === '')
+    }
+
+    const warnedLicenseEntryIds = new Set<string>()
+    const warnedAddressEntryIds = new Set<string>()
+
+    // Resolve which entry each referenced slot maps to. For trip-level
+    // (slot 0) the engine resolves against entries[0] of each pass, so
+    // we treat slot 0 as "entries[0]" for the warning purpose. For
+    // slot >= 1, that entry slot maps to entries[slot - 1] in pass 1,
+    // entries[slot - 1 + slotsPerPdf] in pass 2, etc. Iterate every
+    // included entry covered by any slot reference.
+    for (const [slot, cats] of categoryRefsBySlot.entries()) {
+      const slotEntries: EntrySnapshot[] = []
+      if (slot === 0) {
+        // Trip-level resolver hits entries[0] of each pass.
+        for (let p = 0; p < passes; p++) {
+          const e = entries[p * slotsPerPdf]
+          if (e) slotEntries.push(e)
+        }
+      } else {
+        for (let p = 0; p < passes; p++) {
+          const idx = p * slotsPerPdf + (slot - 1)
+          const e = entries[idx]
+          if (e) slotEntries.push(e)
+        }
+      }
+      for (const e of slotEntries) {
+        const name = hunterDisplayName(e)
+        if (cats.has('license') && !e.license && !warnedLicenseEntryIds.has(e.id)) {
+          warnings.push(
+            `Hunter ${name} has no linked license tag for this trip — license fields will be blank. Fix: open Wallet on the trip and link a license to this hunter.`
+          )
+          warnedLicenseEntryIds.add(e.id)
+        }
+        if (cats.has('address') && addressIsBlank(e) && !warnedAddressEntryIds.has(e.id)) {
+          warnings.push(
+            `Hunter ${name}'s profile has no address on file — address fields will be blank. Fix: hunter updates their profile address, or guide updates the trip wallet.`
+          )
+          warnedAddressEntryIds.add(e.id)
+        }
+      }
+    }
+  }
+
   // Generate one PDF per pass.
   const artifacts: FilledPdfArtifact[] = []
   for (let pass = 0; pass < passes; pass++) {
@@ -616,43 +716,45 @@ export async function generateFilledHarvestLogPDFsAction(
       .from('bb-private')
       .createSignedUrl(filePath, 3600)
 
-    // Auto-attach as a new doc + trip_doc row so the trip's docs section
-    // surfaces it. Distinct from the source mapping doc (kind='log',
-    // file_path=the filled location, mapping_status='not_applicable').
+    // v27.1.1.0.3e.3: write to trip_generated_logs (replaces the old
+    // docs + trip_docs auto-insert that polluted the doc library).
     const filledLabel =
       passes > 1
         ? `${trip.title ?? 'Trip'} — ${doc.label} (${pass + 1}/${passes})`
         : `${trip.title ?? 'Trip'} — ${doc.label}`
 
-    const { data: newDoc } = await sb
-      .from('docs')
+    let pageCount: number | null = null
+    try {
+      pageCount = pdf.getPageCount()
+    } catch {
+      pageCount = null
+    }
+
+    const { data: genRow, error: genErr } = await sb
+      .from('trip_generated_logs')
       .insert({
-        guide_id: profile.id,
-        kind: 'log',
-        label: filledLabel,
+        trip_id: log.trip_id,
+        log_id: log.id,
+        source_doc_id: docId,
         file_path: filePath,
-        file_mime: 'application/pdf',
-        mapping_status: 'not_applicable',
+        file_name: filename,
+        page_count: pageCount,
+        pass_index: pass + 1,
+        pass_total: passes,
+        created_by: profile.id,
       })
       .select('id')
       .single()
-
-    if (newDoc) {
-      await sb
-        .from('trip_docs')
-        .upsert(
-          {
-            trip_id: log.trip_id,
-            doc_id: newDoc.id,
-            hunter_visible: true,
-            created_by: profile.id,
-          },
-          { onConflict: 'trip_id,doc_id', ignoreDuplicates: true }
-        )
+    if (genErr) {
+      console.warn('[harvestLog.fill:trip_generated_logs.insert]', {
+        code: genErr.code,
+        message: genErr.message,
+        path: filePath,
+      })
     }
 
     artifacts.push({
-      doc_id: newDoc?.id ?? '',
+      id: genRow?.id ?? '',
       file_path: filePath,
       signed_url: signed?.signedUrl ?? '',
       label: filledLabel,
@@ -663,7 +765,6 @@ export async function generateFilledHarvestLogPDFsAction(
 
   revalidatePath(`/app/trips/${log.trip_id}`)
   revalidatePath(`/app/trips/${log.trip_id}/log`)
-  revalidatePath('/app/docs')
   return { ok: true, artifacts, warnings }
 }
 
@@ -686,4 +787,54 @@ const PURPOSE_LABELS: Record<string, string> = {
 }
 function formatPurposeLabel(key: string): string {
   return PURPOSE_LABELS[key] ?? key
+}
+
+// v27.1.1.0.3e.3 — delete a generated PDF + its trip_generated_logs row.
+// RLS already restricts ownership; the explicit created_by check below
+// is defense-in-depth. Storage delete is best-effort: if it fails the
+// row delete still proceeds so the user can retry without a phantom
+// orphan row.
+export async function deleteTripGeneratedLogAction(
+  generatedLogId: string
+): Promise<{ ok: true } | { error: string }> {
+  const { profile } = await requireGuide()
+  if (!generatedLogId) return { error: 'Missing generated log id.' }
+
+  const sb = await createClient()
+
+  const { data: row, error: selErr } = await sb
+    .from('trip_generated_logs')
+    .select('id, trip_id, file_path, created_by')
+    .eq('id', generatedLogId)
+    .maybeSingle()
+  if (selErr) {
+    console.warn('[deleteTripGeneratedLog:select]', { code: selErr.code, message: selErr.message })
+    return { error: 'Could not load this report.' }
+  }
+  if (!row) return { error: 'Report not found.' }
+  if (row.created_by !== profile.id) return { error: 'Not allowed.' }
+
+  if (row.file_path) {
+    const { error: rmErr } = await sb.storage.from('bb-private').remove([row.file_path])
+    if (rmErr) {
+      console.warn('[deleteTripGeneratedLog:storage.remove]', {
+        message: rmErr.message,
+        path: row.file_path,
+      })
+      // Proceed with DB delete anyway.
+    }
+  }
+
+  const { error: delErr } = await sb
+    .from('trip_generated_logs')
+    .delete()
+    .eq('id', generatedLogId)
+  if (delErr) {
+    console.warn('[deleteTripGeneratedLog:delete]', { code: delErr.code, message: delErr.message })
+    return { error: 'Could not delete this report.' }
+  }
+
+  revalidatePath(`/app/trips/${row.trip_id}`)
+  revalidatePath(`/app/trips/${row.trip_id}/log`)
+  return { ok: true }
 }
