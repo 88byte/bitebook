@@ -15,6 +15,7 @@ import StatusPill from '../../_components/StatusPill'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
 import CancelTripButton from './CancelTripButton'
+import SaveAsTemplateButton from './SaveAsTemplateButton'
 import TripDetailEditor from './TripDetailEditor'
 
 type RouteParams = Promise<{ id: string }>
@@ -98,6 +99,13 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           <Activity size={14} aria-hidden="true" />
           {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
         </Link>
+        {/* v27.1.4: Save as template — captures activity / location / hunt
+            details + non-log linked docs into a reusable template. Visible
+            on active AND wrapped trips (a wrapped trip is often the best
+            candidate to template — proven recipe). */}
+        {(trip.status === 'active' || trip.status === 'planned' || trip.status === 'completed') && (
+          <SaveAsTemplateButton tripId={trip.id} defaultLabel={trip.title} />
+        )}
         <button
           type="button"
           className="bb-btn-secondary"

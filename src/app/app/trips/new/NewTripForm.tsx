@@ -5,21 +5,45 @@ import { FileText, Building, Map, Mountain, TreeDeciduous, PawPrint, Crosshair }
 import { US_STATES } from '@/lib/us-states'
 import { methodsForKind } from '@/lib/methods'
 import { createTripAction } from '../actions'
+import { createTripFromTemplateAction } from '../../_lib/trip-template-actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import DateTimeField from '../../_components/DateTimeField'
+
+// v27.1.4: optional initial values for the "Use template" flow. When the
+// caller passes initial+templateId, the form pre-fills activity/location/
+// hunt-detail fields and routes submit through createTripFromTemplateAction
+// (which also auto-attaches the template's linked docs to the new trip).
+// Without these props we fall back to the createTripAction happy path.
+export type NewTripInitial = {
+  kind: 'hunting' | 'fishing'
+  city: string
+  state: string
+  zone: string
+  county: string
+  species_targeted: string
+  method: string
+}
 
 // v26.4: structured-section layout. Form now renders its own .bb-tile
 // wrappers (one per section: Basics / Dates / Location / Hunt details /
 // Hunters / Notes) so the parent page no longer wraps in a single tile.
 // Mobile overflow is fixed by .bb-form-grid-2 (min-width:0 on grid + cells)
 // instead of raw Tailwind grid which leaves cells at min-width:auto.
-export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
+export default function NewTripForm({
+  hunters,
+  initial = null,
+  templateId = null,
+}: {
+  hunters: HunterOption[]
+  initial?: NewTripInitial | null
+  templateId?: string | null
+}) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // v27.0b.4.3: track kind in state so the method dropdown filters by activity
   // without a full re-render. Switching to fishing reveals fishing methods.
-  const [kind, setKind] = useState<'hunting' | 'fishing'>('hunting')
+  const [kind, setKind] = useState<'hunting' | 'fishing'>(initial?.kind ?? 'hunting')
   // v26.3: keep a local copy so the inline-invite path can append entries
   // without a full server round-trip. The canonical list refreshes when the
   // page revalidates after submit.
@@ -36,7 +60,15 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
     })
     startTransition(async () => {
       try {
-        await createTripAction(fd)
+        // v27.1.4: when a templateId is present we route through
+        // createTripFromTemplateAction so the template's linked docs
+        // auto-attach. Otherwise it's the standard createTripAction
+        // happy path. Both redirect on success.
+        if (templateId) {
+          await createTripFromTemplateAction(fd)
+        } else {
+          await createTripAction(fd)
+        }
       } catch (err) {
         const e = err as Error & { digest?: string }
         if (e.digest?.startsWith('NEXT_REDIRECT')) throw err
@@ -63,6 +95,11 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {/* v27.1.4: hidden template_id is only present when the form is in
+          template-clone mode. createTripFromTemplateAction reads it from
+          the FormData. */}
+      {templateId && <input type="hidden" name="template_id" value={templateId} />}
+
       {/* BASICS */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
@@ -144,6 +181,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   placeholder="Mendocino"
                   className="bb-input bb-input-iconed"
                   autoComplete="off"
+                  defaultValue={initial?.city ?? ''}
                 />
               </label>
             </div>
@@ -155,7 +193,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   id="state"
                   name="state"
                   required
-                  defaultValue=""
+                  defaultValue={initial?.state ?? ''}
                   className="bb-input bb-input-iconed"
                 >
                   <option value="" disabled>Select a state</option>
@@ -178,6 +216,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   placeholder="D6, Zone B-2, etc."
                   className="bb-input bb-input-iconed"
                   autoComplete="off"
+                  defaultValue={initial?.zone ?? ''}
                 />
               </label>
             </div>
@@ -192,6 +231,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   placeholder="Mendocino County"
                   className="bb-input bb-input-iconed"
                   autoComplete="off"
+                  defaultValue={initial?.county ?? ''}
                 />
               </label>
               <p className="bb-form-help">Required for some state logs.</p>
@@ -216,6 +256,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                   placeholder="Black bear, wild pig"
                   className="bb-input bb-input-iconed"
                   autoComplete="off"
+                  defaultValue={initial?.species_targeted ?? ''}
                 />
               </label>
             </div>
@@ -226,7 +267,7 @@ export default function NewTripForm({ hunters }: { hunters: HunterOption[] }) {
                 <select
                   id="method"
                   name="method"
-                  defaultValue=""
+                  defaultValue={initial?.method ?? ''}
                   className="bb-input bb-input-iconed"
                 >
                   <option value="">Select method</option>

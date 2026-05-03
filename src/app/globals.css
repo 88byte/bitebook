@@ -3538,18 +3538,25 @@ body {
 }
 
 /* v27.1.1.0.3e.8: Trip-level grid on the harvest-log page. Stacks 1-col
-   below 26rem (~415px) so the Hunt date input + 3-col purpose pill grid
-   never collide. Above 26rem, splits 40/60 so the date column gives
-   the pills enough room to breathe. */
+   on every phone width so the Hunt date input + 3-col purpose pill grid
+   never collide. Goes 2-col only at tablet/desktop where there's real
+   horizontal room.
+   v27.1.4.0.1: bumped breakpoint from 26rem (416px) to 38rem (608px) —
+   26rem fired on iPhone Plus / Pro Max widths (428px) and the 40/60
+   split + 0.75rem gap left the date input's intrinsic UA chrome
+   touching the purpose pill grid with zero breathing room. 38rem keeps
+   2-col reserved for clearly-tablet+ widths. Gap also bumped to 1.5rem
+   so the columns visibly breathe when they do split. */
 .bb-log-trip-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: 1rem;
   min-width: 0;
 }
-@media (min-width: 26rem) {
+@media (min-width: 38rem) {
   .bb-log-trip-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: 1.5rem;
   }
 }
 .bb-log-trip-grid > * { min-width: 0; }

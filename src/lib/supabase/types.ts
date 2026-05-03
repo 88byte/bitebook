@@ -1453,6 +1453,95 @@ export type Database = {
           },
         ]
       }
+      trip_templates: {
+        Row: {
+          activity: string | null
+          archived_at: string | null
+          city: string | null
+          created_at: string
+          id: string
+          label: string
+          location_county: string | null
+          location_zone: string | null
+          method: string | null
+          owner_id: string
+          species_targeted: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity?: string | null
+          archived_at?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          location_county?: string | null
+          location_zone?: string | null
+          method?: string | null
+          owner_id: string
+          species_targeted?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity?: string | null
+          archived_at?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          location_county?: string | null
+          location_zone?: string | null
+          method?: string | null
+          owner_id?: string
+          species_targeted?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_templates_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_template_docs: {
+        Row: {
+          created_at: string
+          doc_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          doc_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          doc_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_template_docs_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "docs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_template_docs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "trip_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_items: {
         Row: {
           archived_at: string | null
