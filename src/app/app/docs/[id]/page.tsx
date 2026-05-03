@@ -71,52 +71,100 @@ export default async function DocDetailPage({ params }: { params: Params }) {
         </section>
       )}
 
-      <section className="mt-4">
-        <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
-      </section>
-
-      {/* v27.1.1.0: log + waiver field mapping wizard. Waiver signature
-          placement still ships in v27.1.2; log auto-fill engine ships in
-          v27.1.1.1. The wizard route handles both kinds for now since
-          the field-mapping infra is shared. */}
-      {doc.kind !== 'resource' && (
-        <section
-          className="bb-tile mt-3"
-          style={{ borderColor: 'var(--color-ink-tint)' }}
-        >
-          <div className="bb-tile-body">
-            <h2 className="bb-form-section-head">Field mapping</h2>
-            <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-              {doc.kind === 'waiver'
-                ? 'Map text fields here; signature placement ships next (v27.1.2).'
-                : 'Match each PDF field to a Bite Book data source. Auto-fill ships next (v27.1.1.1).'}
-            </p>
-            <div style={{ marginTop: '0.6rem' }}>
-              <Link
-                href={`/app/docs/${doc.id}/mapping`}
-                className="bb-cta-sm"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
-              </Link>
+      {/* v27.1.1.0.3d.2.5: log-kind reorder — Field Mapping is the next
+          obvious action so it leads. Then editable details, then the
+          file preview at the bottom. Waiver + resource keep the prior
+          File-first layout. */}
+      {doc.kind === 'log' ? (
+        <>
+          <section
+            className="bb-tile mt-4"
+            style={{ borderColor: 'var(--color-copper)' }}
+          >
+            <div className="bb-tile-body">
+              <h2 className="bb-form-section-head">Field mapping</h2>
+              <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+                Match each PDF box to a Bite Book data source so the auto-fill engine
+                knows what to write into your reports. AI can pre-fill suggestions you
+                review &mdash; this is the next step.
+              </p>
+              <div style={{ marginTop: '0.6rem' }}>
+                <Link
+                  href={`/app/docs/${doc.id}/mapping`}
+                  className="bb-cta-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
+                </Link>
+                <span style={{ marginLeft: '0.6rem', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                  Status: <strong>{doc.mapping_status}</strong>
+                </span>
+              </div>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
 
-      <section className="mt-3">
-        <EditDocForm
-          docId={doc.id}
-          initial={{
-            kind: doc.kind,
-            label: doc.label,
-            state: doc.state,
-          }}
-          isArchived={isArchived}
-          canHardDelete={canHardDelete}
-          tripCount={doc.trip_count}
-        />
-      </section>
+          <section className="mt-3">
+            <EditDocForm
+              docId={doc.id}
+              initial={{
+                kind: doc.kind,
+                label: doc.label,
+                state: doc.state,
+              }}
+              isArchived={isArchived}
+              canHardDelete={canHardDelete}
+              tripCount={doc.trip_count}
+            />
+          </section>
+
+          <section className="mt-3">
+            <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="mt-4">
+            <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
+          </section>
+
+          {doc.kind === 'waiver' && (
+            <section
+              className="bb-tile mt-3"
+              style={{ borderColor: 'var(--color-ink-tint)' }}
+            >
+              <div className="bb-tile-body">
+                <h2 className="bb-form-section-head">Field mapping</h2>
+                <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+                  Map text fields here; signature placement ships next (v27.1.2).
+                </p>
+                <div style={{ marginTop: '0.6rem' }}>
+                  <Link
+                    href={`/app/docs/${doc.id}/mapping`}
+                    className="bb-cta-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
+                  </Link>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="mt-3">
+            <EditDocForm
+              docId={doc.id}
+              initial={{
+                kind: doc.kind,
+                label: doc.label,
+                state: doc.state,
+              }}
+              isArchived={isArchived}
+              canHardDelete={canHardDelete}
+              tripCount={doc.trip_count}
+            />
+          </section>
+        </>
+      )}
     </main>
   )
 }

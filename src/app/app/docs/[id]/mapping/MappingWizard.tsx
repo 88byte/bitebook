@@ -125,6 +125,12 @@ export default function MappingWizard({
   // successful suggestion run; renders an "✨ AI suggested N fields"
   // toast with a green-ish copper accent before collapsing.
   const [aiSuccessCount, setAiSuccessCount] = useState<number | null>(null)
+  // v27.1.1.0.3d.2.5: ref for Step 3's "Review N AI suggestions" CTA
+  // to scroll the user to the field cards. MUST be declared before any
+  // conditional early returns so React's rules-of-hooks order stays
+  // stable across renders. (v3d.2.4 placed this after the loadingFields
+  // guard, which crashed the wizard once fields hydrated.)
+  const fieldsAreaRef = useRef<HTMLDivElement>(null)
 
   function handleSlotChange(fieldName: string, slot: number) {
     setSlotOverrides((prev) => ({ ...prev, [fieldName]: slot }))
@@ -499,10 +505,12 @@ export default function MappingWizard({
   const groups = buildFieldGroups(fields, slotOverrides)
   const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
 
-  // v27.1.1.0.3d.2.4: explicit step-by-step phase + ref to first field
-  // card so Step 3's "Review N AI suggestions" CTA can scroll the user
-  // straight there.
-  const fieldsAreaRef = useRef<HTMLDivElement>(null)
+  // v27.1.1.0.3d.2.5: stage discriminant + helper. Hook (useRef) was
+  // moved to the top of the component above the early returns to
+  // satisfy the rules-of-hooks; v3d.2.4 placed it here which crashed
+  // the wizard with "Rendered more hooks than during the previous
+  // render" once `loadingFields` flipped false and the early-return
+  // guards fell through.
   const aiRowCount = Object.values(aiSuggestedFlags).filter((v) => v).length
   const hasAnySaved = Object.values(selection).some((v) => v)
   type WizardStage = 'start' | 'working' | 'success' | 'review'
