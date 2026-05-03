@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { CSSProperties, MouseEvent } from 'react'
 import { CircleCheck } from 'lucide-react'
 import { normalizeWeaponRestriction } from '@/lib/methods'
+import { WALLET_STATUS_LABEL } from '@/lib/labels'
 import type { WalletItemType, WalletItemWithStatus, WalletDerivedStatus } from '../../_lib/wallet-utils'
 
 // v27.0b.7: per type/status card skin. Replaces the v27.0a.20 single-skin
@@ -105,11 +106,12 @@ export default function WalletHeroCard({
     item.state ?? null,
     item.season_year ? `${item.season_year}` : null,
   ].filter(Boolean).join(' · ')
-  const statusLabel =
-    item.status === 'active' ? 'Active'
-    : item.status === 'used' ? 'Tagged out'
-    : item.status === 'expired' ? 'Expired'
-    : 'Archived'
+  // v27.1.5.3: status label sourced from the central labels.ts map so
+  // the same word ("Done", "Active", etc.) surfaces here, on the
+  // wallet section heading, and on trip pills. 'used' renders as "Done"
+  // — a tagged-out tag is finished business, same vocab as a completed
+  // trip.
+  const statusLabel = WALLET_STATUS_LABEL[item.status]
 
   const isTaggedOut = item.status === 'used'
 

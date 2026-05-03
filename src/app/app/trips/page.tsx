@@ -7,16 +7,20 @@ import TripRow from '../_components/TripRow'
 import DashboardHero from '../_components/DashboardHero'
 import TripTemplatesList from './TripTemplatesList'
 import type { Database } from '@/lib/supabase/types'
+import { TRIP_FILTER_LABEL } from '@/lib/labels'
 
 type TripStatus = Database['public']['Enums']['trip_status']
 
 const PAGE_SIZE = 20
+// v27.1.5.3: filter labels pull from the central labels.ts map. Pre-trip /
+// In field / Wrapped collapse to Active / In progress / Done so the chip
+// row matches the StatusPill on each row + the wallet status vocabulary.
 const STATUSES: { key: TripStatus | 'all'; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'planned', label: 'Pre-trip' },
-  { key: 'active', label: 'In field' },
-  { key: 'completed', label: 'Wrapped' },
-  { key: 'canceled', label: 'Canceled' },
+  { key: 'all', label: TRIP_FILTER_LABEL.all },
+  { key: 'planned', label: TRIP_FILTER_LABEL.planned },
+  { key: 'active', label: TRIP_FILTER_LABEL.active },
+  { key: 'completed', label: TRIP_FILTER_LABEL.completed },
+  { key: 'canceled', label: TRIP_FILTER_LABEL.canceled },
 ]
 
 // v27.1.4: top-level tabs — Trips (existing list) vs Templates (saved

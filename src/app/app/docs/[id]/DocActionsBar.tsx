@@ -10,6 +10,7 @@ import {
   deleteDocAction,
   setDocTemplateFlagAction,
 } from '../../_lib/docs-actions'
+import ReplaceDocButton from './ReplaceDocButton'
 
 // v27.1.1.0.3d.2.6: doc detail action bar promoted to the top of the
 // page (matches the trip-detail pattern from v27.0b.9.1). Save changes
@@ -33,6 +34,8 @@ export default function DocActionsBar({
   tripCount,
   isTemplate,
   viewerEmail,
+  viewerId,
+  canReplace,
 }: {
   docId: string
   isArchived: boolean
@@ -40,6 +43,11 @@ export default function DocActionsBar({
   tripCount: number
   isTemplate: boolean
   viewerEmail: string | null
+  // v27.1.5.3.5: viewer id used for the temp-upload path on replace,
+  // and canReplace gates the button to owner OR admin (validated again
+  // server-side).
+  viewerId: string
+  canReplace: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -119,6 +127,10 @@ export default function DocActionsBar({
           <Save size={14} aria-hidden="true" />
           Save changes
         </button>
+
+        {!isArchived && canReplace && (
+          <ReplaceDocButton docId={docId} viewerId={viewerId} />
+        )}
 
         {!isArchived ? (
           <button

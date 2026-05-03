@@ -12,8 +12,11 @@ export type DocSummary = DocRow & {
   trip_count: number
 }
 
+// v27.1.5.3.5: replaced_at added to the SELECT projection so DocSummary
+// (which extends DocRow) stays type-compatible with the row shape after
+// the new column landed.
 const DOC_COLS =
-  'id, guide_id, kind, label, state, file_path, file_mime, form_template_hash, mapping_status, archived_at, is_template, created_at, updated_at' as const
+  'id, guide_id, kind, label, state, file_path, file_mime, form_template_hash, mapping_status, archived_at, is_template, created_at, updated_at, replaced_at' as const
 
 export async function fetchGuideDocs(
   guideId: string,

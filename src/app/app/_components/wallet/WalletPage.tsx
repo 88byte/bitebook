@@ -221,16 +221,21 @@ export default function WalletPage({
         holderName={holderName}
       />
 
-      {/* TAGGED OUT — only render for tags */}
+      {/* DONE — only render for tags. v27.1.5.3: rebadged from "Tagged
+          out" so a finished tag reads with the same vocabulary as a
+          completed trip — both surface as "Done" everywhere they
+          render. The underlying bucket key (tagged_out) stays for code
+          clarity since it describes the data attribute (tagged_out_at
+          set), not the user-facing label. */}
       {activeTab === 'tag' && buckets.tagged_out.length > 0 && (
         <WalletStatusSection
-          title="Tagged out"
+          title="Done"
           count={buckets.tagged_out.length}
           items={buckets.tagged_out}
           basePath={basePath}
           type={activeTab}
           emptyIcon={Icon}
-          emptyTitle="None tagged out"
+          emptyTitle="Nothing done yet"
           emptySub=""
           holderName={holderName}
         />

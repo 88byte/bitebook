@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, ClipboardCheck, FileText, BookOpen, Sparkles } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, FileText, BookOpen, Sparkles, AlertCircle, RefreshCw } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchGuideDoc } from '../../_lib/docs-queries'
 import { relativeOrDate } from '../../_lib/format'
@@ -8,7 +8,10 @@ import EditDocForm from './EditDocForm'
 import DocFilePreview from './DocFilePreview'
 import DocActionsBar from './DocActionsBar'
 
+const ADMIN_EMAIL = 'flaviod022@gmail.com'
+
 type Params = Promise<{ id: string }>
+type SearchParams = Promise<{ replaced?: string }>
 
 // v27.1.0 — doc detail page. Edit metadata (label / state / kind), preview
 // the uploaded PDF, archive / restore, hard-delete when archived AND not
@@ -21,14 +24,29 @@ type Params = Promise<{ id: string }>
 // EditDocForm, mapping link is "View mapping" instead of "Set up mapping".
 // The mapping wizard's save action is RLS-blocked for non-owners which
 // is the desired behavior; we don't add an admin bypass.
-export default async function DocDetailPage({ params }: { params: Params }) {
+export default async function DocDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Params
+  searchParams: SearchParams
+}) {
   const { user, profile } = await requireGuide()
   const { id } = await params
+  const sp = await searchParams
   const doc = await fetchGuideDoc(profile.id, id)
   if (!doc) notFound()
 
   const viewerOwnsDoc = doc.guide_id === profile.id
   const viewerEmail = user.email ?? null
+  const isAdmin = (viewerEmail ?? '').toLowerCase() === ADMIN_EMAIL
+  // v27.1.5.3.5: Replace PDF action available to the owning guide and
+  // to the admin (Flavio) for any doc, including templates owned by
+  // other guides. The button itself is rendered inside DocActionsBar
+  // when canReplace=true; the server action does its own owner-or-admin
+  // gate as defense-in-depth.
+  const canReplace = viewerOwnsDoc || isAdmin
+  const replacedFlag = sp.replaced === 'hash_changed' || sp.replaced === 'ok' ? sp.replaced : null
 
   const KindIcon = doc.kind === 'waiver' ? ClipboardCheck : doc.kind === 'log' ? FileText : BookOpen
   const kindLabel = doc.kind === 'waiver' ? 'Waiver' : doc.kind === 'log' ? 'Harvest log' : 'Resource'
@@ -80,7 +98,63 @@ export default async function DocDetailPage({ params }: { params: Params }) {
           tripCount={doc.trip_count}
           isTemplate={doc.is_template}
           viewerEmail={viewerEmail}
+          viewerId={profile.id}
+          canReplace={canReplace}
         />
+      )}
+
+      {/* v27.1.5.3.5: post-replace banner. hash_changed = the new PDF's
+          field set differs from the old one, so existing mappings may
+          point at fields that no longer exist; nudge a re-run of AI
+          mapping. ok = same hash (or first-time replace), no extra
+          warning needed — silent confirmation. Both auto-clear when
+          the user navigates away (URL param). */}
+      {viewerOwnsDoc && replacedFlag === 'hash_changed' && (
+        <section
+          className="bb-tile mt-3"
+          style={{
+            padding: '0.75rem 1rem',
+            background: '#F2D6CE',
+            borderColor: '#8C3C2A',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+          }}
+          role="status"
+        >
+          <AlertCircle size={16} aria-hidden="true" style={{ color: '#8C3C2A', flexShrink: 0, marginTop: 2 }} />
+          <span style={{ flex: 1, minWidth: 0, color: '#8C3C2A', fontSize: '0.9rem' }}>
+            <strong>PDF replaced.</strong> The form fields look different
+            from the previous version — your existing field mappings may
+            need a quick review.
+          </span>
+          {(doc.kind === 'log' || doc.kind === 'waiver') && (
+            <Link
+              href={`/app/docs/${doc.id}/mapping`}
+              className="bb-btn-secondary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              Review mapping
+            </Link>
+          )}
+        </section>
+      )}
+      {viewerOwnsDoc && replacedFlag === 'ok' && (
+        <section
+          className="bb-tile mt-3"
+          style={{
+            padding: '0.6rem 1rem',
+            background: 'rgba(176, 108, 60, 0.08)',
+            borderColor: 'var(--color-copper)',
+            color: 'var(--color-ink)',
+            fontSize: '0.9rem',
+          }}
+          role="status"
+        >
+          PDF replaced. Field mappings look unchanged — you’re good.
+        </section>
       )}
 
       {!viewerOwnsDoc && (

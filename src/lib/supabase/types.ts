@@ -173,6 +173,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["doc_kind"]
           label: string
           mapping_status: string
+          replaced_at: string | null
           state: string | null
           updated_at: string
         }
@@ -188,6 +189,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["doc_kind"]
           label: string
           mapping_status?: string
+          replaced_at?: string | null
           state?: string | null
           updated_at?: string
         }
@@ -203,6 +205,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["doc_kind"]
           label?: string
           mapping_status?: string
+          replaced_at?: string | null
           state?: string | null
           updated_at?: string
         }

@@ -282,6 +282,138 @@ export async function deleteDocAction(docId: string): Promise<DocActionResult> {
 }
 
 // ==========================================================================
+// v27.1.5.3.5 — Replace PDF on existing doc
+// ==========================================================================
+//
+// Replaces the underlying PDF on an existing docs row while preserving its
+// id, label, mappings, and every reference that points at it (default
+// pickers, trip_docs attachments, generated logs, etc). Used when:
+//   - A guide uploads a corrected version of their own state log.
+//   - The Bite Book admin (Flavio) ships a revised version of a template
+//     and wants every guide who has it as default_log_doc_id to pick up
+//     the new PDF automatically without re-mapping.
+//
+// Permissions:
+//   - Owner: replaces their own doc.
+//   - Admin (auth.email() === ADMIN_EMAIL): replaces any doc, including
+//     templates owned by other guides. Validated against the same admin
+//     gate already used by setDocTemplateFlagAction.
+//
+// Mechanics:
+//   1. Client uploads new PDF to docs/{viewer_id}/temp-{ts}.pdf via the
+//      user-session storage API (bb-private RLS already permits writes
+//      to docs/{auth.uid()}/...).
+//   2. Server action downloads the temp file, computes its sha256, then
+//      uploads (upsert=true) to the doc's existing canonical file_path.
+//      Storage move would also work but upsert is simpler since the
+//      destination already exists. Done with the user-session client
+//      when viewer is owner; admin client for cross-owner replacements
+//      (admin can't write into another guide's docs/{owner}/ namespace
+//      under regular RLS).
+//   3. Updates docs.form_template_hash + docs.replaced_at. Returns
+//      { ok, hashChanged } so the UI can warn that field mappings may
+//      need a re-run when the form fields actually changed.
+//   4. Cleans up the temp upload.
+//
+// Mappings stay untouched on replace — paths in doc_field_mappings still
+// point at field names. If the new PDF removed a field, the existing
+// mapping is dead but harmless (fill engine skips unknown fields).
+// Re-running AI mapping refreshes suggestions without overwriting the
+// guide's own choices unless they accept them.
+
+const ADMIN_EMAIL = 'flaviod022@gmail.com'
+
+export type ReplaceDocResult =
+  | { ok: true; hashChanged: boolean }
+  | { error: string }
+
+export async function replaceDocPdfAction(fd: FormData): Promise<ReplaceDocResult> {
+  const { profile, user } = await requireGuide()
+  const get = readForm(fd)
+
+  const docId = get('doc_id')
+  const tempPath = get('temp_path')
+  if (!docId || !tempPath) {
+    return { error: 'Missing doc id or temp upload path.' }
+  }
+
+  const sb = await createClient()
+  const { data: doc, error: docErr } = await sb
+    .from('docs')
+    .select('id, guide_id, file_path, file_mime, form_template_hash, is_template')
+    .eq('id', docId)
+    .maybeSingle()
+  if (docErr || !doc) {
+    return { error: docErr?.message || 'Doc not found.' }
+  }
+
+  const isOwner = doc.guide_id === profile.id
+  const isAdmin = (user.email ?? '').toLowerCase() === ADMIN_EMAIL
+  if (!isOwner && !isAdmin) {
+    return { error: 'You can only replace your own docs.' }
+  }
+
+  // Use admin client for cross-owner writes (admin replacing a template
+  // owned by a different guide_id; storage RLS gates writes to the
+  // owner's namespace). Owner-side replacements stay on the user-session
+  // client so the audit trail is honest.
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  let admin
+  try {
+    admin = isOwner ? sb : createAdminClient()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+
+  // 1. Download the temp file the client just uploaded.
+  const { data: blob, error: dlErr } = await admin.storage
+    .from('bb-private')
+    .download(tempPath)
+  if (dlErr || !blob) {
+    console.warn('[docs.replaceDocPdf:download]', { tempPath, message: dlErr?.message })
+    return { error: dlErr?.message || 'Could not read uploaded file.' }
+  }
+  const buf = Buffer.from(await blob.arrayBuffer())
+
+  // 2. Compute hash + compare to the doc's existing form_template_hash.
+  const newHash = createHash('sha256').update(buf).digest('hex')
+  const hashChanged = doc.form_template_hash !== null && doc.form_template_hash !== newHash
+
+  // 3. Upsert the new bytes at the doc's canonical file_path.
+  const { error: upErr } = await admin.storage
+    .from('bb-private')
+    .upload(doc.file_path, buf, {
+      contentType: doc.file_mime || 'application/pdf',
+      upsert: true,
+    })
+  if (upErr) {
+    console.warn('[docs.replaceDocPdf:upload]', { path: doc.file_path, message: upErr.message })
+    return { error: upErr.message || 'Could not write the replacement PDF.' }
+  }
+
+  // 4. Stamp the row.
+  const { error: updErr } = await admin
+    .from('docs')
+    .update({
+      form_template_hash: newHash,
+      replaced_at: new Date().toISOString(),
+    })
+    .eq('id', docId)
+  if (updErr) {
+    console.warn('[docs.replaceDocPdf:update]', { docId, message: updErr.message })
+    return { error: updErr.message || 'Could not stamp doc row.' }
+  }
+
+  // 5. Best-effort temp cleanup. Failure here doesn't roll back the
+  // replacement — temp uploads age out via storage lifecycle anyway.
+  await admin.storage.from('bb-private').remove([tempPath]).catch(() => {})
+
+  revalidatePath('/app/docs')
+  revalidatePath(`/app/docs/${docId}`)
+
+  return { ok: true, hashChanged }
+}
+
 // v27.1.1.0.3e.4 — Bulk archive + delete on /app/docs library
 // ==========================================================================
 //
