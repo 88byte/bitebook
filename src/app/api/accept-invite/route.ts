@@ -7,11 +7,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // user isn't signed in yet at the time this runs (sign-in happens on the
 // client side after a 200 response).
 //
-// Defense-in-depth: if the new hunter is somehow already on any open
-// trips at acceptance time (rare — the typical flow is invite → accept →
-// guide adds to trip), auto-create trip_wallet_items linkages on the
-// spot so the trip detail's ActionNeededCard sees the items as already
-// linked instead of asking the hunter to manually attach them.
+// v27.1.5.0.1 — the v27.1.5.0 auto-link block has been removed. See the
+// comment near the end of POST() for the rationale. Wallet items are
+// created here, but linking them to any specific trip is the per-trip
+// ActionNeededCard's job.
 
 type AddressBody = {
   street?: string
@@ -185,37 +184,24 @@ export async function POST(request: Request) {
     }
   }
 
-  // Defense-in-depth auto-link: if the hunter happens to be on any open
-  // trips (planned/active) at this moment, attach the freshly-created
-  // wallet items so the trip detail shows them as already linked.
-  // Typical flow has this set empty (guide adds the hunter post-accept).
-  if (insertedWalletItemIds.length > 0) {
-    try {
-      const { data: openTrips } = await admin
-        .from('trip_participants')
-        .select('trip_id, trip:trips!inner(id, status)')
-        .eq('hunter_id', userId)
-        .in('trip.status', ['planned', 'active'])
-      const tripIds = ((openTrips ?? []) as Array<{ trip_id: string; trip: { status: string } | null }>)
-        .filter((r) => r.trip && (r.trip.status === 'planned' || r.trip.status === 'active'))
-        .map((r) => r.trip_id)
-      if (tripIds.length > 0) {
-        const linkRows = tripIds.flatMap((trip_id) =>
-          insertedWalletItemIds.map((wallet_item_id) => ({
-            trip_id,
-            hunter_id: userId,
-            wallet_item_id,
-          }))
-        )
-        const { error: linkErr } = await admin.from('trip_wallet_items').insert(linkRows)
-        if (linkErr) {
-          console.warn('[accept-invite.autolink]', { code: linkErr.code, message: linkErr.message })
-        }
-      }
-    } catch (e) {
-      console.warn('[accept-invite.autolink.crash]', e)
-    }
-  }
+  // v27.1.5.0.1 — auto-link removed. Earlier in v27.1.5.0 we attempted
+  // a defense-in-depth pass that linked any newly-created wallet items
+  // to every open trip the hunter happened to be on. That was too
+  // aggressive: a hunter invited to multiple trips would get one
+  // license auto-linked to all of them; a CA license could end up
+  // attached to a CO trip; multiple tags would all attach to every
+  // trip regardless of species.
+  //
+  // The right scope is trip-specific auto-link, but `invitations` does
+  // NOT carry a `trip_id` column (confirmed against current schema —
+  // only id, email, status, expires_at, guide_id, token, created_at,
+  // last_sent_at, accepted_by are present). Until a future migration
+  // adds `invitations.trip_id` and the InviteForm captures it on
+  // trip-detail-originated invites, every invite is treated as
+  // network-only and the hunter links per-trip via the trip detail's
+  // ActionNeededCard. The card already auto-finds matching wallet
+  // items via fetchHunterMatchingWalletItems(state) so the per-trip
+  // link is a one-tap operation, not a separate flow.
 
   // Mark invite accepted
   await admin
