@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import {
@@ -499,6 +499,28 @@ export default function MappingWizard({
   const groups = buildFieldGroups(fields, slotOverrides)
   const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
 
+  // v27.1.1.0.3d.2.4: explicit step-by-step phase + ref to first field
+  // card so Step 3's "Review N AI suggestions" CTA can scroll the user
+  // straight there.
+  const fieldsAreaRef = useRef<HTMLDivElement>(null)
+  const aiRowCount = Object.values(aiSuggestedFlags).filter((v) => v).length
+  const hasAnySaved = Object.values(selection).some((v) => v)
+  type WizardStage = 'start' | 'working' | 'success' | 'review'
+  let stage: WizardStage
+  if (aiSuggesting || aiPending) {
+    stage = 'working'
+  } else if (aiSuccessCount !== null) {
+    stage = 'success'
+  } else if (aiRowCount > 0 || hasAnySaved) {
+    stage = 'review'
+  } else {
+    stage = 'start'
+  }
+
+  function scrollToFirstField() {
+    fieldsAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   function renderFieldRow(f: DocPdfField) {
     const parsed = parseFieldNameInline(f.name)
     const effSlot = (slotOverrides[f.name] ?? 0) > 0
@@ -530,184 +552,160 @@ export default function MappingWizard({
 
   return (
     <section className="mt-4 flex flex-col gap-3">
-      {/* v27.1.1.0.3d.2.2: Auto-suggest tile + centered loading overlay.
-          When aiSuggesting OR aiPending is true, render a full-card
-          loading state with an animated spinner, dimmed background, and
-          a bb-app-overlay so the rest of the wizard isn't interactable
-          until the AI call returns. After success, swap to a success
-          banner for 3 seconds before collapsing back to the manual
-          button. */}
-      <div
-        className="bb-tile"
-        style={{
-          padding: '1rem',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.6rem',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: aiSuggesting || aiPending ? '5.5rem' : 'auto',
-          position: 'relative',
-          background:
-            aiSuggesting || aiPending
-              ? 'linear-gradient(180deg, rgba(168, 92, 50, 0.06), rgba(168, 92, 50, 0.02))'
-              : aiSuccessCount !== null
-              ? 'linear-gradient(180deg, rgba(78, 130, 70, 0.12), rgba(78, 130, 70, 0.04))'
-              : undefined,
-          transition: 'background 220ms ease',
-        }}
-      >
-        {aiSuggesting || aiPending ? (
+      {/* v27.1.1.0.3d.2.4: explicit step-by-step CTA flow. Each phase
+          gets its own card with a single primary copper CTA so the
+          guide always knows the next action. Stages: 'start' (welcome
+          + Start AI mapping), 'working' (spinner, no CTA), 'success'
+          (Review N AI suggestions, scrolls to fields), 'review'
+          (re-run path with small auto-suggest button). */}
+      {stage === 'start' && (
+        <StepCard
+          stepNumber={1}
+          title="Start by letting AI map your form"
+          tone="copper"
+        >
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+            We&rsquo;ll read your PDF and pre-fill the mappings for you. Takes about 10&ndash;20 seconds.
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <button
+              type="button"
+              className="bb-cta"
+              onClick={handleSuggestMappings}
+              disabled={pending || aiSuggesting}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Sparkles size={16} aria-hidden="true" />
+              Start AI mapping
+            </button>
+          </div>
+          {aiResultMsg && (
+            <p
+              className="bb-form-help"
+              role="status"
+              style={{
+                margin: '0.6rem 0 0',
+                color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+              }}
+            >
+              {aiResultMsg}
+            </p>
+          )}
+        </StepCard>
+      )}
+
+      {stage === 'working' && (
+        <StepCard
+          stepNumber={2}
+          title={aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
+          tone="copper"
+          centerBody
+        >
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '0.4rem',
-              padding: '0.5rem 0',
+              padding: '0.4rem 0 0.2rem',
             }}
             role="status"
             aria-live="polite"
           >
             <Loader2
-              size={28}
+              size={32}
               aria-hidden="true"
               style={{
                 color: 'var(--color-copper)',
                 animation: 'bb-spin 1s linear infinite',
               }}
             />
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontWeight: 600,
-                color: 'var(--color-copper)',
-              }}
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              {aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
-            </span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)', textAlign: 'center' }}>
-              Usually lands in 10&ndash;20 seconds. {aiPending ? 'This page refreshes itself.' : 'Hang tight.'}
+            <span style={{ fontSize: '0.9rem', color: 'var(--color-ink-soft)', textAlign: 'center' }}>
+              Usually lands in 10&ndash;20 seconds.{' '}
+              {aiPending ? 'This page refreshes itself.' : 'Hang tight.'}
             </span>
           </div>
-        ) : aiSuccessCount !== null ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.25rem',
-              fontWeight: 600,
-              color: '#3F6B3A',
-              textAlign: 'center',
-            }}
-            role="status"
-            aria-live="polite"
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Sparkles size={16} aria-hidden="true" />
-              AI suggested {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
-            </span>
-            <span style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-              Scroll down to see the ✨ AI badges next to each pre-filled field. Tap any field
-              to confirm or change.
-            </span>
-          </div>
-        ) : (
-          <>
+        </StepCard>
+      )}
+
+      {stage === 'success' && (
+        <StepCard
+          stepNumber={3}
+          title={`AI suggested ${aiSuccessCount ?? 0} field${aiSuccessCount === 1 ? '' : 's'}`}
+          tone="success"
+        >
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+            AI pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
+            Tap each card below to confirm or change.
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
             <button
               type="button"
-              className="bb-cta-sm"
-              onClick={handleSuggestMappings}
-              disabled={pending || aiSuggesting}
+              className="bb-cta"
+              onClick={scrollToFirstField}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              <Sparkles size={14} aria-hidden="true" />
-              Auto-suggest mappings
+              <Sparkles size={16} aria-hidden="true" />
+              Review {aiSuccessCount} AI suggestion{aiSuccessCount === 1 ? '' : 's'} →
             </button>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-              AI reads your PDF and pre-fills each box &mdash; you review and confirm.
-            </span>
-          </>
-        )}
-        {aiResultMsg && !aiSuggesting && !aiPending && aiSuccessCount === null && (
-          <p
-            className="bb-form-help"
-            role="status"
-            style={{
-              margin: 0,
-              flexBasis: '100%',
-              color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
-              textAlign: 'center',
-            }}
-          >
-            {aiResultMsg}
-          </p>
-        )}
-      </div>
+          </div>
+        </StepCard>
+      )}
 
-      {/* v27.1.1.0.3d.2.3: numbered step-by-step intro replacing the
-          dense paragraph. Linear and obvious so a non-technical guide
-          knows exactly what to do at each stage. */}
-      <div className="bb-tile">
-        <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
-          <p
-            style={{
-              margin: 0,
-              marginBottom: '0.5rem',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              color: 'var(--color-ink)',
-            }}
-          >
-            How this works
+      {stage === 'review' && (
+        <StepCard
+          stepNumber={4}
+          title="Review your mappings"
+          tone="ink"
+        >
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+            Look for the <strong>✨ AI</strong> badge on each row &mdash; tap to confirm or
+            pick a different source. Anything left on &ldquo;Skip&rdquo; stays blank in the
+            final PDF.
+            {fields.length > 0 && (
+              <>
+                {' '}
+                <span style={{ color: 'var(--color-ink-soft)' }}>
+                  ({fields.length} total box{fields.length === 1 ? '' : 'es'}, grouped into{' '}
+                  {groups.length} row{groups.length === 1 ? '' : 's'}.)
+                </span>
+              </>
+            )}
           </p>
-          <ol
-            style={{
-              margin: 0,
-              paddingLeft: '1.4rem',
-              fontSize: '0.9rem',
-              lineHeight: 1.5,
-              color: 'var(--color-ink-soft)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.3rem',
-            }}
-          >
-            <li>
-              We&rsquo;re pre-filling each box with AI suggestions. Tap{' '}
-              <strong>Auto-suggest mappings</strong> above to run (or re-run) it.
-            </li>
-            <li>
-              Look for the <strong>✨ AI</strong> badge on rows below &mdash; that means it&rsquo;s an
-              AI suggestion you should confirm or change.
-            </li>
-            <li>
-              Tap a field to pick a different source from the dropdown. Anything left on
-              &ldquo;Skip&rdquo; stays blank in the final PDF.
-            </li>
-            <li>
-              When you&rsquo;re done, tap <strong>Save &amp; mark complete</strong> at the
-              bottom &mdash; the auto-fill engine will use these mappings on every report
-              you generate.
-            </li>
-          </ol>
-          <p
-            style={{
-              margin: '0.6rem 0 0',
-              fontSize: '0.8rem',
-              color: 'var(--color-ink-soft)',
-            }}
-          >
-            This PDF has <strong>{fields.length}</strong> total box{fields.length === 1 ? '' : 'es'},
-            grouped into <strong>{groups.length}</strong> rows below. Repeating Hunter 1-5
-            fields collapse under their slot 1 mapping (auto-mirrored on save).
-          </p>
-        </div>
-      </div>
+          <div style={{ marginTop: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="bb-btn-secondary"
+              onClick={handleSuggestMappings}
+              disabled={pending || aiSuggesting}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              Re-run AI mapping
+            </button>
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
+              Optional &mdash; only if you want fresh suggestions.
+            </span>
+          </div>
+          {aiResultMsg && (
+            <p
+              className="bb-form-help"
+              role="status"
+              style={{
+                margin: '0.6rem 0 0',
+                color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+              }}
+            >
+              {aiResultMsg}
+            </p>
+          )}
+        </StepCard>
+      )}
+
+      {/* Anchor target so the success-step CTA can scroll the user
+          straight to the first field card. */}
+      <div ref={fieldsAreaRef} />
+
 
       {/* v27.1.1.0.3c.5: render groups instead of raw fields. Three group
           kinds: 'single' (no siblings), 'simple-mirror' (slots 1..N, N<=5
@@ -762,44 +760,143 @@ export default function MappingWizard({
         </p>
       )}
 
+      {/* v27.1.1.0.3d.2.4: Step 5 — Mark mapping complete. Promoted from
+          a tight save bar to a full step card with primary CTA + helper
+          copy + status indicator. */}
+      <StepCard
+        stepNumber={5}
+        title="Done? Mark this mapping complete"
+        tone="copper"
+      >
+        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+          Once you&rsquo;re happy with each row, tap below. The auto-fill engine will use
+          these mappings on every report you generate. You can come back to edit anytime.
+        </p>
+        <div
+          style={{
+            marginTop: '0.75rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            alignItems: 'center',
+          }}
+        >
+          <button
+            type="button"
+            className="bb-cta"
+            onClick={() => save(true)}
+            disabled={pending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <CheckCircle2 size={16} aria-hidden="true" />
+            {completedAt !== null
+              ? 'Saved + marked complete'
+              : pending
+              ? 'Working…'
+              : 'Mark mapping complete'}
+          </button>
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => save(false)}
+            disabled={pending}
+          >
+            {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+          </button>
+          <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+            Status: <strong>{currentStatus}</strong>
+          </span>
+        </div>
+        {savedAt !== null && mirroredCount > 0 && (
+          <p
+            className="bb-form-help"
+            style={{ margin: '0.6rem 0 0', color: 'var(--color-copper)' }}
+          >
+            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
+          </p>
+        )}
+      </StepCard>
+    </section>
+  )
+}
+
+// v27.1.1.0.3d.2.4: shared step-card layout. Number badge + title +
+// children body. Three tones: 'copper' (primary action), 'success'
+// (post-AI green-ish), 'ink' (neutral, for the review step).
+function StepCard({
+  stepNumber,
+  title,
+  tone,
+  centerBody,
+  children,
+}: {
+  stepNumber: number
+  title: string
+  tone: 'copper' | 'success' | 'ink'
+  centerBody?: boolean
+  children: React.ReactNode
+}) {
+  const accent =
+    tone === 'success'
+      ? '#3F6B3A'
+      : tone === 'ink'
+      ? 'var(--color-ink-soft)'
+      : 'var(--color-copper)'
+  const bg =
+    tone === 'success'
+      ? 'linear-gradient(180deg, rgba(78, 130, 70, 0.10), rgba(78, 130, 70, 0.02))'
+      : tone === 'ink'
+      ? undefined
+      : 'linear-gradient(180deg, rgba(168, 92, 50, 0.06), rgba(168, 92, 50, 0.01))'
+  return (
+    <div
+      className="bb-tile"
+      style={{
+        padding: '1rem',
+        background: bg,
+        borderColor: tone === 'copper' ? 'var(--color-copper)' : undefined,
+        borderWidth: tone === 'copper' ? '1.5px' : undefined,
+      }}
+    >
       <div
-        className="bb-tile"
         style={{
-          padding: '0.875rem 1rem',
           display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
           alignItems: 'center',
+          gap: '0.5rem',
+          marginBottom: '0.4rem',
         }}
       >
-        <button
-          type="button"
-          className="bb-btn-secondary"
-          onClick={() => save(false)}
-          disabled={pending}
+        <span
+          aria-hidden="true"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '1.5rem',
+            height: '1.5rem',
+            borderRadius: 999,
+            background: accent,
+            color: '#fff',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
         >
-          {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
-        </button>
-        {savedAt !== null && mirroredCount > 0 && (
-          <span style={{ fontSize: '0.85rem', color: 'var(--color-copper)' }}>
-            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'}.
-          </span>
-        )}
-        <button
-          type="button"
-          className="bb-cta-sm"
-          onClick={() => save(true)}
-          disabled={pending}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-        >
-          <CheckCircle2 size={14} aria-hidden="true" />
-          {completedAt !== null ? 'Saved + marked complete' : pending ? 'Working…' : 'Save & mark complete'}
-        </button>
-        <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-          Status: <strong>{currentStatus}</strong>
+          {stepNumber}
         </span>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1rem',
+            fontWeight: 700,
+            color: 'var(--color-ink)',
+          }}
+        >
+          {title}
+        </h3>
       </div>
-    </section>
+      <div style={centerBody ? { textAlign: 'center' } : undefined}>{children}</div>
+    </div>
   )
 }
 
