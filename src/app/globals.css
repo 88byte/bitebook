@@ -3397,3 +3397,168 @@ body {
   color: var(--color-copper);
   font-weight: 600;
 }
+
+/* v27.1.1.0.3e.4: Hunt Log body layout rebuild + Docs library bulk
+   actions. Square icon tiles for per-report actions, full-width
+   destructive CTA, full-width copper CTA, small avatar circle for the
+   hunter row, purpose pill grid, sticky bulk-action bar for the docs
+   library. The earlier header-band/X-pill/overflow-menu classes from
+   the in-flight mockup pass were removed when Flavio asked to keep the
+   pre-existing back-link/eyebrow/title chrome on the log page. */
+
+/* Square icon-tile button used inside Reports rows (Open / Download /
+   Delete). Stacked icon + label, ~3.25rem square. Neutral by default;
+   destructive flag swaps to a red border + label. */
+.bb-icon-tile {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0.4rem 0.25rem;
+  border-radius: 0.55rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  color: var(--color-ink);
+  font-family: var(--font-barlow);
+  font-weight: 600;
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.bb-icon-tile:hover:not(:disabled) {
+  background: #FBF7F0;
+  border-color: rgba(176, 108, 60, 0.35);
+}
+.bb-icon-tile:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.bb-icon-tile--destructive {
+  color: #B33A2E;
+  border-color: rgba(179, 58, 46, 0.35);
+}
+.bb-icon-tile--destructive:hover:not(:disabled) {
+  background: rgba(179, 58, 46, 0.08);
+  border-color: rgba(179, 58, 46, 0.55);
+}
+
+/* Full-width compact-CTA variant. Pairs with .bb-cta-sm; just stretches
+   to the parent width and centers contents. */
+.bb-cta-full {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+/* Full-width destructive CTA — copper-strength visual weight, red surface.
+   Mirrors .bb-cta footprint but bigger than .bb-cta-sm-destructive (which
+   is small/inline). */
+.bb-cta-destructive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border-radius: 0.75rem;
+  background-color: #B33A2E;
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  border: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.12s, box-shadow 0.15s;
+}
+.bb-cta-destructive:hover:not(:disabled) {
+  background-color: #9A302A;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
+}
+.bb-cta-destructive:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Small avatar circle (28px) used in the at-rest hunter row of the
+   report editor. Same surface treatment as .bb-avatar but tighter. */
+.bb-avatar-sm {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: #F1E9DA;
+  color: var(--color-copper);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Trip-purpose pill grid used inside the Trip-level details tile.
+   3-col on desktop, 2-col on phones so the 5 pills always fit cleanly. */
+.bb-purpose-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (max-width: 39.99rem) {
+  .bb-purpose-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Warning-tile used under Generate filled PDFs. Neutral surface +
+   leading info icon, single paragraph body. */
+.bb-warning-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.55rem;
+  background: rgba(31, 36, 25, 0.05);
+  border: 1px solid var(--color-card-divider);
+  color: var(--color-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.bb-warning-tile-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-ink-soft);
+}
+
+/* v27.1.1.0.3e.4: Sticky bulk-action bar on /app/docs library. Appears
+   above the doc rows once at least one row is selected. Stays pinned at
+   the top of the viewport on scroll so the actions stay reachable when
+   the user is many rows deep. Backdrop blur + paper surface so the row
+   icons stay legible when the bar overlaps a row. */
+.bb-bulk-bar {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  background: rgba(255, 251, 240, 0.96);
+  backdrop-filter: saturate(140%) blur(6px);
+  -webkit-backdrop-filter: saturate(140%) blur(6px);
+  border: 1px solid var(--color-card-divider);
+  border-radius: 0.625rem;
+  box-shadow: 0 4px 12px rgba(31, 36, 25, 0.08);
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+.bb-bulk-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

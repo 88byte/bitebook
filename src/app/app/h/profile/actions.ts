@@ -14,10 +14,15 @@ export type HunterProfileActionResult =
 // state hunter license number. RLS gates writes to auth.uid()'s own row;
 // .eq('id', user.id) is defense-in-depth.
 //
+// v27.1.1.0.3e.4: license_doc_id removed from form. License now lives
+// exclusively on the wallet (trip_wallet_items → wallet_items) and the
+// fill engine reads it from there. The DB column is preserved for back-
+// compat, but no path captures or surfaces it.
+//
 // Onboarding: marks `profile_set` done only when ALL required hunter fields
-// are populated (display_name, first_name, last_name, all 4 address parts,
-// license_doc_id). Partial writes leave the step undone — the welcome
-// checklist will still show "Set up your profile" as the current step.
+// are populated (display_name, first_name, last_name, all 4 address parts).
+// Partial writes leave the step undone — the welcome checklist will still
+// show "Set up your profile" as the current step.
 export async function updateHunterProfileAction(formData: FormData): Promise<HunterProfileActionResult> {
   const { user } = await requireHunter()
 
@@ -43,9 +48,6 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
   const address_state = addrStateRaw && addrStateRaw.length === 2 ? addrStateRaw : null
   const address_zip = String(formData.get('address_zip') ?? '').trim().slice(0, 10) || null
 
-  // License
-  const license_doc_id = String(formData.get('license_doc_id') ?? '').trim().slice(0, 64) || null
-
   const supabase = await createClient()
   const { error } = await supabase
     .from('profiles')
@@ -59,7 +61,6 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
       address_city,
       address_state,
       address_zip,
-      license_doc_id,
     })
     .eq('id', user.id)
 
@@ -71,6 +72,8 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
   // v26.0: profile_set step is "done" iff every required hunter onboarding
   // field is populated. Don't half-mark — the welcome checklist won't
   // advance until the hunter has the full kit ready for a state log.
+  // v27.1.1.0.3e.4: license_doc_id dropped from the gate — license lives
+  // on the wallet now, not the profile.
   const allRequired =
     !!display_name &&
     !!first_name &&
@@ -78,8 +81,7 @@ export async function updateHunterProfileAction(formData: FormData): Promise<Hun
     !!address_street &&
     !!address_city &&
     !!address_state &&
-    !!address_zip &&
-    !!license_doc_id
+    !!address_zip
 
   if (allRequired) {
     try {

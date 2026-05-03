@@ -282,6 +282,133 @@ export async function deleteDocAction(docId: string): Promise<DocActionResult> {
 }
 
 // ==========================================================================
+// v27.1.1.0.3e.4 — Bulk archive + delete on /app/docs library
+// ==========================================================================
+//
+// Library page lets the guide select multiple docs in their own library and
+// either archive or hard-delete them in one shot. Templates section is
+// excluded by id-filter at the action level (we only operate on docs the
+// guide owns where guide_id === profile.id; Bite Book templates owned by
+// the admin pass through a different RLS policy and are excluded here even
+// if a row id is included in the request).
+//
+// Behavior matches the single-row actions:
+//   - bulkArchiveDocsAction: sets archived_at on every targeted row.
+//   - bulkDeleteDocsAction: requires every targeted row to be archived AND
+//     have zero trip_docs references. Refuses any active or attached doc
+//     and reports the full reason set so the modal can show the user what
+//     to clean up.
+
+export type BulkDocsActionResult =
+  | { ok: true; processed: number; skipped: { id: string; reason: string }[] }
+  | { error: string }
+
+export async function bulkArchiveDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
+  const { profile } = await requireGuide()
+  const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
+  if (ids.length === 0) return { error: 'No docs selected.' }
+
+  const sb = await createClient()
+  const { error } = await sb
+    .from('docs')
+    .update({ archived_at: new Date().toISOString() })
+    .in('id', ids)
+    .eq('guide_id', profile.id)
+    .is('archived_at', null)
+  if (error) {
+    console.warn('[docs.bulkArchiveDocsAction]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not archive docs.' }
+  }
+  revalidatePath('/app/docs')
+  return { ok: true, processed: ids.length, skipped: [] }
+}
+
+export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
+  const { profile } = await requireGuide()
+  const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
+  if (ids.length === 0) return { error: 'No docs selected.' }
+
+  const sb = await createClient()
+
+  // Pull the targeted rows (guide_id-scoped) so we can vet each one.
+  const { data: rows, error: fetchErr } = await sb
+    .from('docs')
+    .select('id, archived_at, file_path, label')
+    .in('id', ids)
+    .eq('guide_id', profile.id)
+  if (fetchErr) {
+    console.warn('[docs.bulkDeleteDocsAction:fetch]', { code: fetchErr.code, message: fetchErr.message })
+    return { error: 'Could not look up selected docs.' }
+  }
+  const ownedRows = rows ?? []
+
+  // Trip-doc references for the whole batch in one query — anything still
+  // attached gets skipped with a clear reason.
+  const { data: tripDocRefs, error: refsErr } = await sb
+    .from('trip_docs')
+    .select('doc_id')
+    .in('doc_id', ownedRows.map((r) => r.id))
+  if (refsErr) {
+    console.warn('[docs.bulkDeleteDocsAction:refs]', { code: refsErr.code, message: refsErr.message })
+    return { error: 'Could not verify trip references.' }
+  }
+  const refCount = new Map<string, number>()
+  for (const r of tripDocRefs ?? []) {
+    refCount.set(r.doc_id, (refCount.get(r.doc_id) ?? 0) + 1)
+  }
+
+  const skipped: { id: string; reason: string }[] = []
+  const toDelete: { id: string; file_path: string | null }[] = []
+
+  // Any id the caller passed that we didn't find in ownedRows is either
+  // not theirs (RLS hid it) or a stale id from the client.
+  const ownedIds = new Set(ownedRows.map((r) => r.id))
+  for (const id of ids) {
+    if (!ownedIds.has(id)) {
+      skipped.push({ id, reason: 'Not found.' })
+    }
+  }
+
+  for (const row of ownedRows) {
+    if (!row.archived_at) {
+      skipped.push({ id: row.id, reason: 'Archive first, then delete.' })
+      continue
+    }
+    if ((refCount.get(row.id) ?? 0) > 0) {
+      skipped.push({ id: row.id, reason: 'Still attached to a trip — detach first.' })
+      continue
+    }
+    toDelete.push({ id: row.id, file_path: row.file_path })
+  }
+
+  if (toDelete.length === 0) {
+    return { ok: true, processed: 0, skipped }
+  }
+
+  // Best-effort storage cleanup — fire all removes in parallel; we don't
+  // block the row-delete on storage success since storage-only orphans
+  // are recoverable.
+  await Promise.all(
+    toDelete
+      .filter((d): d is { id: string; file_path: string } => !!d.file_path)
+      .map((d) => sb.storage.from('bb-private').remove([d.file_path]))
+  )
+
+  const { error: delErr } = await sb
+    .from('docs')
+    .delete()
+    .in('id', toDelete.map((d) => d.id))
+    .eq('guide_id', profile.id)
+  if (delErr) {
+    console.warn('[docs.bulkDeleteDocsAction:delete]', { code: delErr.code, message: delErr.message })
+    return { error: delErr.message || 'Could not delete docs.' }
+  }
+
+  revalidatePath('/app/docs')
+  return { ok: true, processed: toDelete.length, skipped }
+}
+
+// ==========================================================================
 // v27.1.1.0.3e — Bite Book templates: admin-only is_template toggle
 // ==========================================================================
 //

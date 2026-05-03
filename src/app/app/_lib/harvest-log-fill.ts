@@ -240,6 +240,11 @@ function resolveSource(
   if (path === 'hunter.city_state') return addr.city_state
   if (path === 'hunter.address_full') return addr.full
 
+  // v27.1.1.0.3e.4: hunter_license.* reads EXCLUSIVELY from
+  // entry.license — which is sourced from wallet_items via the live
+  // trip_wallet_items linkage in the action above. Never falls back to
+  // profiles.license_doc_id; if no wallet license is linked, returns ''
+  // and the diagnostic warning surfaces it.
   if (path === 'hunter_license.identifier') return entry.license?.identifier ?? ''
   if (path === 'hunter_license.state') return entry.license?.state ?? ''
   if (path === 'hunter_license.valid_to') return fmtDateMMDDYYYY(entry.license?.valid_to)
@@ -375,9 +380,50 @@ export async function generateFilledHarvestLogPDFsAction(
   }
 
   const hunterIds = includedEntries.map((e) => e.hunter_id).filter((x): x is string => !!x)
-  const licenseIds = includedEntries.map((e) => e.license_wallet_item_id).filter((x): x is string => !!x)
-  const tagIds = includedEntries.map((e) => e.tag_wallet_item_id).filter((x): x is string => !!x)
   const entryIds = includedEntries.map((e) => e.id)
+
+  // v27.1.1.0.3e.4: refresh hunter↔license linkage from live trip_wallet_items
+  // before we fetch the wallet rows. Entries snapshot license_wallet_item_id
+  // at ensureHarvestLog time — if the hunter linked a license AFTER the
+  // log was created, the saved snapshot is stale and the PDF would render
+  // blank. Reading live here makes the fill always reflect the wallet's
+  // current state. Profiles.license_doc_id is intentionally NOT consulted
+  // anywhere in this flow.
+  const liveLicenseByHunter = new Map<string, string>()
+  if (hunterIds.length > 0) {
+    const { data: twiRows } = await sb
+      .from('trip_wallet_items')
+      .select('hunter_id, wallet_item_id, linked_at, wallet_items!inner(id, type)')
+      .eq('trip_id', trip.id)
+      .in('hunter_id', hunterIds)
+      .order('linked_at', { ascending: false })
+    type TwiRow = {
+      hunter_id: string
+      wallet_item_id: string
+      linked_at: string
+      wallet_items: { id: string; type: string }
+    }
+    for (const r of (twiRows ?? []) as TwiRow[]) {
+      if (r.wallet_items?.type === 'license' && !liveLicenseByHunter.has(r.hunter_id)) {
+        liveLicenseByHunter.set(r.hunter_id, r.wallet_items.id)
+      }
+    }
+  }
+
+  // Effective license id per entry: live wallet link wins; fall back to the
+  // saved snapshot only if no live link exists. This also means we drop
+  // any references to a relinked-then-replaced license item.
+  const effectiveLicenseIdByEntry = new Map<string, string | null>()
+  for (const e of includedEntries) {
+    const live = e.hunter_id ? liveLicenseByHunter.get(e.hunter_id) ?? null : null
+    effectiveLicenseIdByEntry.set(e.id, live ?? e.license_wallet_item_id ?? null)
+  }
+  const licenseIds = Array.from(
+    new Set(
+      Array.from(effectiveLicenseIdByEntry.values()).filter((x): x is string => !!x)
+    )
+  )
+  const tagIds = includedEntries.map((e) => e.tag_wallet_item_id).filter((x): x is string => !!x)
 
   const [hunterRes, licenseRes, tagRes, speciesRes, guideProfileRes, guideBizRes, guideLicenseRes] =
     await Promise.all([
@@ -427,7 +473,11 @@ export async function generateFilledHarvestLogPDFsAction(
 
   const entries: EntrySnapshot[] = includedEntries.map((e) => {
     const hunter = e.hunter_id ? hunterMap.get(e.hunter_id) ?? null : null
-    const license = e.license_wallet_item_id ? licenseMap.get(e.license_wallet_item_id) ?? null : null
+    // v27.1.1.0.3e.4: license sourced via the live wallet linkage map
+    // (effectiveLicenseIdByEntry). Wallet-only — never reads
+    // profiles.license_doc_id.
+    const effectiveLicenseId = effectiveLicenseIdByEntry.get(e.id) ?? null
+    const license = effectiveLicenseId ? licenseMap.get(effectiveLicenseId) ?? null : null
     const tag = e.tag_wallet_item_id ? tagMap.get(e.tag_wallet_item_id) ?? null : null
     const tagExtras = (tag?.extras ?? null) as Record<string, unknown> | null
     return {

@@ -91,7 +91,6 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
           report&rdquo;, then generate filled state forms.
         </p>
       </header>
-
       <HarvestLogEditor
         tripId={tripId}
         log={log}

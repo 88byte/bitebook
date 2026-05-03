@@ -9,6 +9,7 @@ import {
   type DocSummary,
 } from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
+import DocsLibraryList from './DocsLibraryList'
 
 type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string }>
 
@@ -165,15 +166,11 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
         {docs.length === 0 ? (
           <EmptyState kind={kind} includeArchived={includeArchived} />
         ) : (
-          <div
-            className={
-              templates.length > 0 ? 'mt-3 flex flex-col gap-3' : 'mt-4 flex flex-col gap-3'
-            }
-          >
-            {docs.map((d) => (
-              <DocRow key={d.id} doc={d} showTemplateBadge={d.is_template} />
-            ))}
-          </div>
+          // v27.1.1.0.3e.4: bulk select + delete lives in this client
+          // wrapper so the row checkboxes share state with the sticky
+          // action bar. Templates section above stays read-only — those
+          // are admin-curated and not the guide's to delete.
+          <DocsLibraryList docs={docs} />
         )}
       </section>
     </main>

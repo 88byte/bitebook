@@ -3,10 +3,13 @@ import { requireHunter } from '../../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import HunterProfileForm from './HunterProfileForm'
 
-// v26.0 Batch A: pulls expanded profile fields (first/last name, address,
-// license_doc_id) for the profile form. requireHunter() returns only the
-// thin set needed for routing — we hit profiles directly here for the
-// fields the form binds.
+// v26.0 Batch A: pulls expanded profile fields (first/last name, address)
+// for the profile form. requireHunter() returns only the thin set needed
+// for routing — we hit profiles directly here for the fields the form binds.
+//
+// v27.1.1.0.3e.4: license_doc_id no longer surfaced. Hunter licenses live
+// in the wallet (trip_wallet_items → wallet_items) and the harvest-log
+// fill engine reads them from there exclusively.
 export default async function HunterProfilePage() {
   const { user, profile } = await requireHunter()
 
@@ -14,7 +17,7 @@ export default async function HunterProfilePage() {
   const { data: extended } = await supabase
     .from('profiles')
     .select(
-      'first_name, last_name, address_street, address_street2, address_city, address_state, address_zip, license_doc_id'
+      'first_name, last_name, address_street, address_street2, address_city, address_state, address_zip'
     )
     .eq('id', user.id)
     .maybeSingle()
@@ -25,7 +28,7 @@ export default async function HunterProfilePage() {
         <p className="bb-page-eyebrow">Account</p>
         <h1 className="bb-page-title">Profile</h1>
         <p className="bb-page-sub">
-          Your name, address, and license number help your guide pre-fill state hunter logs.
+          Your name and address help your guide pre-fill state hunter logs.
         </p>
       </header>
 
@@ -43,7 +46,6 @@ export default async function HunterProfilePage() {
                 address_city: extended?.address_city ?? '',
                 address_state: extended?.address_state ?? '',
                 address_zip: extended?.address_zip ?? '',
-                license_doc_id: extended?.license_doc_id ?? '',
                 avatar_url: profile.avatar_url ?? null,
               }}
             />

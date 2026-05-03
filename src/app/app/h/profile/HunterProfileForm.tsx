@@ -18,16 +18,17 @@ type Initial = {
   address_city: string
   address_state: string
   address_zip: string
-  // License (profiles)
-  license_doc_id: string
   // Read-only display
   avatar_url: string | null
 }
 
 // v26.0 Batch A: hunter profile form expanded to capture address + state
-// hunter license number. These power the hunter onboarding `profile_set`
-// step (all required fields must be present) and feed Batch C's state
-// hunter log auto-fill.
+// hunter license number.
+// v27.1.1.0.3e.4: License field removed — license numbers live exclusively
+// on the wallet (trip_wallet_items → wallet_items.identifier). The
+// profiles.license_doc_id column is kept on the table for data preservation,
+// but the form no longer captures or surfaces it. The hunt-log fill
+// engine reads license values from the wallet only.
 export default function HunterProfileForm({ initial }: { initial: Initial }) {
   // Identity
   const [firstName, setFirstName] = useState(initial.first_name)
@@ -40,8 +41,6 @@ export default function HunterProfileForm({ initial }: { initial: Initial }) {
   const [addrCity, setAddrCity] = useState(initial.address_city)
   const [addrState, setAddrState] = useState(initial.address_state)
   const [addrZip, setAddrZip] = useState(initial.address_zip)
-  // License
-  const [licenseDocId, setLicenseDocId] = useState(initial.license_doc_id)
 
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -210,26 +209,6 @@ export default function HunterProfileForm({ initial }: { initial: Initial }) {
             autoComplete="postal-code"
             placeholder="94101"
           />
-        </div>
-      </fieldset>
-
-      {/* License */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>License</legend>
-
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="license_doc_id">State hunter license #</label>
-          <input
-            id="license_doc_id"
-            name="license_doc_id"
-            className="bb-input"
-            type="text"
-            value={licenseDocId}
-            onChange={(e) => setLicenseDocId(e.target.value)}
-            maxLength={64}
-            placeholder="D1234567"
-          />
-          <p className="bb-form-help">Usually a D-prefixed code, e.g., D1234567.</p>
         </div>
       </fieldset>
 

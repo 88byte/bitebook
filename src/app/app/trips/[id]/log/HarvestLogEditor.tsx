@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Plus, Trash2, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Info,
+  User,
+} from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   updateHarvestLogAction,
@@ -32,16 +42,15 @@ import { Download, ExternalLink } from 'lucide-react'
 //                  row pre-filled from tag.
 // v27.1.1.0.3a.3 — auto-save on blur for every input. Explicit Save buttons
 //                  removed across the page (trip-level, per-entry, species
-//                  rows). Each editable card gets a tiny status pill that
-//                  reads "Saving…" while the action is in-flight, "Saved"
-//                  for ~2s after a successful write, or an inline error.
-//                  Add species / Remove species / Generate PDFs / Delete
-//                  report stay as explicit clicks.
-//                  Schema cleanup: entry-level qty_harvested/kept/released
-//                  dropped (duplicated species rows). species.qty_kept
-//                  dropped (= qty_harvested per Flavio "kept and harvested
-//                  are the same"). Species sub-table now species /
-//                  harvested / released only.
+//                  rows). Each editable card gets a tiny status pill.
+// v27.1.1.0.3e.4 — body layout rebuild against the mockup. Header band
+//                  treatment dropped (eyebrow/title/back link stay on
+//                  page.tsx). Reports row buttons restyled as square
+//                  icon-tiles. Trip-level details split into a 2-col grid
+//                  (date | purpose 3x2). Hunter rest-row reordered with
+//                  avatar + counts sub-line + status moved to expanded
+//                  body. Generate CTA full-width + warning tiles. Danger
+//                  Zone CTA full-width destructive.
 
 const PURPOSES: { value: string; label: string }[] = [
   { value: 'hunting', label: 'Hunting' },
@@ -177,154 +186,164 @@ export default function HarvestLogEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4 mt-4">
-      {/* v27.1.1.0.3e.3: top-of-page tile listing already-generated PDFs
-          for this trip, with Open / Download / Delete per row. Empty
-          state nudges the guide to fill out the log + tap Generate. */}
-      <GeneratedReportsTile generatedLogs={generatedLogs} />
+    <>
+      <div className="flex flex-col gap-4 mt-4">
+        {/* v27.1.1.0.3e.3: top-of-page tile listing already-generated PDFs
+            for this trip, with Open / Download / Delete per row. Empty
+            state nudges the guide to fill out the log + tap Generate. */}
+        <GeneratedReportsTile generatedLogs={generatedLogs} />
 
-      {/* Trip-level fields — auto-save on blur (date) / change (purpose) */}
-      <section className="bb-tile bb-form-section">
-        <div className="bb-tile-body">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            <h2 className="bb-form-section-head" style={{ margin: 0 }}>
-              Trip-level details
-            </h2>
-            <StatusPill status={logStatus} />
-          </div>
-          <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
-            <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
-            <input
-              id="log_date"
-              type="date"
-              className="bb-input"
-              value={logDate}
-              onChange={(e) => setLogDate(e.target.value)}
-              onBlur={() => commitLogLevel(logDate, purposes)}
-              style={{ maxWidth: '12rem' }}
-            />
-            <p className="bb-form-help">
+        {/* Trip-level fields — auto-save on blur (date) / change (purpose).
+            v27.1.1.0.3e.4 layout: 2-col grid (date | purpose), purpose
+            laid out as 3-col pill grid. Helper text moves to a card-level
+            footer outside both columns. */}
+        <section className="bb-tile bb-form-section">
+          <div className="bb-tile-body">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <h2 className="bb-form-section-head" style={{ margin: 0 }}>
+                Trip-level details
+              </h2>
+              <StatusPill status={logStatus} />
+            </div>
+
+            <div className="bb-form-grid-2" style={{ marginTop: '0.6rem' }}>
+              <div className="bb-form-row" style={{ marginBottom: 0 }}>
+                <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
+                <input
+                  id="log_date"
+                  type="date"
+                  className="bb-input"
+                  value={logDate}
+                  onChange={(e) => setLogDate(e.target.value)}
+                  onBlur={() => commitLogLevel(logDate, purposes)}
+                />
+              </div>
+
+              <div className="bb-form-row" style={{ marginBottom: 0 }}>
+                <span className="bb-form-label" style={{ marginBottom: '0.4rem' }}>
+                  Trip purpose
+                </span>
+                <div className="bb-purpose-grid">
+                  {PURPOSES.map((p) => (
+                    <label
+                      key={p.value}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: 999,
+                        border: `1px solid ${
+                          purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-tint)'
+                        }`,
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        color: purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-soft)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={purposes.has(p.value)}
+                        onChange={() => togglePurpose(p.value)}
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="bb-form-help" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
               Hours per hunter live on each hunter&rsquo;s entry below.
             </p>
           </div>
-          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
-            <span className="bb-form-label" style={{ marginBottom: '0.4rem' }}>
-              Trip purpose
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {PURPOSES.map((p) => (
-                <label
-                  key={p.value}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.3rem 0.6rem',
-                    borderRadius: 999,
-                    border: `1px solid ${
-                      purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-tint)'
-                    }`,
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    color: purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-soft)',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={purposes.has(p.value)}
-                    onChange={() => togglePurpose(p.value)}
-                  />
-                  {p.label}
-                </label>
-              ))}
+        </section>
+
+        {/* Entries */}
+        <section className="flex flex-col gap-3">
+          {log.entries.length === 0 ? (
+            <div className="bb-tile">
+              <div className="bb-tile-body" style={{ padding: '1rem' }}>
+                <p className="bb-form-help" style={{ margin: 0 }}>
+                  No entries yet. Add hunters to this trip and re-open the report.
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Entries */}
-      <section className="flex flex-col gap-3">
-        {log.entries.length === 0 ? (
-          <div className="bb-tile">
-            <div className="bb-tile-body" style={{ padding: '1rem' }}>
-              <p className="bb-form-help" style={{ margin: 0 }}>
-                No entries yet. Add hunters to this trip and re-open the report.
-              </p>
-            </div>
-          </div>
-        ) : (
-          log.entries.map((e) => (
-            <EntryAccordion
-              key={e.id}
-              entry={e}
-              slot={slotByEntryId.get(e.id) ?? null}
-            />
-          ))
-        )}
-      </section>
-
-      {/* v27.1.1.0.3b: Generate filled PDFs.
-          v27.1.1.0.3e.2: state-aware filtering — picker auto-narrows to
-          mapped docs whose state === trip.state, with a fallback warning
-          when the trip's state has no matching log. */}
-      <GeneratePdfsSection
-        logId={log.id}
-        mappedDocs={mappedDocs}
-        tripState={tripState}
-        guideId={guideId}
-      />
-
-
-      {/* Danger zone — delete + start over */}
-      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-        <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Danger zone</h2>
-          <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-            Deletes this report and starts over. Tags consumed by entries get released.
-          </p>
-          <button
-            type="button"
-            className="bb-cta-sm bb-cta-sm-destructive"
-            onClick={() => setConfirmDelete(true)}
-            disabled={pending}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Trash2 size={14} aria-hidden="true" />
-            Delete report
-          </button>
-          {deleteError && (
-            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
-              {deleteError}
-            </p>
+          ) : (
+            log.entries.map((e) => (
+              <EntryAccordion
+                key={e.id}
+                entry={e}
+                slot={slotByEntryId.get(e.id) ?? null}
+              />
+            ))
           )}
-        </div>
-      </section>
+        </section>
 
-      <ConfirmModal
-        open={confirmDelete}
-        title="Delete this hunt report and start over?"
-        body="The report and every hunter's entry will be removed. Any tags consumed by these entries will be released. This can't be undone."
-        confirmLabel="Delete report"
-        destructive
-        typeToConfirm="DELETE"
-        isPending={pending}
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={() => {
-          setConfirmDelete(false)
-          runDelete()
-        }}
-      />
+        {/* v27.1.1.0.3b: Generate filled PDFs.
+            v27.1.1.0.3e.2: state-aware filtering — picker auto-narrows to
+            mapped docs whose state === trip.state, with a fallback warning
+            when the trip's state has no matching log. */}
+        <GeneratePdfsSection
+          logId={log.id}
+          mappedDocs={mappedDocs}
+          tripState={tripState}
+          guideId={guideId}
+        />
 
-      <input type="hidden" name="trip_id" value={tripId} />
-    </div>
+
+        {/* Danger zone — delete + start over. v27.1.1.0.3e.4: full-width
+            destructive CTA matches the mockup's red bar. */}
+        <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
+          <div className="bb-tile-body">
+            <h2 className="bb-form-section-head">Danger zone</h2>
+            <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+              Deletes this report and starts over. Tags consumed by entries get released.
+            </p>
+            <button
+              type="button"
+              className="bb-cta-destructive"
+              onClick={() => setConfirmDelete(true)}
+              disabled={pending}
+              style={{ marginTop: '0.5rem' }}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+              Delete report
+            </button>
+            {deleteError && (
+              <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
+                {deleteError}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <ConfirmModal
+          open={confirmDelete}
+          title="Delete this hunt report and start over?"
+          body="The report and every hunter's entry will be removed. Any tags consumed by these entries will be released. This can't be undone."
+          confirmLabel="Delete report"
+          destructive
+          typeToConfirm="DELETE"
+          isPending={pending}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false)
+            runDelete()
+          }}
+        />
+
+        <input type="hidden" name="trip_id" value={tripId} />
+      </div>
+    </>
   )
 }
 
@@ -401,51 +420,60 @@ function EntryAccordion({
 
   return (
     <div className="bb-tile" style={{ overflow: 'hidden' }}>
-      <div
+      {/* v27.1.1.0.3e.4 rest-row order: avatar / name+sub / HUNTER N pill /
+          Include checkbox / chevron. StatusPill moves into the expanded
+          body (was here at rest in the previous build). */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Collapse entry' : 'Expand entry'}
+        aria-expanded={open}
         className="bb-tile-body"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
           padding: '0.75rem 1rem',
-          flexWrap: 'wrap',
+          width: '100%',
+          background: 'transparent',
+          border: 0,
+          textAlign: 'left',
+          cursor: 'pointer',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? 'Collapse entry' : 'Expand entry'}
-          aria-expanded={open}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            color: 'var(--color-ink-soft)',
-            flexShrink: 0,
-          }}
-        >
-          {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-        </button>
+        <span className="bb-avatar-sm" aria-hidden="true">
+          <User size={14} />
+        </span>
 
-        <div style={{ flex: '1 1 0', minWidth: 0 }}>
-          <div
+        <span style={{ flex: '1 1 0', minWidth: 0, display: 'block' }}>
+          <span
             style={{
+              display: 'block',
               fontWeight: 600,
               color: 'var(--color-ink)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              fontSize: '0.95rem',
             }}
           >
             {headerName}
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
+          </span>
+          <span
+            style={{
+              display: 'block',
+              fontSize: '0.78rem',
+              color: 'var(--color-ink-soft)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {entry.species_rows.length > 0
               ? `${entry.species_rows.length} species rows · ${totalSpeciesQty} total`
               : 'No harvest logged'}
-          </div>
-        </div>
+          </span>
+        </span>
 
         {slot !== null && (
           <span
@@ -454,24 +482,30 @@ function EntryAccordion({
               flexShrink: 0,
               fontSize: '0.7rem',
               fontWeight: 700,
-              padding: '0.2rem 0.55rem',
+              padding: '0.2rem 0.5rem',
               borderRadius: 999,
               background: 'rgba(168, 92, 50, 0.12)',
               color: 'var(--color-copper)',
               letterSpacing: '0.04em',
+              whiteSpace: 'nowrap',
             }}
           >
             HUNTER {slot}
           </span>
         )}
 
-        <label
+        {/* The include-toggle is rendered as a span+input combo so the
+            outer button still acts as the expand affordance. We
+            stopPropagation on the input to keep clicks from collapsing
+            the row. */}
+        <span
+          onClick={(e) => e.stopPropagation()}
           style={{
             flexShrink: 0,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.35rem',
-            fontSize: '0.85rem',
+            gap: '0.3rem',
+            fontSize: '0.78rem',
             color: 'var(--color-ink-soft)',
             cursor: 'pointer',
           }}
@@ -479,14 +513,28 @@ function EntryAccordion({
           <input
             type="checkbox"
             checked={include}
+            aria-label="Include this hunter in report"
+            onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               setInclude(e.target.checked)
               commitEntry({ include: e.target.checked })
             }}
           />
-          Include in report
-        </label>
-      </div>
+          Include
+        </span>
+
+        <span
+          aria-hidden="true"
+          style={{
+            flexShrink: 0,
+            color: 'var(--color-ink-soft)',
+            display: 'inline-flex',
+            alignItems: 'center',
+          }}
+        >
+          {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+        </span>
+      </button>
 
       {open && (
         <div
@@ -495,6 +543,19 @@ function EntryAccordion({
             borderTop: '1px solid var(--color-ink-tint)',
           }}
         >
+          {/* StatusPill moved here from the rest-row so the at-rest header
+              stays uncluttered. */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              minHeight: '1.2rem',
+              marginTop: '0.5rem',
+            }}
+          >
+            <StatusPill status={status} />
+          </div>
+
           {showExcludeWarning && (
             <p
               role="alert"
@@ -620,19 +681,6 @@ function EntryAccordion({
               placeholder="Optional"
               maxLength={500}
             />
-          </div>
-
-          {/* Status pill at the bottom of the accordion body — captures
-              every save fired from this entry's surface. */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              minHeight: '1.2rem',
-              marginTop: '0.5rem',
-            }}
-          >
-            <StatusPill status={status} />
           </div>
         </div>
       )}
@@ -864,6 +912,10 @@ function PhantomSpeciesRow({
 // of the page. After generation we call router.refresh() to re-pull
 // that list. Warnings still render inline so the guide sees them in
 // context with the Generate button.
+//
+// v27.1.1.0.3e.4: CTA goes full-width. "Using …" indicator now always
+// renders above the CTA (was conditional on length === 1). Warnings are
+// rendered as info-icon tiles instead of a <ul> of bullets.
 
 function GeneratePdfsSection({
   logId,
@@ -968,6 +1020,8 @@ function GeneratePdfsSection({
     )
   }
 
+  const activeDoc = sortedDocs.find((d) => d.id === docId) ?? sortedDocs[0]
+
   return (
     <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
       <div className="bb-tile-body">
@@ -1016,20 +1070,24 @@ function GeneratePdfsSection({
           </div>
         )}
 
-        {sortedDocs.length === 1 && (
+        {/* v27.1.1.0.3e.4: "Using …" indicator always rendered above the
+            CTA, even on multi-doc state. Reflects the currently-picked
+            doc so the guide sees what's about to be filled. */}
+        {activeDoc && (
           <p className="bb-form-help" style={{ margin: '0.4rem 0' }}>
-            Using <strong>{sortedDocs[0].label}</strong> ({describeDoc(sortedDocs[0])})
-            {sortedDocs[0].mapping_status === 'partial' ? ' · partial mapping' : ''}.
+            Using <strong>{activeDoc.label}</strong> ({describeDoc(activeDoc)})
+            {activeDoc.mapping_status === 'partial' ? ' · partial mapping' : ''}.
           </p>
         )}
 
         <div style={{ marginTop: '0.6rem' }}>
           <button
             type="button"
-            className="bb-cta-sm"
+            className="bb-cta-sm bb-cta-full"
             onClick={generate}
             disabled={pending || !docId}
           >
+            <FileText size={14} aria-hidden="true" />
             {pending ? 'Generating…' : 'Generate filled PDFs'}
           </button>
         </div>
@@ -1045,11 +1103,21 @@ function GeneratePdfsSection({
         )}
 
         {warnings.length > 0 && (
-          <ul style={{ marginTop: '0.5rem', paddingLeft: '1.1rem', color: 'var(--color-ink-soft)', fontSize: '0.85rem' }}>
+          <div
+            style={{
+              marginTop: '0.6rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.4rem',
+            }}
+          >
             {warnings.map((w, i) => (
-              <li key={i}>{w}</li>
+              <div key={i} className="bb-warning-tile" role="alert">
+                <Info size={16} aria-hidden="true" className="bb-warning-tile-icon" />
+                <span>{w}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </section>
@@ -1062,6 +1130,9 @@ function GeneratePdfsSection({
 // generated for this trip. Replaces the local artifacts state in
 // GeneratePdfsSection so reports persist across reloads / hunters /
 // devices and don't depend on the latest in-memory generate() call.
+//
+// v27.1.1.0.3e.4: per-row buttons restyled as 3 square icon-tiles
+// (Open / Download / Delete) with stacked icon+label, ~3.25rem square.
 
 function GeneratedReportsTile({ generatedLogs }: { generatedLogs: TripGeneratedLog[] }) {
   if (generatedLogs.length === 0) {
@@ -1142,21 +1213,7 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
           <span>{relativeTime(row.created_at)}</span>
           {row.pass_total > 1 && <span>· Pass {row.pass_index} of {row.pass_total}</span>}
           {row.page_count !== null && row.page_count !== undefined && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '0 0.4rem',
-                borderRadius: 999,
-                background: 'rgba(168, 92, 50, 0.1)',
-                color: 'var(--color-copper)',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                letterSpacing: '0.04em',
-              }}
-            >
-              {row.page_count} {row.page_count === 1 ? 'PAGE' : 'PAGES'}
-            </span>
+            <span>· {row.page_count} {row.page_count === 1 ? 'page' : 'pages'}</span>
           )}
         </div>
         {error && (
@@ -1169,42 +1226,43 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
           </p>
         )}
       </div>
-      {row.signed_url ? (
-        <>
-          <a
-            href={row.signed_url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="bb-cta-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-          >
-            <ExternalLink size={14} aria-hidden="true" />
-            Open
-          </a>
-          <a
-            href={row.signed_url}
-            download={row.file_name}
-            className="bb-btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-          >
-            <Download size={14} aria-hidden="true" />
-            Download
-          </a>
-        </>
-      ) : (
-        <span style={{ fontSize: '0.8rem', color: '#8C3C2A' }}>File missing</span>
-      )}
-      <button
-        type="button"
-        className="bb-cta-sm bb-cta-sm-destructive"
-        onClick={() => setConfirmOpen(true)}
-        disabled={pending}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-        aria-label="Delete report"
-      >
-        <Trash2 size={14} aria-hidden="true" />
-        Delete
-      </button>
+      <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0 }}>
+        {row.signed_url ? (
+          <>
+            <a
+              href={row.signed_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="bb-icon-tile"
+              aria-label={`Open ${row.file_name}`}
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+              <span>Open</span>
+            </a>
+            <a
+              href={row.signed_url}
+              download={row.file_name}
+              className="bb-icon-tile"
+              aria-label={`Download ${row.file_name}`}
+            >
+              <Download size={16} aria-hidden="true" />
+              <span>Download</span>
+            </a>
+          </>
+        ) : (
+          <span style={{ fontSize: '0.8rem', color: '#8C3C2A' }}>File missing</span>
+        )}
+        <button
+          type="button"
+          className="bb-icon-tile bb-icon-tile--destructive"
+          onClick={() => setConfirmOpen(true)}
+          disabled={pending}
+          aria-label={`Delete ${row.file_name}`}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+          <span>Delete</span>
+        </button>
+      </div>
       <ConfirmModal
         open={confirmOpen}
         title="Delete this generated PDF?"
