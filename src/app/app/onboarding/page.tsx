@@ -394,13 +394,23 @@ function Step3StateLog({
   guideState: string | null
   currentDefaultDocId: string | null
 }) {
-  // Filter to the guide's state when known. If the guide hasn't set a state
-  // yet (shouldn't happen — Step 1 enforces it — but be defensive), show
-  // every template so the picker isn't empty for no good reason.
+  // v27.1.5.2.2: state-filtered dropdown replaces the v27.1.5.2.1 stack
+  // of radio cards. As the catalog of Bite Book templates grows the
+  // radio list got long; a single <select> reads cleaner and matches
+  // patterns used elsewhere in the app (NewTripForm species picker, etc).
+  //
+  // Filter rule: only show templates matching the guide's state. If the
+  // guide somehow hasn't set a state (Step 1 enforces it, but be
+  // defensive) we fall back to showing every template so the picker
+  // isn't empty for no real reason.
   const stateMatched = guideState
     ? templates.filter((t) => t.state === guideState)
     : templates
   const hasMatches = stateMatched.length > 0
+
+  // The "skip / upload later" sentinel is an empty string — the action
+  // already treats '' as null so existing wiring stays intact.
+  const SKIP_VALUE = ''
 
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step3">
@@ -421,101 +431,47 @@ function Step3StateLog({
         </p>
 
         <form action={saveDefaultLogDocAction} className="flex flex-col gap-3">
-          {hasMatches ? (
-            <fieldset
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                border: 0,
-                padding: 0,
-                margin: 0,
-              }}
+          <label className="bb-field flex flex-col gap-1">
+            <span className="bb-form-label">Pick your default state harvest log</span>
+            <select
+              name="default_log_doc_id"
+              defaultValue={currentDefaultDocId ?? ''}
+              className="bb-input"
+              required={false}
+              aria-describedby={!hasMatches ? 'ob-step3-no-templates' : undefined}
             >
-              <legend className="sr-only">
-                Bite Book templates for {guideState ?? 'your state'}
-              </legend>
-              {stateMatched.map((t) => {
-                const checked = currentDefaultDocId === t.id
-                return (
-                  <label
-                    key={t.id}
-                    className="bb-tile"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.6rem',
-                      padding: '0.7rem 0.85rem',
-                      borderColor: checked ? 'var(--color-copper)' : 'var(--color-ink-tint)',
-                      borderWidth: 1,
-                      borderStyle: 'solid',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="default_log_doc_id"
-                      value={t.id}
-                      defaultChecked={checked}
-                    />
-                    <span style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1 }}>
-                      <span style={tileTitleStyle}>{t.label}</span>
-                      <span style={tileSubStyle}>
-                        {t.state ?? 'No state assigned'} · Bite Book template
-                      </span>
-                    </span>
-                  </label>
-                )
-              })}
-              <label
-                className="bb-tile"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  padding: '0.7rem 0.85rem',
-                  borderColor: 'var(--color-ink-tint)',
-                  borderWidth: 1,
-                  borderStyle: 'solid',
-                  cursor: 'pointer',
-                }}
+              <option value="" disabled>
+                — Pick a template —
+              </option>
+              {hasMatches && (
+                <optgroup label={`${guideState ?? 'Your state'} templates`}>
+                  {stateMatched.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value={SKIP_VALUE}>I’ll upload my own (skip for now)</option>
+            </select>
+            {!hasMatches && (
+              <span
+                id="ob-step3-no-templates"
+                className="bb-form-help"
+                style={{ marginTop: '0.15rem' }}
               >
-                <input
-                  type="radio"
-                  name="default_log_doc_id"
-                  value=""
-                  defaultChecked={!currentDefaultDocId}
-                />
-                <span style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', flex: 1 }}>
-                  <span style={tileTitleStyle}>None of these — I’ll upload my own</span>
-                  <span style={tileSubStyle}>
-                    Finish setup and upload from your Documents library after.
-                  </span>
-                </span>
-              </label>
-            </fieldset>
-          ) : (
-            <div className="bb-empty">
-              <div className="bb-empty-title">
-                {guideState
-                  ? `No Bite Book templates for ${guideState} yet`
-                  : 'No Bite Book templates available'}
-              </div>
-              <p className="bb-empty-sub">
-                Once you finish setup, head to Documents to upload your own
-                state log PDF — we’ll auto-suggest the field mappings.
-              </p>
-              {/* Submit empty value so the action just clears any prior
-                  default and advances to Step 4. */}
-              <input type="hidden" name="default_log_doc_id" value="" />
-            </div>
-          )}
+                We don’t have a Bite Book template for{' '}
+                {guideState ?? 'your state'} yet — upload yours from the
+                docs library after you finish setup.
+              </span>
+            )}
+          </label>
 
           <FooterRow
             backToStep={2}
             skipToStep={4}
-            skipLabel="Skip for now"
-            primary={<CtaSubmit label="Save and continue" inline />}
+            skipLabel="Skip and finish"
+            primary={<CtaSubmit label="Save default" inline />}
           />
         </form>
       </div>
@@ -695,14 +651,6 @@ function FooterRow({
 }
 
 // v27.1.5.2.1: tileLinkStyle / tileBadgeStyle dropped — Step 3 no longer
-// renders the redirect-out tile pair (the new inline radio picker uses
-// flat label rows instead).
-const tileTitleStyle: React.CSSProperties = {
-  fontWeight: 700,
-  color: 'var(--color-ink)',
-}
-
-const tileSubStyle: React.CSSProperties = {
-  fontSize: '0.85rem',
-  color: 'var(--color-ink-soft)',
-}
+// renders the redirect-out tile pair.
+// v27.1.5.2.2: tileTitleStyle / tileSubStyle also dropped — Step 3 now
+// uses a single <select> dropdown instead of stacked radio cards.
