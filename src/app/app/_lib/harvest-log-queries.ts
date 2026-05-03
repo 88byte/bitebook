@@ -292,6 +292,10 @@ export type TripGeneratedLog = {
   pass_index: number
   pass_total: number
   created_at: string
+  // v27.1.3.0.4: trip_generated_logs.updated_at (set by trigger on
+  // every UPDATE — i.e. every Re-generate). UI displays whichever
+  // timestamp is newer with a "Generated"/"Updated" prefix.
+  updated_at: string
   signed_url: string
 }
 
@@ -300,10 +304,12 @@ export async function fetchTripGeneratedLogs(tripId: string): Promise<TripGenera
   const { data, error } = await sb
     .from('trip_generated_logs')
     .select(
-      'id, trip_id, log_id, source_doc_id, file_path, file_name, page_count, pass_index, pass_total, created_at'
+      'id, trip_id, log_id, source_doc_id, file_path, file_name, page_count, pass_index, pass_total, created_at, updated_at'
     )
     .eq('trip_id', tripId)
-    .order('created_at', { ascending: false })
+    // v27.1.3.0.4: order by whichever is newer so a re-generated PDF
+    // floats to the top of the Reports list.
+    .order('updated_at', { ascending: false })
   if (error) {
     console.warn('[fetchTripGeneratedLogs]', { code: error.code, message: error.message })
     return []

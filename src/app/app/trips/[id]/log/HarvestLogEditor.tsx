@@ -1412,7 +1412,18 @@ function GeneratedReportRow({
           </div>
         )}
         <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          <span>{relativeTime(row.created_at)}</span>
+          {/* v27.1.3.0.4: show "Updated X ago" when the row has been
+              re-generated since creation, otherwise "Generated X ago".
+              Threshold of 1s on the diff to avoid showing "Updated"
+              for the initial insert (created_at == updated_at). */}
+          {(() => {
+            const created = new Date(row.created_at).getTime()
+            const updated = new Date(row.updated_at).getTime()
+            const wasRegenerated = Number.isFinite(updated) && updated - created > 1000
+            const ts = wasRegenerated ? row.updated_at : row.created_at
+            const label = wasRegenerated ? 'Updated' : 'Generated'
+            return <span>{label} {relativeTime(ts)}</span>
+          })()}
           {row.pass_total > 1 && <span>· Pass {row.pass_index} of {row.pass_total}</span>}
           {row.page_count !== null && row.page_count !== undefined && (
             <span>· {row.page_count} {row.page_count === 1 ? 'page' : 'pages'}</span>

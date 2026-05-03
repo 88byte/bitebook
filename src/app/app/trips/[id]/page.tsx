@@ -83,6 +83,14 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
 
   return (
     <main className="bb-app-main">
+      {/* v27.1.3.0.4: wrap the entire trip-detail column in bb-form-narrow
+          so the back link + header + action row + editor + docs card all
+          align to the same centered column. Previously the editor and
+          docs card were narrow-centered while the action row sat on
+          the full <main> width — at 1280px+ the buttons appeared
+          left-anchored against an empty right-side gutter. Single
+          centered column eliminates the off-balance feel. */}
+      <div className="bb-form-narrow">
       <Link
         href="/app/trips"
         className="inline-flex items-center gap-1 text-sm font-semibold mb-1"
@@ -120,7 +128,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <Activity size={14} aria-hidden="true" />
-          {harvestLogSummary.exists ? 'View hunt report' : 'Generate hunt report'}
+          {harvestLogSummary.exists ? 'View hunt logs' : 'Generate hunt logs'}
         </Link>
         {/* v27.1.4: Save as template — captures activity / location / hunt
             details + non-log linked docs into a reusable template. Visible
@@ -161,14 +169,15 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           initialSelectedIds={initialSelectedIds}
           speciesOptions={speciesOptions}
         />
-        <div className="bb-form-narrow">
-          <TripDocsCard
-            tripId={trip.id}
-            tripDocs={tripDocs}
-            attachable={attachableDocs}
-            participants={docParticipants}
-          />
-        </div>
+        {/* v27.1.3.0.4: drop the now-redundant inner bb-form-narrow on
+            the docs card — outer wrapper handles the centering. */}
+        <TripDocsCard
+          tripId={trip.id}
+          tripDocs={tripDocs}
+          attachable={attachableDocs}
+          participants={docParticipants}
+        />
+      </div>
       </div>
     </main>
   )
