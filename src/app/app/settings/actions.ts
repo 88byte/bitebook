@@ -48,7 +48,10 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
 
   // Outfitter details (guide_profiles.*)
   const business_name = String(formData.get('business_name') ?? '').trim() || null
-  const license_number = String(formData.get('license_number') ?? '').trim() || null
+  // v27.1.1.0.3e.5: license_number no longer captured here. Guide license
+  // lives on the wallet (wallet_items.type='guide_license'). The
+  // guide_profiles.license_number column is left untouched on update so
+  // existing values are preserved.
   // v25.9.2: outfitter `state` field removed from the form per UX feedback —
   // residential address state on profiles already captures where the guide is
   // based. Existing guide_profiles.state values are preserved by NOT writing
@@ -98,7 +101,6 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
     .from('guide_profiles')
     .update({
       business_name,
-      license_number,
       max_party_size,
       specialties: specialties.length ? specialties : null,
       bio,

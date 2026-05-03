@@ -214,8 +214,20 @@ export default function HarvestLogEditor({
               <StatusPill status={logStatus} />
             </div>
 
-            <div className="bb-form-grid-2" style={{ marginTop: '0.6rem' }}>
-              <div className="bb-form-row" style={{ marginBottom: 0 }}>
+            {/* v27.1.1.0.3e.5: Custom 2-col grid (~40/60) so the Hunt date
+                column doesn't crowd the 3-col purpose pill grid on its
+                right. Default .bb-form-grid-2 is 1fr/1fr which crushes
+                the purpose pills at narrow widths. */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.5fr)',
+                gap: '0.75rem',
+                marginTop: '0.6rem',
+                minWidth: 0,
+              }}
+            >
+              <div className="bb-form-row" style={{ marginBottom: 0, minWidth: 0 }}>
                 <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
                 <input
                   id="log_date"
@@ -227,7 +239,7 @@ export default function HarvestLogEditor({
                 />
               </div>
 
-              <div className="bb-form-row" style={{ marginBottom: 0 }}>
+              <div className="bb-form-row" style={{ marginBottom: 0, minWidth: 0 }}>
                 <span className="bb-form-label" style={{ marginBottom: '0.4rem' }}>
                   Trip purpose
                 </span>

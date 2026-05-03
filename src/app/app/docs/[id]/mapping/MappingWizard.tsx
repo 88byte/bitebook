@@ -51,6 +51,7 @@ export default function MappingWizard({
   docId,
   docKind,
   existingByField,
+  existingFallbackByField,
   existingSlotByField,
   existingOverrideByField,
   existingAiSuggestedByField,
@@ -61,6 +62,7 @@ export default function MappingWizard({
   docId: string
   docKind: 'log' | 'waiver'
   existingByField: Record<string, string>
+  existingFallbackByField: Record<string, string>
   existingSlotByField: Record<string, number>
   existingOverrideByField: Record<string, boolean>
   existingAiSuggestedByField: Record<string, boolean>
@@ -101,6 +103,16 @@ export default function MappingWizard({
   const [staticDate, setStaticDate] = useState<Record<string, string>>(initDate)
   const [rangeStart, setRangeStart] = useState<Record<string, string>>(initRangeStart)
   const [rangeEnd, setRangeEnd] = useState<Record<string, string>>(initRangeEnd)
+
+  // v27.1.1.0.3e.5: per-field optional fallback path. Hydrated from
+  // doc_field_mappings.fallback_path. Empty/missing entry = no fallback;
+  // dropdown is hidden until the guide taps "+ Add fallback source". The
+  // engine evaluates primary first, falls through here if primary is
+  // empty. Lets a single PDF field accept either-or sources (e.g. CDFW
+  // "TAG / REPORT CARD").
+  const [fallbacks, setFallbacks] = useState<Record<string, string>>(
+    () => ({ ...existingFallbackByField })
+  )
 
   // v27.1.1.0.3c.1: per-field manual slot override. 0 = auto-detect via
   // regex; 1+ = explicit slot. Hydrated from doc_field_mappings.hunter_slot.
@@ -144,6 +156,21 @@ export default function MappingWizard({
     setCompletedAt(null)
     // v27.1.1.0.3d: any guide edit clears the AI badge optimistically.
     setAiSuggestedFlags((prev) => (prev[fieldName] ? { ...prev, [fieldName]: false } : prev))
+  }
+
+  // v27.1.1.0.3e.5: fallback dropdown handler. Empty string clears the
+  // fallback. Picker sentinels (static text/date/date-range) are NOT
+  // surfaced as options — fallback only supports clean path-based
+  // sources to keep the UI simple. Static literals belong on primary.
+  function handleFallbackChange(fieldName: string, value: string) {
+    setFallbacks((prev) => {
+      const next = { ...prev }
+      if (!value) delete next[fieldName]
+      else next[fieldName] = value
+      return next
+    })
+    setSavedAt(null)
+    setCompletedAt(null)
   }
 
   // v27.1.1.0.3d: kick off AI suggestion run. Server pulls the PDF,
@@ -424,9 +451,19 @@ export default function MappingWizard({
       const finalPath = isBarePrefix ? '' : sel
       const slot = slotOverrides[f.name] ?? 0
       const isOverride = overrideFlags[f.name] === true
+      // v27.1.1.0.3e.5: include optional fallback. Bare-prefix sentinels
+      // are filtered out the same way the primary path is — fallback only
+      // ships when the guide has actually picked a known source.
+      const rawFb = fallbacks[f.name] ?? ''
+      const fbBarePrefix =
+        rawFb === STATIC_TEXT_PREFIX ||
+        rawFb === STATIC_DATE_PREFIX ||
+        rawFb === STATIC_DATE_RANGE_PREFIX
+      const fallback_path = fbBarePrefix || !rawFb ? null : rawFb
       out.push({
         field_name: f.name,
         data_source_path: finalPath,
+        fallback_path,
         hunter_slot: slot,
         is_override: isOverride,
       })
@@ -601,6 +638,7 @@ export default function MappingWizard({
         key={f.name}
         field={f}
         value={currentPath}
+        fallbackValue={fallbacks[f.name] ?? ''}
         staticText={staticText[f.name] ?? ''}
         staticDate={staticDate[f.name] ?? ''}
         rangeStart={rangeStart[f.name] ?? ''}
@@ -611,6 +649,7 @@ export default function MappingWizard({
         aiOriginalPath={aiDiffers ? aiOriginalPath : null}
         mirrorPath={mirrorPath}
         onChange={handleDropdownChange}
+        onFallbackChange={handleFallbackChange}
         onStaticTextChange={handleStaticTextChange}
         onStaticDateChange={handleStaticDateChange}
         onRangeChange={handleRangeChange}
@@ -1235,6 +1274,7 @@ function SlotBadgeButton({
 function FieldRow({
   field,
   value,
+  fallbackValue,
   staticText,
   staticDate,
   rangeStart,
@@ -1245,6 +1285,7 @@ function FieldRow({
   aiOriginalPath,
   mirrorPath,
   onChange,
+  onFallbackChange,
   onStaticTextChange,
   onStaticDateChange,
   onRangeChange,
@@ -1254,6 +1295,7 @@ function FieldRow({
 }: {
   field: DocPdfField
   value: string
+  fallbackValue: string
   staticText: string
   staticDate: string
   rangeStart: string
@@ -1264,6 +1306,7 @@ function FieldRow({
   aiOriginalPath: string | null
   mirrorPath: string | null
   onChange: (fieldName: string, value: string) => void
+  onFallbackChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
   onStaticDateChange: (fieldName: string, value: string) => void
   onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
@@ -1565,6 +1608,141 @@ function FieldRow({
           </div>
         </div>
       )}
+
+      {/* v27.1.1.0.3e.5: optional fallback source. Hidden by default;
+          "+ Add fallback source" link reveals a secondary dropdown. The
+          engine evaluates primary first, falls through here if primary
+          returns null/empty. Lets a single PDF field accept either-or
+          sources (e.g. CDFW "TAG / REPORT CARD"). Static literals
+          (text/date/range) are intentionally NOT surfaced here — fallback
+          only supports clean source paths to keep the UI simple. */}
+      <FallbackSourceEditor
+        fieldName={field.name}
+        fallbackValue={fallbackValue}
+        sources={sources}
+        grouped={grouped}
+        primaryDropdownValue={dropdownValue}
+        onChange={onFallbackChange}
+      />
+    </div>
+  )
+}
+
+// ── FallbackSourceEditor ────────────────────────────────────────────────
+//
+// v27.1.1.0.3e.5. Renders a small "+ Add fallback source" link when no
+// fallback is set; otherwise renders a labeled dropdown identical to the
+// primary picker (sans static-literal pickers) plus a Remove link to
+// clear back to no-fallback.
+//
+// We intentionally exclude the bare-prefix sentinels (STATIC_TEXT_PREFIX
+// etc.) from the option list — fallbacks for "Tag or Report Card"-style
+// fields are between catalog sources, not literal text.
+
+function FallbackSourceEditor({
+  fieldName,
+  fallbackValue,
+  sources,
+  grouped,
+  primaryDropdownValue,
+  onChange,
+}: {
+  fieldName: string
+  fallbackValue: string
+  sources: DataSourceOption[]
+  grouped: Record<string, DataSourceOption[]>
+  primaryDropdownValue: string
+  onChange: (fieldName: string, value: string) => void
+}) {
+  const expanded = !!fallbackValue
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(fieldName, sources[0]?.value ?? '')}
+        className="bb-text-action"
+        style={{
+          alignSelf: 'flex-start',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          fontSize: '0.8rem',
+          color: 'var(--color-copper)',
+          background: 'transparent',
+          border: 'none',
+          padding: '0.1rem 0',
+          cursor: 'pointer',
+        }}
+      >
+        + Add fallback source
+      </button>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.5rem',
+        }}
+      >
+        <label
+          className="bb-form-label"
+          htmlFor={`fb-${fieldName}`}
+          style={{ marginBottom: 0, fontSize: '0.78rem' }}
+        >
+          If primary source is empty, fill with this instead
+        </label>
+        <button
+          type="button"
+          onClick={() => onChange(fieldName, '')}
+          className="bb-text-action"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.2rem',
+            fontSize: '0.78rem',
+            color: 'var(--color-ink-soft)',
+            background: 'transparent',
+            border: 'none',
+            padding: '0.1rem 0',
+            cursor: 'pointer',
+          }}
+        >
+          Remove
+        </button>
+      </div>
+      <select
+        id={`fb-${fieldName}`}
+        className="bb-input"
+        value={fallbackValue}
+        onChange={(e) => onChange(fieldName, e.target.value)}
+      >
+        <option value="">— None —</option>
+        {CATEGORY_ORDER.map((cat) =>
+          grouped[cat].length > 0 ? (
+            <optgroup key={cat} label={CATEGORY_LABELS[cat]}>
+              {grouped[cat].map((src) => (
+                <option
+                  key={`fb:${cat}:${src.value}`}
+                  value={src.value}
+                  // Hide picker sentinels from the fallback list.
+                  disabled={
+                    src.value === STATIC_TEXT_PREFIX ||
+                    src.value === STATIC_DATE_PREFIX ||
+                    src.value === STATIC_DATE_RANGE_PREFIX ||
+                    src.value === primaryDropdownValue
+                  }
+                >
+                  {src.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null
+        )}
+      </select>
     </div>
   )
 }

@@ -30,7 +30,6 @@ type Initial = {
   address_zip: string
   // Outfitter details (guide_profiles)
   business_name: string
-  license_number: string
   max_party_size: number
   specialties: string[]
   bio: string
@@ -51,7 +50,6 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
   const [addrZip, setAddrZip] = useState(initial.address_zip)
   // Outfitter
   const [businessName, setBusinessName] = useState(initial.business_name)
-  const [license, setLicense] = useState(initial.license_number)
   const [partySize, setPartySize] = useState(String(initial.max_party_size))
   const [bio, setBio] = useState(initial.bio)
   const [specs, setSpecs] = useState<Set<string>>(new Set(initial.specialties))
@@ -260,23 +258,13 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
       </fieldset>
 
       {/* Guide credentials */}
+      {/* v27.1.1.0.3e.5: Guide License # field removed. Guide license
+          lives on the wallet (wallet_items.type='guide_license') and the
+          fill engine reads ctx.guide_license from there. The
+          guide_profiles.license_number column is kept for back-compat
+          but no UI captures it. */}
       <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
         <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Guide credentials</legend>
-
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="license_number">Guide License #</label>
-          <input
-            id="license_number"
-            name="license_number"
-            className="bb-input"
-            type="text"
-            value={license}
-            onChange={(e) => setLicense(e.target.value)}
-            maxLength={64}
-            placeholder="Optional"
-          />
-          <p className="bb-form-help">Optional. Used in warden share if filled.</p>
-        </div>
 
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="max_party_size">Max party size</label>

@@ -149,15 +149,14 @@ export default async function DashboardPage() {
           )}
         </div>
         {recent.length === 0 ? (
+          // v27.1.1.0.3e.5: empty-state CTA dropped — Quick Actions widget
+          // at the top of the dashboard already exposes "Add trip" so the
+          // duplicate "Log your first trip" button here was clutter.
           <div className="bb-empty">
             <div className="bb-empty-title">No wrapped trips yet</div>
             <p className="bb-empty-sub">
               Bite Book is built around trips — each ties hunters, tags, and harvests to one record.
             </p>
-            <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-              <Plus size={16} aria-hidden="true" />
-              Log your first trip
-            </Link>
           </div>
         ) : (
           <div role="list" className="flex flex-col gap-3">

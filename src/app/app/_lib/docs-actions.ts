@@ -369,16 +369,32 @@ export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsAc
     }
   }
 
+  // v27.1.1.0.3e.5: bulk delete now auto-archives any active rows in the
+  // selection before deleting, so the user doesn't have to do a separate
+  // archive pass. The trip-attached gate still skips anything still
+  // referenced — that genuinely can't be safely deleted from here.
+  const toAutoArchive: string[] = []
   for (const row of ownedRows) {
-    if (!row.archived_at) {
-      skipped.push({ id: row.id, reason: 'Archive first, then delete.' })
-      continue
-    }
     if ((refCount.get(row.id) ?? 0) > 0) {
       skipped.push({ id: row.id, reason: 'Still attached to a trip — detach first.' })
       continue
     }
+    if (!row.archived_at) {
+      toAutoArchive.push(row.id)
+    }
     toDelete.push({ id: row.id, file_path: row.file_path })
+  }
+
+  if (toAutoArchive.length > 0) {
+    const { error: archErr } = await sb
+      .from('docs')
+      .update({ archived_at: new Date().toISOString() })
+      .in('id', toAutoArchive)
+      .eq('guide_id', profile.id)
+    if (archErr) {
+      console.warn('[docs.bulkDeleteDocsAction:auto_archive]', { code: archErr.code, message: archErr.message })
+      return { error: archErr.message || 'Could not archive docs before delete.' }
+    }
   }
 
   if (toDelete.length === 0) {
@@ -609,6 +625,12 @@ export type MappingInput = {
   /** v27.1.1.0.3c.2: when true, this slot's mapping is decoupled from
    *  Hunter 1 auto-mirroring and stays exactly what the guide picked. */
   is_override?: boolean
+  /** v27.1.1.0.3e.5: optional secondary source. Engine evaluates
+   *  data_source_path first; if it returns null/empty, evaluates this
+   *  fallback. Lets a single PDF field accept either-or sources (e.g.
+   *  CDFW "TAG / REPORT CARD"). Same value space as data_source_path —
+   *  pickerable path, "static:..." string, or "skip"/empty (no fallback). */
+  fallback_path?: string | null
 }
 
 export type SaveMappingsResult =
@@ -641,37 +663,45 @@ export async function saveDocMappingsAction(
   // candidates.
   type Staged = {
     path: string  // empty string = pending delete
+    fallbackPath: string | null  // v27.1.1.0.3e.5
     hunterSlot: number
     isOverride: boolean
     explicit: boolean  // user touched this field this save
+  }
+  // Local sanitizer — same picker-sentinel + half-filled-range guards
+  // applied to both primary and fallback paths.
+  function sanitizePath(raw: string): string {
+    let p = raw.trim()
+    if (
+      p === STATIC_TEXT_PREFIX ||
+      p === STATIC_DATE_PREFIX ||
+      p === STATIC_DATE_RANGE_PREFIX
+    ) {
+      p = ''
+    }
+    if (p.startsWith(STATIC_DATE_RANGE_PREFIX)) {
+      const rest = p.slice(STATIC_DATE_RANGE_PREFIX.length)
+      const [start, end] = rest.split('..')
+      if (!start || !end) p = ''
+    }
+    return p
   }
   const staged = new Map<string, Staged>()
   for (const m of mappings) {
     const fieldName = m.field_name?.trim()
     if (!fieldName) continue
-    let path = (m.data_source_path ?? '').trim()
-    // Bare picker sentinels (prefix only, no literal payload) mean the
-    // guide opened a picker but didn't fill it in. Treat as no-mapping.
-    if (
-      path === STATIC_TEXT_PREFIX ||
-      path === STATIC_DATE_PREFIX ||
-      path === STATIC_DATE_RANGE_PREFIX
-    ) {
-      path = ''
-    }
-    // Half-filled date range — wizard guards against this but server
-    // stays defensive.
-    if (path.startsWith(STATIC_DATE_RANGE_PREFIX)) {
-      const raw = path.slice(STATIC_DATE_RANGE_PREFIX.length)
-      const [start, end] = raw.split('..')
-      if (!start || !end) path = ''
-    }
+    const path = sanitizePath(m.data_source_path ?? '')
+    // v27.1.1.0.3e.5: fallback is optional; null/'' means no fallback.
+    // A primary that comes through as empty also clears the fallback —
+    // saving an unmapped row drops both.
+    const fbRaw = sanitizePath((m.fallback_path ?? '') as string)
+    const fallbackPath = path && fbRaw && fbRaw !== path ? fbRaw : null
     const rawSlot = typeof m.hunter_slot === 'number' && Number.isFinite(m.hunter_slot)
       ? Math.floor(m.hunter_slot)
       : 0
     const hunterSlot = Math.max(0, Math.min(99, rawSlot))
     const isOverride = m.is_override === true
-    staged.set(fieldName, { path, hunterSlot, isOverride, explicit: true })
+    staged.set(fieldName, { path, fallbackPath, hunterSlot, isOverride, explicit: true })
   }
 
   // v27.1.1.0.3c.2: auto-mirror Hunter 1 → slots 2..N.
@@ -716,6 +746,12 @@ export async function saveDocMappingsAction(
       mapping_kind: 'field',
       field_name: fieldName,
       data_source_path: s.path,
+      // v27.1.1.0.3e.5: fallback_path mirrors the auto-mirror semantics
+      // implicitly — the mirror loop above only touches `path`, so a
+      // slot-2..N field that gets mirrored from slot 1 inherits slot 1's
+      // primary but keeps its own fallback (typically null). That's the
+      // right call: fallbacks are PDF-shape-driven, not hunter-shape-driven.
+      fallback_path: s.fallbackPath,
       hunter_slot: s.hunterSlot,
       is_override: s.isOverride,
       // v27.1.1.0.3d: clearing the AI flag on every save — once the
@@ -955,6 +991,12 @@ SIGNATURE FIELDS (always skip):
 - "Date Signed" / "Date of Signature" / "Signature Date" / any signature-date placeholder → MUST map to "skip". These are filled when the document is signed via e-signature, NEVER from harvest_log.log_date or wallet.valid_to or any other source.
 - "Signature" / "Sign Here" / "Initials" / "Hunter Signature" / "Guide Signature" / signature-type form fields → MUST map to "skip". Signature-block placement ships in v27.2 with the e-signature engine; auto-fill leaves these alone.
 
+EITHER-OR FIELDS (use fallback_path):
+- When a label says "TAG / REPORT CARD", "TAG OR REPORT CARD", "License or Permit", "Phone or Email", "(if applicable)", or otherwise indicates EITHER of two sources is acceptable, set BOTH suggested_path AND fallback_path.
+- The engine evaluates suggested_path first; if it's empty (no value on the entry), it falls through to fallback_path.
+- Pick the more common case as the primary. For "TAG / REPORT CARD" on a CDFW form, prefer "wallet_consumed.identifier" (the punched tag) as primary and "hunter_harvest_report_card.identifier" as fallback.
+- For ordinary single-source fields, omit fallback_path (or set to empty string). Only use it when the label genuinely accepts either-or.
+
 When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`
 
   const userText = `Form-field list (${fieldsForLLM.length} total):
@@ -985,6 +1027,7 @@ Return the JSON array now.`
   let parsed: Array<{
     field_name: string
     path: string
+    fallback_path: string
     hunter_slot: number
     confidence: string
   }> = []
@@ -1018,6 +1061,11 @@ Return the JSON array now.`
                   type: 'string',
                   description:
                     'A catalog "path" string that EXACTLY matches one of the data-source options, or the literal string "skip" if no source fits.',
+                },
+                fallback_path: {
+                  type: 'string',
+                  description:
+                    'OPTIONAL secondary catalog path. Use ONLY when the PDF field label suggests an either-or value (e.g. "TAG / REPORT CARD", "License or Permit", "Phone or Email", "(if applicable)"). Set this to a different catalog path. The fill engine evaluates suggested_path first; if it returns empty, the engine falls through to fallback_path. Omit (or set to empty string) for normal single-source fields.',
                 },
                 hunter_slot: {
                   type: 'integer',
@@ -1068,12 +1116,14 @@ Return the JSON array now.`
     parsed = (input.mappings as Array<{
       field_name?: unknown
       suggested_path?: unknown
+      fallback_path?: unknown
       hunter_slot?: unknown
       confidence?: unknown
     }>)
       .map((m) => ({
         field_name: typeof m.field_name === 'string' ? m.field_name : '',
         path: typeof m.suggested_path === 'string' ? m.suggested_path : '',
+        fallback_path: typeof m.fallback_path === 'string' ? m.fallback_path : '',
         hunter_slot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
         confidence: typeof m.confidence === 'string' ? m.confidence : 'low',
       }))
@@ -1091,6 +1141,7 @@ Return the JSON array now.`
   type Suggestion = {
     field_name: string
     data_source_path: string
+    fallback_path: string | null
     hunter_slot: number
   }
   const accepted: Suggestion[] = []
@@ -1103,9 +1154,18 @@ Return the JSON array now.`
     const slot = Math.max(0, Math.min(5, Math.floor(Number(s.hunter_slot) || 0)))
     if (s.path === 'skip' || !s.path) { skipped++; continue }
     if (!validPaths.has(s.path)) { rejected++; continue }
+    // v27.1.1.0.3e.5: validate optional fallback_path the same way —
+    // must be a known catalog path AND distinct from the primary.
+    let fallback: string | null = null
+    if (s.fallback_path && s.fallback_path !== 'skip' && s.fallback_path !== s.path) {
+      if (validPaths.has(s.fallback_path)) {
+        fallback = s.fallback_path
+      }
+    }
     accepted.push({
       field_name: s.field_name,
       data_source_path: s.path,
+      fallback_path: fallback,
       hunter_slot: slot,
     })
   }
@@ -1142,6 +1202,9 @@ Return the JSON array now.`
       mapping_kind: 'field',
       field_name: s.field_name,
       data_source_path: s.data_source_path,
+      // v27.1.1.0.3e.5: AI-supplied either-or fallback path lands here.
+      // null when the model didn't return one or it failed validation.
+      fallback_path: s.fallback_path,
       hunter_slot: s.hunter_slot,
       is_override: false,
       is_ai_suggested: true,

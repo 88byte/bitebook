@@ -32,11 +32,15 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override, is_ai_suggested, ai_suggested_path, ai_suggested_slot')
+    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, is_override, is_ai_suggested, ai_suggested_path, ai_suggested_slot')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
   const existingByField: Record<string, string> = {}
+  // v27.1.1.0.3e.5: hydrate the optional fallback_path. Empty/null →
+  // no entry, so the wizard's "+ Add fallback source" link is the
+  // surface where guides opt in.
+  const existingFallbackByField: Record<string, string> = {}
   const existingSlotByField: Record<string, number> = {}
   const existingOverrideByField: Record<string, boolean> = {}
   const existingAiSuggestedByField: Record<string, boolean> = {}
@@ -45,6 +49,10 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   for (const r of existingRows ?? []) {
     if (r.field_name) {
       existingByField[r.field_name] = r.data_source_path ?? ''
+      const fb = (r as { fallback_path?: string | null }).fallback_path ?? null
+      if (typeof fb === 'string' && fb.length > 0) {
+        existingFallbackByField[r.field_name] = fb
+      }
       existingSlotByField[r.field_name] = typeof r.hunter_slot === 'number' ? r.hunter_slot : 0
       existingOverrideByField[r.field_name] = r.is_override === true
       existingAiSuggestedByField[r.field_name] = r.is_ai_suggested === true
@@ -85,6 +93,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         docId={doc.id}
         docKind={doc.kind}
         existingByField={existingByField}
+        existingFallbackByField={existingFallbackByField}
         existingSlotByField={existingSlotByField}
         existingOverrideByField={existingOverrideByField}
         existingAiSuggestedByField={existingAiSuggestedByField}

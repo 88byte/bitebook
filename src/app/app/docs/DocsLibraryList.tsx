@@ -205,7 +205,7 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
       <ConfirmModal
         open={confirmDelete}
         title={`Delete ${selected.size} doc${selected.size === 1 ? '' : 's'}?`}
-        body="The selected docs will be permanently removed if they're already archived and not attached to any trip. Anything still active or attached gets skipped — you'll see a note explaining what was kept. This can't be undone."
+        body="The selected docs will be permanently removed. Active docs get archived first as part of the same step. Docs still attached to a trip are skipped — detach them from the trip first and try again. This can't be undone."
         confirmLabel="Delete"
         destructive
         isPending={pending}

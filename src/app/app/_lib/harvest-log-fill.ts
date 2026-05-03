@@ -346,17 +346,21 @@ export async function generateFilledHarvestLogPDFsAction(
 
   // Mappings. v27.1.1.0.3c.1: hunter_slot column lets the wizard
   // override the regex-detected slot per field.
+  // v27.1.1.0.3e.5: optional fallback_path — engine evaluates primary
+  // first, falls through if the result is null/empty.
   const { data: mappings } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, hunter_slot')
+    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot')
     .eq('doc_id', docId)
     .eq('mapping_kind', 'field')
-  type MappingEntry = { path: string; manualSlot: number }
+  type MappingEntry = { path: string; fallbackPath: string | null; manualSlot: number }
   const mappingByField = new Map<string, MappingEntry>()
   for (const m of mappings ?? []) {
     if (m.field_name && m.data_source_path) {
+      const fb = (m as { fallback_path?: string | null }).fallback_path ?? null
       mappingByField.set(m.field_name, {
         path: m.data_source_path,
+        fallbackPath: fb && typeof fb === 'string' && fb.trim() ? fb.trim() : null,
         manualSlot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
       })
     }
@@ -696,7 +700,16 @@ export async function generateFilledHarvestLogPDFsAction(
       const detectedSlot = slotForField(name)
       const effectiveSlot = detectedSlot
       if (effectiveSlot > passEntries.length) continue
-      const value = resolveSource(path, passCtx, effectiveSlot)
+      // v27.1.1.0.3e.5: try primary path, fall through to fallback_path
+      // (when set) if primary returns null/'' (empty string or falsy
+      // boolean still passes through; only "really nothing" triggers
+      // the fallback). Lets a single PDF field accept either-or sources.
+      let value = resolveSource(path, passCtx, effectiveSlot)
+      const isEmpty = (v: ResolvedValue): boolean => v === null || v === ''
+      if (isEmpty(value) && mapping.fallbackPath) {
+        const fbVal = resolveSource(mapping.fallbackPath, passCtx, effectiveSlot)
+        if (!isEmpty(fbVal)) value = fbVal
+      }
       try {
         if (field instanceof PDFTextField) {
           if (typeof value === 'string') {

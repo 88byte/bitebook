@@ -101,6 +101,7 @@ export type Database = {
           created_at: string
           data_source_path: string | null
           doc_id: string
+          fallback_path: string | null
           field_name: string
           hunter_slot: number
           id: string
@@ -118,6 +119,7 @@ export type Database = {
           created_at?: string
           data_source_path?: string | null
           doc_id: string
+          fallback_path?: string | null
           field_name: string
           hunter_slot?: number
           id?: string
@@ -135,6 +137,7 @@ export type Database = {
           created_at?: string
           data_source_path?: string | null
           doc_id?: string
+          fallback_path?: string | null
           field_name?: string
           hunter_slot?: number
           id?: string

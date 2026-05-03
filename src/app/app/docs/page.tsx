@@ -11,7 +11,7 @@ import {
 import { relativeOrDate } from '../_lib/format'
 import DocsLibraryList from './DocsLibraryList'
 
-type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string }>
+type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string; tab?: string }>
 
 const KIND_FILTERS: { value: DocKind | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -24,6 +24,14 @@ function isKindFilter(s: string | undefined): s is DocKind | 'all' {
   return s === 'all' || s === 'waiver' || s === 'log' || s === 'resource'
 }
 
+// v27.1.1.0.3e.5: top-level tabs — My docs (guide's owned library) vs
+// Bite Book templates (admin-curated read-only pool). URL-driven via
+// ?tab=, default 'my'. Same pattern as the wallet tabs.
+type DocsTab = 'my' | 'templates'
+function isDocsTab(s: string | undefined): s is DocsTab {
+  return s === 'my' || s === 'templates'
+}
+
 // v27.1.0 — Documents Module library page.
 // Guide uploads PDFs of three kinds (waiver / log / resource), filters by
 // kind chip, sees mapping status badges, and opens the doc detail to edit
@@ -33,12 +41,21 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
   const sp = await searchParams
   const kind: DocKind | 'all' = isKindFilter(sp.kind) ? sp.kind : 'all'
   const includeArchived = sp.archived === '1'
+  const tab: DocsTab = isDocsTab(sp.tab) ? sp.tab : 'my'
 
   const [docs, counts, templates] = await Promise.all([
     fetchGuideDocs(profile.id, { kind, includeArchived }),
     fetchGuideDocCounts(profile.id),
     fetchBiteBookTemplates(profile.id),
   ])
+
+  // Templates filtered by kind chip on the templates tab. The fetcher
+  // returns the full pool; we narrow client-side for the kind chip + the
+  // empty state.
+  const filteredTemplates =
+    tab === 'templates' && kind !== 'all'
+      ? templates.filter((t) => t.kind === kind)
+      : templates
 
   // v27.1.1.0.3d.2.10: success toast after the mapping wizard's
   // "Mark mapping complete" redirect lands here. The query param is
@@ -48,27 +65,91 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
     ? docs.find((d) => d.id === justCompletedId)
     : null
 
+  // Helper to preserve filter chips across tab switches (kind survives the
+  // tab toggle since both tabs use the same kind filter).
+  function tabHref(target: DocsTab): string {
+    const params: string[] = []
+    if (target !== 'my') params.push(`tab=${target}`)
+    if (kind !== 'all') params.push(`kind=${kind}`)
+    if (target === 'my' && includeArchived) params.push('archived=1')
+    return params.length === 0 ? '/app/docs' : `/app/docs?${params.join('&')}`
+  }
+
   return (
     <main className="bb-app-main">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="bb-page-eyebrow">Documents</p>
-          <h1 className="bb-page-title">Your library</h1>
+          <h1 className="bb-page-title">
+            {tab === 'templates' ? 'Bite Book templates' : 'Your library'}
+          </h1>
           <p className="bb-page-sub">
-            Waivers, harvest logs, and resources you can attach to any trip.
+            {tab === 'templates'
+              ? 'Pre-built forms shared by Bite Book. Tap to view or use on a trip.'
+              : 'Waivers, harvest logs, and resources you can attach to any trip.'}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          <Link
-            href="/app/docs/new"
-            className="bb-cta-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Plus size={14} aria-hidden="true" />
-            Upload doc
-          </Link>
-        </div>
+        {tab === 'my' && (
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <Link
+              href="/app/docs/new"
+              className="bb-cta-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Plus size={14} aria-hidden="true" />
+              Upload doc
+            </Link>
+          </div>
+        )}
       </header>
+
+      {/* v27.1.1.0.3e.5: top-level tabs. My docs vs Bite Book templates.
+          Pattern mirrors the wallet tabs — copper underline on active,
+          URL-driven so the back button works. */}
+      <nav
+        className="mt-4 flex gap-4"
+        role="tablist"
+        aria-label="Docs section"
+        style={{ borderBottom: '1px solid var(--color-card-divider)' }}
+      >
+        <Link
+          href={tabHref('my')}
+          role="tab"
+          aria-selected={tab === 'my'}
+          style={{
+            padding: '0.5rem 0.25rem',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            color: tab === 'my' ? 'var(--color-copper)' : 'var(--color-ink-soft)',
+            textDecoration: 'none',
+            borderBottom: tab === 'my' ? '2px solid var(--color-copper)' : '2px solid transparent',
+            marginBottom: '-1px',
+          }}
+        >
+          My docs
+        </Link>
+        <Link
+          href={tabHref('templates')}
+          role="tab"
+          aria-selected={tab === 'templates'}
+          style={{
+            padding: '0.5rem 0.25rem',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            color: tab === 'templates' ? 'var(--color-copper)' : 'var(--color-ink-soft)',
+            textDecoration: 'none',
+            borderBottom: tab === 'templates' ? '2px solid var(--color-copper)' : '2px solid transparent',
+            marginBottom: '-1px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+          }}
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          Bite Book templates
+          <span style={{ opacity: 0.65, fontWeight: 500 }}>({templates.length})</span>
+        </Link>
+      </nav>
 
       {/* v27.1.1.0.3d.2.10: success toast after Mark mapping complete
           redirects here. Renders only when the query param targets a
@@ -98,10 +179,11 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
         </section>
       )}
 
-      {/* Filter chips. URL-driven so the browser back button works and links
-          can be shared. Active state = copper underline matching the
-          mobile-tab pattern. Note: chips drive the "Your library" section
-          only — the Bite Book templates section above ignores them. */}
+      {/* Filter chips. URL-driven so the browser back button works and
+          links can be shared. Active state = copper underline matching
+          the mobile-tab pattern. Chips work on both tabs — they narrow
+          either My docs or templates by kind. The Show-archived toggle
+          only appears on My docs (templates don't archive). */}
       <nav
         className="mt-4 flex flex-wrap gap-2"
         role="tablist"
@@ -109,8 +191,19 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
       >
         {KIND_FILTERS.map((f) => {
           const active = f.value === kind
-          const href = f.value === 'all' ? '/app/docs' : `/app/docs?kind=${f.value}`
-          const count = counts[f.value]
+          const params: string[] = []
+          if (tab !== 'my') params.push(`tab=${tab}`)
+          if (f.value !== 'all') params.push(`kind=${f.value}`)
+          if (tab === 'my' && includeArchived) params.push('archived=1')
+          const href = params.length === 0 ? '/app/docs' : `/app/docs?${params.join('&')}`
+          // Counts are per-tab. My docs uses the prebaked counts;
+          // templates uses the live filter against the templates pool.
+          const count =
+            tab === 'my'
+              ? counts[f.value]
+              : f.value === 'all'
+                ? templates.length
+                : templates.filter((t) => t.kind === f.value).length
           return (
             <Link
               key={f.value}
@@ -123,56 +216,60 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
             </Link>
           )
         })}
-        <Link
-          href={includeArchived ? '/app/docs' : '/app/docs?archived=1'}
-          className={includeArchived ? 'bb-chip is-active' : 'bb-chip'}
-          aria-pressed={includeArchived}
-          style={{ marginLeft: 'auto' }}
-        >
-          <Archive size={12} aria-hidden="true" style={{ marginRight: 4 }} />
-          {includeArchived ? 'Hide archived' : 'Show archived'}
-        </Link>
+        {tab === 'my' && (
+          <Link
+            href={
+              includeArchived
+                ? kind === 'all'
+                  ? '/app/docs'
+                  : `/app/docs?kind=${kind}`
+                : kind === 'all'
+                  ? '/app/docs?archived=1'
+                  : `/app/docs?kind=${kind}&archived=1`
+            }
+            className={includeArchived ? 'bb-chip is-active' : 'bb-chip'}
+            aria-pressed={includeArchived}
+            style={{ marginLeft: 'auto' }}
+          >
+            <Archive size={12} aria-hidden="true" style={{ marginRight: 4 }} />
+            {includeArchived ? 'Hide archived' : 'Show archived'}
+          </Link>
+        )}
       </nav>
 
-      {/* v27.1.1.0.3e: Bite Book templates section. Hidden when empty —
-          templates are admin-curated (Flavio only flags), so a hunter or
-          guide who hasn't been given any shouldn't see an empty state.
-          Filter chips above don't apply here; this is a small, simple
-          list of pre-built forms anyone can adopt. */}
-      {templates.length > 0 && (
+      {/* Tab body. My docs gets the bulk-select wrapper; templates gets
+          a read-only DocRow list. */}
+      {tab === 'my' ? (
         <section className="mt-5">
-          <h2
-            className="bb-form-section-head"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Sparkles size={14} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-            Bite Book templates
-          </h2>
-          <p className="bb-page-sub" style={{ marginTop: '-0.15rem' }}>
-            Pre-built forms shared by Bite Book. Tap to view or use on a trip.
-          </p>
-          <div className="mt-3 flex flex-col gap-3">
-            {templates.map((d) => (
-              <DocRow key={d.id} doc={d} showTemplateBadge />
-            ))}
-          </div>
+          {docs.length === 0 ? (
+            <EmptyState kind={kind} includeArchived={includeArchived} />
+          ) : (
+            <DocsLibraryList docs={docs} />
+          )}
+        </section>
+      ) : (
+        <section className="mt-5">
+          {filteredTemplates.length === 0 ? (
+            <div className="bb-tile mt-4">
+              <div className="bb-tile-body" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                <Sparkles size={32} aria-hidden="true" style={{ color: 'var(--color-copper)', margin: '0 auto' }} />
+                <div className="bb-empty-title mt-2">No templates yet</div>
+                <p className="bb-empty-sub">
+                  {kind === 'all'
+                    ? 'Bite Book curates state harvest logs and other forms here as they are added. Check back soon.'
+                    : 'No templates in this category yet. Try the All filter, or check back soon.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {filteredTemplates.map((d) => (
+                <DocRow key={d.id} doc={d} showTemplateBadge />
+              ))}
+            </div>
+          )}
         </section>
       )}
-
-      <section className="mt-5">
-        {templates.length > 0 && (
-          <h2 className="bb-form-section-head">Your library</h2>
-        )}
-        {docs.length === 0 ? (
-          <EmptyState kind={kind} includeArchived={includeArchived} />
-        ) : (
-          // v27.1.1.0.3e.4: bulk select + delete lives in this client
-          // wrapper so the row checkboxes share state with the sticky
-          // action bar. Templates section above stays read-only — those
-          // are admin-curated and not the guide's to delete.
-          <DocsLibraryList docs={docs} />
-        )}
-      </section>
     </main>
   )
 }
