@@ -2,16 +2,18 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, RotateCcw, Archive } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
-import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   updateDocAction,
-  archiveDocAction,
-  restoreDocAction,
-  deleteDocAction,
   type DocKind,
 } from '../../_lib/docs-actions'
+
+// v27.1.1.0.3d.2.6: action buttons (Save / Archive / Restore / Delete)
+// were promoted to a top-of-page DocActionsBar. The Save button there
+// targets THIS form via `form="edit-doc-form"` so no shared state is
+// needed — the browser dispatches a native submit event and our
+// onSubmit handler runs as before. Saved/error feedback stays inline
+// here, just below the fields.
 
 const KIND_OPTIONS: { value: DocKind; label: string }[] = [
   { value: 'waiver',   label: 'Waiver' },
@@ -22,15 +24,9 @@ const KIND_OPTIONS: { value: DocKind; label: string }[] = [
 export default function EditDocForm({
   docId,
   initial,
-  isArchived,
-  canHardDelete,
-  tripCount,
 }: {
   docId: string
   initial: { kind: DocKind; label: string; state: string | null }
-  isArchived: boolean
-  canHardDelete: boolean
-  tripCount: number
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -40,8 +36,6 @@ export default function EditDocForm({
   const [kind, setKind] = useState<DocKind>(initial.kind)
   const [label, setLabel] = useState(initial.label)
   const [state, setState] = useState(initial.state ?? '')
-
-  const [confirmMode, setConfirmMode] = useState<null | 'archive' | 'delete'>(null)
 
   const showState = kind === 'waiver' || kind === 'log'
 
@@ -69,186 +63,85 @@ export default function EditDocForm({
     })
   }
 
-  function runArchive() {
-    setError(null)
-    startTransition(async () => {
-      const res = await archiveDocAction(docId)
-      if ('error' in res) {
-        setError(res.error)
-        return
-      }
-      router.refresh()
-    })
-  }
-
-  function runRestore() {
-    setError(null)
-    startTransition(async () => {
-      const res = await restoreDocAction(docId)
-      if ('error' in res) {
-        setError(res.error)
-        return
-      }
-      router.refresh()
-    })
-  }
-
-  function runHardDelete() {
-    setError(null)
-    startTransition(async () => {
-      const res = await deleteDocAction(docId)
-      if ('error' in res) {
-        setError(res.error)
-        return
-      }
-      router.push('/app/docs')
-      router.refresh()
-    })
-  }
-
   return (
-    <>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 bb-form-narrow">
-        <section className="bb-tile bb-form-section">
-          <div className="bb-tile-body">
-            <h2 className="bb-form-section-head">Details</h2>
-            <div className="bb-form-row">
-              <label className="bb-form-label" htmlFor="edit_kind">Kind</label>
+    <form
+      id="edit-doc-form"
+      onSubmit={onSubmit}
+      className="flex flex-col gap-4 bb-form-narrow"
+    >
+      <section className="bb-tile bb-form-section">
+        <div className="bb-tile-body">
+          <h2 className="bb-form-section-head">Details</h2>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="edit_kind">Kind</label>
+            <select
+              id="edit_kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as DocKind)}
+              className="bb-input"
+            >
+              {KIND_OPTIONS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+            {kind !== initial.kind && (
+              <p className="bb-form-help">
+                Changing kind resets the mapping status. Any field or signature mappings will need to be re-done.
+              </p>
+            )}
+          </div>
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor="edit_label">Label</label>
+            <input
+              id="edit_label"
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="bb-input"
+              maxLength={200}
+              required
+            />
+          </div>
+          {showState && (
+            <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+              <label className="bb-form-label" htmlFor="edit_state">
+                State <span style={{ opacity: 0.6 }}>(optional)</span>
+              </label>
               <select
-                id="edit_kind"
-                value={kind}
-                onChange={(e) => setKind(e.target.value as DocKind)}
+                id="edit_state"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
                 className="bb-input"
               >
-                {KIND_OPTIONS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
+                <option value="">— Not state-specific —</option>
+                {US_STATES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
                   </option>
                 ))}
               </select>
-              {kind !== initial.kind && (
-                <p className="bb-form-help">
-                  Changing kind resets the mapping status. Any field or signature mappings will need to be re-done.
-                </p>
-              )}
             </div>
-            <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
-              <label className="bb-form-label" htmlFor="edit_label">Label</label>
-              <input
-                id="edit_label"
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                className="bb-input"
-                maxLength={200}
-                required
-              />
-            </div>
-            {showState && (
-              <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
-                <label className="bb-form-label" htmlFor="edit_state">
-                  State <span style={{ opacity: 0.6 }}>(optional)</span>
-                </label>
-                <select
-                  id="edit_state"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className="bb-input"
-                >
-                  <option value="">— Not state-specific —</option>
-                  {US_STATES.map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {error && (
-          <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
-            {error}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className="bb-cta-sm" disabled={pending}>
-            {pending ? 'Saving…' : savedAt !== null ? 'Saved' : 'Save changes'}
-          </button>
-
-          {!isArchived ? (
-            <button
-              type="button"
-              className="bb-btn-secondary"
-              onClick={() => setConfirmMode('archive')}
-              disabled={pending}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            >
-              <Archive size={14} aria-hidden="true" />
-              Archive
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="bb-btn-secondary"
-              onClick={runRestore}
-              disabled={pending}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            >
-              <RotateCcw size={14} aria-hidden="true" />
-              Restore
-            </button>
-          )}
-
-          {isArchived && (
-            <button
-              type="button"
-              className="bb-cta-sm bb-cta-sm-destructive"
-              onClick={() => setConfirmMode('delete')}
-              disabled={pending || !canHardDelete}
-              title={
-                canHardDelete
-                  ? 'Permanently delete this doc.'
-                  : `Can't delete — still attached to ${tripCount} trip${tripCount === 1 ? '' : 's'}.`
-              }
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            >
-              <Trash2 size={14} aria-hidden="true" />
-              Delete forever
-            </button>
           )}
         </div>
-      </form>
+      </section>
 
-      <ConfirmModal
-        open={confirmMode === 'archive'}
-        title="Archive this doc?"
-        body="It will disappear from your library, but trips that reference it will keep working. You can restore it any time."
-        confirmLabel="Archive"
-        destructive
-        isPending={pending}
-        onCancel={() => setConfirmMode(null)}
-        onConfirm={() => {
-          setConfirmMode(null)
-          runArchive()
-        }}
-      />
-      <ConfirmModal
-        open={confirmMode === 'delete'}
-        title="Delete this doc forever?"
-        body="The PDF and its mappings will be permanently removed. This can't be undone."
-        confirmLabel="Delete forever"
-        destructive
-        typeToConfirm="DELETE"
-        isPending={pending}
-        onCancel={() => setConfirmMode(null)}
-        onConfirm={() => {
-          setConfirmMode(null)
-          runHardDelete()
-        }}
-      />
-    </>
+      {error && (
+        <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
+          {error}
+        </p>
+      )}
+      {(pending || savedAt !== null) && !error && (
+        <p
+          className="bb-form-help"
+          role="status"
+          aria-live="polite"
+          style={{ margin: 0, color: pending ? 'var(--color-ink-soft)' : 'var(--color-copper)' }}
+        >
+          {pending ? 'Saving changes…' : 'Saved.'}
+        </p>
+      )}
+    </form>
   )
 }

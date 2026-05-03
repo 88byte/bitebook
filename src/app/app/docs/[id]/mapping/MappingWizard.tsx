@@ -214,10 +214,26 @@ export default function MappingWizard({
   }, [aiPending])
   // Cancel pending state the moment any AI row hydrates from the server
   // (router.refresh re-mounts the wizard with the new prop).
+  // v27.1.1.0.3d.2.6: also fire the Step-3 success banner on the
+  // auto-run path. Previous behavior only set aiSuccessCount from the
+  // manual button-tap response; the auto-run path cleared aiPending
+  // directly and skipped Step 3 entirely (Flavio: "what the hell
+  // happened to step 1 and 3?"). We track prev AI row count in a ref
+  // and surface aiSuccessCount = newAdditions when new rows arrive.
+  const prevAiCountRef = useRef<number>(
+    Object.values(existingAiSuggestedByField).filter((v) => v).length
+  )
   useEffect(() => {
-    if (aiPending && Object.values(existingAiSuggestedByField).some((v) => v)) {
+    const newAiCount = Object.values(existingAiSuggestedByField).filter((v) => v).length
+    if (aiPending && newAiCount > 0) {
       setAiPending(false)
     }
+    const additions = newAiCount - prevAiCountRef.current
+    if (additions > 0 && aiSuccessCount === null) {
+      setAiSuccessCount(additions)
+      window.setTimeout(() => setAiSuccessCount(null), 3000)
+    }
+    prevAiCountRef.current = newAiCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingAiSuggestedByField])
 

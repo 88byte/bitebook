@@ -6,6 +6,7 @@ import { fetchGuideDoc } from '../../_lib/docs-queries'
 import { relativeOrDate } from '../../_lib/format'
 import EditDocForm from './EditDocForm'
 import DocFilePreview from './DocFilePreview'
+import DocActionsBar from './DocActionsBar'
 
 type Params = Promise<{ id: string }>
 
@@ -55,6 +56,16 @@ export default async function DocDetailPage({ params }: { params: Params }) {
           </p>
         </div>
       </header>
+
+      {/* v27.1.1.0.3d.2.6: top action bar — Save changes / Archive
+          (or Restore) / Delete forever. Save targets the EditDocForm
+          via formId so it works without shared state. */}
+      <DocActionsBar
+        docId={doc.id}
+        isArchived={isArchived}
+        canHardDelete={canHardDelete}
+        tripCount={doc.trip_count}
+      />
 
       {isArchived && (
         <section
@@ -111,9 +122,6 @@ export default async function DocDetailPage({ params }: { params: Params }) {
                 label: doc.label,
                 state: doc.state,
               }}
-              isArchived={isArchived}
-              canHardDelete={canHardDelete}
-              tripCount={doc.trip_count}
             />
           </section>
 
@@ -158,9 +166,6 @@ export default async function DocDetailPage({ params }: { params: Params }) {
                 label: doc.label,
                 state: doc.state,
               }}
-              isArchived={isArchived}
-              canHardDelete={canHardDelete}
-              tripCount={doc.trip_count}
             />
           </section>
         </>
