@@ -26,6 +26,8 @@ export async function requireGuide() {
   if (!user) redirect('/login?next=/app')
 
   // Fire both reads in parallel — they're independent, both keyed on user.id.
+  // v27.1.5.1: also pull onboarded_at so the wizard can intercept the first
+  // /app load when it's NULL.
   const [profileRes, guideRes] = await Promise.all([
     supabase
       .from('profiles')
@@ -34,7 +36,7 @@ export async function requireGuide() {
       .maybeSingle(),
     supabase
       .from('guide_profiles')
-      .select('business_name, state, max_party_size')
+      .select('business_name, state, max_party_size, onboarded_at')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])
@@ -51,12 +53,58 @@ export async function requireGuide() {
   if (profile.role === 'hunter') redirect('/app/h')
   if (profile.role !== 'guide') redirect('/?error=guide_only')
 
+  // v27.1.5.1: first-time guide onboarding wizard. If onboarded_at is NULL
+  // bounce into /app/onboarding before rendering any /app screen. The wizard
+  // page itself uses requireGuideForOnboarding() which does NOT redirect, so
+  // there's no loop. Once the wizard completes (server action stamps
+  // onboarded_at), this gate falls through and /app renders normally.
+  const onboardedAt = guideRes.data?.onboarded_at ?? null
+  if (!onboardedAt) redirect('/app/onboarding')
+
   return {
     supabase,
     user,
     profile,
     guide: guideRes.data ?? null,
   }
+}
+
+// v27.1.5.1: variant of requireGuide() used by the onboarding wizard itself
+// to avoid the bounce-back loop. Same auth + role checks but skips the
+// onboarded_at redirect. Returns the (possibly-null) guide row so the wizard
+// can pre-fill business_name + state from any earlier draft.
+export async function requireGuideForOnboarding() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login?next=/app/onboarding')
+
+  const [profileRes, guideRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('guide_profiles')
+      .select('business_name, state, license_number, guide_license_expires_at, onboarded_at')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const { data: profile, error: profileErr } = profileRes
+  if (profileErr) {
+    console.warn('[requireGuideForOnboarding] profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
+    redirect('/?error=profile_unavailable')
+  }
+  if (!profile) redirect('/?error=no_profile')
+  if (profile.role === 'hunter') redirect('/app/h')
+  if (profile.role !== 'guide') redirect('/?error=guide_only')
+
+  // If they've already onboarded, kick them to the dashboard — no value
+  // re-running the wizard.
+  if (guideRes.data?.onboarded_at) redirect('/app')
+
+  return { supabase, user, profile, guide: guideRes.data ?? null }
 }
 
 // v25.1: hunter-side gate. Mirrors requireGuide() but enforces 'hunter'.

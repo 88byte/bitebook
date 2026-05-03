@@ -252,6 +252,7 @@ export type Database = {
           id: string
           license_number: string | null
           max_party_size: number
+          onboarded_at: string | null
           specialties: string[] | null
           state: string | null
           updated_at: string
@@ -265,6 +266,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           max_party_size?: number
+          onboarded_at?: string | null
           specialties?: string[] | null
           state?: string | null
           updated_at?: string
@@ -278,6 +280,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           max_party_size?: number
+          onboarded_at?: string | null
           specialties?: string[] | null
           state?: string | null
           updated_at?: string
