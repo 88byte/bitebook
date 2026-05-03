@@ -106,6 +106,8 @@ export type Database = {
           id: string
           is_ai_suggested: boolean
           is_override: boolean
+          ai_suggested_path: string | null
+          ai_suggested_slot: number | null
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index: number | null
           signature_role: string | null
@@ -121,6 +123,8 @@ export type Database = {
           id?: string
           is_ai_suggested?: boolean
           is_override?: boolean
+          ai_suggested_path?: string | null
+          ai_suggested_slot?: number | null
           mapping_kind: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
           signature_role?: string | null
@@ -136,6 +140,8 @@ export type Database = {
           id?: string
           is_ai_suggested?: boolean
           is_override?: boolean
+          ai_suggested_path?: string | null
+          ai_suggested_slot?: number | null
           mapping_kind?: Database["public"]["Enums"]["doc_mapping_kind"]
           page_index?: number | null
           signature_role?: string | null

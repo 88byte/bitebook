@@ -32,7 +32,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override, is_ai_suggested')
+    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override, is_ai_suggested, ai_suggested_path, ai_suggested_slot')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
@@ -40,12 +40,20 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const existingSlotByField: Record<string, number> = {}
   const existingOverrideByField: Record<string, boolean> = {}
   const existingAiSuggestedByField: Record<string, boolean> = {}
+  const existingAiSuggestedPathByField: Record<string, string> = {}
+  const existingAiSuggestedSlotByField: Record<string, number> = {}
   for (const r of existingRows ?? []) {
     if (r.field_name) {
       existingByField[r.field_name] = r.data_source_path ?? ''
       existingSlotByField[r.field_name] = typeof r.hunter_slot === 'number' ? r.hunter_slot : 0
       existingOverrideByField[r.field_name] = r.is_override === true
       existingAiSuggestedByField[r.field_name] = r.is_ai_suggested === true
+      if (typeof r.ai_suggested_path === 'string' && r.ai_suggested_path.length > 0) {
+        existingAiSuggestedPathByField[r.field_name] = r.ai_suggested_path
+      }
+      if (typeof r.ai_suggested_slot === 'number') {
+        existingAiSuggestedSlotByField[r.field_name] = r.ai_suggested_slot
+      }
     }
   }
 
@@ -80,6 +88,8 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         existingSlotByField={existingSlotByField}
         existingOverrideByField={existingOverrideByField}
         existingAiSuggestedByField={existingAiSuggestedByField}
+        existingAiSuggestedPathByField={existingAiSuggestedPathByField}
+        existingAiSuggestedSlotByField={existingAiSuggestedSlotByField}
         currentStatus={doc.mapping_status}
       />
     </main>

@@ -762,7 +762,14 @@ Rules:
 - For per-hunter fields (catalog perRow=true), set hunter_slot >= 1.
 - For trip-level fields (catalog perRow=false), set hunter_slot=0.
 - slotHint is a regex-derived starting point — override it freely when the PDF page shows the box belongs to a different slot.
-- "confidence":"low" when the box is ambiguous or no catalog path fits.`
+- "confidence":"low" when the box is ambiguous or no catalog path fits.
+
+DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
+- "Tag Report Card" / "Harvest Report Card" / "Bear Tag Report" / "Deer Tag Report" / any "Report Card" field on a state log → MUST map to "hunter_harvest_report_card.identifier" (number) or its sibling fields. NEVER to "hunter_license.*" — a hunter's report card is a separate physical document from their hunting license.
+- "License" / "License #" / "License Number" / "License DOC ID" → "hunter_license.identifier" (or "guide_license.identifier" if the field sits in a guide section).
+- "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
+- "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → "wallet_consumed.identifier" (the harvest tag the hunter punched).
+When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`
 
   const userText = `Form-field list (${fieldsForLLM.length} total):
 ${JSON.stringify(fieldsForLLM)}
@@ -952,6 +959,11 @@ Return the JSON array now.`
       hunter_slot: s.hunter_slot,
       is_override: false,
       is_ai_suggested: true,
+      // v27.1.1.0.3d.2.8: remember the AI's recommendation alongside the
+      // active path so the wizard can offer a one-tap restore after a
+      // manual edit. ai_suggested_path is preserved on guide saves.
+      ai_suggested_path: s.data_source_path,
+      ai_suggested_slot: s.hunter_slot,
     })
   }
 

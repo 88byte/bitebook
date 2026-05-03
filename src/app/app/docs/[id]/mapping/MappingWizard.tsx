@@ -14,6 +14,8 @@ import {
 import {
   CATEGORY_ORDER,
   CATEGORY_LABELS,
+  DATA_SOURCES,
+  SKIP_VALUE,
   STATIC_TEXT_PREFIX,
   STATIC_DATE_PREFIX,
   STATIC_DATE_RANGE_PREFIX,
@@ -52,6 +54,8 @@ export default function MappingWizard({
   existingSlotByField,
   existingOverrideByField,
   existingAiSuggestedByField,
+  existingAiSuggestedPathByField,
+  existingAiSuggestedSlotByField,
   currentStatus,
 }: {
   docId: string
@@ -60,6 +64,8 @@ export default function MappingWizard({
   existingSlotByField: Record<string, number>
   existingOverrideByField: Record<string, boolean>
   existingAiSuggestedByField: Record<string, boolean>
+  existingAiSuggestedPathByField: Record<string, string>
+  existingAiSuggestedSlotByField: Record<string, number>
   currentStatus: string
 }) {
   const router = useRouter()
@@ -180,6 +186,22 @@ export default function MappingWizard({
     setCompletedAt(null)
   }
 
+  // v27.1.1.0.3d.2.8: revert a manually-edited row back to the AI's
+  // original suggestion. Operates client-side only — guide saves at the
+  // bottom to persist. Doesn't re-run the AI.
+  function handleRestoreAiSuggestion(fieldName: string) {
+    const aiPath = existingAiSuggestedPathByField[fieldName]
+    const aiSlot = existingAiSuggestedSlotByField[fieldName]
+    if (!aiPath) return
+    setSelection((prev) => ({ ...prev, [fieldName]: aiPath }))
+    if (typeof aiSlot === 'number') {
+      setSlotOverrides((prev) => ({ ...prev, [fieldName]: aiSlot }))
+    }
+    setAiSuggestedFlags((prev) => ({ ...prev, [fieldName]: true }))
+    setSavedAt(null)
+    setCompletedAt(null)
+  }
+
   useEffect(() => {
     discover()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -193,9 +215,15 @@ export default function MappingWizard({
   // every 4 seconds for up to 60 seconds. Once any AI row appears OR
   // the timer runs out, polling stops. The manual button remains as a
   // recovery path.
+  // v27.1.1.0.3d.2.8: tightened auto-run heuristic. Engages aiPending
+  // ONLY when the doc has zero rows in doc_field_mappings AT ALL (which
+  // also implies status='unmapped'). Previous logic could fire on a
+  // partially-mapped doc when transient fetch state made existingByField
+  // briefly empty, sending the wizard into a Step 2 → Step 1 loop on
+  // revisit even though the 82 saved rows existed in the DB.
   const initialIsEmpty =
     Object.keys(existingByField).length === 0 &&
-    Object.values(existingAiSuggestedByField).every((v) => !v) &&
+    Object.keys(existingAiSuggestedByField).length === 0 &&
     currentStatus === 'unmapped'
   const [aiPending, setAiPending] = useState<boolean>(initialIsEmpty)
   useEffect(() => {
@@ -551,11 +579,19 @@ export default function MappingWizard({
       ? (slotOverrides[f.name] ?? 0)
       : parsed.slot
     const mirrorPath = effSlot >= 2 ? slot1ByBase.get(parsed.base) ?? null : null
+    // v27.1.1.0.3d.2.8: surface "Use AI suggestion" link when guide has
+    // edited away from AI's original recommendation.
+    const aiOriginalPath = existingAiSuggestedPathByField[f.name] ?? null
+    const currentPath = selection[f.name] ?? ''
+    const aiDiffers =
+      aiOriginalPath !== null &&
+      aiOriginalPath !== '' &&
+      aiOriginalPath !== currentPath
     return (
       <FieldRow
         key={f.name}
         field={f}
-        value={selection[f.name] ?? ''}
+        value={currentPath}
         staticText={staticText[f.name] ?? ''}
         staticDate={staticDate[f.name] ?? ''}
         rangeStart={rangeStart[f.name] ?? ''}
@@ -563,6 +599,7 @@ export default function MappingWizard({
         slotOverride={slotOverrides[f.name] ?? 0}
         isOverride={overrideFlags[f.name] === true}
         isAiSuggested={aiSuggestedFlags[f.name] === true}
+        aiOriginalPath={aiDiffers ? aiOriginalPath : null}
         mirrorPath={mirrorPath}
         onChange={handleDropdownChange}
         onStaticTextChange={handleStaticTextChange}
@@ -570,6 +607,7 @@ export default function MappingWizard({
         onRangeChange={handleRangeChange}
         onSlotChange={handleSlotChange}
         onOverrideToggle={handleOverrideToggle}
+        onRestoreAi={handleRestoreAiSuggestion}
       />
     )
   }
@@ -849,6 +887,20 @@ export default function MappingWizard({
 // v27.1.1.0.3d.2.4: shared step-card layout. Number badge + title +
 // children body. Three tones: 'copper' (primary action), 'success'
 // (post-AI green-ish), 'ink' (neutral, for the review step).
+// v27.1.1.0.3d.2.8: resolve a catalog path to its human label so the
+// "AI suggested: <label> — use this" link reads like prose. Falls back
+// to the raw path when the source isn't in the slot-filtered list.
+function aiOriginalLabel(path: string, sources: DataSourceOption[]): string {
+  if (path === SKIP_VALUE || !path) return 'Skip — leave blank'
+  if (isStaticText(path)) return `"${staticTextValue(path)}"`
+  if (isStaticDate(path)) return staticDateValue(path)
+  const match = sources.find((s) => s.value === path)
+  if (match) return match.label
+  // Search the full catalog as a fallback (slot filter may exclude it).
+  const fallback = DATA_SOURCES.find((s) => s.value === path)
+  return fallback?.label ?? path
+}
+
 function StepCard({
   stepNumber,
   title,
@@ -1171,6 +1223,7 @@ function FieldRow({
   slotOverride,
   isOverride,
   isAiSuggested,
+  aiOriginalPath,
   mirrorPath,
   onChange,
   onStaticTextChange,
@@ -1178,6 +1231,7 @@ function FieldRow({
   onRangeChange,
   onSlotChange,
   onOverrideToggle,
+  onRestoreAi,
 }: {
   field: DocPdfField
   value: string
@@ -1188,6 +1242,7 @@ function FieldRow({
   slotOverride: number
   isOverride: boolean
   isAiSuggested: boolean
+  aiOriginalPath: string | null
   mirrorPath: string | null
   onChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
@@ -1195,6 +1250,7 @@ function FieldRow({
   onRangeChange: (fieldName: string, which: 'start' | 'end', value: string) => void
   onSlotChange: (fieldName: string, slot: number) => void
   onOverrideToggle: (fieldName: string, isOverride: boolean) => void
+  onRestoreAi: (fieldName: string) => void
 }) {
   // v27.1.1.0.3c: source list slot-aware (per-hunter vs trip-level filter).
   // v27.1.1.0.3c.1: slotOverride from doc_field_mappings.hunter_slot wins
@@ -1404,6 +1460,35 @@ function FieldRow({
           ) : null
         )}
       </select>
+
+      {/* v27.1.1.0.3d.2.8: "Use AI suggestion" restore link. Renders only
+          when the AI's saved recommendation differs from the guide's
+          current pick. Tap reverts data_source_path + hunter_slot to
+          the AI values without re-running the whole form. */}
+      {aiOriginalPath !== null && (
+        <button
+          type="button"
+          onClick={() => onRestoreAi(field.name)}
+          className="bb-text-action"
+          style={{
+            alignSelf: 'flex-start',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            fontSize: '0.8rem',
+            color: 'var(--color-copper)',
+            background: 'transparent',
+            border: 'none',
+            padding: '0.1rem 0',
+            cursor: 'pointer',
+          }}
+        >
+          <Sparkles size={11} aria-hidden="true" />
+          AI suggested:{' '}
+          <strong>{aiOriginalLabel(aiOriginalPath, sources)}</strong>
+          {' '}— use this
+        </button>
+      )}
 
       {showsStaticInput && (
         <input
