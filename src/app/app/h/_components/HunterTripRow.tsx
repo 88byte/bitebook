@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, Users, Star } from 'lucide-react'
+import { Calendar, MapPin, Users, Star, AlertCircle } from 'lucide-react'
 import StatusPill from '../../_components/StatusPill'
 import TripDateBlock from '../../_components/TripDateBlock'
 import { tripDay, tripMonth, tripDateRange, formatTripLocation } from '../../_lib/format'
@@ -19,14 +19,20 @@ type Trip = Pick<
 // average — that's on guide-side cards). If they haven't rated yet, the
 // row shows outlined stars + "Rate this trip" hint. Pre-trip / in-field
 // trips render no rating row.
+// v27.1.3.0.6: optional `pendingCount` prop renders an "Action needed"
+// badge under the title when the hunter has unresolved wallet-link
+// actions on this trip (license / tag). Tap the row → trip detail's
+// ActionNeededCard owns the actual link UI.
 export default function HunterTripRow({
   trip,
   hunters,
   rating = null,
+  pendingCount = 0,
 }: {
   trip: Trip
   hunters: number
   rating?: number | null
+  pendingCount?: number
 }) {
   const dateLabel = tripDateRange(trip.starts_at, trip.ends_at)
   const locLabel = formatTripLocation(trip) || (trip.kind === 'fishing' ? 'Fishing' : 'Hunting')
@@ -45,6 +51,28 @@ export default function HunterTripRow({
       <TripDateBlock month={tripMonth(trip.starts_at)} day={tripDay(trip.starts_at)} />
       <div className="bb-trip-body">
         <div className="bb-trip-title">{trip.title}</div>
+        {pendingCount > 0 && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              marginTop: '0.2rem',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '0.15rem 0.5rem',
+              borderRadius: 999,
+              background: '#F2D6CE',
+              color: '#8C3C2A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              alignSelf: 'flex-start',
+            }}
+          >
+            <AlertCircle size={12} aria-hidden="true" />
+            {pendingCount === 1 ? 'Action needed' : `${pendingCount} actions needed`}
+          </div>
+        )}
         <div className="bb-trip-meta">
           <span className="bb-trip-meta-cell">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">

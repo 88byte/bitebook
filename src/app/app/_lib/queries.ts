@@ -99,6 +99,116 @@ export async function fetchHunterMatchingWalletItems(
   return data
 }
 
+// v27.1.3.0.6 — hunter-side cross-trip pending wallet-link surfaces.
+// One row per missing wallet link (license / tag) on each open
+// (planned | active) trip the hunter is on. Used by:
+//   - /app/h dashboard PendingActionsCard alongside trip-doc pending rows
+//   - /app/h/trips trip-card "action needed" badge
+// Tag rows only emit when the trip has species_targeted set (otherwise
+// the trip detail's ActionNeededCard wouldn't render a tag row either).
+export type HunterPendingWalletLink = {
+  trip_id: string
+  trip_title: string
+  trip_starts_at: string
+  trip_state: string | null
+  kind: 'license' | 'tag'
+  species: string | null
+}
+
+export async function fetchHunterPendingWalletLinks(
+  hunterId: string
+): Promise<HunterPendingWalletLink[]> {
+  const supabase = await createClient()
+  // Pull every open trip the hunter is on with the columns we need to
+  // compute label + sort. RLS gates the participant -> trip read.
+  const { data: rows, error } = await supabase
+    .from('trip_participants')
+    .select(
+      `trip:trips!inner(id, title, status, starts_at, state, species_targeted)`
+    )
+    .eq('hunter_id', hunterId)
+    .in('trip.status', ['planned', 'active'])
+  if (error || !rows) {
+    if (error) console.warn('[queries.fetchHunterPendingWalletLinks]', { hunterId, code: error.code, message: error.message })
+    return []
+  }
+  type TripLite = {
+    id: string
+    title: string
+    status: string
+    starts_at: string
+    state: string | null
+    species_targeted: string | null
+  }
+  const trips: TripLite[] = []
+  const seen = new Set<string>()
+  for (const r of rows as Array<{ trip: TripLite | null }>) {
+    if (!r.trip) continue
+    // Defense-in-depth: PostgREST nested .in filters can be flaky.
+    if (r.trip.status !== 'planned' && r.trip.status !== 'active') continue
+    if (seen.has(r.trip.id)) continue
+    seen.add(r.trip.id)
+    trips.push(r.trip)
+  }
+  if (trips.length === 0) return []
+
+  // Pull the hunter's existing wallet-link rows across all those trips
+  // in a single query, then bucket by trip_id.
+  const tripIds = trips.map((t) => t.id)
+  const { data: linkRows, error: linkErr } = await supabase
+    .from('trip_wallet_items')
+    .select('trip_id, wallet_items!inner(type)')
+    .eq('hunter_id', hunterId)
+    .in('trip_id', tripIds)
+  if (linkErr) {
+    console.warn('[queries.fetchHunterPendingWalletLinks.links]', { hunterId, code: linkErr.code, message: linkErr.message })
+    return []
+  }
+  const linkedKindsByTrip = new Map<string, Set<string>>()
+  for (const row of (linkRows ?? []) as Array<{ trip_id: string; wallet_items: { type: string } | null }>) {
+    const t = row.wallet_items?.type
+    if (!t) continue
+    const set = linkedKindsByTrip.get(row.trip_id) ?? new Set<string>()
+    set.add(t)
+    linkedKindsByTrip.set(row.trip_id, set)
+  }
+
+  const out: HunterPendingWalletLink[] = []
+  for (const trip of trips) {
+    const linked = linkedKindsByTrip.get(trip.id) ?? new Set<string>()
+    if (!linked.has('license')) {
+      out.push({
+        trip_id: trip.id,
+        trip_title: trip.title,
+        trip_starts_at: trip.starts_at,
+        trip_state: trip.state,
+        kind: 'license',
+        species: null,
+      })
+    }
+    if (trip.species_targeted && !linked.has('tag')) {
+      out.push({
+        trip_id: trip.id,
+        trip_title: trip.title,
+        trip_starts_at: trip.starts_at,
+        trip_state: trip.state,
+        kind: 'tag',
+        species: trip.species_targeted,
+      })
+    }
+  }
+  // Sort by trip start ascending so the most-imminent trip surfaces first.
+  out.sort((a, b) => {
+    const ta = new Date(a.trip_starts_at).getTime()
+    const tb = new Date(b.trip_starts_at).getTime()
+    if (ta !== tb) return ta - tb
+    // license before tag inside the same trip
+    if (a.kind !== b.kind) return a.kind === 'license' ? -1 : 1
+    return 0
+  })
+  return out
+}
+
 export type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
 export async function fetchSpecies(
   kind?: 'hunting' | 'fishing'

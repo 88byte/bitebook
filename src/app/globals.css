@@ -1451,10 +1451,17 @@ body {
 /* v27.1.3.0.4: bump form-narrow at desktop widths so the trip detail
    action row + editor + docs card all share more horizontal real
    estate. Pages that wrap their entire content in bb-form-narrow
-   (trip detail) feel less off-center on a 1280px+ viewport. */
+   (trip detail) feel less off-center on a 1280px+ viewport.
+   v27.1.3.0.6: switch to LEFT-ALIGNED at desktop. Centered + 56rem read
+   "mobile-shaped" on a 1280px+ viewport because the column had wide empty
+   gutters on both sides. Anchoring to the left edge of bb-app-main (with
+   a small breathing-room nudge) makes desktop pages feel like a proper
+   desktop layout while mobile keeps the centered single-column form. */
 @media (min-width: 64rem) {
   .bb-form-narrow {
     max-width: 56rem;
+    margin-left: 0;
+    margin-right: auto;
   }
 }
 
@@ -2165,10 +2172,14 @@ body {
   flex: 0 0 100%;
   /* v27.1.3.0.4: cap card width so the deck stays mobile-card-shaped at
      desktop widths. Without this, flex:0 0 100% inside a wide hero
-     banner stretched the card across the whole container — looked like
-     a CSS bug, was a missing max-width. 22rem ≈ 352px keeps it close
-     to a real wallet/credit-card aspect at every breakpoint. */
-  max-width: 22rem;
+     banner stretched the card across the whole container.
+     v27.1.3.0.6: bumped from 22rem → 28rem because the absolute-positioned
+     guide-license eyebrow + watermark layout was clipping at 352px wide
+     ("IDE LICENSE" cut off at the left edge). 28rem (~448px) gives those
+     positioned children room to breathe while still keeping the card
+     close to a real wallet aspect on phones. Cap is dropped entirely at
+     >=64rem (desktop) so the deck card can scale with its flex slot. */
+  max-width: 28rem;
   scroll-snap-align: start;
   min-height: 200px;
   border-radius: 16px;
@@ -2381,6 +2392,17 @@ body {
   }
   .bb-wallet-stats {
     grid-auto-columns: minmax(80px, 1fr);
+  }
+}
+
+/* v27.1.3.0.6: drop the mobile-shaped 28rem cap entirely at desktop widths
+   so the deck card can grow into its flex slot. Without this, on a 1280px+
+   viewport the cap kept the card stuck at ~448px even though the carousel
+   slot had room for a much larger card — and that's where the absolute-
+   positioned guide-license rows started looking sparse. */
+@media (min-width: 64rem) {
+  .bb-wallet-card {
+    max-width: none;
   }
 }
 

@@ -4,11 +4,20 @@
 // the trip detail already has the per-doc context the hunter needs).
 //
 // Renders as a `bb-tile` with header + an inline list. Returns null when
-// the actions array is empty so the parent doesn't render an empty header.
+// there is nothing pending so the parent doesn't render an empty header.
+//
+// v27.1.3.0.6 — broadened to render two kinds of rows in one merged list:
+//   1. trip-doc actions (sign / view) — existing HunterPendingAction
+//   2. wallet-link pendings (license / tag) — new HunterPendingWalletLink
+// Both kinds tap through to /app/h/trips/[id]; the trip detail's
+// ActionNeededCard owns the actual link / acknowledge UI. We surface the
+// list cross-trip here so the hunter sees outstanding work without
+// having to open every upcoming trip individually.
 
 import Link from 'next/link'
 import { AlertCircle, ArrowRight, type LucideIcon } from 'lucide-react'
 import type { HunterPendingAction } from '../../_lib/trip-doc-queries'
+import type { HunterPendingWalletLink } from '../../_lib/queries'
 
 function actionTypeLabel(actionType: string): string {
   if (actionType === 'sign') return 'Sign'
@@ -16,12 +25,29 @@ function actionTypeLabel(actionType: string): string {
   return actionType
 }
 
+// Discriminated union — UI is identical on the surface, but each kind
+// has its own copy + required-pill rules.
+type PendingItem =
+  | { kind: 'doc'; data: HunterPendingAction }
+  | { kind: 'wallet'; data: HunterPendingWalletLink }
+
 export default function PendingActionsCard({
   actions,
+  walletLinks,
 }: {
   actions: HunterPendingAction[]
+  walletLinks: HunterPendingWalletLink[]
 }) {
-  if (actions.length === 0) return null
+  if (actions.length === 0 && walletLinks.length === 0) return null
+
+  // Merge into one list. Wallet links surface first (license / tag block
+  // a hunter from being legal in the field — that's the higher-stakes
+  // pending item than acknowledging a doc), then trip-doc actions.
+  const items: PendingItem[] = [
+    ...walletLinks.map((w) => ({ kind: 'wallet' as const, data: w })),
+    ...actions.map((a) => ({ kind: 'doc' as const, data: a })),
+  ]
+
   return (
     <section
       className="bb-tile bb-form-section"
@@ -42,23 +68,40 @@ export default function PendingActionsCard({
           Pending actions
         </h2>
         <p className="bb-form-help" style={{ marginTop: '-0.3rem', marginBottom: '0.5rem' }}>
-          Open the trip to acknowledge each one.
+          Open the trip to take care of each one.
         </p>
         <div className="flex flex-col gap-2">
-          {actions.map((a) => (
-            <PendingActionRow key={a.id} action={a} />
-          ))}
+          {items.map((item) =>
+            item.kind === 'wallet' ? (
+              <PendingWalletRow
+                key={`w-${item.data.trip_id}-${item.data.kind}`}
+                item={item.data}
+              />
+            ) : (
+              <PendingActionRow key={`a-${item.data.id}`} action={item.data} />
+            )
+          )}
         </div>
       </div>
     </section>
   )
 }
 
-function PendingActionRow({ action }: { action: HunterPendingAction }) {
+function RowShell({
+  href,
+  primary,
+  pill,
+  secondary,
+}: {
+  href: string
+  primary: string
+  pill?: { label: string; bg: string; fg: string } | null
+  secondary: string
+}) {
   const ArrowIcon: LucideIcon = ArrowRight
   return (
     <Link
-      href={`/app/h/trips/${action.trip_id}`}
+      href={href}
       className="bb-tile"
       style={{
         textDecoration: 'none',
@@ -90,9 +133,9 @@ function PendingActionRow({ action }: { action: HunterPendingAction }) {
               minWidth: 0,
             }}
           >
-            {action.trip_title}
+            {primary}
           </span>
-          {action.required && (
+          {pill && (
             <span
               style={{
                 flexShrink: 0,
@@ -100,14 +143,14 @@ function PendingActionRow({ action }: { action: HunterPendingAction }) {
                 fontWeight: 700,
                 padding: '0.15rem 0.45rem',
                 borderRadius: 999,
-                background: '#F2D6CE',
-                color: '#8C3C2A',
+                background: pill.bg,
+                color: pill.fg,
                 whiteSpace: 'nowrap',
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
               }}
             >
-              Required
+              {pill.label}
             </span>
           )}
         </div>
@@ -118,7 +161,7 @@ function PendingActionRow({ action }: { action: HunterPendingAction }) {
             marginTop: '0.15rem',
           }}
         >
-          {actionTypeLabel(action.action_type)} · {action.doc_label}
+          {secondary}
         </div>
       </div>
       <span
@@ -139,5 +182,41 @@ function PendingActionRow({ action }: { action: HunterPendingAction }) {
         <ArrowIcon size={14} />
       </span>
     </Link>
+  )
+}
+
+function PendingActionRow({ action }: { action: HunterPendingAction }) {
+  return (
+    <RowShell
+      href={`/app/h/trips/${action.trip_id}`}
+      primary={action.trip_title}
+      pill={
+        action.required
+          ? { label: 'Required', bg: '#F2D6CE', fg: '#8C3C2A' }
+          : null
+      }
+      secondary={`${actionTypeLabel(action.action_type)} · ${action.doc_label}`}
+    />
+  )
+}
+
+function PendingWalletRow({ item }: { item: HunterPendingWalletLink }) {
+  // Plain-English copy that mirrors what the trip-detail ActionNeededCard
+  // shows ("Your CA hunting license", "Your buck tag"). Wallet pendings
+  // are always treated as Required — a hunter without a license / tag
+  // shouldn't be in the field, period.
+  const label =
+    item.kind === 'license'
+      ? item.trip_state
+        ? `Link your ${item.trip_state} hunting license`
+        : 'Link your hunting license'
+      : `Link your ${item.species ?? ''} tag`.trim()
+  return (
+    <RowShell
+      href={`/app/h/trips/${item.trip_id}`}
+      primary={item.trip_title}
+      pill={{ label: 'Required', bg: '#F2D6CE', fg: '#8C3C2A' }}
+      secondary={label}
+    />
   )
 }

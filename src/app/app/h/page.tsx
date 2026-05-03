@@ -6,6 +6,7 @@ import {
   fetchHunterUpcomingTrips,
   fetchHunterRecentTrips,
   fetchHunterStats,
+  fetchHunterPendingWalletLinks,
 } from '../_lib/queries'
 import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
 import { fetchHunterPendingActions } from '../_lib/trip-doc-queries'
@@ -20,13 +21,23 @@ import DashboardHero from '../_components/DashboardHero'
 export default async function HunterDashboardPage() {
   const { supabase, user, profile } = await requireHunter()
 
-  const [upcoming, recent, stats, progress, pendingActions] = await Promise.all([
+  const [upcoming, recent, stats, progress, pendingActions, pendingWalletLinks] = await Promise.all([
     fetchHunterUpcomingTrips(profile.id),
     fetchHunterRecentTrips(profile.id),
     fetchHunterStats(profile.id),
     fetchHunterOnboardingProgress(supabase, user.id),
     fetchHunterPendingActions(profile.id),
+    fetchHunterPendingWalletLinks(profile.id),
   ])
+
+  // v27.1.3.0.6 — pending-link counts per trip drive the small "Action
+  // needed" badge on each upcoming-trip card. Cross-trip pendings live
+  // in the PendingActionsCard tile below, but on the row itself we just
+  // need a number so the hunter can spot which trip needs attention.
+  const pendingByTripId = new Map<string, number>()
+  for (const w of pendingWalletLinks) {
+    pendingByTripId.set(w.trip_id, (pendingByTripId.get(w.trip_id) ?? 0) + 1)
+  }
 
   const showBanner = !isHunterOnboarded(progress)
   const upcomingCount = upcoming.length
@@ -75,16 +86,19 @@ export default async function HunterDashboardPage() {
           <div role="list" className="flex flex-col gap-3">
             {upcoming.map((t) => (
               <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} />
+                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
               </div>
             ))}
           </div>
         )}
       </section>
 
-      {pendingActions.length > 0 && (
+      {(pendingActions.length > 0 || pendingWalletLinks.length > 0) && (
         <div className="mt-5">
-          <PendingActionsCard actions={pendingActions} />
+          <PendingActionsCard
+            actions={pendingActions}
+            walletLinks={pendingWalletLinks}
+          />
         </div>
       )}
 
@@ -111,7 +125,7 @@ export default async function HunterDashboardPage() {
           <div role="list" className="flex flex-col gap-3">
             {recent.map((t) => (
               <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} />
+                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
               </div>
             ))}
           </div>

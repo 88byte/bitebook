@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { requireHunter } from '../../_lib/auth'
-import { fetchHunterTripsPage } from '../../_lib/queries'
+import {
+  fetchHunterTripsPage,
+  fetchHunterPendingWalletLinks,
+} from '../../_lib/queries'
 import HunterTripRow from '../_components/HunterTripRow'
 import DashboardHero from '../../_components/DashboardHero'
 import type { Database } from '@/lib/supabase/types'
@@ -34,8 +37,19 @@ export default async function HunterTripsListPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  const { rows, total } = await fetchHunterTripsPage(profile.id, { status, from, to })
+  const [{ rows, total }, pendingWalletLinks] = await Promise.all([
+    fetchHunterTripsPage(profile.id, { status, from, to }),
+    // v27.1.3.0.6 — same cross-trip pending feed used on the dashboard.
+    // Returns rows only for planned/active trips, so wrapped/canceled
+    // rows in this list never get a badge (they default to count 0).
+    fetchHunterPendingWalletLinks(profile.id),
+  ])
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const pendingByTripId = new Map<string, number>()
+  for (const w of pendingWalletLinks) {
+    pendingByTripId.set(w.trip_id, (pendingByTripId.get(w.trip_id) ?? 0) + 1)
+  }
 
   function chipHref(key: TripStatus | 'all') {
     const sp = new URLSearchParams()
@@ -98,7 +112,12 @@ export default async function HunterTripsListPage({
           <div role="list" className="flex flex-col gap-4">
             {rows.map((t) => (
               <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} />
+                <HunterTripRow
+                  trip={t}
+                  hunters={t.hunters}
+                  rating={t.rating}
+                  pendingCount={pendingByTripId.get(t.id) ?? 0}
+                />
               </div>
             ))}
           </div>
