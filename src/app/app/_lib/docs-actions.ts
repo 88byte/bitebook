@@ -6,6 +6,7 @@
 
 import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
@@ -116,6 +117,26 @@ export async function createDocAction(fd: FormData): Promise<DocActionResult> {
   }
 
   revalidatePath('/app/docs')
+
+  // v27.1.1.0.3d.2: auto-fire AI suggestions for log uploads. Runs after
+  // the response is sent so upload UX isn't blocked. ANTHROPIC_API_KEY
+  // missing → server-side log + no row inserted; manual button stays as
+  // recovery path.
+  if (kind === 'log') {
+    const newDocId = inserted.id
+    after(async () => {
+      try {
+        const res = await suggestMappingsAction(newDocId)
+        if ('error' in res) {
+          console.warn('[docs.createDocAction:auto-suggest]', { docId: newDocId, error: res.error })
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.warn('[docs.createDocAction:auto-suggest:throw]', { docId: newDocId, msg })
+      }
+    })
+  }
+
   return { ok: true, id: inserted.id }
 }
 
@@ -674,6 +695,25 @@ export async function suggestMappingsAction(
     return { error: 'PDF has no fillable fields to suggest mappings for.' }
   }
 
+  // v27.1.1.0.3d.2: also download the raw PDF binary so we can pass it to
+  // Claude as a `document` content block. Vision context (page layout,
+  // section headings, label proximity) lifts mapping accuracy on state
+  // forms whose field names alone are ambiguous (e.g. CDFW 992-B's
+  // 5-hunter columns or hunter×species 2D species rows).
+  let pdfBase64: string | null = null
+  try {
+    const { data: blob } = await sb.storage.from('bb-private').download(doc.file_path)
+    if (blob) {
+      const buf = Buffer.from(await blob.arrayBuffer())
+      pdfBase64 = buf.toString('base64')
+    }
+  } catch (e: unknown) {
+    // Vision is additive — if download fails we still call Claude with
+    // text-only prompt and log a warning.
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn('[docs.suggestMappingsAction:pdf-download]', { msg })
+  }
+
   // Build a compact catalog payload for the LLM. Drop verbose fields and
   // the static-text/static-date sentinels — the LLM should map to a real
   // path or 'skip'. Sentinels are guide-only intents.
@@ -705,26 +745,50 @@ export async function suggestMappingsAction(
 
   const systemPrompt = `You map PDF form-field names to data-source paths for a hunting/fishing guide log auto-fill tool.
 
+You are given:
+1. The PDF itself as a document (visual context — labels, section headings, hunter columns, where each box sits on the page).
+2. A list of form-field internal names (with detected type + a slotHint).
+3. A catalog of data-source paths the auto-fill engine knows how to resolve.
+
+Use the PDF's layout to disambiguate. Section headings like "Hunter 1 / Hunter 2", repeating columns, or labels printed next to each box almost always tell you the right slot AND the right source — the internal field name often doesn't.
+
 Rules:
 - Return ONE JSON array, no prose, no markdown fences.
-- One entry per PDF field, in the order given.
-- Each entry: {"field_name":"<exact name>", "path":"<catalog path or 'skip'>", "hunter_slot": <0..5>, "confidence":"high"|"medium"|"low"}.
+- One entry per form-field, in the order given.
+- Each entry: {"field_name":"<exact internal name>", "path":"<catalog path or 'skip'>", "hunter_slot": <0..5>, "confidence":"high"|"medium"|"low"}.
 - "path" must EXACTLY match a catalog "path" string OR be "skip" (no fit).
-- "hunter_slot" 0 = trip-level (not per-hunter). 1..5 = which hunter row.
+- "hunter_slot" 0 = trip-level (not per-hunter). 1..5 = which hunter column the box belongs to (read off the PDF page).
 - For checkbox fields, choose a path with valueType="boolean" or "skip".
 - For text fields, choose valueType="string" or "skip".
 - For per-hunter fields (catalog perRow=true), set hunter_slot >= 1.
 - For trip-level fields (catalog perRow=false), set hunter_slot=0.
-- Use slotHint as a strong default — only override when the field name clearly says otherwise.
-- "confidence":"low" when the field is ambiguous or the catalog has no good fit.`
+- slotHint is a regex-derived starting point — override it freely when the PDF page shows the box belongs to a different slot.
+- "confidence":"low" when the box is ambiguous or no catalog path fits.`
 
-  const userPrompt = `PDF fields (${fieldsForLLM.length} total):
+  const userText = `Form-field list (${fieldsForLLM.length} total):
 ${JSON.stringify(fieldsForLLM)}
 
 Data source catalog (${catalogForLLM.length} options):
 ${JSON.stringify(catalogForLLM)}
 
 Return the JSON array now.`
+
+  // v27.1.1.0.3d.2: assemble the message content. PDF document block
+  // first (Claude reads it before the question), then the form-field
+  // list + catalog as text. Drop to text-only if PDF download failed.
+  type DocumentBlock = {
+    type: 'document'
+    source: { type: 'base64'; media_type: 'application/pdf'; data: string }
+  }
+  type TextBlock = { type: 'text'; text: string }
+  const userContent: Array<DocumentBlock | TextBlock> = []
+  if (pdfBase64) {
+    userContent.push({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+    })
+  }
+  userContent.push({ type: 'text', text: userText })
 
   let parsed: Array<{
     field_name: string
@@ -738,7 +802,8 @@ Return the JSON array now.`
       model: 'claude-sonnet-4-6',
       max_tokens: 8000,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: [{ role: 'user', content: userContent as any }],
     })
     const block = resp.content.find((b) => b.type === 'text')
     if (!block || block.type !== 'text') {

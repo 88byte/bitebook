@@ -169,6 +169,42 @@ export default function MappingWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
 
+  // v27.1.1.0.3d.2: pending-suggestions detector. When a fresh log
+  // upload kicks off auto-run via createDocAction's after(), the AI
+  // call lands on a Vercel function that completes after the wizard
+  // page is already rendered. We detect "nothing saved yet, status
+  // unmapped" → poll for new is_ai_suggested rows by router.refresh()
+  // every 4 seconds for up to 60 seconds. Once any AI row appears OR
+  // the timer runs out, polling stops. The manual button remains as a
+  // recovery path.
+  const initialIsEmpty =
+    Object.keys(existingByField).length === 0 &&
+    Object.values(existingAiSuggestedByField).every((v) => !v) &&
+    currentStatus === 'unmapped'
+  const [aiPending, setAiPending] = useState<boolean>(initialIsEmpty)
+  useEffect(() => {
+    if (!aiPending) return
+    let elapsed = 0
+    const tick = setInterval(() => {
+      elapsed += 4000
+      router.refresh()
+      if (elapsed >= 60000) {
+        setAiPending(false)
+        clearInterval(tick)
+      }
+    }, 4000)
+    return () => clearInterval(tick)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiPending])
+  // Cancel pending state the moment any AI row hydrates from the server
+  // (router.refresh re-mounts the wizard with the new prop).
+  useEffect(() => {
+    if (aiPending && Object.values(existingAiSuggestedByField).some((v) => v)) {
+      setAiPending(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAiSuggestedByField])
+
   function discover() {
     setLoadingFields(true)
     setExtractError(null)
@@ -422,9 +458,10 @@ export default function MappingWizard({
 
   return (
     <section className="mt-4 flex flex-col gap-3">
-      {/* v27.1.1.0.3d: Auto-suggest button. Calls Claude Haiku 4.5 to
-          pre-fill rows the guide can review (look for the ✨ AI badge).
-          Doesn't clobber confirmed mappings. */}
+      {/* v27.1.1.0.3d.2: Auto-suggest tile. Sonnet 4.6 + PDF vision
+          input. Auto-runs on first upload from createDocAction; shows a
+          pending banner until rows arrive. Manual button stays for
+          re-running or for docs uploaded before this build. */}
       <div
         className="bb-tile"
         style={{
@@ -435,19 +472,41 @@ export default function MappingWizard({
           alignItems: 'center',
         }}
       >
-        <button
-          type="button"
-          className="bb-cta-sm"
-          onClick={handleSuggestMappings}
-          disabled={pending || aiSuggesting}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-        >
-          <Sparkles size={14} aria-hidden="true" />
-          {aiSuggesting ? 'Asking AI…' : 'Auto-suggest mappings'}
-        </button>
-        <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-          AI reads each PDF box and pre-fills the data source &mdash; you review and confirm.
-        </span>
+        {aiPending ? (
+          <>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontWeight: 600,
+                color: 'var(--color-copper)',
+              }}
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              AI is reading your PDF…
+            </span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+              Suggestions usually land in 10&ndash;20 seconds. This page refreshes itself.
+            </span>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="bb-cta-sm"
+              onClick={handleSuggestMappings}
+              disabled={pending || aiSuggesting}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              {aiSuggesting ? 'Asking AI…' : 'Auto-suggest mappings'}
+            </button>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+              AI reads your PDF and pre-fills each box &mdash; you review and confirm.
+            </span>
+          </>
+        )}
         {aiResultMsg && (
           <p
             className="bb-form-help"
