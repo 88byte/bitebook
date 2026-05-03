@@ -16,6 +16,30 @@ export const WALLET_TYPES_HUNTER: WalletItemType[] = [
   'harvest_report_card',
 ]
 
+// v27.1.5.2 — hunter wallet primary/secondary split. License + Tag are
+// the everyday-use types; Permit / Stamp / Harvest Report Card are
+// less common and collapse under a "More types" toggle on the hunter
+// wallet page (with auto-expand when the hunter has any items in
+// those types).
+//
+// Note: WALLET_TYPES_HUNTER above remains the full set — used by
+// WalletItemForm to decide which type options a hunter can pick when
+// adding a card. The simplification is UI-only: hunters can still
+// create permit / stamp / report-card cards from the form, they just
+// don't see the type tab unless they ask for it.
+//
+// Guide-side WALLET_TYPES_GUIDE deliberately has NO primary/secondary
+// split — guides need Guide License + Insurance + Business Credentials
+// all front-and-center for compliance, none of them are "rare" types
+// to hide.
+export const WALLET_TYPES_HUNTER_PRIMARY: WalletItemType[] = ['license', 'tag']
+
+export const WALLET_TYPES_HUNTER_SECONDARY: WalletItemType[] = [
+  'permit',
+  'stamp',
+  'harvest_report_card',
+]
+
 export const WALLET_TYPES_GUIDE: WalletItemType[] = [
   'guide_license',
   'insurance',

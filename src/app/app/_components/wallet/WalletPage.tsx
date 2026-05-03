@@ -15,6 +15,8 @@ import {
   BadgeCheck,
   Plus,
   CalendarCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -55,8 +57,15 @@ const TYPE_EYEBROW: Record<WalletItemType, string> = {
 type Props = {
   /** Path prefix for "Add new" / edit links — '/app/h/wallet' or '/app/wallet'. */
   basePath: '/app/h/wallet' | '/app/wallet'
-  /** Tabs to render, in display order. */
+  /** Primary tabs — always visible. */
   tabs: WalletItemType[]
+  /** v27.1.5.2: secondary tabs collapsed under a "More types" toggle.
+   * Currently only used by the hunter wallet for permit / stamp /
+   * harvest_report_card. Auto-expanded on mount when any secondary
+   * type already has items so we never accidentally hide active
+   * inventory. Guide wallet passes [] (or omits) to keep all three of
+   * its types primary. */
+  secondaryTabs?: WalletItemType[]
   /** Items grouped by type. */
   groups: Map<WalletItemType, WalletItemWithStatus[]>
   /** v27.0b.7.2: current user's display name (or email-local fallback).
@@ -65,20 +74,42 @@ type Props = {
   holderName?: string | null
 }
 
-export default function WalletPage({ basePath, tabs, groups, holderName }: Props) {
+export default function WalletPage({
+  basePath,
+  tabs,
+  secondaryTabs = [],
+  groups,
+  holderName,
+}: Props) {
   // v27.0b.7: persist active tab in URL ?type=. Hydrates from the current
   // search params on mount so a refresh / back-from-edit lands on the
   // tab the user was viewing. Falls back to first tab if param missing
   // or invalid.
+  // v27.1.5.2: secondary tabs (hunter Permit / Stamp / Report Card) are
+  // accepted as valid initial tabs too — if the user's URL points at one,
+  // we honor it AND auto-expand the More-types section so the
+  // corresponding stat card is on screen.
   const router = useRouter()
   const pathname = usePathname()
   const search = useSearchParams()
+  const allTabs = [...tabs, ...secondaryTabs]
   const initialTab = (() => {
     const t = search.get('type')
-    if (t && (tabs as readonly string[]).includes(t)) return t as WalletItemType
+    if (t && (allTabs as readonly string[]).includes(t)) return t as WalletItemType
     return tabs[0] ?? 'license'
   })()
   const [activeTab, setActiveTab] = useState<WalletItemType>(initialTab)
+
+  // v27.1.5.2: "More types" disclosure. Default-expanded when any
+  // secondary type already has items (so a hunter who's added a stamp
+  // doesn't have to re-discover the stamp tab on next visit) OR when
+  // the URL's ?type= points at one of the secondary tabs. Otherwise
+  // collapsed — License + Tag are the everyday view.
+  const initialMoreOpen =
+    secondaryTabs.length > 0 &&
+    (secondaryTabs.some((t) => (groups.get(t) ?? []).length > 0) ||
+      (secondaryTabs as readonly string[]).includes(initialTab))
+  const [moreOpen, setMoreOpen] = useState<boolean>(initialMoreOpen)
 
   // Push the new tab into the URL whenever the user switches. Use
   // router.replace so back/forward isn't polluted with every tab toggle.
@@ -113,7 +144,7 @@ export default function WalletPage({ basePath, tabs, groups, holderName }: Props
           is the SOLE type selector — pill chips were removed in v27.0a.6
           since they duplicated this control. */}
       <div className="bb-wallet-stats mt-3" role="tablist" aria-label="Wallet category counts">
-        {tabs.map((t) => {
+        {[...tabs, ...(moreOpen ? secondaryTabs : [])].map((t) => {
           const isActive = activeTab === t
           const TypeIcon = TAB_ICONS[t]
           return (
@@ -134,6 +165,44 @@ export default function WalletPage({ basePath, tabs, groups, holderName }: Props
           )
         })}
       </div>
+
+      {/* v27.1.5.2: "More types" toggle for secondary tabs (hunter
+          permit / stamp / harvest_report_card). Hidden entirely when
+          there are no secondary tabs to show (guide wallet). */}
+      {secondaryTabs.length > 0 && (
+        <div
+          className="mt-2"
+          style={{ display: 'flex', justifyContent: 'flex-start' }}
+        >
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            className="bb-text-action bb-text-action-copper"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontSize: '0.78rem',
+            }}
+          >
+            {moreOpen ? (
+              <>
+                <ChevronUp size={14} aria-hidden="true" />
+                Hide other types
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} aria-hidden="true" />
+                More types
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* v27.0b.8: Add button relocated here from the hero — appears
           between stats and section content. */}
