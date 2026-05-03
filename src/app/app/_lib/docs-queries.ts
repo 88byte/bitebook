@@ -13,7 +13,7 @@ export type DocSummary = DocRow & {
 }
 
 const DOC_COLS =
-  'id, guide_id, kind, label, state, file_path, file_mime, form_template_hash, mapping_status, archived_at, created_at, updated_at' as const
+  'id, guide_id, kind, label, state, file_path, file_mime, form_template_hash, mapping_status, archived_at, is_template, created_at, updated_at' as const
 
 export async function fetchGuideDocs(
   guideId: string,
@@ -57,10 +57,14 @@ export async function fetchGuideDoc(
   docId: string
 ): Promise<DocSummary | null> {
   const sb = await createClient()
+  // v27.1.1.0.3e: drop the `.eq('guide_id', ...)` defense-in-depth filter so
+  // non-owner viewers can resolve a Bite Book template (RLS still gates the
+  // read via docs_template_select). The doc-detail page reads guide_id off
+  // the row to compute viewerOwnsDoc and falls into a read-only branch when
+  // the caller isn't the owner.
   const { data, error } = await sb
     .from('docs')
     .select(DOC_COLS)
-    .eq('guide_id', guideId)
     .eq('id', docId)
     .maybeSingle()
   if (error) {
@@ -68,6 +72,10 @@ export async function fetchGuideDoc(
     return null
   }
   if (!data) return null
+  // Defense-in-depth: only owners or template viewers should resolve. RLS
+  // already enforces this; we double-check here so a misconfigured policy
+  // can't leak someone else's library doc.
+  if (data.guide_id !== guideId && !data.is_template) return null
   const { count } = await sb
     .from('trip_docs')
     .select('*', { count: 'exact', head: true })
@@ -75,11 +83,36 @@ export async function fetchGuideDoc(
   return { ...data, trip_count: count ?? 0 }
 }
 
+// v27.1.1.0.3e — Bite Book templates section on the library page. Returns
+// is_template=true docs the caller does NOT own (their own templates already
+// appear in their library). RLS policy `docs_template_select` lets any
+// authenticated user read template rows; this query just filters them.
+export async function fetchBiteBookTemplates(profileId: string): Promise<DocSummary[]> {
+  const sb = await createClient()
+  const { data, error } = await sb
+    .from('docs')
+    .select(DOC_COLS)
+    .eq('is_template', true)
+    .is('archived_at', null)
+    .neq('guide_id', profileId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.warn('[docs.fetchBiteBookTemplates]', { code: error.code, message: error.message })
+    return []
+  }
+  if (!data || data.length === 0) return []
+  // Templates aren't attached to trips on the viewer's side; trip_count is
+  // always 0 here. The DocRow component still reads the field, so we keep
+  // the shape consistent.
+  return data.map((d) => ({ ...d, trip_count: 0 }))
+}
+
 export type DocCountsByKind = {
   all: number
   waiver: number
   log: number
   resource: number
+  templates: number
 }
 
 export async function fetchGuideDocCounts(guideId: string): Promise<DocCountsByKind> {
@@ -91,12 +124,22 @@ export async function fetchGuideDocCounts(guideId: string): Promise<DocCountsByK
     .is('archived_at', null)
   if (error) {
     console.warn('[docs.fetchGuideDocCounts]', { code: error.code, message: error.message })
-    return { all: 0, waiver: 0, log: 0, resource: 0 }
+    return { all: 0, waiver: 0, log: 0, resource: 0, templates: 0 }
   }
-  const counts: DocCountsByKind = { all: 0, waiver: 0, log: 0, resource: 0 }
+  const counts: DocCountsByKind = { all: 0, waiver: 0, log: 0, resource: 0, templates: 0 }
   for (const r of data ?? []) {
     counts.all += 1
     counts[r.kind] += 1
   }
+  // v27.1.1.0.3e: count of non-owner templates this guide can see. Cheap
+  // head-count query against the same RLS-gated set fetchBiteBookTemplates
+  // returns rows for.
+  const { count: tplCount } = await sb
+    .from('docs')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_template', true)
+    .is('archived_at', null)
+    .neq('guide_id', guideId)
+  counts.templates = tplCount ?? 0
   return counts
 }

@@ -282,6 +282,60 @@ export async function deleteDocAction(docId: string): Promise<DocActionResult> {
 }
 
 // ==========================================================================
+// v27.1.1.0.3e — Bite Book templates: admin-only is_template toggle
+// ==========================================================================
+//
+// Flips docs.is_template on a doc the admin owns. RLS policy
+// `docs_template_select` is what lets every other authenticated user read
+// the row once the flag is on; this action is just the write path. Gated
+// on email match against the hardcoded admin address — kept out of any
+// env var so a misconfigured Vercel deploy can't widen the gate.
+
+const TEMPLATE_ADMIN_EMAIL = 'flaviod022@gmail.com'
+
+export async function setDocTemplateFlagAction(
+  docId: string,
+  makeTemplate: boolean
+): Promise<DocActionResult> {
+  const { user, profile } = await requireGuide()
+  if (!docId) return { error: 'Missing doc id.' }
+
+  if ((user.email ?? '').toLowerCase() !== TEMPLATE_ADMIN_EMAIL) {
+    return { error: 'Only the Bite Book admin can manage templates.' }
+  }
+
+  const sb = await createClient()
+
+  // Verify the doc belongs to the calling guide. We don't trust the
+  // client-side gate alone — the RLS policy does too, but defending in
+  // depth keeps a stray write off someone else's row even if a future
+  // policy regression slips through.
+  const { data: cur } = await sb
+    .from('docs')
+    .select('id, guide_id')
+    .eq('id', docId)
+    .maybeSingle()
+  if (!cur) return { error: 'Doc not found.' }
+  if (cur.guide_id !== profile.id) {
+    return { error: 'You can only flag your own docs as templates.' }
+  }
+
+  const { error } = await sb
+    .from('docs')
+    .update({ is_template: makeTemplate })
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+  if (error) {
+    console.warn('[docs.setDocTemplateFlagAction]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not update template flag.' }
+  }
+
+  revalidatePath('/app/docs')
+  revalidatePath(`/app/docs/${docId}`)
+  return { ok: true, id: docId }
+}
+
+// ==========================================================================
 // v27.1.1.0 — log field mapping wizard server actions
 // ==========================================================================
 

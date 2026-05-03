@@ -1,7 +1,13 @@
 import Link from 'next/link'
-import { FileText, ClipboardCheck, BookOpen, Plus, AlertCircle, Archive, CheckCircle2 } from 'lucide-react'
+import { FileText, ClipboardCheck, BookOpen, Plus, AlertCircle, Archive, CheckCircle2, Sparkles } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
-import { fetchGuideDocs, fetchGuideDocCounts, type DocKind, type DocSummary } from '../_lib/docs-queries'
+import {
+  fetchGuideDocs,
+  fetchGuideDocCounts,
+  fetchBiteBookTemplates,
+  type DocKind,
+  type DocSummary,
+} from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
 
 type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string }>
@@ -27,9 +33,10 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
   const kind: DocKind | 'all' = isKindFilter(sp.kind) ? sp.kind : 'all'
   const includeArchived = sp.archived === '1'
 
-  const [docs, counts] = await Promise.all([
+  const [docs, counts, templates] = await Promise.all([
     fetchGuideDocs(profile.id, { kind, includeArchived }),
     fetchGuideDocCounts(profile.id),
+    fetchBiteBookTemplates(profile.id),
   ])
 
   // v27.1.1.0.3d.2.10: success toast after the mapping wizard's
@@ -92,7 +99,8 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
 
       {/* Filter chips. URL-driven so the browser back button works and links
           can be shared. Active state = copper underline matching the
-          mobile-tab pattern. */}
+          mobile-tab pattern. Note: chips drive the "Your library" section
+          only — the Bite Book templates section above ignores them. */}
       <nav
         className="mt-4 flex flex-wrap gap-2"
         role="tablist"
@@ -125,15 +133,49 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
         </Link>
       </nav>
 
-      {docs.length === 0 ? (
-        <EmptyState kind={kind} includeArchived={includeArchived} />
-      ) : (
-        <section className="mt-4 flex flex-col gap-3">
-          {docs.map((d) => (
-            <DocRow key={d.id} doc={d} />
-          ))}
+      {/* v27.1.1.0.3e: Bite Book templates section. Hidden when empty —
+          templates are admin-curated (Flavio only flags), so a hunter or
+          guide who hasn't been given any shouldn't see an empty state.
+          Filter chips above don't apply here; this is a small, simple
+          list of pre-built forms anyone can adopt. */}
+      {templates.length > 0 && (
+        <section className="mt-5">
+          <h2
+            className="bb-form-section-head"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Sparkles size={14} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
+            Bite Book templates
+          </h2>
+          <p className="bb-page-sub" style={{ marginTop: '-0.15rem' }}>
+            Pre-built forms shared by Bite Book. Tap to view or use on a trip.
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            {templates.map((d) => (
+              <DocRow key={d.id} doc={d} showTemplateBadge />
+            ))}
+          </div>
         </section>
       )}
+
+      <section className="mt-5">
+        {templates.length > 0 && (
+          <h2 className="bb-form-section-head">Your library</h2>
+        )}
+        {docs.length === 0 ? (
+          <EmptyState kind={kind} includeArchived={includeArchived} />
+        ) : (
+          <div
+            className={
+              templates.length > 0 ? 'mt-3 flex flex-col gap-3' : 'mt-4 flex flex-col gap-3'
+            }
+          >
+            {docs.map((d) => (
+              <DocRow key={d.id} doc={d} showTemplateBadge={d.is_template} />
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
@@ -188,7 +230,13 @@ function EmptyState({
   )
 }
 
-function DocRow({ doc }: { doc: DocSummary }) {
+function DocRow({
+  doc,
+  showTemplateBadge = false,
+}: {
+  doc: DocSummary
+  showTemplateBadge?: boolean
+}) {
   const Icon = doc.kind === 'waiver' ? ClipboardCheck : doc.kind === 'log' ? FileText : BookOpen
   const kindLabel =
     doc.kind === 'waiver' ? 'Waiver' : doc.kind === 'log' ? 'Harvest log' : 'Resource'
@@ -235,14 +283,25 @@ function DocRow({ doc }: { doc: DocSummary }) {
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
         <div
           style={{
-            fontWeight: 600,
-            color: 'var(--color-ink)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            flexWrap: 'wrap',
           }}
         >
-          {doc.label}
+          <span
+            style={{
+              fontWeight: 600,
+              color: 'var(--color-ink)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+            }}
+          >
+            {doc.label}
+          </span>
+          {showTemplateBadge && <TemplateBadge />}
         </div>
         <div
           style={{
@@ -278,6 +337,33 @@ function DocRow({ doc }: { doc: DocSummary }) {
       </div>
       <MappingBadge status={doc.mapping_status} archived={isArchived} />
     </Link>
+  )
+}
+
+// v27.1.1.0.3e: small copper-tinted pill that flags Bite Book template
+// rows. Used both in the templates section (every row) and the user's own
+// library when a row's is_template=true (so Flavio sees what he's
+// published as a template).
+function TemplateBadge() {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        fontSize: '0.7rem',
+        fontWeight: 600,
+        padding: '0.15rem 0.45rem',
+        borderRadius: 999,
+        background: 'rgba(168, 92, 50, 0.12)',
+        color: 'var(--color-copper)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Sparkles size={10} aria-hidden="true" />
+      Bite Book template
+    </span>
   )
 }
 

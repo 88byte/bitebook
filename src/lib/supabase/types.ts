@@ -166,6 +166,7 @@ export type Database = {
           form_template_hash: string | null
           guide_id: string
           id: string
+          is_template: boolean
           kind: Database["public"]["Enums"]["doc_kind"]
           label: string
           mapping_status: string
@@ -180,6 +181,7 @@ export type Database = {
           form_template_hash?: string | null
           guide_id: string
           id?: string
+          is_template?: boolean
           kind: Database["public"]["Enums"]["doc_kind"]
           label: string
           mapping_status?: string
@@ -194,6 +196,7 @@ export type Database = {
           form_template_hash?: string | null
           guide_id?: string
           id?: string
+          is_template?: boolean
           kind?: Database["public"]["Enums"]["doc_kind"]
           label?: string
           mapping_status?: string

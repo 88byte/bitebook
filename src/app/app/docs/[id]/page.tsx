@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, ClipboardCheck, FileText, BookOpen } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, FileText, BookOpen, Sparkles } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchGuideDoc } from '../../_lib/docs-queries'
 import { relativeOrDate } from '../../_lib/format'
@@ -14,11 +14,21 @@ type Params = Promise<{ id: string }>
 // the uploaded PDF, archive / restore, hard-delete when archived AND not
 // attached to any trip. Mapping wizard placeholder card surfaces for waiver
 // and log kinds with a "v27.1.1 — coming soon" message.
+//
+// v27.1.1.0.3e — Bite Book templates: when the viewer is NOT the owning
+// guide (i.e. they're looking at an `is_template=true` row from the
+// templates section), the page renders read-only — no actions bar, no
+// EditDocForm, mapping link is "View mapping" instead of "Set up mapping".
+// The mapping wizard's save action is RLS-blocked for non-owners which
+// is the desired behavior; we don't add an admin bypass.
 export default async function DocDetailPage({ params }: { params: Params }) {
-  const { profile } = await requireGuide()
+  const { user, profile } = await requireGuide()
   const { id } = await params
   const doc = await fetchGuideDoc(profile.id, id)
   if (!doc) notFound()
+
+  const viewerOwnsDoc = doc.guide_id === profile.id
+  const viewerEmail = user.email ?? null
 
   const KindIcon = doc.kind === 'waiver' ? ClipboardCheck : doc.kind === 'log' ? FileText : BookOpen
   const kindLabel = doc.kind === 'waiver' ? 'Waiver' : doc.kind === 'log' ? 'Harvest log' : 'Resource'
@@ -59,15 +69,54 @@ export default async function DocDetailPage({ params }: { params: Params }) {
 
       {/* v27.1.1.0.3d.2.6: top action bar — Save changes / Archive
           (or Restore) / Delete forever. Save targets the EditDocForm
-          via formId so it works without shared state. */}
-      <DocActionsBar
-        docId={doc.id}
-        isArchived={isArchived}
-        canHardDelete={canHardDelete}
-        tripCount={doc.trip_count}
-      />
+          via formId so it works without shared state.
+          v27.1.1.0.3e: only render for the owning guide. Non-owner
+          template viewers get the read-only banner below instead. */}
+      {viewerOwnsDoc && (
+        <DocActionsBar
+          docId={doc.id}
+          isArchived={isArchived}
+          canHardDelete={canHardDelete}
+          tripCount={doc.trip_count}
+          isTemplate={doc.is_template}
+          viewerEmail={viewerEmail}
+        />
+      )}
 
-      {isArchived && (
+      {!viewerOwnsDoc && (
+        <section
+          className="bb-tile mt-3"
+          style={{
+            padding: '0.75rem 1rem',
+            background: 'rgba(168, 92, 50, 0.08)',
+            borderColor: 'var(--color-copper)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+          }}
+          role="status"
+        >
+          <Sparkles
+            size={16}
+            aria-hidden="true"
+            style={{ color: 'var(--color-copper)', flexShrink: 0, marginTop: 2 }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, color: 'var(--color-copper)' }}>
+              Bite Book template
+            </div>
+            <p
+              className="bb-form-help"
+              style={{ margin: '0.15rem 0 0 0' }}
+            >
+              Read-only view. To use this on a trip, attach it from the trip detail.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {isArchived && viewerOwnsDoc && (
         <section
           className="bb-tile mt-3"
           style={{ borderColor: 'var(--color-ink-tint)' }}
@@ -95,9 +144,9 @@ export default async function DocDetailPage({ params }: { params: Params }) {
             <div className="bb-tile-body">
               <h2 className="bb-form-section-head">Field mapping</h2>
               <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-                Match each PDF box to a Bite Book data source so the auto-fill engine
-                knows what to write into your reports. AI can pre-fill suggestions you
-                review &mdash; this is the next step.
+                {viewerOwnsDoc
+                  ? 'Match each PDF box to a Bite Book data source so the auto-fill engine knows what to write into your reports. AI can pre-fill suggestions you review — this is the next step.'
+                  : 'See how this template maps PDF boxes to Bite Book data sources. The mapping is owned by the template author.'}
               </p>
               <div style={{ marginTop: '0.6rem' }}>
                 <Link
@@ -105,7 +154,11 @@ export default async function DocDetailPage({ params }: { params: Params }) {
                   className="bb-cta-sm"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                 >
-                  {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
+                  {viewerOwnsDoc
+                    ? doc.mapping_status === 'unmapped'
+                      ? 'Set up mapping'
+                      : 'Edit mapping'
+                    : 'View mapping'}
                 </Link>
                 <span style={{ marginLeft: '0.6rem', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
                   Status: <strong>{doc.mapping_status}</strong>
@@ -114,16 +167,18 @@ export default async function DocDetailPage({ params }: { params: Params }) {
             </div>
           </section>
 
-          <section className="mt-3">
-            <EditDocForm
-              docId={doc.id}
-              initial={{
-                kind: doc.kind,
-                label: doc.label,
-                state: doc.state,
-              }}
-            />
-          </section>
+          {viewerOwnsDoc && (
+            <section className="mt-3">
+              <EditDocForm
+                docId={doc.id}
+                initial={{
+                  kind: doc.kind,
+                  label: doc.label,
+                  state: doc.state,
+                }}
+              />
+            </section>
+          )}
 
           <section className="mt-3">
             <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
@@ -143,7 +198,9 @@ export default async function DocDetailPage({ params }: { params: Params }) {
               <div className="bb-tile-body">
                 <h2 className="bb-form-section-head">Field mapping</h2>
                 <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-                  Map text fields here; signature placement ships next (v27.1.2).
+                  {viewerOwnsDoc
+                    ? 'Map text fields here; signature placement ships next (v27.1.2).'
+                    : 'See how this template maps text fields.'}
                 </p>
                 <div style={{ marginTop: '0.6rem' }}>
                   <Link
@@ -151,23 +208,29 @@ export default async function DocDetailPage({ params }: { params: Params }) {
                     className="bb-cta-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                   >
-                    {doc.mapping_status === 'unmapped' ? 'Set up mapping' : 'Edit mapping'}
+                    {viewerOwnsDoc
+                      ? doc.mapping_status === 'unmapped'
+                        ? 'Set up mapping'
+                        : 'Edit mapping'
+                      : 'View mapping'}
                   </Link>
                 </div>
               </div>
             </section>
           )}
 
-          <section className="mt-3">
-            <EditDocForm
-              docId={doc.id}
-              initial={{
-                kind: doc.kind,
-                label: doc.label,
-                state: doc.state,
-              }}
-            />
-          </section>
+          {viewerOwnsDoc && (
+            <section className="mt-3">
+              <EditDocForm
+                docId={doc.id}
+                initial={{
+                  kind: doc.kind,
+                  label: doc.label,
+                  state: doc.state,
+                }}
+              />
+            </section>
+          )}
         </>
       )}
     </main>

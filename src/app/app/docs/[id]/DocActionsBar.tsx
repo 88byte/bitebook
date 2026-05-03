@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Archive, RotateCcw, Save, Trash2 } from 'lucide-react'
+import { Archive, RotateCcw, Save, Trash2, Sparkles } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
 import {
   archiveDocAction,
   restoreDocAction,
   deleteDocAction,
+  setDocTemplateFlagAction,
 } from '../../_lib/docs-actions'
 
 // v27.1.1.0.3d.2.6: doc detail action bar promoted to the top of the
@@ -16,22 +17,36 @@ import {
 // via the HTML `form="edit-doc-form"` attribute — no shared state needed.
 // Archive / Restore / Delete are independent server actions handled
 // inline with their own confirm modals.
+//
+// v27.1.1.0.3e: when the viewer is the Bite Book admin (Flavio), an
+// extra button toggles is_template on the owned doc so it shows up in
+// every other guide's "Bite Book templates" section. The page only
+// renders this component for the owning guide; admin gating layers on
+// top.
+
+const ADMIN_EMAIL = 'flaviod022@gmail.com'
 
 export default function DocActionsBar({
   docId,
   isArchived,
   canHardDelete,
   tripCount,
+  isTemplate,
+  viewerEmail,
 }: {
   docId: string
   isArchived: boolean
   canHardDelete: boolean
   tripCount: number
+  isTemplate: boolean
+  viewerEmail: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [confirmMode, setConfirmMode] = useState<null | 'archive' | 'delete'>(null)
+  const [confirmMode, setConfirmMode] = useState<null | 'archive' | 'delete' | 'template'>(null)
+
+  const isAdmin = viewerEmail === ADMIN_EMAIL
 
   function runArchive() {
     setError(null)
@@ -66,6 +81,18 @@ export default function DocActionsBar({
         return
       }
       router.push('/app/docs')
+      router.refresh()
+    })
+  }
+
+  function runToggleTemplate() {
+    setError(null)
+    startTransition(async () => {
+      const res = await setDocTemplateFlagAction(docId, !isTemplate)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -135,6 +162,24 @@ export default function DocActionsBar({
           </button>
         )}
 
+        {/* v27.1.1.0.3e: admin-only template toggle. Only renders for
+            Flavio's account. Copper CTA when adding (matches the rest of
+            the templates UX), secondary when removing (it's a destructive
+            removal of a public flag, but not destructive of any data —
+            secondary is the right neutral). */}
+        {isAdmin && (
+          <button
+            type="button"
+            className={isTemplate ? 'bb-btn-secondary' : 'bb-cta-sm'}
+            onClick={() => setConfirmMode('template')}
+            disabled={pending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            {isTemplate ? 'Remove from Bite Book templates' : 'Add as Bite Book template'}
+          </button>
+        )}
+
         {error && (
           <p
             className="bb-form-help"
@@ -171,6 +216,26 @@ export default function DocActionsBar({
         onConfirm={() => {
           setConfirmMode(null)
           runHardDelete()
+        }}
+      />
+      <ConfirmModal
+        open={confirmMode === 'template'}
+        title={
+          isTemplate
+            ? 'Remove this template from Bite Book?'
+            : 'Add this doc as a Bite Book template?'
+        }
+        body={
+          isTemplate
+            ? 'It will stop appearing in every other guide’s Bite Book templates section. Your copy stays in your library.'
+            : 'It will appear in every other guide’s Bite Book templates section. Mappings stay owned by you; viewers see the doc read-only.'
+        }
+        confirmLabel={isTemplate ? 'Remove template' : 'Add as template'}
+        isPending={pending}
+        onCancel={() => setConfirmMode(null)}
+        onConfirm={() => {
+          setConfirmMode(null)
+          runToggleTemplate()
         }}
       />
     </>
