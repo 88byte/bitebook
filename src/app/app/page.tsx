@@ -16,10 +16,14 @@ import {
   fetchUpcomingTrips,
   fetchPendingInviteCount,
 } from './_lib/queries'
-import { fetchOnboardingProgress, isOnboarded } from './_lib/onboarding'
 import TripRow from './_components/TripRow'
-import OnboardingBanner from './_components/OnboardingBanner'
 import DashboardHero from './_components/DashboardHero'
+
+// v27.1.5.1.1: legacy /app/welcome G0 checklist + OnboardingBanner removed.
+// First-time guide setup is now exclusively the /app/onboarding wizard
+// (gated by guide_profiles.onboarded_at via requireGuide()). Once the
+// guide hits the dashboard at all, they're definitionally past
+// onboarding — no need for a banner here.
 
 // v27.0a.9: dashboard rebuilt to Flavio's mockup. Hero banner with the new
 // bb-dashboard-hero.png + 3-card Quick Actions row, single Pending Invites
@@ -27,18 +31,16 @@ import DashboardHero from './_components/DashboardHero'
 // Widget tile wrapper — just an eyebrow head + "View all" link + TripRow
 // stack). Onboarding banner stays above the grid for non-onboarded users.
 export default async function DashboardPage() {
-  const { supabase, user, profile, guide } = await requireGuide()
+  const { profile, guide } = await requireGuide()
 
-  const [recent, stats, upcoming, pendingInvites, progress] = await Promise.all([
+  const [recent, stats, upcoming, pendingInvites] = await Promise.all([
     fetchRecentTrips(profile.id),
     fetchDashboardStats(profile.id),
     fetchUpcomingTrips(profile.id, 5),
     fetchPendingInviteCount(profile.id),
-    fetchOnboardingProgress(supabase, user.id),
   ])
 
   const greetingName = guide?.business_name?.trim() || profile.display_name
-  const showBanner = !isOnboarded(progress)
   const upcomingCount = upcoming.length
 
   return (
@@ -52,8 +54,6 @@ export default async function DashboardPage() {
             : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
       />
-
-      {showBanner && <div className="mt-4"><OnboardingBanner progress={progress} /></div>}
 
       {/* Quick Actions */}
       <h2 className="bb-dash-section-title mt-4">Quick Actions</h2>
