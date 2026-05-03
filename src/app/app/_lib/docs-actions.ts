@@ -752,20 +752,17 @@ You are given:
 
 Use the PDF's layout to disambiguate. Section headings like "Hunter 1 / Hunter 2", repeating columns, or labels printed next to each box almost always tell you the right slot AND the right source — the internal field name often doesn't.
 
+Call the submit_mappings tool exactly once with one entry per form-field, in the order given.
+
 Rules:
-- Return ONE JSON array, no prose, no markdown fences.
-- One entry per form-field, in the order given.
-- Each entry: {"field_name":"<exact internal name>", "path":"<catalog path or 'skip'>", "hunter_slot": <0..5>, "confidence":"high"|"medium"|"low"}.
-- "path" must EXACTLY match a catalog "path" string OR be "skip" (no fit).
+- "suggested_path" must EXACTLY match a catalog "path" string OR be "skip" (no fit).
 - "hunter_slot" 0 = trip-level (not per-hunter). 1..5 = which hunter column the box belongs to (read off the PDF page).
 - For checkbox fields, choose a path with valueType="boolean" or "skip".
 - For text fields, choose valueType="string" or "skip".
 - For per-hunter fields (catalog perRow=true), set hunter_slot >= 1.
 - For trip-level fields (catalog perRow=false), set hunter_slot=0.
 - slotHint is a regex-derived starting point — override it freely when the PDF page shows the box belongs to a different slot.
-- "confidence":"low" when the box is ambiguous or no catalog path fits.
-
-Output format (CRITICAL): respond with ONLY the raw JSON array. No preamble, no explanation, no thinking aloud, no markdown fences, no trailing commentary. Your entire response must be parseable by JSON.parse(). Start with [ and end with ].`
+- "confidence":"low" when the box is ambiguous or no catalog path fits.`
 
   const userText = `Form-field list (${fieldsForLLM.length} total):
 ${JSON.stringify(fieldsForLLM)}
@@ -800,73 +797,94 @@ Return the JSON array now.`
   }> = []
   try {
     const client = new Anthropic({ apiKey })
-    // v27.1.1.0.3d.2.1: Anthropic's "assistant prefill" technique.
-    // Pre-seed the assistant turn with the opening "[" so Claude
-    // continues from there, eliminating any preamble like
-    // "Looking at the form...". The response will lack the leading
-    // "[" so we re-add it before parsing. Belt-and-suspenders against
-    // a tighter system-prompt rule that Sonnet 4.6 was ignoring on
-    // some inputs.
+    // v27.1.1.0.3d.2.2: switched from assistant-prefill (not supported
+    // on Sonnet 4.6 — "This model does not support assistant message
+    // prefill") to Anthropic's tool-use mechanism for structured
+    // output. We define a `submit_mappings` tool whose `input_schema`
+    // exactly describes what we want back. Claude is forced (via
+    // tool_choice) to call the tool, returning a typed object instead
+    // of free-form text. No more JSON parsing, no more preamble bugs.
+    const submitMappingsTool = {
+      name: 'submit_mappings',
+      description:
+        'Return the suggested data-source mapping for every PDF form field. Call this exactly once with one entry per field, in the order the fields were given.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          mappings: {
+            type: 'array',
+            description: 'One entry per PDF form field, in the order given.',
+            items: {
+              type: 'object',
+              properties: {
+                field_name: {
+                  type: 'string',
+                  description: 'The exact internal name of the PDF form field.',
+                },
+                suggested_path: {
+                  type: 'string',
+                  description:
+                    'A catalog "path" string that EXACTLY matches one of the data-source options, or the literal string "skip" if no source fits.',
+                },
+                hunter_slot: {
+                  type: 'integer',
+                  minimum: 0,
+                  maximum: 5,
+                  description:
+                    '0 = trip-level (not per-hunter). 1..5 = which hunter column the field belongs to (read off the PDF page).',
+                },
+                confidence: {
+                  type: 'string',
+                  enum: ['high', 'medium', 'low'],
+                  description:
+                    '"low" when the field is ambiguous or no catalog path fits well.',
+                },
+              },
+              required: ['field_name', 'suggested_path', 'hunter_slot', 'confidence'],
+            },
+          },
+        },
+        required: ['mappings'],
+      },
+    }
     const resp = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
+      max_tokens: 16000,
       system: systemPrompt,
+      tools: [submitMappingsTool],
+      tool_choice: { type: 'tool', name: 'submit_mappings' },
       messages: [
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         { role: 'user', content: userContent as any },
-        { role: 'assistant', content: '[' },
       ],
     })
-    const block = resp.content.find((b) => b.type === 'text')
-    if (!block || block.type !== 'text') {
-      return { error: 'AI returned no text response.' }
+    const toolUse = resp.content.find((b) => b.type === 'tool_use')
+    if (!toolUse || toolUse.type !== 'tool_use' || toolUse.name !== 'submit_mappings') {
+      console.warn('[docs.suggestMappingsAction:no-tool-use]', {
+        stopReason: resp.stop_reason,
+        contentTypes: resp.content.map((c) => c.type),
+      })
+      return { error: 'AI did not use the submit_mappings tool. Try again, or map the fields manually.' }
     }
-    // Re-add the prefill bracket Claude continued from.
-    let raw = ('[' + block.text).trim()
-    // Strip ```json fences just in case.
-    if (raw.startsWith('```')) {
-      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
+    // input is already a typed object — no JSON.parse needed.
+    const input = toolUse.input as { mappings?: unknown }
+    if (!input || !Array.isArray(input.mappings)) {
+      return { error: 'AI returned no mappings array.' }
     }
-    // First attempt: parse as-is.
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      // Defensive substring extraction. If Claude still wrapped the
-      // array in conversational text (despite both prefill and system
-      // rule), pluck the JSON out by slicing from the first opening
-      // bracket to the last closing bracket of the same kind.
-      const firstSquare = raw.indexOf('[')
-      const lastSquare = raw.lastIndexOf(']')
-      const firstCurly = raw.indexOf('{')
-      const lastCurly = raw.lastIndexOf('}')
-      let candidate = ''
-      if (firstSquare >= 0 && lastSquare > firstSquare) {
-        candidate = raw.slice(firstSquare, lastSquare + 1)
-      } else if (firstCurly >= 0 && lastCurly > firstCurly) {
-        candidate = raw.slice(firstCurly, lastCurly + 1)
-      }
-      if (!candidate) {
-        console.warn('[docs.suggestMappingsAction:parse:no-bracket]', {
-          rawHead: raw.slice(0, 200),
-          rawTail: raw.slice(-200),
-        })
-        return { error: 'AI returned a malformed response. Try again, or map the fields manually.' }
-      }
-      try {
-        parsed = JSON.parse(candidate)
-      } catch (parseErr) {
-        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr)
-        console.warn('[docs.suggestMappingsAction:parse:fail]', {
-          parseError: msg,
-          rawHead: raw.slice(0, 200),
-          rawTail: raw.slice(-200),
-        })
-        return { error: 'AI returned a malformed response. Try again, or map the fields manually.' }
-      }
-    }
-    if (!Array.isArray(parsed)) {
-      return { error: 'AI did not return an array.' }
-    }
+    // Normalize to the shape the rest of the action expects (path = suggested_path).
+    parsed = (input.mappings as Array<{
+      field_name?: unknown
+      suggested_path?: unknown
+      hunter_slot?: unknown
+      confidence?: unknown
+    }>)
+      .map((m) => ({
+        field_name: typeof m.field_name === 'string' ? m.field_name : '',
+        path: typeof m.suggested_path === 'string' ? m.suggested_path : '',
+        hunter_slot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
+        confidence: typeof m.confidence === 'string' ? m.confidence : 'low',
+      }))
+      .filter((m) => m.field_name)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     console.warn('[docs.suggestMappingsAction:anthropic]', { msg })

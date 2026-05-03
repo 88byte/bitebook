@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import {
   extractDocFieldsAction,
   saveDocMappingsAction,
@@ -121,6 +121,10 @@ export default function MappingWizard({
   const [aiSuggesting, setAiSuggesting] = useState<boolean>(false)
   const [aiResultMsg, setAiResultMsg] = useState<string | null>(null)
   const [aiNeedsSetup, setAiNeedsSetup] = useState<boolean>(false)
+  // v27.1.1.0.3d.2.2: success banner. Flips true for 3 seconds after a
+  // successful suggestion run; renders an "✨ AI suggested N fields"
+  // toast with a green-ish copper accent before collapsing.
+  const [aiSuccessCount, setAiSuccessCount] = useState<number | null>(null)
 
   function handleSlotChange(fieldName: string, slot: number) {
     setSlotOverrides((prev) => ({ ...prev, [fieldName]: slot }))
@@ -131,13 +135,15 @@ export default function MappingWizard({
   }
 
   // v27.1.1.0.3d: kick off AI suggestion run. Server pulls the PDF,
-  // calls Claude Haiku 4.5, validates + upserts is_ai_suggested rows.
-  // Wizard then router.refresh()es to pull the new mappings via the
-  // server component's fetch. We also pre-populate aiSuggestedFlags +
-  // selection optimistically by re-reading the refreshed payload.
+  // calls Claude Sonnet 4.6 with tool-use, upserts is_ai_suggested
+  // rows. Wizard then router.refresh()es to pull the new mappings via
+  // the server component's fetch.
+  // v27.1.1.0.3d.2.2: drives a centered loading overlay while the call
+  // is in flight + a 3-second success banner after the rows land.
   function handleSuggestMappings() {
     setAiResultMsg(null)
     setAiNeedsSetup(false)
+    setAiSuccessCount(null)
     setAiSuggesting(true)
     startTransition(async () => {
       const res = await suggestMappingsAction(docId)
@@ -147,14 +153,18 @@ export default function MappingWizard({
         if (res.needs_setup) setAiNeedsSetup(true)
         return
       }
+      // Trigger the success banner. The actual badges render after the
+      // server refresh hydrates is_ai_suggested rows back into the
+      // wizard's existingAiSuggestedByField prop.
+      setAiSuccessCount(res.suggested)
       const parts: string[] = []
       if (res.suggested > 0) parts.push(`${res.suggested} suggestion${res.suggested === 1 ? '' : 's'}`)
       if (res.skipped > 0) parts.push(`${res.skipped} skipped`)
       if (res.rejected > 0) parts.push(`${res.rejected} rejected`)
-      setAiResultMsg(parts.length > 0 ? parts.join(' · ') + ' — refresh to review' : 'AI returned nothing usable.')
-      // Force a server refresh so page.tsx re-fetches with the new
-      // is_ai_suggested rows; the wizard re-mounts with hydrated state.
+      setAiResultMsg(parts.length > 0 ? parts.join(' · ') : 'AI returned nothing usable.')
       router.refresh()
+      // Auto-collapse the banner after 3s.
+      window.setTimeout(() => setAiSuccessCount(null), 3000)
     })
   }
 
@@ -458,22 +468,53 @@ export default function MappingWizard({
 
   return (
     <section className="mt-4 flex flex-col gap-3">
-      {/* v27.1.1.0.3d.2: Auto-suggest tile. Sonnet 4.6 + PDF vision
-          input. Auto-runs on first upload from createDocAction; shows a
-          pending banner until rows arrive. Manual button stays for
-          re-running or for docs uploaded before this build. */}
+      {/* v27.1.1.0.3d.2.2: Auto-suggest tile + centered loading overlay.
+          When aiSuggesting OR aiPending is true, render a full-card
+          loading state with an animated spinner, dimmed background, and
+          a bb-app-overlay so the rest of the wizard isn't interactable
+          until the AI call returns. After success, swap to a success
+          banner for 3 seconds before collapsing back to the manual
+          button. */}
       <div
         className="bb-tile"
         style={{
-          padding: '0.875rem 1rem',
+          padding: '1rem',
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.6rem',
           alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: aiSuggesting || aiPending ? '5.5rem' : 'auto',
+          position: 'relative',
+          background:
+            aiSuggesting || aiPending
+              ? 'linear-gradient(180deg, rgba(168, 92, 50, 0.06), rgba(168, 92, 50, 0.02))'
+              : aiSuccessCount !== null
+              ? 'linear-gradient(180deg, rgba(78, 130, 70, 0.12), rgba(78, 130, 70, 0.04))'
+              : undefined,
+          transition: 'background 220ms ease',
         }}
       >
-        {aiPending ? (
-          <>
+        {aiSuggesting || aiPending ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.5rem 0',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2
+              size={28}
+              aria-hidden="true"
+              style={{
+                color: 'var(--color-copper)',
+                animation: 'bb-spin 1s linear infinite',
+              }}
+            />
             <span
               style={{
                 display: 'inline-flex',
@@ -484,12 +525,27 @@ export default function MappingWizard({
               }}
             >
               <Sparkles size={14} aria-hidden="true" />
-              AI is reading your PDF…
+              {aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
             </span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-              Suggestions usually land in 10&ndash;20 seconds. This page refreshes itself.
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)', textAlign: 'center' }}>
+              Usually lands in 10&ndash;20 seconds. {aiPending ? 'This page refreshes itself.' : 'Hang tight.'}
             </span>
-          </>
+          </div>
+        ) : aiSuccessCount !== null ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontWeight: 600,
+              color: '#3F6B3A',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <Sparkles size={16} aria-hidden="true" />
+            AI suggested {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'} — review the ✨ AI badges below.
+          </div>
         ) : (
           <>
             <button
@@ -500,14 +556,14 @@ export default function MappingWizard({
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
               <Sparkles size={14} aria-hidden="true" />
-              {aiSuggesting ? 'Asking AI…' : 'Auto-suggest mappings'}
+              Auto-suggest mappings
             </button>
             <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
               AI reads your PDF and pre-fills each box &mdash; you review and confirm.
             </span>
           </>
         )}
-        {aiResultMsg && (
+        {aiResultMsg && !aiSuggesting && !aiPending && aiSuccessCount === null && (
           <p
             className="bb-form-help"
             role="status"
@@ -515,6 +571,7 @@ export default function MappingWizard({
               margin: 0,
               flexBasis: '100%',
               color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+              textAlign: 'center',
             }}
           >
             {aiResultMsg}
