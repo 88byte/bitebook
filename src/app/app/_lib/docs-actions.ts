@@ -404,11 +404,29 @@ export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsAc
   // Best-effort storage cleanup — fire all removes in parallel; we don't
   // block the row-delete on storage success since storage-only orphans
   // are recoverable.
-  await Promise.all(
-    toDelete
-      .filter((d): d is { id: string; file_path: string } => !!d.file_path)
-      .map((d) => sb.storage.from('bb-private').remove([d.file_path]))
-  )
+  // v27.1.1.0.3e.7: wrap in try/catch defensively. Storage `remove` can
+  // throw on a malformed path or network blip; an unhandled throw here
+  // would have killed the entire action and the row delete would never
+  // run — that was the silent failure mode the user reported.
+  try {
+    await Promise.all(
+      toDelete
+        .filter((d): d is { id: string; file_path: string } => !!d.file_path)
+        .map((d) =>
+          sb.storage.from('bb-private').remove([d.file_path]).catch((e) => {
+            console.warn('[docs.bulkDeleteDocsAction:storage]', {
+              file_path: d.file_path,
+              error: e instanceof Error ? e.message : String(e),
+            })
+            return null
+          })
+        )
+    )
+  } catch (e) {
+    console.warn('[docs.bulkDeleteDocsAction:storage_top]', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
 
   const { error: delErr } = await sb
     .from('docs')

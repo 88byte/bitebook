@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building,
@@ -120,6 +120,41 @@ export default function TripDetailEditor({
   const [hunterList, setHunterList] = useState<HunterOption[]>(candidates)
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds))
 
+  // v27.1.1.0.3e.7: mirror every editable field into a single ref so the
+  // autoSave function always reads CURRENT values regardless of when it
+  // was scheduled. The previous implementation captured state at render
+  // time and the section "Save" buttons fired the stale closure — which
+  // was why edits inside Location / Hunt details / Hunters / Notes
+  // appeared to save in the UI but never reached the server.
+  const fieldsRef = useRef({
+    title,
+    kind,
+    startsAt,
+    endsAt,
+    city,
+    state,
+    zone,
+    county,
+    speciesTargeted,
+    method,
+    notes,
+    selected,
+  })
+  fieldsRef.current = {
+    title,
+    kind,
+    startsAt,
+    endsAt,
+    city,
+    state,
+    zone,
+    county,
+    speciesTargeted,
+    method,
+    notes,
+    selected,
+  }
+
   const [expanded, setExpanded] = useState<Set<SectionKey>>(new Set())
   function toggleSection(key: SectionKey) {
     setExpanded((prev) => {
@@ -130,6 +165,23 @@ export default function TripDetailEditor({
     })
   }
 
+  // v27.1.1.0.3e.7: collapsing a section now ALWAYS fires an explicit
+  // autoSave. The prior implementation only re-collapsed local UI state
+  // and relied on per-input onBlur — which was unreliable because (a)
+  // the Save button click could happen before some browsers fired blur
+  // and (b) the ref pattern wasn't in place so even when blur did fire,
+  // the autoSave closure read pre-render state. Now: tap Save on any
+  // section → explicit save with the right syncParticipants flag → page
+  // refresh → DB row reflects the edit.
+  function handleSectionToggle(key: SectionKey) {
+    const wasOpen = expanded.has(key)
+    toggleSection(key)
+    if (wasOpen) {
+      // Hunters needs the participant diff; everything else is scalar-only.
+      autoSave({ syncParticipants: key === 'hunters' })
+    }
+  }
+
   // Auto-save fader: clear Saved pill after 2s.
   useEffect(() => {
     if (status.kind !== 'saved') return
@@ -137,27 +189,28 @@ export default function TripDetailEditor({
     return () => clearTimeout(t)
   }, [status])
 
-  // Build a fresh FormData from current state. The action validates a few
-  // required fields (title / state / startsAt / kind) — if any of those
-  // are blank we skip the call so the user isn't bothered with a save
-  // error mid-typing.
+  // Build a fresh FormData from CURRENT state (via fieldsRef so we never
+  // close over stale values). The action validates a few required fields
+  // (title / state / startsAt / kind) — if any are blank we skip the call
+  // so the user isn't bothered with a save error mid-typing.
   function buildFormData(opts: { syncParticipants?: boolean }): FormData | null {
-    if (!title.trim() || !startsAt || !state) return null
+    const f = fieldsRef.current
+    if (!f.title.trim() || !f.startsAt || !f.state) return null
     const fd = new FormData()
     fd.set('trip_id', tripId)
-    fd.set('title', title.trim())
-    fd.set('kind', kind)
-    fd.set('starts_at', startsAt)
-    if (endsAt) fd.set('ends_at', endsAt)
-    fd.set('city', city)
-    fd.set('state', state)
-    fd.set('zone', zone)
-    fd.set('county', county)
-    fd.set('species_targeted', speciesTargeted)
-    fd.set('method', method)
-    fd.set('notes', notes)
+    fd.set('title', f.title.trim())
+    fd.set('kind', f.kind)
+    fd.set('starts_at', f.startsAt)
+    if (f.endsAt) fd.set('ends_at', f.endsAt)
+    fd.set('city', f.city)
+    fd.set('state', f.state)
+    fd.set('zone', f.zone)
+    fd.set('county', f.county)
+    fd.set('species_targeted', f.speciesTargeted)
+    fd.set('method', f.method)
+    fd.set('notes', f.notes)
     if (opts.syncParticipants) {
-      selected.forEach((id) => {
+      f.selected.forEach((id) => {
         if (!id.startsWith('pending:')) fd.append('hunter_ids', id)
       })
     } else {
@@ -323,9 +376,9 @@ export default function TripDetailEditor({
         icon={<MapPin size={18} aria-hidden="true" />}
         eyebrow="Location"
         summary={locationSummary}
-        actionLabel={expanded.has('location') ? 'Done' : 'Edit'}
+        actionLabel={expanded.has('location') ? 'Save' : 'Edit'}
         expanded={expanded.has('location')}
-        onToggle={() => toggleSection('location')}
+        onToggle={() => handleSectionToggle('location')}
       >
         <div className="bb-form-grid-2">
           <div className="bb-form-row">
@@ -405,9 +458,9 @@ export default function TripDetailEditor({
         icon={<Crosshair size={18} aria-hidden="true" />}
         eyebrow="Hunt details"
         summary={huntSummary}
-        actionLabel={expanded.has('hunt') ? 'Done' : 'Edit'}
+        actionLabel={expanded.has('hunt') ? 'Save' : 'Edit'}
         expanded={expanded.has('hunt')}
-        onToggle={() => toggleSection('hunt')}
+        onToggle={() => handleSectionToggle('hunt')}
       >
         <div className="bb-form-grid-2">
           <div className="bb-form-row">
@@ -453,16 +506,9 @@ export default function TripDetailEditor({
         icon={<Users size={18} aria-hidden="true" />}
         eyebrow="Hunters"
         summary={huntersSummary}
-        actionLabel={expanded.has('hunters') ? 'Done' : 'Manage'}
+        actionLabel={expanded.has('hunters') ? 'Save' : 'Manage'}
         expanded={expanded.has('hunters')}
-        onToggle={() => {
-          const wasOpen = expanded.has('hunters')
-          toggleSection('hunters')
-          // When the guide closes the panel, sync participants. We don't
-          // sync on every checkbox blur because that's noisy; one sync on
-          // collapse is the right granularity.
-          if (wasOpen) autoSave({ syncParticipants: true })
-        }}
+        onToggle={() => handleSectionToggle('hunters')}
       >
         <div className="bb-form-row">
           <span className="bb-form-label">Hunters on this trip</span>
@@ -472,7 +518,7 @@ export default function TripDetailEditor({
             onToggle={toggleHunter}
             onAddHunter={addHunter}
           />
-          <p className="bb-form-help">Tap Done above to save the hunter list.</p>
+          <p className="bb-form-help">Tap Save above to commit the hunter list.</p>
         </div>
       </CollapsedSection>
 
@@ -481,9 +527,9 @@ export default function TripDetailEditor({
         icon={<StickyNote size={18} aria-hidden="true" />}
         eyebrow="Notes"
         summary={notesSummary}
-        actionLabel={expanded.has('notes') ? 'Done' : notes.trim() ? 'Edit' : 'Add'}
+        actionLabel={expanded.has('notes') ? 'Save' : notes.trim() ? 'Edit' : 'Add'}
         expanded={expanded.has('notes')}
-        onToggle={() => toggleSection('notes')}
+        onToggle={() => handleSectionToggle('notes')}
       >
         <div className="bb-form-row">
           <textarea

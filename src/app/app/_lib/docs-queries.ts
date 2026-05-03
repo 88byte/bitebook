@@ -27,7 +27,12 @@ export async function fetchGuideDocs(
     .order('updated_at', { ascending: false })
 
   if (opts?.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind)
-  if (!opts?.includeArchived) q = q.is('archived_at', null)
+  // v27.1.1.0.3e.7: includeArchived=true now means "archived ONLY" instead
+  // of "active + archived mixed in". Toggling 'Show archived' on /app/docs
+  // should reveal the archived bucket as a distinct view, not append
+  // archived rows to the active list.
+  if (opts?.includeArchived) q = q.not('archived_at', 'is', null)
+  else q = q.is('archived_at', null)
 
   const { data, error } = await q
   if (error) {
@@ -87,14 +92,20 @@ export async function fetchGuideDoc(
 // is_template=true docs the caller does NOT own (their own templates already
 // appear in their library). RLS policy `docs_template_select` lets any
 // authenticated user read template rows; this query just filters them.
-export async function fetchBiteBookTemplates(profileId: string): Promise<DocSummary[]> {
+export async function fetchBiteBookTemplates(_profileId: string): Promise<DocSummary[]> {
   const sb = await createClient()
+  // v27.1.1.0.3e.7: removed `.neq('guide_id', profileId)`. Previously the
+  // admin's own promoted templates were hidden from the templates tab to
+  // avoid showing them twice. But after v3e.5 split docs into a "My docs"
+  // tab vs a "Bite Book templates" tab, the admin's own template flagged
+  // via setDocTemplateFlagAction needs to surface in the templates tab.
+  // The DocsLibraryList layer no longer renders templates inline alongside
+  // owned docs, so the duplicate-display concern is gone.
   const { data, error } = await sb
     .from('docs')
     .select(DOC_COLS)
     .eq('is_template', true)
     .is('archived_at', null)
-    .neq('guide_id', profileId)
     .order('created_at', { ascending: false })
   if (error) {
     console.warn('[docs.fetchBiteBookTemplates]', { code: error.code, message: error.message })
@@ -134,12 +145,13 @@ export async function fetchGuideDocCounts(guideId: string): Promise<DocCountsByK
   // v27.1.1.0.3e: count of non-owner templates this guide can see. Cheap
   // head-count query against the same RLS-gated set fetchBiteBookTemplates
   // returns rows for.
+  // v27.1.1.0.3e.7: drop the .neq('guide_id', guideId) filter — admin's own
+  // promoted templates now show in the templates tab too.
   const { count: tplCount } = await sb
     .from('docs')
     .select('id', { count: 'exact', head: true })
     .eq('is_template', true)
     .is('archived_at', null)
-    .neq('guide_id', guideId)
   counts.templates = tplCount ?? 0
   return counts
 }
