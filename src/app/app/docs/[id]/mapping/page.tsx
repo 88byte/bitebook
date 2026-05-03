@@ -32,18 +32,20 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override')
+    .select('field_name, data_source_path, mapping_kind, hunter_slot, is_override, is_ai_suggested')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
   const existingByField: Record<string, string> = {}
   const existingSlotByField: Record<string, number> = {}
   const existingOverrideByField: Record<string, boolean> = {}
+  const existingAiSuggestedByField: Record<string, boolean> = {}
   for (const r of existingRows ?? []) {
     if (r.field_name) {
       existingByField[r.field_name] = r.data_source_path ?? ''
       existingSlotByField[r.field_name] = typeof r.hunter_slot === 'number' ? r.hunter_slot : 0
       existingOverrideByField[r.field_name] = r.is_override === true
+      existingAiSuggestedByField[r.field_name] = r.is_ai_suggested === true
     }
   }
 
@@ -66,7 +68,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         <h1 className="bb-page-title">{doc.label}</h1>
         <p className="bb-page-sub">
           {doc.kind === 'log'
-            ? 'Match each PDF field to a Bite Book data source. The auto-fill engine ships in the next build (v27.1.1.1).'
+            ? 'Match each PDF field to a Bite Book data source. Tap Auto-suggest mappings to let AI pre-fill suggestions you can review.'
             : 'Field mapping is set up here. The signature-placement step ships in v27.1.2.'}
         </p>
       </header>
@@ -77,6 +79,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         existingByField={existingByField}
         existingSlotByField={existingSlotByField}
         existingOverrideByField={existingOverrideByField}
+        existingAiSuggestedByField={existingAiSuggestedByField}
         currentStatus={doc.mapping_status}
       />
     </main>

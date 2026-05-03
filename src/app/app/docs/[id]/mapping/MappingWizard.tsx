@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
+import { AlertCircle, CheckCircle2, RefreshCw, Sparkles } from 'lucide-react'
 import {
   extractDocFieldsAction,
   saveDocMappingsAction,
   markMappingCompleteAction,
+  suggestMappingsAction,
   type DocPdfField,
   type MappingInput,
 } from '../../../_lib/docs-actions'
@@ -50,6 +51,7 @@ export default function MappingWizard({
   existingByField,
   existingSlotByField,
   existingOverrideByField,
+  existingAiSuggestedByField,
   currentStatus,
 }: {
   docId: string
@@ -57,6 +59,7 @@ export default function MappingWizard({
   existingByField: Record<string, string>
   existingSlotByField: Record<string, number>
   existingOverrideByField: Record<string, boolean>
+  existingAiSuggestedByField: Record<string, boolean>
   currentStatus: string
 }) {
   const router = useRouter()
@@ -108,10 +111,51 @@ export default function MappingWizard({
   // status bar (e.g. "Updated 3 mirrored fields").
   const [mirroredCount, setMirroredCount] = useState<number>(0)
 
+  // v27.1.1.0.3d: per-field is_ai_suggested flag. true = row was inserted
+  // by Claude Haiku 4.5 and not yet confirmed/edited by the guide.
+  // Wizard surfaces a ✨ AI badge on these rows. Editing the dropdown
+  // optimistically clears the flag client-side; server clears on save.
+  const [aiSuggestedFlags, setAiSuggestedFlags] = useState<Record<string, boolean>>(
+    () => ({ ...existingAiSuggestedByField })
+  )
+  const [aiSuggesting, setAiSuggesting] = useState<boolean>(false)
+  const [aiResultMsg, setAiResultMsg] = useState<string | null>(null)
+  const [aiNeedsSetup, setAiNeedsSetup] = useState<boolean>(false)
+
   function handleSlotChange(fieldName: string, slot: number) {
     setSlotOverrides((prev) => ({ ...prev, [fieldName]: slot }))
     setSavedAt(null)
     setCompletedAt(null)
+    // v27.1.1.0.3d: any guide edit clears the AI badge optimistically.
+    setAiSuggestedFlags((prev) => (prev[fieldName] ? { ...prev, [fieldName]: false } : prev))
+  }
+
+  // v27.1.1.0.3d: kick off AI suggestion run. Server pulls the PDF,
+  // calls Claude Haiku 4.5, validates + upserts is_ai_suggested rows.
+  // Wizard then router.refresh()es to pull the new mappings via the
+  // server component's fetch. We also pre-populate aiSuggestedFlags +
+  // selection optimistically by re-reading the refreshed payload.
+  function handleSuggestMappings() {
+    setAiResultMsg(null)
+    setAiNeedsSetup(false)
+    setAiSuggesting(true)
+    startTransition(async () => {
+      const res = await suggestMappingsAction(docId)
+      setAiSuggesting(false)
+      if ('error' in res) {
+        setAiResultMsg(res.error)
+        if (res.needs_setup) setAiNeedsSetup(true)
+        return
+      }
+      const parts: string[] = []
+      if (res.suggested > 0) parts.push(`${res.suggested} suggestion${res.suggested === 1 ? '' : 's'}`)
+      if (res.skipped > 0) parts.push(`${res.skipped} skipped`)
+      if (res.rejected > 0) parts.push(`${res.rejected} rejected`)
+      setAiResultMsg(parts.length > 0 ? parts.join(' · ') + ' — refresh to review' : 'AI returned nothing usable.')
+      // Force a server refresh so page.tsx re-fetches with the new
+      // is_ai_suggested rows; the wizard re-mounts with hydrated state.
+      router.refresh()
+    })
   }
 
   function handleOverrideToggle(fieldName: string, isOverride: boolean) {
@@ -171,6 +215,8 @@ export default function MappingWizard({
     })
     setSavedAt(null)
     setCompletedAt(null)
+    // v27.1.1.0.3d: editing a row optimistically clears its AI badge.
+    setAiSuggestedFlags((prev) => (prev[fieldName] ? { ...prev, [fieldName]: false } : prev))
   }
 
   function handleStaticTextChange(fieldName: string, value: string) {
@@ -362,6 +408,7 @@ export default function MappingWizard({
         rangeEnd={rangeEnd[f.name] ?? ''}
         slotOverride={slotOverrides[f.name] ?? 0}
         isOverride={overrideFlags[f.name] === true}
+        isAiSuggested={aiSuggestedFlags[f.name] === true}
         mirrorPath={mirrorPath}
         onChange={handleDropdownChange}
         onStaticTextChange={handleStaticTextChange}
@@ -375,6 +422,47 @@ export default function MappingWizard({
 
   return (
     <section className="mt-4 flex flex-col gap-3">
+      {/* v27.1.1.0.3d: Auto-suggest button. Calls Claude Haiku 4.5 to
+          pre-fill rows the guide can review (look for the ✨ AI badge).
+          Doesn't clobber confirmed mappings. */}
+      <div
+        className="bb-tile"
+        style={{
+          padding: '0.875rem 1rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.6rem',
+          alignItems: 'center',
+        }}
+      >
+        <button
+          type="button"
+          className="bb-cta-sm"
+          onClick={handleSuggestMappings}
+          disabled={pending || aiSuggesting}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          {aiSuggesting ? 'Asking AI…' : 'Auto-suggest mappings'}
+        </button>
+        <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+          AI reads each PDF box and pre-fills the data source &mdash; you review and confirm.
+        </span>
+        {aiResultMsg && (
+          <p
+            className="bb-form-help"
+            role="status"
+            style={{
+              margin: 0,
+              flexBasis: '100%',
+              color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+            }}
+          >
+            {aiResultMsg}
+          </p>
+        )}
+      </div>
+
       <div className="bb-tile">
         <div className="bb-tile-body" style={{ padding: '0.875rem 1rem' }}>
           <p className="bb-form-help" style={{ margin: 0 }}>
@@ -726,6 +814,7 @@ function FieldRow({
   rangeEnd,
   slotOverride,
   isOverride,
+  isAiSuggested,
   mirrorPath,
   onChange,
   onStaticTextChange,
@@ -742,6 +831,7 @@ function FieldRow({
   rangeEnd: string
   slotOverride: number
   isOverride: boolean
+  isAiSuggested: boolean
   mirrorPath: string | null
   onChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
@@ -818,6 +908,30 @@ function FieldRow({
           {field.name}
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+          {/* v27.1.1.0.3d: AI suggestion badge. Surfaces only while the
+              guide hasn't confirmed/edited the row. Editing or saving
+              clears it. */}
+          {isAiSuggested && (
+            <span
+              aria-label="AI-suggested mapping — review and confirm"
+              title="AI-suggested mapping. Review the dropdown below and save (or edit) to confirm."
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.15rem 0.45rem',
+                borderRadius: 999,
+                background: 'rgba(168, 92, 50, 0.14)',
+                color: 'var(--color-copper)',
+                letterSpacing: '0.04em',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.2rem',
+              }}
+            >
+              <Sparkles size={11} aria-hidden="true" />
+              AI
+            </span>
+          )}
           {/* v27.1.1.0.3c.3: tap-to-edit slot badge. Default state shows
               the auto-detected slot or "Trip-level"; tapping reveals an
               inline picker so guides can override only when needed.

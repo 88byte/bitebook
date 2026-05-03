@@ -24,8 +24,11 @@ import {
   STATIC_TEXT_PREFIX,
   STATIC_DATE_PREFIX,
   STATIC_DATE_RANGE_PREFIX,
+  DATA_SOURCES,
+  type DataSourceOption,
 } from './doc-data-sources'
-import { parseFieldName } from './harvest-log-fill-types'
+import { parseFieldName, detectImplicitSlot1 } from './harvest-log-fill-types'
+import Anthropic from '@anthropic-ai/sdk'
 
 export type DocKind = Database['public']['Enums']['doc_kind']
 type DocInsert = TablesInsert<'docs'>
@@ -513,6 +516,11 @@ export async function saveDocMappingsAction(
       data_source_path: s.path,
       hunter_slot: s.hunterSlot,
       is_override: s.isOverride,
+      // v27.1.1.0.3d: clearing the AI flag on every save — once the
+      // guide has touched a row (confirm or edit), it's no longer
+      // a pending suggestion. The wizard surfaces the ✨ AI badge
+      // only on rows where this is still true.
+      is_ai_suggested: false,
     })
   }
 
@@ -606,4 +614,233 @@ export async function markMappingCompleteAction(
   revalidatePath(`/app/docs/${docId}`)
   revalidatePath(`/app/docs/${docId}/mapping`)
   return { ok: true }
+}
+
+// ==========================================================================
+// v27.1.1.0.3d — AI-suggested mappings via Claude Haiku 4.5
+// ==========================================================================
+//
+// Calls the Anthropic API with the PDF's discovered fields + the data-source
+// catalog and asks Claude to propose a data_source_path + hunter_slot for
+// each field. Validated suggestions are upserted into doc_field_mappings
+// with is_ai_suggested=true so the wizard can render the ✨ AI badge and
+// pre-fill the dropdown. Saving any mapping (confirm or edit) clears the
+// flag — see saveDocMappingsAction's upsert above.
+//
+// Trigger surface: manual button in the wizard ("Auto-suggest mappings"),
+// and best-effort post-upload for kind='log' (UPLOAD path defers to a
+// future hook — current entry point is the wizard button).
+//
+// Cost guardrail: Haiku 4.5 is ~$1/Mtok in / $5/Mtok out — a typical
+// 80-field PDF prompt runs ~5K input + 1K output tokens, ~$0.01 per call.
+// Idempotent: re-running just refreshes suggestions for fields the guide
+// hasn't yet confirmed.
+
+export type SuggestMappingsResult =
+  | { ok: true; suggested: number; skipped: number; rejected: number }
+  | { error: string; needs_setup?: boolean }
+
+export async function suggestMappingsAction(
+  docId: string
+): Promise<SuggestMappingsResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return {
+      error: 'AI suggestions need an Anthropic API key. Ask the admin to set ANTHROPIC_API_KEY on Vercel.',
+      needs_setup: true,
+    }
+  }
+  const { profile } = await requireGuide()
+  if (!docId) return { error: 'Missing doc id.' }
+
+  const sb = await createClient()
+  const { data: doc } = await sb
+    .from('docs')
+    .select('id, kind, file_path')
+    .eq('id', docId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (!doc) return { error: 'Doc not found.' }
+  if (doc.kind !== 'log') {
+    return { error: 'AI suggestions are only available for log docs right now.' }
+  }
+
+  // Reuse extractDocFieldsAction's discovery (downloads + parses the PDF
+  // via pdf-lib, returns typed fields). Calling the public action keeps
+  // the field-type detection logic in one place.
+  const ext = await extractDocFieldsAction(docId)
+  if ('error' in ext) return { error: ext.error }
+  if (!ext.hasAcroForm || ext.fields.length === 0) {
+    return { error: 'PDF has no fillable fields to suggest mappings for.' }
+  }
+
+  // Build a compact catalog payload for the LLM. Drop verbose fields and
+  // the static-text/static-date sentinels — the LLM should map to a real
+  // path or 'skip'. Sentinels are guide-only intents.
+  const catalogForLLM = DATA_SOURCES.filter((s) => s.category !== 'special').map(
+    (s: DataSourceOption) => ({
+      path: s.value,
+      label: s.label,
+      valueType: s.valueType,
+      perRow: s.perRow === true,
+      category: s.category,
+    })
+  )
+
+  // Pre-compute slot hints from the deterministic regex + implicit-1
+  // detection. Pass to the LLM as a starting point so it doesn't have to
+  // re-derive them; LLM may override if it sees a better signal.
+  const fieldNames = ext.fields.map((f) => f.name)
+  const implicit1 = detectImplicitSlot1(fieldNames)
+  const fieldsForLLM = ext.fields.map((f) => {
+    const parsed = parseFieldName(f.name)
+    const slotHint = parsed.slot > 0 ? parsed.slot : implicit1.has(f.name) ? 1 : 0
+    return {
+      name: f.name,
+      type: f.type,
+      slotHint,
+      ...(f.options && f.options.length > 0 ? { options: f.options.slice(0, 8) } : {}),
+    }
+  })
+
+  const systemPrompt = `You map PDF form-field names to data-source paths for a hunting/fishing guide log auto-fill tool.
+
+Rules:
+- Return ONE JSON array, no prose, no markdown fences.
+- One entry per PDF field, in the order given.
+- Each entry: {"field_name":"<exact name>", "path":"<catalog path or 'skip'>", "hunter_slot": <0..5>, "confidence":"high"|"medium"|"low"}.
+- "path" must EXACTLY match a catalog "path" string OR be "skip" (no fit).
+- "hunter_slot" 0 = trip-level (not per-hunter). 1..5 = which hunter row.
+- For checkbox fields, choose a path with valueType="boolean" or "skip".
+- For text fields, choose valueType="string" or "skip".
+- For per-hunter fields (catalog perRow=true), set hunter_slot >= 1.
+- For trip-level fields (catalog perRow=false), set hunter_slot=0.
+- Use slotHint as a strong default — only override when the field name clearly says otherwise.
+- "confidence":"low" when the field is ambiguous or the catalog has no good fit.`
+
+  const userPrompt = `PDF fields (${fieldsForLLM.length} total):
+${JSON.stringify(fieldsForLLM)}
+
+Data source catalog (${catalogForLLM.length} options):
+${JSON.stringify(catalogForLLM)}
+
+Return the JSON array now.`
+
+  let parsed: Array<{
+    field_name: string
+    path: string
+    hunter_slot: number
+    confidence: string
+  }> = []
+  try {
+    const client = new Anthropic({ apiKey })
+    const resp = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 8000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+    const block = resp.content.find((b) => b.type === 'text')
+    if (!block || block.type !== 'text') {
+      return { error: 'AI returned no text response.' }
+    }
+    // Strip ```json fences if Claude added them despite the system rule.
+    let raw = block.text.trim()
+    if (raw.startsWith('```')) {
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
+    }
+    parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return { error: 'AI did not return an array.' }
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn('[docs.suggestMappingsAction:anthropic]', { msg })
+    return { error: `AI request failed: ${msg.slice(0, 200)}` }
+  }
+
+  // Validate suggestions against the real catalog. Drop any path the LLM
+  // hallucinated. Map case-mismatched names back to their canonical form.
+  const validPaths = new Set(catalogForLLM.map((s) => s.path))
+  const fieldByName = new Map(ext.fields.map((f) => [f.name, f]))
+  type Suggestion = {
+    field_name: string
+    data_source_path: string
+    hunter_slot: number
+  }
+  const accepted: Suggestion[] = []
+  let rejected = 0
+  let skipped = 0
+  for (const s of parsed) {
+    if (!s || typeof s !== 'object') { rejected++; continue }
+    const f = fieldByName.get(s.field_name)
+    if (!f) { rejected++; continue }
+    const slot = Math.max(0, Math.min(5, Math.floor(Number(s.hunter_slot) || 0)))
+    if (s.path === 'skip' || !s.path) { skipped++; continue }
+    if (!validPaths.has(s.path)) { rejected++; continue }
+    accepted.push({
+      field_name: s.field_name,
+      data_source_path: s.path,
+      hunter_slot: slot,
+    })
+  }
+
+  if (accepted.length === 0) {
+    return { ok: true, suggested: 0, skipped, rejected }
+  }
+
+  // Only insert suggestions for fields the guide hasn't already mapped
+  // (data_source_path IS NULL or row missing). We don't want to clobber
+  // a confirmed mapping with an AI guess.
+  const { data: existing } = await sb
+    .from('doc_field_mappings')
+    .select('field_name, data_source_path, is_ai_suggested')
+    .eq('doc_id', docId)
+    .eq('mapping_kind', 'field')
+  const existingByName = new Map<string, { path: string | null; isAi: boolean }>()
+  for (const r of existing ?? []) {
+    if (!r.field_name) continue
+    existingByName.set(r.field_name, {
+      path: r.data_source_path,
+      isAi: r.is_ai_suggested === true,
+    })
+  }
+
+  const toUpsert: TablesInsert<'doc_field_mappings'>[] = []
+  for (const s of accepted) {
+    const exist = existingByName.get(s.field_name)
+    // Allow overwrite if no row, no path saved, OR row was a previous
+    // AI suggestion (re-running refreshes).
+    if (exist && exist.path && !exist.isAi) continue
+    toUpsert.push({
+      doc_id: docId,
+      mapping_kind: 'field',
+      field_name: s.field_name,
+      data_source_path: s.data_source_path,
+      hunter_slot: s.hunter_slot,
+      is_override: false,
+      is_ai_suggested: true,
+    })
+  }
+
+  if (toUpsert.length > 0) {
+    const { error: upErr } = await sb
+      .from('doc_field_mappings')
+      .upsert(toUpsert, { onConflict: 'doc_id,mapping_kind,field_name' })
+    if (upErr) {
+      console.warn('[docs.suggestMappingsAction:upsert]', { code: upErr.code, message: upErr.message })
+      return { error: upErr.message || 'Could not save suggestions.' }
+    }
+    // Promote doc out of 'unmapped' into 'partial' so the docs library
+    // shows progress.
+    await sb
+      .from('docs')
+      .update({ mapping_status: 'partial' })
+      .eq('id', docId)
+      .eq('guide_id', profile.id)
+      .eq('mapping_status', 'unmapped')
+  }
+
+  revalidatePath(`/app/docs/${docId}/mapping`)
+  return { ok: true, suggested: toUpsert.length, skipped, rejected }
 }
