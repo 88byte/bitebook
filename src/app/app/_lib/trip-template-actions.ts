@@ -73,18 +73,27 @@ export async function saveTripAsTemplateAction(
     .map((r) => r.doc_id)
 
   if (nonLogDocIds.length > 0) {
+    // v27.1.3: capture a default required_action_type per doc kind.
+    // waiver → 'sign', resource → null (informational), other kinds → null.
+    // Editable later from the template detail. This is a sane default
+    // that matches the most common guide intent (waivers must be signed
+    // by every hunter; resources are reference material).
+    const kindByDocId = new Map<string, string>()
+    for (const r of (linked as LinkedRow[] | null ?? [])) {
+      if (r.docs?.id && r.docs?.kind) kindByDocId.set(r.docs.id, r.docs.kind)
+    }
     const { error: linkErr } = await sb
       .from('trip_template_docs')
       .insert(
         nonLogDocIds.map((doc_id) => ({
           template_id: created.id,
           doc_id,
+          required_action_type:
+            kindByDocId.get(doc_id) === 'waiver' ? 'sign' : null,
         }))
       )
     if (linkErr) {
       console.warn('[trip-template.save:link]', { code: linkErr.code, message: linkErr.message })
-      // Template row is in place — don't fail; let the guide manage docs
-      // from the template detail later.
     }
   }
 
@@ -152,29 +161,66 @@ export async function createTripFromTemplateAction(formData: FormData) {
   }
 
   // Carry the template's linked non-log docs onto the new trip.
+  // v27.1.3: also pull required_action_type so we can materialize the
+  // per-hunter sign/view requirements on the cloned trip's docs.
   const { data: tplDocs } = await sb
     .from('trip_template_docs')
-    .select('doc_id')
+    .select('doc_id, required_action_type')
     .eq('template_id', templateId)
-  const docIds = (tplDocs ?? []).map((r) => r.doc_id)
-  if (docIds.length > 0) {
-    const { error: linkErr } = await sb
+  const tplDocRows = (tplDocs ?? []) as Array<{
+    doc_id: string
+    required_action_type: string | null
+  }>
+  if (tplDocRows.length > 0) {
+    const { data: createdTripDocs, error: linkErr } = await sb
       .from('trip_docs')
       .insert(
-        docIds.map((doc_id) => ({
+        tplDocRows.map((r) => ({
           trip_id: newTripId,
-          doc_id,
-          // Default visibility — match createTripAction's default for
-          // direct attachments. v27.1.3 will surface a per-attachment
-          // toggle; for now assume hunter_visible matches the template's
-          // intent (resources visible, waivers visible, no hunter signs
-          // a doc auto-attached from a template — that's the v27.1.2
-          // signature wizard's job).
+          doc_id: r.doc_id,
           hunter_visible: true,
         }))
       )
+      .select('id, doc_id')
     if (linkErr) {
       console.warn('[trip-template.create:link_docs]', { code: linkErr.code, message: linkErr.message })
+    }
+    // Materialize per-hunter action rows for every (hunter × doc) where
+    // the template specified a required_action_type. v27.1.3 supports
+    // 'sign' and 'view'. If the action_type doesn't match either, skip
+    // — the template column is text not enum so a stale value doesn't
+    // crash the clone.
+    if (createdTripDocs && createdTripDocs.length > 0 && hunterIds.length > 0) {
+      const tripDocByDocId = new Map(createdTripDocs.map((r) => [r.doc_id, r.id]))
+      const reqByDocId = new Map(tplDocRows.map((r) => [r.doc_id, r.required_action_type]))
+      const actionRows: Array<{
+        trip_doc_id: string
+        hunter_id: string
+        action_type: 'sign' | 'view'
+        required: boolean
+      }> = []
+      for (const docId of tripDocByDocId.keys()) {
+        const req = reqByDocId.get(docId)
+        if (req !== 'sign' && req !== 'view') continue
+        const tripDocId = tripDocByDocId.get(docId)!
+        for (const hunterId of hunterIds) {
+          actionRows.push({
+            trip_doc_id: tripDocId,
+            hunter_id: hunterId,
+            action_type: req,
+            required: true,
+          })
+        }
+      }
+      if (actionRows.length > 0) {
+        const { error: actErr } = await sb.from('trip_doc_hunter_actions').insert(actionRows)
+        if (actErr) {
+          console.warn('[trip-template.create:link_actions]', {
+            code: actErr.code,
+            message: actErr.message,
+          })
+        }
+      }
     }
   }
 

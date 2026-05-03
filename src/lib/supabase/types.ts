@@ -1513,16 +1513,19 @@ export type Database = {
         Row: {
           created_at: string
           doc_id: string
+          required_action_type: string | null
           template_id: string
         }
         Insert: {
           created_at?: string
           doc_id: string
+          required_action_type?: string | null
           template_id: string
         }
         Update: {
           created_at?: string
           doc_id?: string
+          required_action_type?: string | null
           template_id?: string
         }
         Relationships: [

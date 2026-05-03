@@ -27,8 +27,10 @@ import {
 import StatusPill from '../../../_components/StatusPill'
 import { tripDateRange, initials } from '../../../_lib/format'
 import { markStepDone } from '../../../_lib/onboarding'
+import { fetchTripDocsForHunter } from '../../../_lib/trip-doc-queries'
 import ReviewForm from './ReviewForm'
 import ActionNeededCard, { type ActionItem } from './_components/ActionNeededCard'
+import HunterTripDocsSection from './_components/HunterTripDocsSection'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -58,6 +60,7 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
 
   const isCompleted = detail.trip.status === 'completed'
   const existingReview = isCompleted ? await fetchHunterTripReview(profile.id, id) : null
+  const tripDocs = await fetchTripDocsForHunter(id, profile.id)
   const canEdit = existingReview
     ? Date.now() - new Date(existingReview.created_at).getTime() < 7 * 24 * 60 * 60 * 1000
     : true
@@ -225,6 +228,10 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
             </div>
           </div>
         </section>
+
+        {/* TRIP DOCS — v27.1.3: hunter-visible attached docs + per-hunter
+            sign/view actions. Returns null when no docs visible. */}
+        <HunterTripDocsSection docs={tripDocs} />
 
         {/* OTHER HUNTERS */}
         <section className="bb-tile bb-form-section" aria-labelledby="td-other-hunters">

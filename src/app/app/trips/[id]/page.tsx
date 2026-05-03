@@ -11,12 +11,17 @@ import {
   fetchAcceptedHunters,
 } from '../../_lib/queries'
 import { fetchHarvestLogSummary } from '../../_lib/harvest-log-queries'
+import {
+  fetchTripDocsForGuide,
+  fetchAttachableDocsForGuide,
+} from '../../_lib/trip-doc-queries'
 import StatusPill from '../../_components/StatusPill'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
 import CancelTripButton from './CancelTripButton'
 import SaveAsTemplateButton from './SaveAsTemplateButton'
 import TripDetailEditor from './TripDetailEditor'
+import TripDocsCard from './TripDocsCard'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -35,9 +40,23 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const harvestLogSummary = await fetchHarvestLogSummary(trip.id)
+  const [harvestLogSummary, tripDocs, attachableDocs] = await Promise.all([
+    fetchHarvestLogSummary(trip.id),
+    fetchTripDocsForGuide(trip.id),
+    fetchAttachableDocsForGuide(profile.id),
+  ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
+
+  // Participants list shaped for the Manage actions modal — only those with
+  // a real hunter_id + resolved profile (guests can't have actions assigned
+  // since RLS keys actions on auth user id).
+  const docParticipants: Array<{ id: string; display_name: string }> = []
+  for (const p of participants) {
+    if (p.hunter_id && p.profile) {
+      docParticipants.push({ id: p.profile.id, display_name: p.profile.display_name })
+    }
+  }
 
   // Hunters candidate list = union of currently-selected participants +
   // the guide's accepted hunters (so the participants pane shows
@@ -137,6 +156,14 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           candidates={candidates}
           initialSelectedIds={initialSelectedIds}
         />
+        <div className="bb-form-narrow">
+          <TripDocsCard
+            tripId={trip.id}
+            tripDocs={tripDocs}
+            attachable={attachableDocs}
+            participants={docParticipants}
+          />
+        </div>
       </div>
     </main>
   )

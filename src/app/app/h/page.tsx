@@ -8,8 +8,10 @@ import {
   fetchHunterStats,
 } from '../_lib/queries'
 import { fetchHunterOnboardingProgress, isHunterOnboarded } from '../_lib/onboarding'
+import { fetchHunterPendingActions } from '../_lib/trip-doc-queries'
 import HunterTripRow from './_components/HunterTripRow'
 import HunterOnboardingBanner from './_components/HunterOnboardingBanner'
+import PendingActionsCard from './_components/PendingActionsCard'
 import DashboardHero from '../_components/DashboardHero'
 
 // v27.0a.9: hunter dashboard mirror of the guide rebuild — same hero +
@@ -18,11 +20,12 @@ import DashboardHero from '../_components/DashboardHero'
 export default async function HunterDashboardPage() {
   const { supabase, user, profile } = await requireHunter()
 
-  const [upcoming, recent, stats, progress] = await Promise.all([
+  const [upcoming, recent, stats, progress, pendingActions] = await Promise.all([
     fetchHunterUpcomingTrips(profile.id),
     fetchHunterRecentTrips(profile.id),
     fetchHunterStats(profile.id),
     fetchHunterOnboardingProgress(supabase, user.id),
+    fetchHunterPendingActions(profile.id),
   ])
 
   const showBanner = !isHunterOnboarded(progress)
@@ -78,6 +81,12 @@ export default async function HunterDashboardPage() {
           </div>
         )}
       </section>
+
+      {pendingActions.length > 0 && (
+        <div className="mt-5">
+          <PendingActionsCard actions={pendingActions} />
+        </div>
+      )}
 
       <section className="mt-5">
         <div className="bb-dash-section-head">
