@@ -660,7 +660,8 @@ export default function MappingWizard({
         >
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
             AI pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
-            Tap each card below to confirm or change.
+            Review the suggestions below. Edit anything wrong, then tap{' '}
+            <strong>Mark mapping complete</strong> at the bottom.
           </p>
           <div style={{ marginTop: '0.75rem' }}>
             <button
@@ -683,9 +684,10 @@ export default function MappingWizard({
           tone="ink"
         >
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-            Look for the <strong>✨ AI</strong> badge on each row &mdash; tap to confirm or
-            pick a different source. Anything left on &ldquo;Skip&rdquo; stays blank in the
-            final PDF.
+            Look for the <strong>✨ AI</strong> badge on each row &mdash; that&rsquo;s a
+            suggestion. Edit anything wrong, then tap{' '}
+            <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
+            Anything left on &ldquo;Skip&rdquo; stays blank in the final PDF.
             {fields.length > 0 && (
               <>
                 {' '}
@@ -1267,8 +1269,8 @@ function FieldRow({
               clears it. */}
           {isAiSuggested && (
             <span
-              aria-label="AI-suggested mapping — review and confirm"
-              title="AI-suggested mapping. Review the dropdown below and save (or edit) to confirm."
+              aria-label="AI-suggested mapping"
+              title="AI-suggested mapping. Edit if it's wrong, otherwise leave it — Mark mapping complete locks everything in at the bottom."
               style={{
                 fontSize: '0.7rem',
                 fontWeight: 700,

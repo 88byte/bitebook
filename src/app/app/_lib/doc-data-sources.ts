@@ -39,6 +39,8 @@ export type DataSourceCategory =
   | 'guide_license'
   | 'hunter'
   | 'hunter_license'
+  | 'hunter_harvest_report_card'
+  | 'hunter_stamp'
   | 'harvest'
   | 'wallet_consumed'
   | 'special'
@@ -120,6 +122,25 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'hunter_license.valid_to',    label: 'License expires',         category: 'hunter_license', valueType: 'string', type: 'date', perRow: true },
   { value: 'hunter_license.holder_name', label: 'Name on license',         category: 'hunter_license', valueType: 'string', type: 'text', perRow: true },
 
+  // ── Per-hunter slot: harvest report card ────────────────────────────
+  // v27.1.1.0.3d.2.7: state forms with separate "Tag Report Card" boxes
+  // for each hunter's paper report card (e.g. CDFW Bear Tag Report). Was
+  // previously absent so AI mismapped to license sources.
+  { value: 'hunter_harvest_report_card.identifier', label: 'Harvest report card number',     category: 'hunter_harvest_report_card', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'hunter_harvest_report_card.state',      label: 'Harvest report card state',      category: 'hunter_harvest_report_card', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'hunter_harvest_report_card.year',       label: 'Harvest report card year',       category: 'hunter_harvest_report_card', valueType: 'string', type: 'number', perRow: true },
+  { value: 'hunter_harvest_report_card.valid_to',   label: 'Harvest report card valid through', category: 'hunter_harvest_report_card', valueType: 'string', type: 'date',   perRow: true },
+
+  // ── Per-hunter slot: stamp ──────────────────────────────────────────
+  // v27.1.1.0.3d.2.7: federal duck stamp / state stamp / migratory bird
+  // validation. Per-hunter; AI no longer needs to fall back to "Skip"
+  // or hallucinate into a license source for these fields.
+  { value: 'hunter_stamp.identifier',   label: 'Stamp number',                    category: 'hunter_stamp', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'hunter_stamp.jurisdiction', label: 'Stamp jurisdiction (Federal / State)', category: 'hunter_stamp', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'hunter_stamp.state',        label: 'Stamp state',                     category: 'hunter_stamp', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'hunter_stamp.year',         label: 'Stamp year',                      category: 'hunter_stamp', valueType: 'string', type: 'number', perRow: true },
+  { value: 'hunter_stamp.valid_to',     label: 'Stamp valid through',             category: 'hunter_stamp', valueType: 'string', type: 'date',   perRow: true },
+
   // ── Per-hunter slot: harvest entry + species rows ───────────────────
   // Entry-level scalars (one per slot).
   { value: 'harvest_log_entry.total_hours', label: "This hunter's hours",         category: 'harvest', valueType: 'string', type: 'number', perRow: true },
@@ -160,18 +181,29 @@ export const DATA_SOURCES: DataSourceOption[] = [
 ]
 
 export const CATEGORY_ORDER: DataSourceCategory[] = [
-  'trip', 'guide', 'guide_license', 'hunter', 'hunter_license', 'harvest', 'wallet_consumed', 'special',
+  'trip',
+  'guide',
+  'guide_license',
+  'hunter',
+  'hunter_license',
+  'hunter_harvest_report_card',
+  'hunter_stamp',
+  'harvest',
+  'wallet_consumed',
+  'special',
 ]
 
 export const CATEGORY_LABELS: Record<DataSourceCategory, string> = {
-  trip:             'About this trip',
-  guide:            'About the guide',
-  guide_license:    "Guide's license",
-  hunter:           'About this hunter',
-  hunter_license:   "Hunter's license",
-  harvest:          'What this hunter took',
-  wallet_consumed:  'Tag this hunter used',
-  special:          'Other options',
+  trip:                       'About this trip',
+  guide:                      'About the guide',
+  guide_license:              "Guide's license",
+  hunter:                     'About this hunter',
+  hunter_license:             "Hunter's license",
+  hunter_harvest_report_card: "Hunter's harvest report card",
+  hunter_stamp:               "Hunter's stamp",
+  harvest:                    'What this hunter took',
+  wallet_consumed:            'Tag this hunter used',
+  special:                    'Other options',
 }
 
 // ── Sentinels & helpers ────────────────────────────────────────────────

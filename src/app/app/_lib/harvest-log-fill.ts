@@ -240,6 +240,17 @@ function resolveSource(
   if (path === 'hunter_license.valid_to') return fmtDateMMDDYYYY(entry.license?.valid_to)
   if (path === 'hunter_license.holder_name') return entry.hunter?.display_name ?? entry.guest_name ?? ''
 
+  // v27.1.1.0.3d.2.7: hunter_harvest_report_card.* + hunter_stamp.* —
+  // catalog-only stubs. The wizard now exposes these as dropdown options
+  // (and AI suggests them) so guides stop landing on hunter_license for
+  // their state's "Tag Report Card" / "Stamp" fields. Live fill values
+  // require extending EntrySnapshot to pull the matching wallet_items
+  // via trip_wallet_items joined by hunter+type+most-recent-link, which
+  // ships with the rest of the v27.1.1.1 auto-fill engine work. Returns
+  // empty string for now — the saved mapping is preserved either way.
+  if (path.startsWith('hunter_harvest_report_card.')) return ''
+  if (path.startsWith('hunter_stamp.')) return ''
+
   if (path === 'wallet_consumed.identifier') return entry.tag?.identifier ?? ''
   if (path === 'wallet_consumed.species') return entry.tag?.species ?? ''
   if (path === 'wallet_consumed.state') return entry.tag?.state ?? ''
