@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   Archive,
+  ArchiveRestore,
   BookOpen,
   ClipboardCheck,
   FileText,
@@ -14,7 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
-import { bulkArchiveDocsAction, bulkDeleteDocsAction } from '../_lib/docs-actions'
+import { bulkArchiveDocsAction, bulkDeleteDocsAction, bulkRestoreDocsAction } from '../_lib/docs-actions'
 import type { DocSummary } from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
 
@@ -40,6 +41,25 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
 
   const visibleIds = useMemo(() => docs.map((d) => d.id), [docs])
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
+
+  // v27.1.1.0.3e.8: derive whether the current selection is all-archived,
+  // all-active, or mixed. The bulk action bar swaps Archive ↔ Restore
+  // accordingly. Mixed selection defaults to Archive (no-op on already-
+  // archived rows) — pragmatic over a third "Mixed" state.
+  const archivedById = useMemo(() => {
+    const m = new Map<string, boolean>()
+    for (const d of docs) m.set(d.id, !!d.archived_at)
+    return m
+  }, [docs])
+  const selectedArchivedFlags = useMemo(() => {
+    const flags: boolean[] = []
+    for (const id of selected) {
+      const v = archivedById.get(id)
+      if (v !== undefined) flags.push(v)
+    }
+    return flags
+  }, [selected, archivedById])
+  const allSelectedArchived = selectedArchivedFlags.length > 0 && selectedArchivedFlags.every(Boolean)
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -82,6 +102,25 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
     const ids = Array.from(selected)
     startTransition(async () => {
       const res = await bulkArchiveDocsAction(ids)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      if (res.skipped.length > 0) setSkippedNotice(describeSkipped(res.skipped))
+      setSelected(new Set())
+      router.refresh()
+    })
+  }
+
+  // v27.1.1.0.3e.8: bulk restore — symmetric to archive. Only fires when
+  // every selected row is currently archived (the action bar's Restore
+  // button gates on allSelectedArchived).
+  function runRestore() {
+    setError(null)
+    setSkippedNotice(null)
+    const ids = Array.from(selected)
+    startTransition(async () => {
+      const res = await bulkRestoreDocsAction(ids)
       if ('error' in res) {
         setError(res.error)
         return
@@ -139,16 +178,35 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
               {selected.size} selected
             </label>
             <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0 }}>
-              <button
-                type="button"
-                className="bb-cta-sm"
-                onClick={runArchive}
-                disabled={pending}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-              >
-                <Archive size={14} aria-hidden="true" />
-                Archive
-              </button>
+              {/* v27.1.1.0.3e.8: archive ↔ restore swap. When every
+                  selected row is archived, the button morphs to
+                  Restore (calls bulkRestoreDocsAction). Otherwise it's
+                  Archive (bulkArchiveDocsAction; the action's IS NULL
+                  filter no-ops the already-archived rows in a mixed
+                  selection). */}
+              {allSelectedArchived ? (
+                <button
+                  type="button"
+                  className="bb-cta-sm"
+                  onClick={runRestore}
+                  disabled={pending}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <ArchiveRestore size={14} aria-hidden="true" />
+                  Restore
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="bb-cta-sm"
+                  onClick={runArchive}
+                  disabled={pending}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Archive size={14} aria-hidden="true" />
+                  Archive
+                </button>
+              )}
               <button
                 type="button"
                 className="bb-cta-sm bb-cta-sm-destructive"
@@ -205,7 +263,7 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
       <ConfirmModal
         open={confirmDelete}
         title={`Delete ${selected.size} doc${selected.size === 1 ? '' : 's'}?`}
-        body="The selected docs will be permanently removed. Active docs get archived first as part of the same step. Docs still attached to a trip are skipped — detach them from the trip first and try again. This can't be undone."
+        body="The selected docs will be permanently removed. Active docs get archived first as part of the same step. Trip attachments are cleaned up automatically. This can't be undone."
         confirmLabel="Delete"
         destructive
         isPending={pending}

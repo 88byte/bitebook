@@ -3537,6 +3537,23 @@ body {
   color: var(--color-ink-soft);
 }
 
+/* v27.1.1.0.3e.8: Trip-level grid on the harvest-log page. Stacks 1-col
+   below 26rem (~415px) so the Hunt date input + 3-col purpose pill grid
+   never collide. Above 26rem, splits 40/60 so the date column gives
+   the pills enough room to breathe. */
+.bb-log-trip-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
+@media (min-width: 26rem) {
+  .bb-log-trip-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  }
+}
+.bb-log-trip-grid > * { min-width: 0; }
+
 /* v27.1.1.0.3e.4: Sticky bulk-action bar on /app/docs library. Appears
    above the doc rows once at least one row is selected. Stays pinned at
    the top of the viewport on scroll so the actions stay reachable when

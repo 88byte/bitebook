@@ -323,6 +323,29 @@ export async function bulkArchiveDocsAction(docIds: string[]): Promise<BulkDocsA
   return { ok: true, processed: ids.length, skipped: [] }
 }
 
+// v27.1.1.0.3e.8: bulk restore — symmetric inverse of bulkArchiveDocsAction.
+// Used by the action bar in the 'Show archived' view: when all selected
+// rows are archived the bar swaps Archive → Restore.
+export async function bulkRestoreDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
+  const { profile } = await requireGuide()
+  const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
+  if (ids.length === 0) return { error: 'No docs selected.' }
+
+  const sb = await createClient()
+  const { error } = await sb
+    .from('docs')
+    .update({ archived_at: null })
+    .in('id', ids)
+    .eq('guide_id', profile.id)
+    .not('archived_at', 'is', null)
+  if (error) {
+    console.warn('[docs.bulkRestoreDocsAction]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not restore docs.' }
+  }
+  revalidatePath('/app/docs')
+  return { ok: true, processed: ids.length, skipped: [] }
+}
+
 export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
   const { profile } = await requireGuide()
   const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
@@ -342,43 +365,28 @@ export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsAc
   }
   const ownedRows = rows ?? []
 
-  // Trip-doc references for the whole batch in one query — anything still
-  // attached gets skipped with a clear reason.
-  const { data: tripDocRefs, error: refsErr } = await sb
-    .from('trip_docs')
-    .select('doc_id')
-    .in('doc_id', ownedRows.map((r) => r.id))
-  if (refsErr) {
-    console.warn('[docs.bulkDeleteDocsAction:refs]', { code: refsErr.code, message: refsErr.message })
-    return { error: 'Could not verify trip references.' }
-  }
-  const refCount = new Map<string, number>()
-  for (const r of tripDocRefs ?? []) {
-    refCount.set(r.doc_id, (refCount.get(r.doc_id) ?? 0) + 1)
-  }
-
+  // v27.1.1.0.3e.8: dropped the trip-attached pre-check entirely. The
+  // gate was originally a "don't accidentally orphan a hunter's trip
+  // attachment" guard, but in practice it was silently blocking real
+  // deletes (e.g. legacy auto-generated PDFs from before v3e.3 still
+  // had trip_docs rows even after archive). The trip_docs FK is ON
+  // DELETE CASCADE — the row delete already cleans up trip attachments
+  // atomically. trip_generated_logs.source_doc_id is ON DELETE SET NULL,
+  // so the generated-PDF history stays intact with a null pointer back
+  // to the original template.
   const skipped: { id: string; reason: string }[] = []
   const toDelete: { id: string; file_path: string | null }[] = []
-
-  // Any id the caller passed that we didn't find in ownedRows is either
-  // not theirs (RLS hid it) or a stale id from the client.
   const ownedIds = new Set(ownedRows.map((r) => r.id))
   for (const id of ids) {
     if (!ownedIds.has(id)) {
       skipped.push({ id, reason: 'Not found.' })
     }
   }
-
-  // v27.1.1.0.3e.5: bulk delete now auto-archives any active rows in the
-  // selection before deleting, so the user doesn't have to do a separate
-  // archive pass. The trip-attached gate still skips anything still
-  // referenced — that genuinely can't be safely deleted from here.
+  // v27.1.1.0.3e.5: bulk delete auto-archives any active rows in the
+  // selection before deleting, so the user doesn't have to do a
+  // separate archive pass.
   const toAutoArchive: string[] = []
   for (const row of ownedRows) {
-    if ((refCount.get(row.id) ?? 0) > 0) {
-      skipped.push({ id: row.id, reason: 'Still attached to a trip — detach first.' })
-      continue
-    }
     if (!row.archived_at) {
       toAutoArchive.push(row.id)
     }

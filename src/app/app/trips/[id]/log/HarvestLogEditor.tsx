@@ -217,16 +217,13 @@ export default function HarvestLogEditor({
             {/* v27.1.1.0.3e.5: Custom 2-col grid (~40/60) so the Hunt date
                 column doesn't crowd the 3-col purpose pill grid on its
                 right. Default .bb-form-grid-2 is 1fr/1fr which crushes
-                the purpose pills at narrow widths. */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.5fr)',
-                gap: '0.75rem',
-                marginTop: '0.6rem',
-                minWidth: 0,
-              }}
-            >
+                the purpose pills at narrow widths.
+                v27.1.1.0.3e.8: stack to 1-col below 26rem viewport — at
+                360–375px the 40/60 split still leaves the Hunt date
+                column too narrow for `<input type="date">`'s intrinsic
+                picker chrome on iOS Safari. Stacking is the only clean
+                fix that preserves the 3-col pill grid in column 2. */}
+            <div className="bb-log-trip-grid" style={{ marginTop: '0.6rem' }}>
               <div className="bb-form-row" style={{ marginBottom: 0, minWidth: 0 }}>
                 <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
                 <input
@@ -236,6 +233,12 @@ export default function HarvestLogEditor({
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
                   onBlur={() => commitLogLevel(logDate, purposes)}
+                  // v27.1.1.0.3e.8: force the input to fully obey its grid
+                  // cell's width. .bb-input has max-width:100% but no
+                  // explicit width, so iOS fell back to the date input's
+                  // intrinsic min-width (~140px) and overflowed the
+                  // 40%-share column at 375px viewports.
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
 
