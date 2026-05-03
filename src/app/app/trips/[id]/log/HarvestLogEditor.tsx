@@ -26,6 +26,7 @@ import {
 import {
   generateFilledHarvestLogPDFsAction,
   deleteTripGeneratedLogAction,
+  renameTripGeneratedLogAction,
 } from '../../../_lib/harvest-log-fill'
 import type {
   HarvestLogWithEntries,
@@ -34,7 +35,7 @@ import type {
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
-import { Download, ExternalLink } from 'lucide-react'
+import { Download, ExternalLink, Pencil, Check, X as XIcon } from 'lucide-react'
 
 // v27.1.1.0.3a   — accordion editor.
 // v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
@@ -233,12 +234,21 @@ export default function HarvestLogEditor({
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
                   onBlur={() => commitLogLevel(logDate, purposes)}
-                  // v27.1.1.0.3e.8: force the input to fully obey its grid
-                  // cell's width. .bb-input has max-width:100% but no
-                  // explicit width, so iOS fell back to the date input's
-                  // intrinsic min-width (~140px) and overflowed the
-                  // 40%-share column at 375px viewports.
-                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
+                  // v27.1.4.0.1: iOS Safari renders <input type="date">
+                  // with -webkit-appearance:none reserved widths even
+                  // when width:100% is applied — the native picker
+                  // chrome contributes intrinsic width that bleeds past
+                  // the parent column. Force display:block (kills the
+                  // inline-block intrinsic) + maxWidth:100% (caps the
+                  // computed width to the cell) so the input clips into
+                  // its grid column instead of overflowing the card.
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
 
@@ -983,6 +993,9 @@ function GeneratePdfsSection({
   // Default-pick the first doc in the visible/sorted list. Auto-select
   // sticks when sortedDocs reduces to length 1.
   const [docId, setDocId] = useState<string>(sortedDocs[0]?.id ?? '')
+  // v27.1.4.0.1: optional Report name. Empty → fall through to the
+  // engine's auto-generated `{trip.title} — {doc.label}` pattern.
+  const [reportName, setReportName] = useState<string>('')
   // If the visible list changes (e.g. tripState arrives async), keep
   // the selected doc valid.
   useEffect(() => {
@@ -1011,12 +1024,16 @@ function GeneratePdfsSection({
       return
     }
     startTransition(async () => {
-      const res = await generateFilledHarvestLogPDFsAction(logId, docId)
+      const res = await generateFilledHarvestLogPDFsAction(logId, docId, reportName.trim() || undefined)
       if ('error' in res) {
         setError(res.error)
         return
       }
       setWarnings(res.warnings)
+      // v27.1.4.0.1: clear the typed name after a successful generate so
+      // a subsequent run defaults back to the auto-name (otherwise the
+      // input feels sticky and confusing).
+      setReportName('')
       router.refresh()
     })
   }
@@ -1094,6 +1111,32 @@ function GeneratePdfsSection({
             {activeDoc.mapping_status === 'partial' ? ' · partial mapping' : ''}.
           </p>
         )}
+
+        {/* v27.1.4.0.1: optional Report name. Empty → fall through to
+            the auto-name (`{trip.title} — {doc.label}`). Capped at 120
+            chars on the server. Cleared after a successful generate. */}
+        <div className="bb-form-row" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
+          <label className="bb-form-label" htmlFor="report_name">
+            Report name <span style={{ opacity: 0.6 }}>(optional)</span>
+          </label>
+          <input
+            id="report_name"
+            type="text"
+            className="bb-input"
+            value={reportName}
+            onChange={(e) => setReportName(e.target.value)}
+            placeholder={activeDoc ? `e.g. ${activeDoc.label}` : 'e.g. Spring Black Bear log'}
+            maxLength={120}
+            style={{
+              display: 'block',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+            }}
+          />
+          <p className="bb-form-help">Leave blank to use the auto-generated name.</p>
+        </div>
 
         <div style={{ marginTop: '0.6rem' }}>
           <button
@@ -1186,6 +1229,12 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // v27.1.4.0.1: inline rename. Tap pencil → swap filename for an
+  // editable input → Save calls renameTripGeneratedLogAction → row
+  // refreshes with new file_name. Storage path is untouched.
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState<string>(() => stripPdfExt(row.file_name))
+
   function runDelete() {
     setError(null)
     startTransition(async () => {
@@ -1196,6 +1245,25 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
       }
       router.refresh()
     })
+  }
+
+  function runRename() {
+    setError(null)
+    startTransition(async () => {
+      const res = await renameTripGeneratedLogAction(row.id, draft)
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      setEditing(false)
+      router.refresh()
+    })
+  }
+
+  function cancelRename() {
+    setDraft(stripPdfExt(row.file_name))
+    setEditing(false)
+    setError(null)
   }
 
   return (
@@ -1212,18 +1280,90 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
     >
       <FileText size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--color-ink-soft)' }} />
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            color: 'var(--color-ink)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-          title={row.file_name}
-        >
-          {row.file_name}
-        </div>
+        {editing ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <input
+              type="text"
+              className="bb-input"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  runRename()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  cancelRename()
+                }
+              }}
+              maxLength={200}
+              autoFocus
+              aria-label="Report name"
+              style={{
+                display: 'block',
+                flex: '1 1 0',
+                minWidth: 0,
+                maxWidth: '100%',
+                boxSizing: 'border-box',
+                padding: '0.4rem 0.6rem',
+                fontSize: '0.9rem',
+              }}
+            />
+            <button
+              type="button"
+              onClick={runRename}
+              disabled={pending || !draft.trim()}
+              aria-label="Save report name"
+              className="bb-text-action bb-text-action-copper"
+              style={{ padding: '0.25rem', flexShrink: 0 }}
+            >
+              <Check size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={cancelRename}
+              disabled={pending}
+              aria-label="Cancel rename"
+              className="bb-text-action"
+              style={{ padding: '0.25rem', flexShrink: 0, color: 'var(--color-ink-soft)' }}
+            >
+              <XIcon size={16} aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+            <span
+              style={{
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: '1 1 0',
+                minWidth: 0,
+              }}
+              title={row.file_name}
+            >
+              {row.file_name}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(stripPdfExt(row.file_name))
+                setEditing(true)
+              }}
+              aria-label={`Rename ${row.file_name}`}
+              className="bb-text-action"
+              style={{
+                padding: '0.2rem',
+                color: 'var(--color-ink-soft)',
+                flexShrink: 0,
+              }}
+            >
+              <Pencil size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
           <span>{relativeTime(row.created_at)}</span>
           {row.pass_total > 1 && <span>· Pass {row.pass_index} of {row.pass_total}</span>}
@@ -1293,6 +1433,12 @@ function GeneratedReportRow({ row }: { row: TripGeneratedLog }) {
       />
     </div>
   )
+}
+
+// v27.1.4.0.1: strip the trailing `.pdf` so the rename input shows the
+// human-readable name only. The action re-appends .pdf on save.
+function stripPdfExt(name: string): string {
+  return name.toLowerCase().endsWith('.pdf') ? name.slice(0, -4) : name
 }
 
 function relativeTime(iso: string): string {

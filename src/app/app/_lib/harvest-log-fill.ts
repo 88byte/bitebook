@@ -309,10 +309,15 @@ function resolveSource(
 
 export async function generateFilledHarvestLogPDFsAction(
   logId: string,
-  docId: string
+  docId: string,
+  customName?: string
 ): Promise<GenerateFilledLogResult> {
   const { profile } = await requireGuide()
   if (!logId || !docId) return { error: 'Missing log or doc id.' }
+  // v27.1.4.0.1: optional guide-supplied report name. Empty/undefined →
+  // fall through to the auto-generated `{trip.title} — {doc.label}`
+  // pattern below. Capped at 120 chars defensively.
+  const cleanCustomName = (customName ?? '').trim().slice(0, 120)
 
   const sb = await createClient()
 
@@ -781,10 +786,14 @@ export async function generateFilledHarvestLogPDFsAction(
 
     // v27.1.1.0.3e.3: write to trip_generated_logs (replaces the old
     // docs + trip_docs auto-insert that polluted the doc library).
+    // v27.1.4.0.1: when the guide types a custom Report name, use it as
+    // the display label (with pass suffix on overflows). Empty string →
+    // fall through to the auto-pattern.
+    const baseDisplay = cleanCustomName || `${trip.title ?? 'Trip'} — ${doc.label}`
     const filledLabel =
       passes > 1
-        ? `${trip.title ?? 'Trip'} — ${doc.label} (${pass + 1}/${passes})`
-        : `${trip.title ?? 'Trip'} — ${doc.label}`
+        ? `${baseDisplay} (${pass + 1}/${passes})`
+        : baseDisplay
 
     let pageCount: number | null = null
     try {
@@ -793,6 +802,11 @@ export async function generateFilledHarvestLogPDFsAction(
       pageCount = null
     }
 
+    // v27.1.4.0.1: file_name is the display name (the GeneratedReportsTile
+    // renders it directly). Persist filledLabel + .pdf instead of the
+    // slug+timestamp filename — storage path stays at filePath, so the
+    // download button still resolves the underlying object.
+    const displayFileName = `${filledLabel}.pdf`
     const { data: genRow, error: genErr } = await sb
       .from('trip_generated_logs')
       .insert({
@@ -800,7 +814,7 @@ export async function generateFilledHarvestLogPDFsAction(
         log_id: log.id,
         source_doc_id: docId,
         file_path: filePath,
-        file_name: filename,
+        file_name: displayFileName,
         page_count: pageCount,
         pass_index: pass + 1,
         pass_total: passes,
@@ -857,6 +871,49 @@ function formatPurposeLabel(key: string): string {
 // is defense-in-depth. Storage delete is best-effort: if it fails the
 // row delete still proceeds so the user can retry without a phantom
 // orphan row.
+// v27.1.4.0.1: rename a generated report. Storage path stays stable —
+// only the `file_name` column (which the GeneratedReportsTile renders
+// directly) changes. Decoupling display name from storage object key
+// means the rename is a single-row UPDATE; no copy/delete dance, no
+// signed-URL invalidation, no stale-cache concerns.
+export async function renameTripGeneratedLogAction(
+  generatedLogId: string,
+  newName: string
+): Promise<{ ok: true } | { error: string }> {
+  const { profile } = await requireGuide()
+  if (!generatedLogId) return { error: 'Missing generated log id.' }
+  const trimmed = (newName ?? '').trim()
+  if (!trimmed) return { error: 'Report name cannot be empty.' }
+  if (trimmed.length > 200) return { error: 'Report name is too long (200 char max).' }
+
+  const sb = await createClient()
+  const { data: row, error: selErr } = await sb
+    .from('trip_generated_logs')
+    .select('id, trip_id, created_by')
+    .eq('id', generatedLogId)
+    .maybeSingle()
+  if (selErr || !row) return { error: 'Report not found.' }
+  if (row.created_by !== profile.id) return { error: 'Not allowed.' }
+
+  // Append .pdf if the guide didn't include the extension. Keeps the
+  // download button's filename hint sane on every browser.
+  const display = trimmed.toLowerCase().endsWith('.pdf') ? trimmed : `${trimmed}.pdf`
+
+  const { error: updErr } = await sb
+    .from('trip_generated_logs')
+    .update({ file_name: display })
+    .eq('id', generatedLogId)
+    .eq('created_by', profile.id)
+  if (updErr) {
+    console.warn('[renameTripGeneratedLog]', { code: updErr.code, message: updErr.message })
+    return { error: updErr.message || 'Could not rename report.' }
+  }
+
+  revalidatePath(`/app/trips/${row.trip_id}`)
+  revalidatePath(`/app/trips/${row.trip_id}/log`)
+  return { ok: true }
+}
+
 export async function deleteTripGeneratedLogAction(
   generatedLogId: string
 ): Promise<{ ok: true } | { error: string }> {

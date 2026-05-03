@@ -3560,6 +3560,17 @@ body {
   }
 }
 .bb-log-trip-grid > * { min-width: 0; }
+/* v27.1.4.0.1: defense-in-depth against the iOS date-input overflow. The
+   input + column already have min-width:0, but if a future browser quirk
+   pushes intrinsic width past the column anyway, clip at the parent
+   container so it never bleeds past the card boundary. */
+.bb-log-trip-grid input[type="date"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: block;
+}
 
 /* v27.1.1.0.3e.4: Sticky bulk-action bar on /app/docs library. Appears
    above the doc rows once at least one row is selected. Stays pinned at
