@@ -175,8 +175,9 @@ export default function MappingWizard({
       if (res.rejected > 0) parts.push(`${res.rejected} rejected`)
       setAiResultMsg(parts.length > 0 ? parts.join(' · ') : 'AI returned nothing usable.')
       router.refresh()
-      // Auto-collapse the banner after 3s.
-      window.setTimeout(() => setAiSuccessCount(null), 3000)
+      // v27.1.1.0.3d.2.9: no auto-collapse — Step 3 stays visible until
+      // the guide taps the "See the suggestions →" CTA. Time-driven
+      // dismissal was vanishing before users could read it.
     })
   }
 
@@ -258,8 +259,9 @@ export default function MappingWizard({
     }
     const additions = newAiCount - prevAiCountRef.current
     if (additions > 0 && aiSuccessCount === null) {
+      // v27.1.1.0.3d.2.9: no auto-collapse here either — same reason
+      // as the manual path. Banner stays until the user taps the CTA.
       setAiSuccessCount(additions)
-      window.setTimeout(() => setAiSuccessCount(null), 3000)
     }
     prevAiCountRef.current = newAiCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -570,6 +572,10 @@ export default function MappingWizard({
   }
 
   function scrollToFirstField() {
+    // v27.1.1.0.3d.2.9: tapping the Step 3 CTA dismisses the success
+    // banner AND scrolls to the field list. No more 3s timer — user
+    // controls when Step 3 collapses.
+    setAiSuccessCount(null)
     fieldsAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -697,9 +703,8 @@ export default function MappingWizard({
           tone="success"
         >
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-            AI pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'}.
-            Review the suggestions below. Edit anything wrong, then tap{' '}
-            <strong>Mark mapping complete</strong> at the bottom.
+            AI pre-filled mappings for {aiSuccessCount} field{aiSuccessCount === 1 ? '' : 's'} in
+            your form. They&rsquo;re saved as suggestions &mdash; nothing&rsquo;s locked in yet.
           </p>
           <div style={{ marginTop: '0.75rem' }}>
             <button
@@ -709,9 +714,19 @@ export default function MappingWizard({
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
               <Sparkles size={16} aria-hidden="true" />
-              Review {aiSuccessCount} AI suggestion{aiSuccessCount === 1 ? '' : 's'} →
+              See the suggestions →
             </button>
           </div>
+          <p
+            style={{
+              margin: '0.6rem 0 0',
+              fontSize: '0.8rem',
+              color: 'var(--color-ink-soft)',
+            }}
+          >
+            We&rsquo;ll scroll to the field list. Edit anything wrong, then tap{' '}
+            <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
+          </p>
         </StepCard>
       )}
 

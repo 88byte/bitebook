@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.1.1.0.3d.2.8-ai-restore-link-and-tightened-auto-run-and-prompt-disambiguation'
+const BUILD_TAG = 'v27.1.1.0.3d.2.9-step-3-user-dismissed-clearer-cta'
 
 const barlow = Barlow({
   variable: '--font-barlow',
