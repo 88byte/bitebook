@@ -65,6 +65,31 @@ export default function DateTimeField({
           setValue(e.target.value)
           onChange?.(e.target.value)
         }}
+        // v27.1.3.0.1: explicit showPicker() on click. The opacity:0
+        // overlay receives the click on iOS (gesture preserved → native
+        // picker opens) BUT on desktop Chrome / Firefox the picker only
+        // fires when the user clicks specific native sub-components of
+        // the date input (the dropdown arrow), which are unreachable
+        // when the input is fully transparent. Calling showPicker() from
+        // the click handler works on every browser that supports the
+        // input type — and the user gesture is preserved because the
+        // call originates inside an interactive-input click handler.
+        // Wrapped in try/catch because some older browsers throw if
+        // showPicker is called twice in the same tick.
+        onClick={(e) => {
+          try {
+            ;(e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+          } catch {
+            // ignore — native picker may already be open
+          }
+        }}
+        onFocus={(e) => {
+          // Belt-and-suspenders for keyboard activation: focus via Tab
+          // shouldn't pop the picker, but Enter / Space on a focused
+          // datetime input historically depended on user-agent. Leaving
+          // focus alone — only the click handler invokes showPicker.
+          void e
+        }}
         aria-label={ariaLabel ?? 'Pick date and time'}
         style={{
           position: 'absolute',

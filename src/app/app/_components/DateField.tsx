@@ -56,6 +56,21 @@ export default function DateField({
         value={value}
         required={required}
         onChange={(ev) => setValue(ev.target.value)}
+        // v27.1.3.0.1: explicit showPicker() on click. See DateTimeField
+        // for the full explanation — short version: opacity:0 overlay
+        // works for iOS gesture-driven picker, but desktop Chrome / FF
+        // require landing on native widget sub-components which a
+        // transparent overlay can't expose. Calling showPicker() inside
+        // the input's click handler preserves the gesture on iOS AND
+        // opens the picker reliably on desktop. Wrapped in try/catch
+        // because some older browsers throw if invoked redundantly.
+        onClick={(e) => {
+          try {
+            ;(e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+          } catch {
+            // ignore — native picker may already be opening
+          }
+        }}
         aria-label={ariaLabel ?? 'Pick date'}
         style={{
           position: 'absolute',
