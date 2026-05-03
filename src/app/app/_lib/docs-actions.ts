@@ -763,7 +763,9 @@ Rules:
 - For per-hunter fields (catalog perRow=true), set hunter_slot >= 1.
 - For trip-level fields (catalog perRow=false), set hunter_slot=0.
 - slotHint is a regex-derived starting point — override it freely when the PDF page shows the box belongs to a different slot.
-- "confidence":"low" when the box is ambiguous or no catalog path fits.`
+- "confidence":"low" when the box is ambiguous or no catalog path fits.
+
+Output format (CRITICAL): respond with ONLY the raw JSON array. No preamble, no explanation, no thinking aloud, no markdown fences, no trailing commentary. Your entire response must be parseable by JSON.parse(). Start with [ and end with ].`
 
   const userText = `Form-field list (${fieldsForLLM.length} total):
 ${JSON.stringify(fieldsForLLM)}
@@ -798,23 +800,70 @@ Return the JSON array now.`
   }> = []
   try {
     const client = new Anthropic({ apiKey })
+    // v27.1.1.0.3d.2.1: Anthropic's "assistant prefill" technique.
+    // Pre-seed the assistant turn with the opening "[" so Claude
+    // continues from there, eliminating any preamble like
+    // "Looking at the form...". The response will lack the leading
+    // "[" so we re-add it before parsing. Belt-and-suspenders against
+    // a tighter system-prompt rule that Sonnet 4.6 was ignoring on
+    // some inputs.
     const resp = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8000,
       system: systemPrompt,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      messages: [{ role: 'user', content: userContent as any }],
+      messages: [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { role: 'user', content: userContent as any },
+        { role: 'assistant', content: '[' },
+      ],
     })
     const block = resp.content.find((b) => b.type === 'text')
     if (!block || block.type !== 'text') {
       return { error: 'AI returned no text response.' }
     }
-    // Strip ```json fences if Claude added them despite the system rule.
-    let raw = block.text.trim()
+    // Re-add the prefill bracket Claude continued from.
+    let raw = ('[' + block.text).trim()
+    // Strip ```json fences just in case.
     if (raw.startsWith('```')) {
-      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
     }
-    parsed = JSON.parse(raw)
+    // First attempt: parse as-is.
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      // Defensive substring extraction. If Claude still wrapped the
+      // array in conversational text (despite both prefill and system
+      // rule), pluck the JSON out by slicing from the first opening
+      // bracket to the last closing bracket of the same kind.
+      const firstSquare = raw.indexOf('[')
+      const lastSquare = raw.lastIndexOf(']')
+      const firstCurly = raw.indexOf('{')
+      const lastCurly = raw.lastIndexOf('}')
+      let candidate = ''
+      if (firstSquare >= 0 && lastSquare > firstSquare) {
+        candidate = raw.slice(firstSquare, lastSquare + 1)
+      } else if (firstCurly >= 0 && lastCurly > firstCurly) {
+        candidate = raw.slice(firstCurly, lastCurly + 1)
+      }
+      if (!candidate) {
+        console.warn('[docs.suggestMappingsAction:parse:no-bracket]', {
+          rawHead: raw.slice(0, 200),
+          rawTail: raw.slice(-200),
+        })
+        return { error: 'AI returned a malformed response. Try again, or map the fields manually.' }
+      }
+      try {
+        parsed = JSON.parse(candidate)
+      } catch (parseErr) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr)
+        console.warn('[docs.suggestMappingsAction:parse:fail]', {
+          parseError: msg,
+          rawHead: raw.slice(0, 200),
+          rawTail: raw.slice(-200),
+        })
+        return { error: 'AI returned a malformed response. Try again, or map the fields manually.' }
+      }
+    }
     if (!Array.isArray(parsed)) {
       return { error: 'AI did not return an array.' }
     }
