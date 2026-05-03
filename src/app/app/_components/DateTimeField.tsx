@@ -15,11 +15,16 @@ export default function DateTimeField({
   defaultValue = '',
   required = false,
   ariaLabel,
+  onChange,
 }: {
   name: string
   defaultValue?: string
   required?: boolean
   ariaLabel?: string
+  // v27.1.1.0.3e.6: optional change callback so the inline TripDetailEditor
+  // can auto-save when the user picks a date. Datetime-local on iOS doesn't
+  // fire a clean blur, so onChange is the reliable hook.
+  onChange?: (value: string) => void
 }) {
   const id = useId()
   const [value, setValue] = useState(defaultValue)
@@ -56,7 +61,10 @@ export default function DateTimeField({
         name={name}
         value={value}
         required={required}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value)
+          onChange?.(e.target.value)
+        }}
         aria-label={ariaLabel ?? 'Pick date and time'}
         style={{
           position: 'absolute',

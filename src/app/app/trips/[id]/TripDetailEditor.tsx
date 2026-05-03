@@ -1,9 +1,11 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building,
+  Calendar,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Crosshair,
@@ -18,41 +20,39 @@ import {
 } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
 import { methodsForKind } from '@/lib/methods'
-import { updateTripAction } from '../actions'
-import HuntersMultiSelect, { type HunterOption } from '../../_components/HuntersMultiSelect'
-import DateTimeField from '../../../_components/DateTimeField'
+import { updateTripAction } from './actions'
+import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
+import DateTimeField from '../../_components/DateTimeField'
 
-type EditTripFormProps = {
-  tripId: string
-  initial: {
-    title: string
-    kind: 'hunting' | 'fishing'
-    starts_at: string
-    ends_at: string | null
-    city: string | null
-    state: string
-    zone: string | null
-    county: string | null
-    species_targeted: string | null
-    method: string | null
-    notes: string | null
-  }
-  candidates: HunterOption[]
-  initialSelectedIds: string[]
+// v27.1.1.0.3e.6 — inline editor for /app/trips/[id]. Replaces the
+// separate /edit page. Trip Overview card stays expanded with auto-save
+// on blur (matches harvest-log autosave). Location, Hunt Details, Hunters,
+// Notes are collapsed summary rows that expand inline on Edit / Manage /
+// Add. Save still routes through updateTripAction (now returns a result
+// instead of redirecting). Hunter side renders a separate read-only view
+// — this component is the guide-side editor only.
+
+type Initial = {
+  title: string
+  kind: 'hunting' | 'fishing'
+  starts_at: string
+  ends_at: string | null
+  city: string | null
+  state: string
+  zone: string | null
+  county: string | null
+  species_targeted: string | null
+  method: string | null
+  notes: string | null
 }
 
-// v27.1.1.0.3e.5: Trip-detail edit redesigned to a collapsed-row pattern
-// matching Flavio's mockup. The Trip Overview card stays expanded — name,
-// activity, dates are the high-frequency edits. Location, Hunt details,
-// Hunters, and Notes each render as a single summary row (icon · eyebrow ·
-// summary line · Edit/Manage/Add link). Tapping the action expands that
-// row inline to show the full edit form for that section. Tapping again
-// (Done) collapses back to the summary.
-//
-// Form submit + server action contract are unchanged — every input still
-// lives inside the same <form>, just visibility-toggled. updateTripAction
-// reads the same FormData regardless of which sections were expanded
-// when Save was tapped.
+type SectionKey = 'location' | 'hunt' | 'hunters' | 'notes'
+
+type SaveStatus =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; at: number }
+  | { kind: 'error'; message: string }
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return ''
@@ -62,24 +62,54 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-type SectionKey = 'location' | 'hunt' | 'hunters' | 'notes'
+function StatusPill({ status }: { status: SaveStatus }) {
+  if (status.kind === 'idle') return null
+  if (status.kind === 'saving') {
+    return <span style={{ fontSize: '0.78rem', color: 'var(--color-ink-soft)' }}>Saving…</span>
+  }
+  if (status.kind === 'saved') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          fontSize: '0.78rem',
+          color: 'var(--color-copper)',
+        }}
+      >
+        <CheckCircle2 size={11} aria-hidden="true" />
+        Saved
+      </span>
+    )
+  }
+  return (
+    <span style={{ fontSize: '0.78rem', color: '#8C3C2A' }} role="alert">
+      {status.message}
+    </span>
+  )
+}
 
-export default function EditTripForm({
+export default function TripDetailEditor({
   tripId,
   initial,
   candidates,
   initialSelectedIds,
-}: EditTripFormProps) {
+}: {
+  tripId: string
+  initial: Initial
+  candidates: HunterOption[]
+  initialSelectedIds: string[]
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [hunterList, setHunterList] = useState<HunterOption[]>(candidates)
-  const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds))
-  const [kind, setKind] = useState<'hunting' | 'fishing'>(initial.kind)
+  const [status, setStatus] = useState<SaveStatus>({ kind: 'idle' })
 
-  // Live mirror of the field values so the collapsed summaries reflect
-  // edits made inside the expanded sections without needing the user to
-  // collapse the row first.
+  // Editable state
+  const [title, setTitle] = useState(initial.title)
+  const [kind, setKind] = useState<'hunting' | 'fishing'>(initial.kind)
+  const [startsAt, setStartsAt] = useState<string>(toLocalInput(initial.starts_at))
+  const [endsAt, setEndsAt] = useState<string>(toLocalInput(initial.ends_at))
   const [city, setCity] = useState(initial.city ?? '')
   const [state, setState] = useState(initial.state ?? '')
   const [zone, setZone] = useState(initial.zone ?? '')
@@ -87,6 +117,8 @@ export default function EditTripForm({
   const [speciesTargeted, setSpeciesTargeted] = useState(initial.species_targeted ?? '')
   const [method, setMethod] = useState(initial.method ?? '')
   const [notes, setNotes] = useState(initial.notes ?? '')
+  const [hunterList, setHunterList] = useState<HunterOption[]>(candidates)
+  const [selected, setSelected] = useState<Set<string>>(new Set(initialSelectedIds))
 
   const [expanded, setExpanded] = useState<Set<SectionKey>>(new Set())
   function toggleSection(key: SectionKey) {
@@ -98,6 +130,73 @@ export default function EditTripForm({
     })
   }
 
+  // Auto-save fader: clear Saved pill after 2s.
+  useEffect(() => {
+    if (status.kind !== 'saved') return
+    const t = setTimeout(() => setStatus({ kind: 'idle' }), 2000)
+    return () => clearTimeout(t)
+  }, [status])
+
+  // Build a fresh FormData from current state. The action validates a few
+  // required fields (title / state / startsAt / kind) — if any of those
+  // are blank we skip the call so the user isn't bothered with a save
+  // error mid-typing.
+  function buildFormData(opts: { syncParticipants?: boolean }): FormData | null {
+    if (!title.trim() || !startsAt || !state) return null
+    const fd = new FormData()
+    fd.set('trip_id', tripId)
+    fd.set('title', title.trim())
+    fd.set('kind', kind)
+    fd.set('starts_at', startsAt)
+    if (endsAt) fd.set('ends_at', endsAt)
+    fd.set('city', city)
+    fd.set('state', state)
+    fd.set('zone', zone)
+    fd.set('county', county)
+    fd.set('species_targeted', speciesTargeted)
+    fd.set('method', method)
+    fd.set('notes', notes)
+    if (opts.syncParticipants) {
+      selected.forEach((id) => {
+        if (!id.startsWith('pending:')) fd.append('hunter_ids', id)
+      })
+    } else {
+      fd.set('sync_participants', '0')
+    }
+    return fd
+  }
+
+  function autoSave(opts: { syncParticipants?: boolean } = {}) {
+    const fd = buildFormData({ syncParticipants: opts.syncParticipants ?? false })
+    if (!fd) return
+    setStatus({ kind: 'saving' })
+    startTransition(async () => {
+      const res = await updateTripAction(fd)
+      if ('error' in res) {
+        setStatus({ kind: 'error', message: res.error })
+        return
+      }
+      setStatus({ kind: 'saved', at: Date.now() })
+      router.refresh()
+    })
+  }
+
+  function toggleHunter(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function addHunter(h: HunterOption, autoSelect: boolean) {
+    setHunterList((prev) => (prev.find((x) => x.id === h.id) ? prev : [h, ...prev]))
+    if (autoSelect) {
+      setSelected((prev) => new Set(prev).add(h.id))
+    }
+  }
+
+  // Derived summaries for the collapsed cards.
   const locationSummary = useMemo(() => {
     const cs = [city, state].filter(Boolean).join(', ')
     const parts = [cs, zone ? `Zone ${zone}` : '', county ? `${county} County` : ''].filter(Boolean)
@@ -116,64 +215,40 @@ export default function EditTripForm({
       .slice(0, 2)
       .map((id) => hunterList.find((h) => h.id === id)?.display_name ?? 'Unknown')
     const extra = realIds.length - names.length
-    const joined = names.join(', ')
-    return `${realIds.length} selected · ${joined}${extra > 0 ? ` +${extra}` : ''}`
+    return `${realIds.length} selected · ${names.join(', ')}${extra > 0 ? ` +${extra}` : ''}`
   }, [selected, hunterList])
 
   const notesSummary = notes.trim() ? 'Notes added' : 'No notes added'
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    const fd = new FormData(e.currentTarget)
-    fd.set('trip_id', tripId)
-    selected.forEach((id) => {
-      if (!id.startsWith('pending:')) fd.append('hunter_ids', id)
-    })
-    startTransition(async () => {
-      try {
-        await updateTripAction(fd)
-      } catch (err) {
-        const e = err as Error & { digest?: string }
-        if (e.digest?.startsWith('NEXT_REDIRECT')) throw err
-        setError(e.message ?? 'Could not update trip.')
-      }
-    })
-  }
-
-  function toggleHunter(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function addHunter(h: HunterOption, autoSelect: boolean) {
-    setHunterList((prev) => (prev.find((x) => x.id === h.id) ? prev : [h, ...prev]))
-    if (autoSelect) {
-      setSelected((prev) => new Set(prev).add(h.id))
-    }
-  }
-
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      {/* TRIP OVERVIEW (always expanded) */}
+    <div className="bb-form-narrow flex flex-col gap-4">
+      {/* TRIP OVERVIEW (always expanded, auto-save on blur) */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Trip overview</h2>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <h2 className="bb-form-section-head" style={{ margin: 0 }}>Trip overview</h2>
+            <StatusPill status={status} />
+          </div>
 
-          <div className="bb-form-row">
+          <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <label className="bb-form-label" htmlFor="title">Trip name</label>
             <label className="bb-field">
               <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
               <input
                 id="title"
-                name="title"
                 type="text"
                 required
-                defaultValue={initial.title}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => autoSave()}
                 className="bb-input bb-input-iconed"
                 autoComplete="off"
               />
@@ -189,7 +264,11 @@ export default function EditTripForm({
                   name="kind"
                   value="hunting"
                   checked={kind === 'hunting'}
-                  onChange={() => setKind('hunting')}
+                  onChange={() => {
+                    setKind('hunting')
+                    // Save activity changes immediately — radio has no blur.
+                    setTimeout(() => autoSave(), 0)
+                  }}
                 />
                 Hunting
               </label>
@@ -199,7 +278,10 @@ export default function EditTripForm({
                   name="kind"
                   value="fishing"
                   checked={kind === 'fishing'}
-                  onChange={() => setKind('fishing')}
+                  onChange={() => {
+                    setKind('fishing')
+                    setTimeout(() => autoSave(), 0)
+                  }}
                 />
                 Fishing
               </label>
@@ -207,21 +289,29 @@ export default function EditTripForm({
           </div>
 
           <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
-            <div className="bb-form-row">
+            <div className="bb-form-row" style={{ marginBottom: 0 }}>
               <span className="bb-form-label">Start date</span>
               <DateTimeField
                 name="starts_at"
-                defaultValue={toLocalInput(initial.starts_at)}
+                defaultValue={startsAt}
                 required
                 ariaLabel="Start date and time"
+                onChange={(v) => {
+                  setStartsAt(v)
+                  setTimeout(() => autoSave(), 0)
+                }}
               />
             </div>
-            <div className="bb-form-row">
+            <div className="bb-form-row" style={{ marginBottom: 0 }}>
               <span className="bb-form-label">End date <span style={{ opacity: 0.6 }}>(optional)</span></span>
               <DateTimeField
                 name="ends_at"
-                defaultValue={toLocalInput(initial.ends_at)}
+                defaultValue={endsAt}
                 ariaLabel="End date and time"
+                onChange={(v) => {
+                  setEndsAt(v)
+                  setTimeout(() => autoSave(), 0)
+                }}
               />
             </div>
           </div>
@@ -244,10 +334,10 @@ export default function EditTripForm({
               <span className="bb-field-icon"><Building size={18} aria-hidden="true" /></span>
               <input
                 id="city"
-                name="city"
                 type="text"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
+                onBlur={() => autoSave()}
                 className="bb-input bb-input-iconed"
                 autoComplete="off"
               />
@@ -259,10 +349,12 @@ export default function EditTripForm({
               <span className="bb-field-icon"><MapIcon size={18} aria-hidden="true" /></span>
               <select
                 id="state"
-                name="state"
                 required
                 value={state}
-                onChange={(e) => setState(e.target.value)}
+                onChange={(e) => {
+                  setState(e.target.value)
+                  setTimeout(() => autoSave(), 0)
+                }}
                 className="bb-input bb-input-iconed"
               >
                 <option value="" disabled>Select a state</option>
@@ -280,10 +372,10 @@ export default function EditTripForm({
               <span className="bb-field-icon"><Mountain size={18} aria-hidden="true" /></span>
               <input
                 id="zone"
-                name="zone"
                 type="text"
                 value={zone}
                 onChange={(e) => setZone(e.target.value)}
+                onBlur={() => autoSave()}
                 className="bb-input bb-input-iconed"
                 autoComplete="off"
               />
@@ -295,10 +387,10 @@ export default function EditTripForm({
               <span className="bb-field-icon"><TreeDeciduous size={18} aria-hidden="true" /></span>
               <input
                 id="county"
-                name="county"
                 type="text"
                 value={county}
                 onChange={(e) => setCounty(e.target.value)}
+                onBlur={() => autoSave()}
                 className="bb-input bb-input-iconed"
                 autoComplete="off"
               />
@@ -324,10 +416,10 @@ export default function EditTripForm({
               <span className="bb-field-icon"><PawPrint size={18} aria-hidden="true" /></span>
               <input
                 id="species_targeted"
-                name="species_targeted"
                 type="text"
                 value={speciesTargeted}
                 onChange={(e) => setSpeciesTargeted(e.target.value)}
+                onBlur={() => autoSave()}
                 className="bb-input bb-input-iconed"
                 autoComplete="off"
               />
@@ -339,9 +431,11 @@ export default function EditTripForm({
               <span className="bb-field-icon"><Crosshair size={18} aria-hidden="true" /></span>
               <select
                 id="method"
-                name="method"
                 value={method}
-                onChange={(e) => setMethod(e.target.value)}
+                onChange={(e) => {
+                  setMethod(e.target.value)
+                  setTimeout(() => autoSave(), 0)
+                }}
                 className="bb-input bb-input-iconed"
               >
                 <option value="">Select method</option>
@@ -361,7 +455,14 @@ export default function EditTripForm({
         summary={huntersSummary}
         actionLabel={expanded.has('hunters') ? 'Done' : 'Manage'}
         expanded={expanded.has('hunters')}
-        onToggle={() => toggleSection('hunters')}
+        onToggle={() => {
+          const wasOpen = expanded.has('hunters')
+          toggleSection('hunters')
+          // When the guide closes the panel, sync participants. We don't
+          // sync on every checkbox blur because that's noisy; one sync on
+          // collapse is the right granularity.
+          if (wasOpen) autoSave({ syncParticipants: true })
+        }}
       >
         <div className="bb-form-row">
           <span className="bb-form-label">Hunters on this trip</span>
@@ -371,6 +472,7 @@ export default function EditTripForm({
             onToggle={toggleHunter}
             onAddHunter={addHunter}
           />
+          <p className="bb-form-help">Tap Done above to save the hunter list.</p>
         </div>
       </CollapsedSection>
 
@@ -386,10 +488,10 @@ export default function EditTripForm({
         <div className="bb-form-row">
           <textarea
             id="notes"
-            name="notes"
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            onBlur={() => autoSave()}
             placeholder="Trip notes, observations, conditions…"
             aria-label="Notes (optional)"
             className="bb-input"
@@ -397,37 +499,16 @@ export default function EditTripForm({
         </div>
       </CollapsedSection>
 
-      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-
-      {/* Bottom action bar — Cancel + Save changes. Save copper-primary,
-          Cancel quiet secondary, full mobile width. */}
-      <div className="flex gap-2 pt-1">
-        <button
-          type="button"
-          className="bb-btn-secondary"
-          onClick={() => router.push(`/app/trips/${tripId}`)}
-          disabled={pending}
-        >
-          Cancel
-        </button>
-        <button type="submit" disabled={pending} className="bb-cta">
-          {pending ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
-    </form>
+      {pending && status.kind !== 'saving' && (
+        <span className="sr-only" aria-live="polite">Saving…</span>
+      )}
+    </div>
   )
 }
 
-// ── CollapsedSection ────────────────────────────────────────────────────
-//
-// Reusable summary-row card. At rest renders a single horizontal flex
-// row: icon · eyebrow + summary stack · Edit/Manage/Add action link.
-// When expanded, the children render below the divider line.
-//
-// The action button is a plain <button type="button"> so submit-on-enter
-// inside any nested input doesn't accidentally trigger it. The whole
-// row is also clickable for a bigger tap target.
-
+// Reusable summary-row card. Identical anatomy to the v3e.5 EditTripForm
+// version — kept inline here so the editor is one self-contained file
+// after the /edit route is folded in.
 function CollapsedSection({
   icon,
   eyebrow,
@@ -522,7 +603,6 @@ function CollapsedSection({
           {expanded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
         </span>
       </button>
-
       {expanded && (
         <div
           style={{

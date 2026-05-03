@@ -6,7 +6,6 @@
 // trip-level lifecycle actions (participants, edit, reopen, cancel, wrap up).
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { requireGuide } from '../../_lib/auth'
 import {
   insertTripParticipants,
@@ -62,11 +61,17 @@ export async function addTripParticipantsAction(
 }
 
 // v26.3: full trip update from /app/trips/[id]/edit.
-export async function updateTripAction(formData: FormData) {
+// v27.1.1.0.3e.6: returns a result and skips the redirect — auto-save on
+// blur from the new inline TripDetailEditor on /app/trips/[id] needs to
+// stay on the page. Validation errors are surfaced to the caller instead
+// of thrown so each input can show a per-field saved/error pill.
+export type UpdateTripResult = { ok: true } | { error: string }
+
+export async function updateTripAction(formData: FormData): Promise<UpdateTripResult> {
   const { profile } = await requireGuide()
 
   const tripId = String(formData.get('trip_id') ?? '').trim()
-  if (!tripId) throw new Error('Missing trip id.')
+  if (!tripId) return { error: 'Missing trip id.' }
 
   const title = String(formData.get('title') ?? '').trim()
   const kind = String(formData.get('kind') ?? 'hunting').trim() as Kind
@@ -80,11 +85,17 @@ export async function updateTripAction(formData: FormData) {
   const methodRaw = String(formData.get('method') ?? '').trim()
   const notesInput = String(formData.get('notes') ?? '').trim()
   const hunterIds = formData.getAll('hunter_ids').map((v) => String(v)).filter(Boolean)
+  // v27.1.1.0.3e.6: opt-in flag. When the editor is auto-saving a single
+  // section (e.g. just the Notes field), it still sends the full FormData
+  // for safety, but it sets sync_participants=0 to skip the participant
+  // diff (otherwise a Notes blur would wipe the participant list because
+  // the inline editor doesn't carry hunter_ids in every save).
+  const syncParticipants = String(formData.get('sync_participants') ?? '1').trim() !== '0'
 
-  if (!title) throw new Error('Trip title is required.')
-  if (!startsAt) throw new Error('Trip start date is required.')
-  if (kind !== 'hunting' && kind !== 'fishing') throw new Error('Invalid trip kind.')
-  if (!stateRaw || stateRaw.length !== 2) throw new Error('State is required.')
+  if (!title) return { error: 'Trip title is required.' }
+  if (!startsAt) return { error: 'Trip start date is required.' }
+  if (kind !== 'hunting' && kind !== 'fishing') return { error: 'Invalid trip kind.' }
+  if (!stateRaw || stateRaw.length !== 2) return { error: 'State is required.' }
 
   const method = methodRaw && isValidMethod(methodRaw) ? methodRaw : null
 
@@ -101,11 +112,13 @@ export async function updateTripAction(formData: FormData) {
     method,
     notes: notesInput || null,
   })
-  if ('error' in result) throw new Error(result.error)
+  if ('error' in result) return { error: result.error }
 
-  const syncResult = await syncTripParticipants(profile.id, tripId, hunterIds)
-  if ('error' in syncResult) {
-    console.warn('[updateTripAction] participant sync failed', syncResult.error)
+  if (syncParticipants) {
+    const syncResult = await syncTripParticipants(profile.id, tripId, hunterIds)
+    if ('error' in syncResult) {
+      console.warn('[updateTripAction] participant sync failed', syncResult.error)
+    }
   }
 
   revalidatePath('/app')
@@ -114,7 +127,7 @@ export async function updateTripAction(formData: FormData) {
   revalidatePath(`/app/h/trips/${tripId}`)
   revalidatePath('/app/h/trips')
   revalidatePath('/app/h')
-  redirect(`/app/trips/${tripId}`)
+  return { ok: true }
 }
 
 export type ReopenTripResult = { ok: true } | { error: string }
