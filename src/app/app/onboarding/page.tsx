@@ -35,7 +35,8 @@ import {
 type SearchParams = Promise<{ step?: string; error?: string }>
 
 const ERROR_COPY: Record<string, string> = {
-  missing_business_name: 'Enter your business name to continue.',
+  missing_first_name: 'Enter your first name to continue.',
+  missing_last_name: 'Enter your last name to continue.',
   missing_state: 'Pick the state you primarily operate in.',
   missing_fields: 'Fill out every license field, or skip this step.',
   save_failed: 'Couldn’t save. Please try again.',
@@ -87,8 +88,10 @@ export default async function GuideOnboardingPage({
 
         {stepNum === 1 && (
           <Step1BusinessBasics
-            initialBusinessName={guide?.business_name ?? ''}
+            initialFirstName={profile.first_name ?? ''}
+            initialLastName={profile.last_name ?? ''}
             initialState={guide?.state ?? ''}
+            initialBusinessName={guide?.business_name ?? ''}
           />
         )}
         {stepNum === 2 && <Step2GuideLicense initialState={guide?.state ?? ''} />}
@@ -159,11 +162,15 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 // ── Step 1 ────────────────────────────────────────────────────────────────
 
 function Step1BusinessBasics({
-  initialBusinessName,
+  initialFirstName,
+  initialLastName,
   initialState,
+  initialBusinessName,
 }: {
-  initialBusinessName: string
+  initialFirstName: string
+  initialLastName: string
   initialState: string
+  initialBusinessName: string
 }) {
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step1">
@@ -174,25 +181,38 @@ function Step1BusinessBasics({
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
         >
           <Building size={18} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-          Business basics
+          Tell us about you
         </h2>
         <p className="bb-form-help" style={{ marginTop: '-0.3rem' }}>
-          Required. Used on hunter invites and state log auto-fill.
+          Used on hunter invites and state log auto-fill.
         </p>
         <form action={saveBusinessBasicsAction} className="flex flex-col gap-3">
+          <div className="bb-form-grid-2">
+            <label className="bb-field flex flex-col gap-1">
+              <span className="bb-form-label">First name</span>
+              <input
+                type="text"
+                name="first_name"
+                autoComplete="given-name"
+                required
+                defaultValue={initialFirstName}
+                className="bb-input"
+              />
+            </label>
+            <label className="bb-field flex flex-col gap-1">
+              <span className="bb-form-label">Last name</span>
+              <input
+                type="text"
+                name="last_name"
+                autoComplete="family-name"
+                required
+                defaultValue={initialLastName}
+                className="bb-input"
+              />
+            </label>
+          </div>
           <label className="bb-field flex flex-col gap-1">
-            <span className="bb-form-label">Business name</span>
-            <input
-              type="text"
-              name="business_name"
-              required
-              defaultValue={initialBusinessName}
-              placeholder="e.g. Boulder Creek Outfitters"
-              className="bb-input"
-            />
-          </label>
-          <label className="bb-field flex flex-col gap-1">
-            <span className="bb-form-label">State of operation</span>
+            <span className="bb-form-label">State you operate in</span>
             <select
               name="state"
               required
@@ -204,6 +224,24 @@ function Step1BusinessBasics({
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+          </label>
+          <label className="bb-field flex flex-col gap-1">
+            <span
+              className="bb-form-label"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Business name{' '}
+              <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                (optional — only if you operate under a business)
+              </span>
+            </span>
+            <input
+              type="text"
+              name="business_name"
+              defaultValue={initialBusinessName}
+              placeholder="e.g. Boulder Creek Outfitters"
+              className="bb-input"
+            />
           </label>
           <button type="submit" className="bb-cta mt-1">
             Save and continue <ArrowRight size={14} aria-hidden="true" />

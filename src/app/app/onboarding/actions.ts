@@ -19,30 +19,68 @@ async function getUserOrRedirect() {
   return { supabase, user }
 }
 
-// Step 1 — business basics. Writes guide_profiles.business_name + state.
-// Upserts so the row exists for new guides whose Stripe-created profile
-// row hadn't been written yet.
+// Step 1 — guide identity + state. Required: first_name, last_name, state.
+// Optional: business_name (many guides operate as individuals, no LLC).
+//
+// Writes profiles (first_name, last_name, display_name = "first last")
+// and upserts guide_profiles (state + nullable business_name). Two writes
+// run sequentially; if the guide_profiles upsert fails after profiles
+// already updated, the error path bounces back to step 1 with retry — the
+// next attempt is idempotent on profiles.
 export async function saveBusinessBasicsAction(formData: FormData): Promise<void> {
-  const businessName = String(formData.get('business_name') ?? '').trim()
+  const firstName = String(formData.get('first_name') ?? '').trim()
+  const lastName = String(formData.get('last_name') ?? '').trim()
   const state = String(formData.get('state') ?? '').trim()
-  if (!businessName) {
-    redirect('/app/onboarding?step=1&error=missing_business_name')
+  // Empty business_name is fine — stored as NULL on guide_profiles.
+  const businessNameRaw = String(formData.get('business_name') ?? '').trim()
+  const businessName = businessNameRaw === '' ? null : businessNameRaw
+
+  if (!firstName) {
+    redirect('/app/onboarding?step=1&error=missing_first_name')
+  }
+  if (!lastName) {
+    redirect('/app/onboarding?step=1&error=missing_last_name')
   }
   if (!state || !US_STATES.includes(state as (typeof US_STATES)[number])) {
     redirect('/app/onboarding?step=1&error=missing_state')
   }
 
   const { supabase, user } = await getUserOrRedirect()
-  const { error } = await supabase
-    .from('guide_profiles')
+
+  // 1. profiles — write first/last and keep display_name in sync. Upsert
+  //    on id with role=guide so a freshly-created guide whose row didn't
+  //    yet exist gets one.
+  const displayName = `${firstName} ${lastName}`
+  const { error: profileErr } = await supabase
+    .from('profiles')
     .upsert(
-      { user_id: user.id, business_name: businessName, state },
-      { onConflict: 'user_id' }
+      {
+        id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        display_name: displayName,
+        role: 'guide',
+      },
+      { onConflict: 'id' }
     )
-  if (error) {
-    console.warn('[onboarding.saveBusinessBasics]', { code: error.code, message: error.message })
+  if (profileErr) {
+    console.warn('[onboarding.saveBusinessBasics.profile]', { code: profileErr.code, message: profileErr.message })
     redirect('/app/onboarding?step=1&error=save_failed')
   }
+
+  // 2. guide_profiles — state + optional business_name. NULL business_name
+  //    is the correct default for independent operators.
+  const { error: guideErr } = await supabase
+    .from('guide_profiles')
+    .upsert(
+      { user_id: user.id, state, business_name: businessName },
+      { onConflict: 'user_id' }
+    )
+  if (guideErr) {
+    console.warn('[onboarding.saveBusinessBasics.guide]', { code: guideErr.code, message: guideErr.message })
+    redirect('/app/onboarding?step=1&error=save_failed')
+  }
+
   revalidatePath('/app/onboarding')
   redirect('/app/onboarding?step=2')
 }

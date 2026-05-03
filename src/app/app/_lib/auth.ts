@@ -80,8 +80,10 @@ export async function requireGuideForOnboarding() {
 
   const [profileRes, guideRes] = await Promise.all([
     supabase
+      // v27.1.5.1.1: also pull first_name + last_name so the wizard can
+      // pre-fill those fields in Step 1.
       .from('profiles')
-      .select('id, display_name, role')
+      .select('id, display_name, first_name, last_name, role')
       .eq('id', user.id)
       .maybeSingle(),
     supabase
