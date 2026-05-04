@@ -1,16 +1,22 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Users } from 'lucide-react'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import { syncTripParticipantsAction } from './actions'
 
 // v27.3.8.1 item 1 — combined "Hunters on this trip" panel.
-// Replaces the previous split between (a) read-only status panel on
-// trip detail page and (b) Hunters accordion in TripDetailEditor that
-// owned add/remove. One section now: status pills per hunter + a
-// "Manage hunters" toggle that reveals HuntersMultiSelect inline and
-// auto-saves participant sync.
+// v27.3.8.2 bug 1 — toggle freeze fix:
+//   (a) walletLinksByHunter prop changed from Map -> plain object so
+//       it serializes cleanly across the RSC boundary on revalidation.
+//       Map is technically supported in Next.js 16 RSC payloads but
+//       was tripping serialization on revalidate-after-action here.
+//   (b) commitSelection moved OUT of the setSelected updater so the
+//       server action only fires once per click (StrictMode was
+//       running the updater twice and firing duplicate actions).
+//   (c) selected state now resyncs from initialSelectedIds when the
+//       parent re-renders post-revalidation, so the checkbox UI
+//       matches the canonical participant list after the round-trip.
 
 export type WalletLink = {
   id: string
@@ -18,6 +24,8 @@ export type WalletLink = {
   identifier: string
   species: string | null
 }
+
+export type WalletLinksByHunter = Record<string, WalletLink[]>
 
 export type ParticipantRow = {
   id: string
@@ -30,7 +38,7 @@ export type ParticipantRow = {
 type Props = {
   tripId: string
   participants: ParticipantRow[]
-  walletLinksByHunter: Map<string, WalletLink[]>
+  walletLinksByHunter: WalletLinksByHunter
   candidates: HunterOption[]
   initialSelectedIds: string[]
   speciesTargeted: string | null
@@ -61,10 +69,38 @@ export default function HuntersOnTripPanel({
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
+  // v27.3.8.2 bug 1 — resync `selected` when the parent re-renders
+  // post-revalidation. Without this, the local state forks from the
+  // server's canonical list after a successful sync. signature is the
+  // sorted-joined set so toggling a hunter back-and-forth doesn't
+  // bounce the resync.
+  const initialSig = [...initialSelectedIds].sort().join(',')
+  const lastSyncedSig = useRef(initialSig)
+  useEffect(() => {
+    if (lastSyncedSig.current !== initialSig) {
+      lastSyncedSig.current = initialSig
+      setSelected(new Set(initialSelectedIds))
+    }
+  }, [initialSig, initialSelectedIds])
+
+  // v27.3.8.2 bug 1 — keep candidates fresh too. After invite/auto-
+  // accept, the server-side accepted list grows; the panel should
+  // reflect the new option without losing inline-added entries.
+  useEffect(() => {
+    setHunterList((prev) => {
+      const seen = new Set(prev.map((h) => h.id))
+      const merged = [...prev]
+      for (const c of candidates) {
+        if (!seen.has(c.id)) merged.push(c)
+      }
+      return merged
+    })
+  }, [candidates])
+
   const anyPending = useMemo(() => {
     return participants.some((p) => {
       if (!p.hunter_id) return false
-      const links = walletLinksByHunter.get(p.hunter_id) ?? []
+      const links = walletLinksByHunter[p.hunter_id] ?? []
       const hasLicense = links.some((l) => l.type === 'license')
       const hasTag = links.some((l) => l.type === 'tag')
       if (!hasLicense) return true
@@ -88,25 +124,27 @@ export default function HuntersOnTripPanel({
     })
   }
 
+  // v27.3.8.2 bug 1 — toggleHunter computes next state from the
+  // current `selected` Set OUTSIDE the setter updater. The previous
+  // implementation called commitSelection inside setSelected's
+  // updater, which under StrictMode runs twice and fired duplicate
+  // server actions, leading to revalidate races + the "this page
+  // couldn't load" error.
   function toggleHunter(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      commitSelection(next)
-      return next
-    })
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelected(next)
+    commitSelection(next)
   }
 
   function addHunter(h: HunterOption, autoSelect: boolean) {
     setHunterList((prev) => (prev.some((x) => x.id === h.id) ? prev : [...prev, h]))
     if (autoSelect) {
-      setSelected((prev) => {
-        const next = new Set(prev)
-        next.add(h.id)
-        commitSelection(next)
-        return next
-      })
+      const next = new Set(selected)
+      next.add(h.id)
+      setSelected(next)
+      commitSelection(next)
     }
   }
 
@@ -150,7 +188,7 @@ export default function HuntersOnTripPanel({
           <div className="bb-detail-list" style={{ marginTop: '0.5rem' }}>
             {participants.map((p) => {
               const name = p.profile?.display_name ?? p.guest_name ?? 'Unnamed hunter'
-              const links = p.hunter_id ? walletLinksByHunter.get(p.hunter_id) ?? [] : []
+              const links = p.hunter_id ? walletLinksByHunter[p.hunter_id] ?? [] : []
               const hasLicense = links.some((l) => l.type === 'license')
               const hasTag = links.some((l) => l.type === 'tag')
               const pendingPills: string[] = []

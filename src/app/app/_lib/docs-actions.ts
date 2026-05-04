@@ -1143,8 +1143,30 @@ DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "Tag Report Card" / "Harvest Report Card" / "Bear Tag Report" / "Deer Tag Report" / any "Report Card" field on a state log → MUST map to "hunter_harvest_report_card.identifier" (number) or its sibling fields. NEVER to "hunter_license.*" — a hunter's report card is a separate physical document from their hunting license.
 - "License" / "License #" / "License Number" / "License DOC ID" → "hunter_license.identifier" (or "guide_license.identifier" if the field sits in a guide section).
 - "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
-- "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → use "harvest_log_entry_species[N].tag_identifier" where N is the species column (1, 2, or 3 — read off the PDF page; the first species column = [1], second = [2], third = [3]). NEVER "wallet_consumed.identifier" for multi-species forms — that path resolves to the entry-level wallet-linked tag and only fills the FIRST species's tag column. The per-species tag_identifier path resolves the correct tag # per species (auto-fills first row from the linked tag, takes guide-entered overrides for rows 2+).
-- "Report Card" tag # field (e.g. "Tag # / Report Card #" "Report Card #") on a state log → use "harvest_log_entry_species[N].report_card_identifier" with the same species-column rule. NEVER "hunter_harvest_report_card.identifier" for multi-species forms — that's the entry-level path; per-species fills correctly.
+- "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → use "harvest_log_entry_species[N].tag_identifier" where N is the SPECIES INDEX (1 = first species, 2 = second species, 3 = third species this hunter took on the trip). NEVER "wallet_consumed.identifier" for multi-species forms.
+- "Report Card" tag # field (e.g. "Tag # / Report Card #" / "Report Card #") on a state log → use "harvest_log_entry_species[N].report_card_identifier" with the same species-index rule. NEVER "hunter_harvest_report_card.identifier" for multi-species forms.
+
+PAIRED PER-HUNTER FIELDS (critical — common AI mistake on CDFW 992b ext, big game logs, and similar state forms with multiple species rows under each hunter):
+- Field labels like "Tag Report Card 1", "Tag Report Card 2", "Tag Report Card 3" ... or "SPECIES TAKEN", "SPECIES TAKEN_2", "SPECIES TAKEN_3" ... usually do NOT mean "Hunter 1, Hunter 2, Hunter 3". They mean PAIRED ROWS UNDER MULTIPLE HUNTERS:
+    sequence index 1, 2 → Hunter 1, species 1 + species 2
+    sequence index 3, 4 → Hunter 2, species 1 + species 2
+    sequence index 5, 6 → Hunter 3, species 1 + species 2
+    sequence index 7, 8 → Hunter 4, species 1 + species 2
+    sequence index 9, 10 → Hunter 5, species 1 + species 2
+- Read the PDF page to confirm: each "row pair" lives next to a single hunter section (name, address, license #). When you see this pattern:
+    hunter_slot = ceil(sequence_index / 2)        // 1,2 → 1;  3,4 → 2;  5,6 → 3;  ...
+    species_index for the path = ((sequence_index - 1) mod 2) + 1   // 1,3,5,7,9 → species 1;  2,4,6,8,10 → species 2
+  EXAMPLE on CDFW 992b ext:
+    "Tag Report Card 1" → hunter_slot=1, path="harvest_log_entry_species[1].report_card_identifier"
+    "Tag Report Card 2" → hunter_slot=1, path="harvest_log_entry_species[2].report_card_identifier"
+    "Tag Report Card 3" → hunter_slot=2, path="harvest_log_entry_species[1].report_card_identifier"
+    "Tag Report Card 4" → hunter_slot=2, path="harvest_log_entry_species[2].report_card_identifier"
+    "SPECIES TAKEN_5"   → hunter_slot=3, path="harvest_log_entry_species[1].species"
+    "SPECIES TAKEN_6"   → hunter_slot=3, path="harvest_log_entry_species[2].species"
+    "NUMBER KEPT_7"     → hunter_slot=4, path="harvest_log_entry_species[1].qty_harvested"
+    "NUMBER KEPT_8"     → hunter_slot=4, path="harvest_log_entry_species[2].qty_harvested"
+- BEFORE assuming "_N" in a field name = "Hunter N", check the PDF visually for the row-pair convention. If the page shows TWO species rows under ONE hunter section (with one set of name/address fields), it's paired. If it shows ONE row per hunter with its own name/address, it's NOT paired — then "_N" really does mean Hunter N.
+- DO NOT skip even-indexed fields. Every paired row is a real species slot the engine fills.
 
 SIGNATURE FIELDS (route to e-signature sentinels — never skip):
 - "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line / any signature-date placeholder → MUST map to "signature_date.now". NEVER "harvest_log.log_date" (hunt date), NEVER "wallet_consumed.valid_to" (tag expiry), NEVER any other date source. These fields fill ONLY when the document is actually signed via e-signature, NOT at PDF generation. The fill engine resolves "signature_date.now" to NULL at generate-time so the box stays blank until the signing flow runs.

@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Share2,
   Activity,
-  Users,
 } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import {
@@ -27,7 +26,7 @@ import TripDetailEditor from './TripDetailEditor'
 import TripDocsCard from './TripDocsCard'
 import HuntersOnTripPanel, {
   type ParticipantRow,
-  type WalletLink,
+  type WalletLinksByHunter,
 } from './HuntersOnTripPanel'
 
 type RouteParams = Promise<{ id: string }>
@@ -179,16 +178,32 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           the prior split between (a) read-only status panel here and
           (b) Hunters accordion inside TripDetailEditor that owned add/
           remove. One section: status pills + a Manage hunters toggle
-          that reveals HuntersMultiSelect inline and auto-saves. */}
-      <HuntersOnTripPanel
-        tripId={trip.id}
-        participants={participants as ParticipantRow[]}
-        walletLinksByHunter={walletLinksByHunter as Map<string, WalletLink[]>}
-        candidates={candidates}
-        initialSelectedIds={initialSelectedIds}
-        speciesTargeted={trip.species_targeted}
-        canManage={isOpen}
-      />
+          that reveals HuntersMultiSelect inline and auto-saves.
+          v27.3.8.2 bug 1 — Map -> plain object for the wallet links
+          prop so the RSC payload serializes cleanly through the
+          revalidate-after-action round-trip. */}
+      {(() => {
+        const walletLinksByHunterObj: WalletLinksByHunter = {}
+        for (const [hunterId, links] of walletLinksByHunter.entries()) {
+          walletLinksByHunterObj[hunterId] = links.map((l) => ({
+            id: l.id,
+            type: l.type,
+            identifier: l.identifier,
+            species: l.species,
+          }))
+        }
+        return (
+          <HuntersOnTripPanel
+            tripId={trip.id}
+            participants={participants as ParticipantRow[]}
+            walletLinksByHunter={walletLinksByHunterObj}
+            candidates={candidates}
+            initialSelectedIds={initialSelectedIds}
+            speciesTargeted={trip.species_targeted}
+            canManage={isOpen}
+          />
+        )
+      })()}
 
       <div className="mt-4">
         <TripDetailEditor
