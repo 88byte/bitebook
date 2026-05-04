@@ -14,8 +14,22 @@ export type FilledPdfArtifact = {
   total: number
 }
 
+// v27.3.9.1: "Filled at log time" missing-input warning is no longer a
+// hard refusal. The action returns a structured `blanks_warning` shape
+// when at least one included entry is missing a required input AND the
+// caller did NOT pass `acknowledgeBlanks=true`. The client renders a
+// confirmation modal listing the missing pairs and either retries with
+// the flag (Generate anyway) or scrolls back to the first blank.
+export type BlanksWarningEntry = {
+  hunter: string
+  label: string
+  field_name: string
+  hunter_slot: number
+}
+
 export type GenerateFilledLogResult =
   | { ok: true; artifacts: FilledPdfArtifact[]; warnings: string[] }
+  | { blanks_warning: BlanksWarningEntry[] }
   | { error: string }
 
 export type ParsedFieldName = {

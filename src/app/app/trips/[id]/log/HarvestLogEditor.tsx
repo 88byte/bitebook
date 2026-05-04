@@ -1260,6 +1260,14 @@ function GeneratePdfsSection({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
+  // v27.3.9.1: soft confirmation when "Filled at log time" inputs
+  // are blank. Modal lists offending hunter+field pairs; guide can
+  // either Generate anyway or close + scroll to the first blank
+  // input.
+  const [blanksWarning, setBlanksWarning] = useState<
+    | null
+    | Array<{ hunter: string; label: string; field_name: string; hunter_slot: number }>
+  >(null)
 
   // v27.1.1.0.3e.2: smart state filtering. When the trip has a state,
   // narrow to docs that match — auto-select the single match, surface
@@ -1317,17 +1325,31 @@ function GeneratePdfsSection({
     return `${stateTag} · ${ownerTag}`
   }
 
-  function generate() {
+  // v27.3.9.1: shared invocation. acknowledgeBlanks=true is set by
+  // the confirmation modal's "Generate anyway" path so the action
+  // skips its blank-check on retry.
+  function runGenerate(acknowledgeBlanks: boolean) {
     setError(null)
     setWarnings([])
+    setBlanksWarning(null)
     if (!docId) {
       setError('Pick a mapped log doc first.')
       return
     }
     startTransition(async () => {
-      const res = await generateFilledHarvestLogPDFsAction(logId, docId, reportName.trim() || undefined)
+      const res = await generateFilledHarvestLogPDFsAction(
+        logId,
+        docId,
+        reportName.trim() || undefined,
+        undefined,
+        acknowledgeBlanks
+      )
       if ('error' in res) {
         setError(res.error)
+        return
+      }
+      if ('blanks_warning' in res) {
+        setBlanksWarning(res.blanks_warning)
         return
       }
       setWarnings(res.warnings)
@@ -1337,6 +1359,42 @@ function GeneratePdfsSection({
       setReportName('')
       router.refresh()
     })
+  }
+  function generate() {
+    runGenerate(false)
+  }
+  function generateAnyway() {
+    runGenerate(true)
+  }
+  function focusFirstBlank() {
+    if (!blanksWarning || blanksWarning.length === 0) {
+      setBlanksWarning(null)
+      return
+    }
+    const first = blanksWarning[0]
+    // Match the id pattern set by CustomLogFieldRow.
+    const fieldId = `userinput_*_${first.field_name.replace(/\W+/g, '_')}`
+    setBlanksWarning(null)
+    if (typeof document !== 'undefined') {
+      // Find any input whose id ends with the same field-name suffix —
+      // we don't carry the entry id in the warning, so fall back to
+      // the first matching node.
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[id^="userinput_"]')
+      for (const el of Array.from(inputs)) {
+        if (el.id.endsWith(`_${first.field_name.replace(/\W+/g, '_')}`)) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.focus()
+          return
+        }
+      }
+      // No exact match — just focus the first user-input field.
+      void fieldId
+      const fallback = inputs[0]
+      if (fallback) {
+        fallback.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        fallback.focus()
+      }
+    }
   }
 
   if (mappedDocs.length === 0) {
@@ -1477,6 +1535,54 @@ function GeneratePdfsSection({
           </div>
         )}
       </div>
+
+      {/* v27.3.9.1: soft confirmation modal for blank "Filled at log
+          time" inputs. Replaces v27.3.9's hard refusal — guides can
+          proceed with blanks ("Generate anyway") or close the modal
+          and jump to the first missing input. */}
+      <ConfirmModal
+        open={blanksWarning !== null && blanksWarning.length > 0}
+        title="Some custom fields are blank"
+        body={
+          blanksWarning && blanksWarning.length > 0 ? (
+            <>
+              <p style={{ margin: '0 0 0.6rem' }}>
+                These &ldquo;Filled at log time&rdquo; fields are still empty. They&rsquo;ll
+                fill blank on the generated PDF unless you go back and add a value:
+              </p>
+              <ul
+                style={{
+                  margin: '0 0 0.6rem',
+                  paddingLeft: '1.1rem',
+                  color: 'var(--color-ink)',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.2rem',
+                }}
+              >
+                {blanksWarning.slice(0, 8).map((m, i) => (
+                  <li key={i}>
+                    <strong>{m.hunter}</strong> — {m.label}
+                  </li>
+                ))}
+                {blanksWarning.length > 8 && (
+                  <li style={{ color: 'var(--color-ink-soft)' }}>
+                    …and {blanksWarning.length - 8} more
+                  </li>
+                )}
+              </ul>
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel="Generate anyway"
+        cancelLabel="Go back and fill them in"
+        isPending={pending}
+        onCancel={focusFirstBlank}
+        onConfirm={generateAnyway}
+      />
     </section>
   )
 }

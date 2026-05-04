@@ -401,7 +401,11 @@ export async function generateFilledHarvestLogPDFsAction(
   logId: string,
   docId: string,
   customName?: string,
-  overwriteId?: string
+  overwriteId?: string,
+  // v27.3.9.1: when true, skip the "Filled at log time" blank-check
+  // and proceed with whatever values exist. Set by the client after
+  // the guide confirms in the soft-warning modal.
+  acknowledgeBlanks?: boolean
 ): Promise<GenerateFilledLogResult> {
   const { profile } = await requireGuide()
   if (!logId || !docId) return { error: 'Missing log or doc id.' }
@@ -670,14 +674,20 @@ export async function generateFilledHarvestLogPDFsAction(
     userInputsByEntry[r.entry_id][r.mapping_field_name] = r.value ?? ''
   }
 
-  // v27.3.9: pre-generate completeness gate. Every "Filled at log
-  // time" mapping must have a non-empty value on every included
-  // entry that the mapping applies to. (manualSlot=0 means trip-
-  // level; not yet supported, so skipped.) When something is
-  // missing, refuse to generate and tell the guide which hunter +
-  // which field needs filling.
-  if (userInputMappings.length > 0) {
-    const missing: Array<{ slot: number; hunter: string; label: string }> = []
+  // v27.3.9 / v27.3.9.1: pre-generate "Filled at log time" check.
+  // SOFT confirmation, not a block: when at least one included entry
+  // is missing a required input AND the caller did not pass
+  // acknowledgeBlanks=true, return a structured `blanks_warning` so
+  // the client can render a confirmation modal. After the guide
+  // confirms, the client retries with acknowledgeBlanks=true and
+  // generation proceeds with empty values for the missing fields.
+  if (!acknowledgeBlanks && userInputMappings.length > 0) {
+    const missing: Array<{
+      hunter: string
+      label: string
+      field_name: string
+      hunter_slot: number
+    }> = []
     for (const um of userInputMappings) {
       if (um.manualSlot < 1) continue
       const idx = um.manualSlot - 1
@@ -689,19 +699,16 @@ export async function generateFilledHarvestLogPDFsAction(
           (hunterRes.data ?? []).find((h) => h.id === e.hunter_id)?.display_name ??
           e.guest_name ??
           `Hunter ${um.manualSlot}`
-        missing.push({ slot: um.manualSlot, hunter: hunterName, label: um.label })
+        missing.push({
+          hunter: hunterName,
+          label: um.label,
+          field_name: um.fieldName,
+          hunter_slot: um.manualSlot,
+        })
       }
     }
     if (missing.length > 0) {
-      const lines = missing
-        .slice(0, 6)
-        .map((m) => `  • ${m.hunter}: ${m.label}`)
-        .join('\n')
-      const more = missing.length > 6 ? `\n  • …and ${missing.length - 6} more` : ''
-      return {
-        error:
-          `Some "Filled at log time" fields are still blank. Open the harvest log and fill them in before generating:\n${lines}${more}`,
-      }
+      return { blanks_warning: missing }
     }
   }
 
