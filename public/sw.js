@@ -1,4 +1,10 @@
-const CACHE_NAME = 'bitebook-v21'
+// v27.2.0.3.5 — bump CACHE_NAME on every release. The activate
+// handler nukes any cache whose name doesn't match, forcing a clean
+// fetch of all shell assets the next time they're requested. This
+// is the recurring stale-PWA-cache fix Flavio's been bitten by:
+// without a per-deploy bump, the SW bytes don't change, the browser
+// doesn't re-install, and the activate-time cache nuke never fires.
+const CACHE_NAME = 'bitebook-v27.2.0.3.5'
 // HTML pages (incl. '/') are served network-first so updates always show up when online.
 // Only static assets sit in the cache-first shell list.
 const SHELL_ASSETS = [

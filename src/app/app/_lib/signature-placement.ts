@@ -181,33 +181,29 @@ export function resolvePlacements(
   return out
 }
 
-// v27.2.0.3.4 — fill-width compositing.
+// v27.2.0.3.5 — letterbox-fit + left-bottom anchor.
 //
-// Earlier versions letterboxed the signature inside the placement box
-// (preserving aspect ratio, letting either width OR height be smaller
-// than the box). When a signer drew a tall/narrow signature into a
-// wide placement box, the result was a small left-anchored signature
-// in a wide box — visually indistinguishable from "centered" because
-// the eye saw the empty whitespace to the right and judged the
-// composition as centered.
+// v27.2.0.3.4 used "fill the box width" sizing. On a typical state-
+// form signature widget (~160×28pt), a captured signature with 2.6:1
+// aspect produced drawH ≈ 60pt — more than 2x the widget height.
+// Verified by inspecting Flavio's signed PDF: the image was drawn
+// at 176×68pt inside a 161×28pt widget rect. Too big.
 //
-// New rule: drawW always equals placement.w. Height scales to
-// preserve the captured signature's aspect ratio. This guarantees
-// the signature visually spans the user's intended signature area.
-// If the captured aspect makes drawH exceed placement.h, that's
-// acceptable — handwritten signatures often overshoot a single-line
-// area in real life.
+// Reverted to LETTERBOX-fit (preserve aspect, the limiting dimension
+// matches the box, the other dimension is smaller). Combined with
+// the v27.2.0.3.2 alpha-crop on the captured PNG (no whitespace
+// padding), the signature reads correctly proportioned.
 //
 // Vertical alignment by source:
-//   'mapping'    — bottom-anchor at the widget's bottom edge with
+//   'mapping'    — bottom-anchor at the widget's bottom edge with a
 //                  15% overshoot below (signature crosses the
 //                  underline like real handwriting).
-//   'drag-place' — bottom-anchor inside the user's drawn box (the
-//                  user typically draws the box AROUND the signature
-//                  line, with the line at the bottom).
+//   'drag-place' — bottom-anchor inside the user's drawn box.
 //   'default'    — bottom-anchor inside the default last-page box.
 //
 // Horizontal: LEFT-anchor for all sources (drawX = placement.x).
+// Combined with the alpha-crop, this puts the first stroke at the
+// box's left edge.
 //
 // Returns ready-to-draw {x, y, w, h} in PDF points.
 export function computeDrawPosition(
@@ -216,9 +212,20 @@ export function computeDrawPosition(
   signatureHeight: number
 ): { x: number; y: number; w: number; h: number } {
   const imgRatio = signatureWidth / Math.max(signatureHeight, 1)
-  // Always fill the box width. Height derives from signature aspect.
-  const drawW = placement.w
-  const drawH = drawW / Math.max(imgRatio, 0.001)
+  const boxRatio = placement.w / Math.max(placement.h, 1)
+  // Letterbox: pick the dimension that hits the box first, derive
+  // the other from aspect.
+  let drawW: number
+  let drawH: number
+  if (imgRatio > boxRatio) {
+    // Signature is wider-aspect than the box — width-limited.
+    drawW = placement.w
+    drawH = drawW / imgRatio
+  } else {
+    // Signature is taller-aspect than the box — height-limited.
+    drawH = placement.h
+    drawW = drawH * imgRatio
+  }
 
   // Left-anchor horizontally.
   const drawX = placement.x
