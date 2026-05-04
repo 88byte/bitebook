@@ -31,6 +31,80 @@ import {
 import { parseFieldName, detectImplicitSlot1 } from './harvest-log-fill-types'
 import Anthropic from '@anthropic-ai/sdk'
 
+// v27.3.10 item 9: paired-row heuristic. State forms (CDFW 992b ext,
+// similar) lay out N hunters × 2 species per hunter as a sequential
+// 1..2N field run, e.g. "Tag Report Card 1..10" where pair (1,2) is
+// Hunter 1 / species (1, 2), pair (3,4) is Hunter 2 / species (1, 2),
+// etc. The AI prompt was correct but Claude was still treating index
+// N as hunter N. This heuristic detects paired runs by counting
+// fields that share a base name and applying:
+//   hunter_slot   = ceil(N / 2)
+//   species_index = ((N - 1) % 2) + 1
+// Whitelisted base patterns: tag, report, species, kept, released
+// (the paired-row vocabulary on every state log we've seen). 1-per-
+// hunter fields like "TOTAL HOURS_5" or address fields are skipped.
+type PairedSuggestion = {
+  field_name: string
+  data_source_path: string
+  fallback_path: string | null
+  hunter_slot: number
+  user_label: string | null
+}
+
+const PAIRED_BASE_REGEX = /\b(tag|report|species|kept|released)\b/i
+
+function applyPairedFieldHeuristic(accepted: PairedSuggestion[]): void {
+  const groups = new Map<string, Array<{ idx: number; slot: number }>>()
+  for (let i = 0; i < accepted.length; i++) {
+    const s = accepted[i]
+    const parsed = parseFieldName(s.field_name)
+    if (parsed.slot === 0 || !parsed.base) continue
+    const arr = groups.get(parsed.base) ?? []
+    arr.push({ idx: i, slot: parsed.slot })
+    groups.set(parsed.base, arr)
+  }
+  for (const [base, items] of groups) {
+    if (!PAIRED_BASE_REGEX.test(base)) continue
+    items.sort((a, b) => a.slot - b.slot)
+    const maxSlot = items[items.length - 1]?.slot ?? 0
+    // A truly paired run has N entries where N is the max slot AND
+    // N is even AND N >= 4 (smallest meaningful pair-run). 1-per-
+    // hunter sets hit this filter only with N>=4; 2-species pairs
+    // start at N=4 (Hunter 1 + Hunter 2 × 2 species each).
+    if (maxSlot < 4 || maxSlot % 2 !== 0) continue
+    if (items.length !== maxSlot) continue
+    for (const it of items) {
+      const seq = it.slot
+      const hunterSlot = Math.ceil(seq / 2)
+      const speciesIdx = ((seq - 1) % 2) + 1
+      const s = accepted[it.idx]
+      // Always override hunter_slot.
+      s.hunter_slot = hunterSlot
+      // Rewrite indexed harvest_log_entry_species[N].* paths AND
+      // legacy non-indexed paths (wallet_consumed.identifier,
+      // hunter_harvest_report_card.identifier) to the per-species
+      // form. Other paths are left alone.
+      const path = s.data_source_path
+      const speciesField =
+        /^harvest_log_entry_species\[\d+\]\.(species|qty_harvested|qty_released|tag_identifier|report_card_identifier)$/.exec(
+          path,
+        )
+      if (speciesField) {
+        s.data_source_path = `harvest_log_entry_species[${speciesIdx}].${speciesField[1]}`
+        continue
+      }
+      if (path === 'wallet_consumed.identifier') {
+        s.data_source_path = `harvest_log_entry_species[${speciesIdx}].tag_identifier`
+        continue
+      }
+      if (path === 'hunter_harvest_report_card.identifier') {
+        s.data_source_path = `harvest_log_entry_species[${speciesIdx}].report_card_identifier`
+        continue
+      }
+    }
+  }
+}
+
 export type DocKind = Database['public']['Enums']['doc_kind']
 type DocInsert = TablesInsert<'docs'>
 type DocUpdate = TablesUpdate<'docs'>
@@ -1401,6 +1475,15 @@ Return the JSON array now.`
       user_label: userLabel,
     })
   }
+
+  // v27.3.10 item 9: deterministic post-processor for paired-row
+  // forms (CDFW 992b ext, similar state logs with N hunters × 2
+  // species per hunter). The AI prompt was correct on paper but
+  // Claude was still treating "Tag Report Card 2/4/6/8/10" as
+  // hunter 2/4/6/8/10 instead of hunter 1/2/3/4/5 species 2.
+  // Override the AI's hunter_slot + species index for fields that
+  // match the paired pattern, regardless of what Claude returned.
+  applyPairedFieldHeuristic(accepted)
 
   if (accepted.length === 0) {
     return { ok: true, suggested: 0, skipped, rejected }

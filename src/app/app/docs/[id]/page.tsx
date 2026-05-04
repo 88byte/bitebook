@@ -91,16 +91,21 @@ export default async function DocDetailPage({
           v27.1.1.0.3e: only render for the owning guide. Non-owner
           template viewers get the read-only banner below instead. */}
       {viewerOwnsDoc && (
-        <DocActionsBar
-          docId={doc.id}
-          isArchived={isArchived}
-          canHardDelete={canHardDelete}
-          tripCount={doc.trip_count}
-          isTemplate={doc.is_template}
-          viewerEmail={viewerEmail}
-          viewerId={profile.id}
-          canReplace={canReplace}
-        />
+        <>
+          <DocActionsBar
+            docId={doc.id}
+            isArchived={isArchived}
+            canHardDelete={canHardDelete}
+            tripCount={doc.trip_count}
+            isTemplate={doc.is_template}
+            viewerEmail={viewerEmail}
+            viewerId={profile.id}
+            canReplace={canReplace}
+          />
+          {/* v27.3.10 item 4: divider directly under the action row
+              so the buttons sit clearly above the doc body content. */}
+          <div className="bb-page-divider mt-3" aria-hidden="true" />
+        </>
       )}
 
       {/* v27.3.8.1 item 4: "Place signatures" CTA moved into the
@@ -218,11 +223,12 @@ export default async function DocDetailPage({
           File-first layout. */}
       {doc.kind === 'log' ? (
         <>
-          <section
-            className="bb-tile mt-4"
-            style={{ borderColor: 'var(--color-copper)' }}
-          >
-            <div className="bb-tile-body">
+          {/* v27.3.10 item 3: Field mapping section is no longer
+              wrapped in a bb-tile card. Renders flush on the page
+              surface so the mapping table below sits directly on
+              the page rather than inside a window-in-a-window. */}
+          <section className="mt-4">
+            <div>
               <h2 className="bb-form-section-head">Field mapping</h2>
               <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
                 {viewerOwnsDoc
@@ -293,11 +299,9 @@ export default async function DocDetailPage({
           </section>
 
           {doc.kind === 'waiver' && (
-            <section
-              className="bb-tile mt-3"
-              style={{ borderColor: 'var(--color-ink-tint)' }}
-            >
-              <div className="bb-tile-body">
+            // v27.3.10 item 3: same wrapper-strip as the log kind.
+            <section className="mt-3">
+              <div>
                 <h2 className="bb-form-section-head">Field mapping</h2>
                 <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
                   {viewerOwnsDoc

@@ -452,6 +452,32 @@ function EntryAccordion({
           cursor: 'pointer',
         }}
       >
+        {/* v27.3.10 item 7: Include checkbox moved to the LEFT of
+            the hunter name (was on the right). Standard checkbox-
+            label pattern. The span+input combo keeps the outer
+            button as the expand affordance. */}
+        <span
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={include}
+            aria-label="Include this hunter in report"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              setInclude(e.target.checked)
+              commitEntry({ include: e.target.checked })
+            }}
+            style={{ width: '1.05rem', height: '1.05rem' }}
+          />
+        </span>
+
         <span className="bb-avatar-sm" aria-hidden="true">
           <User size={14} />
         </span>
@@ -504,35 +530,6 @@ function EntryAccordion({
             HUNTER {slot}
           </span>
         )}
-
-        {/* The include-toggle is rendered as a span+input combo so the
-            outer button still acts as the expand affordance. We
-            stopPropagation on the input to keep clicks from collapsing
-            the row. */}
-        <span
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            flexShrink: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            fontSize: '0.78rem',
-            color: 'var(--color-ink-soft)',
-            cursor: 'pointer',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={include}
-            aria-label="Include this hunter in report"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              setInclude(e.target.checked)
-              commitEntry({ include: e.target.checked })
-            }}
-          />
-          Include
-        </span>
 
         <span
           aria-hidden="true"

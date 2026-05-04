@@ -139,7 +139,7 @@ export default function DocFilePreview({
             href={signedUrl}
             target="_blank"
             rel="noreferrer noopener"
-            className="bb-cta-sm"
+            className="bb-btn-secondary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
           >
             <ExternalLink size={14} aria-hidden="true" />

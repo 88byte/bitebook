@@ -256,13 +256,16 @@ export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }
 
   return (
     <div className="bb-form-narrow mt-4 flex flex-col gap-3">
-      <section className="bb-tile" style={{ padding: '0.75rem' }}>
+      {/* v27.3.10 item 5: action row stripped of bb-tile wrapper —
+          renders flush on the page. All three buttons are white
+          (bb-btn-secondary). Divider sits underneath the row. */}
+      <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={() => addBox('hunter')}
             disabled={loading}
-            className="bb-cta-sm"
+            className="bb-btn-secondary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
           >
             <Plus size={14} aria-hidden="true" />
@@ -283,7 +286,7 @@ export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }
             type="button"
             onClick={save}
             disabled={loading || savePending}
-            className="bb-cta-sm"
+            className="bb-btn-secondary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
           >
             <Save size={14} aria-hidden="true" />
@@ -295,7 +298,8 @@ export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }
             {saveMsg}
           </p>
         )}
-      </section>
+        <div className="bb-page-divider mt-3" aria-hidden="true" />
+      </div>
 
       <section className="bb-tile" style={{ padding: '0.6rem 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>

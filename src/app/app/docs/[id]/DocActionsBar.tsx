@@ -123,7 +123,7 @@ export default function DocActionsBar({
         <button
           type="submit"
           form="edit-doc-form"
-          className="bb-cta-sm"
+          className="bb-btn-secondary"
           disabled={pending}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
         >
@@ -185,7 +185,11 @@ export default function DocActionsBar({
         {isAdmin && (
           <button
             type="button"
-            className={isTemplate ? 'bb-btn-secondary' : 'bb-cta-sm'}
+            className={
+              isTemplate
+                ? 'bb-btn-secondary'
+                : 'bb-cta-sm bb-cta-sm-forest'
+            }
             onClick={() => setConfirmMode('template')}
             disabled={pending}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
