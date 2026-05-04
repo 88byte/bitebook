@@ -42,22 +42,24 @@ export default function InviteForm({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <form onSubmit={onSubmit} className="bb-hero-invite">
-        <span className="bb-hero-invite-label">Invite a hunter</span>
-        <input
-          name="email"
-          type="email"
-          className="bb-hero-invite-input"
-          required
-          placeholder="hunter@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          maxLength={200}
-          aria-label="Hunter email"
-        />
-        <button type="submit" className="bb-hero-invite-send" disabled={isPending}>
-          <UserPlus size={14} aria-hidden="true" />
-          {isPending ? 'Sending…' : 'Send'}
-        </button>
+        <h2 className="bb-hero-invite-title">Invite hunter</h2>
+        <div className="bb-hero-invite-row">
+          <input
+            name="email"
+            type="email"
+            className="bb-hero-invite-input"
+            required
+            placeholder="hunter@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={200}
+            aria-label="Hunter email"
+          />
+          <button type="submit" className="bb-hero-invite-send" disabled={isPending}>
+            <UserPlus size={14} aria-hidden="true" />
+            {isPending ? 'Sending…' : 'Send'}
+          </button>
+        </div>
         {error && (
           <p role="alert" className="bb-hero-invite-msg" style={{ color: '#FFB29A' }}>
             {error}
