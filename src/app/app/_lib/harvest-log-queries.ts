@@ -14,10 +14,29 @@ export type HarvestLogEntryWithRelations = HarvestLogEntryRow & {
   license: { id: string; identifier: string; state: string | null; valid_to: string } | null
   tag: { id: string; identifier: string; species: string | null; state: string | null; zone: string | null } | null
   species_rows: HarvestLogEntrySpeciesRow[]
+  // v27.3.9: per-entry "Filled at log time" values, keyed by
+  // mapping_field_name. The HarvestLogEditor renders these as a
+  // "Custom fields" sub-section above "Total hours" on each entry.
+  user_inputs: Record<string, string>
+}
+
+// v27.3.9: per-doc "Filled at log time" mappings the harvest log
+// editor needs to surface as guide-typed inputs. One entry per
+// (doc, hunter_slot, mapping_field_name). Populated only for log
+// docs the guide can fill from this trip.
+export type LogTimeMapping = {
+  doc_id: string
+  doc_label: string
+  field_name: string
+  user_label: string
+  hunter_slot: number  // 1..5 = which hunter; 0 = trip-level (not yet rendered)
 }
 
 export type HarvestLogWithEntries = HarvestLogRow & {
   entries: HarvestLogEntryWithRelations[]
+  // v27.3.9: aggregated across every log doc the guide can generate.
+  // Editor merges these into per-entry "Custom fields" inputs.
+  log_time_mappings: LogTimeMapping[]
 }
 
 export async function fetchHarvestLog(
@@ -49,7 +68,7 @@ export async function fetchHarvestLog(
   const tagIds = Array.from(new Set(rows.map((r) => r.tag_wallet_item_id).filter((x): x is string => !!x)))
   const entryIds = rows.map((r) => r.id)
 
-  const [hunterRes, licenseRes, tagRes, speciesRes] = await Promise.all([
+  const [hunterRes, licenseRes, tagRes, speciesRes, userInputsRes] = await Promise.all([
     hunterIds.length
       ? sb.from('profiles').select('id, display_name, phone, address_street, address_street2, address_city, address_state, address_zip').in('id', hunterIds)
       : Promise.resolve({ data: [] }),
@@ -65,6 +84,13 @@ export async function fetchHarvestLog(
           .in('entry_id', entryIds)
           .order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
+    // v27.3.9: per-entry "Filled at log time" values.
+    entryIds.length
+      ? sb
+          .from('harvest_log_entry_user_inputs')
+          .select('entry_id, mapping_field_name, value')
+          .in('entry_id', entryIds)
+      : Promise.resolve({ data: [] }),
   ])
 
   const hunterMap = new Map((hunterRes.data ?? []).map((h) => [h.id, h]))
@@ -76,6 +102,13 @@ export async function fetchHarvestLog(
     arr.push(s)
     speciesByEntry.set(s.entry_id, arr)
   }
+  // v27.3.9: index user inputs by entry id -> {fieldName: value}.
+  type UIRow = { entry_id: string; mapping_field_name: string; value: string | null }
+  const userInputsByEntry: Record<string, Record<string, string>> = {}
+  for (const r of (userInputsRes.data ?? []) as UIRow[]) {
+    if (!userInputsByEntry[r.entry_id]) userInputsByEntry[r.entry_id] = {}
+    userInputsByEntry[r.entry_id][r.mapping_field_name] = r.value ?? ''
+  }
 
   const entriesWithRelations: HarvestLogEntryWithRelations[] = rows.map((r) => ({
     ...r,
@@ -83,9 +116,53 @@ export async function fetchHarvestLog(
     license: r.license_wallet_item_id ? (licenseMap.get(r.license_wallet_item_id) ?? null) : null,
     tag: r.tag_wallet_item_id ? (tagMap.get(r.tag_wallet_item_id) ?? null) : null,
     species_rows: speciesByEntry.get(r.id) ?? [],
+    user_inputs: userInputsByEntry[r.id] ?? {},
   }))
 
-  return { ...log, entries: entriesWithRelations }
+  // v27.3.9: log-time mappings aggregated across every log doc the
+  // guide could generate against this trip. We fetch ALL their log
+  // docs (not just the one selected at generate time) so the editor
+  // captures inputs once even if the guide later switches templates.
+  const logTimeMappings = await fetchLogTimeMappingsForGuide(sb)
+
+  return { ...log, entries: entriesWithRelations, log_time_mappings: logTimeMappings }
+}
+
+// v27.3.9: pull every "Filled at log time" mapping the guide owns
+// across their log docs (and Bite Book log templates they might
+// generate against). Used by the harvest log editor to surface
+// per-entry inputs above "Total hours."
+async function fetchLogTimeMappingsForGuide(
+  sb: Awaited<ReturnType<typeof createClient>>
+): Promise<LogTimeMapping[]> {
+  const { data, error } = await sb
+    .from('doc_field_mappings')
+    .select('doc_id, field_name, user_label, hunter_slot, docs!inner(id, label, kind)')
+    .eq('mapping_kind', 'field')
+    .eq('data_source_path', 'user_input.log_time')
+  if (error) {
+    console.warn('[harvest-log.fetchLogTimeMappings]', { code: error.code, message: error.message })
+    return []
+  }
+  type Row = {
+    doc_id: string
+    field_name: string
+    user_label: string | null
+    hunter_slot: number
+    docs: { id: string; label: string; kind: string } | null
+  }
+  const out: LogTimeMapping[] = []
+  for (const r of (data ?? []) as unknown as Row[]) {
+    if (!r.docs || r.docs.kind !== 'log') continue
+    out.push({
+      doc_id: r.doc_id,
+      doc_label: r.docs.label,
+      field_name: r.field_name,
+      user_label: r.user_label && r.user_label.trim() ? r.user_label : r.field_name,
+      hunter_slot: r.hunter_slot ?? 0,
+    })
+  }
+  return out
 }
 
 export type HarvestLogSummary = {

@@ -350,6 +350,41 @@ export async function updateEntrySpeciesAction(
   return { ok: true }
 }
 
+// v27.3.9: persist a per-entry "Filled at log time" value. Upserts on
+// (entry_id, mapping_field_name). Empty value persists as empty string
+// (not null) so the pre-generate gate can distinguish "saved blank" if
+// we ever need to — for now empty == missing.
+export async function setEntryUserInputAction(
+  entryId: string,
+  mappingFieldName: string,
+  value: string
+): Promise<{ ok: true } | { error: string }> {
+  await requireGuide()
+  const id = String(entryId ?? '').trim()
+  const field = String(mappingFieldName ?? '').trim()
+  if (!id) return { error: 'Missing entry id.' }
+  if (!field) return { error: 'Missing mapping field name.' }
+  const cleanValue = String(value ?? '').slice(0, 500)
+
+  const sb = await createClient()
+  const { error } = await sb
+    .from('harvest_log_entry_user_inputs')
+    .upsert(
+      {
+        entry_id: id,
+        mapping_field_name: field,
+        value: cleanValue,
+      },
+      { onConflict: 'entry_id,mapping_field_name' }
+    )
+  if (error) {
+    console.warn('[harvestLog.setUserInput]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not save value.' }
+  }
+  revalidatePath('/app/trips', 'layout')
+  return { ok: true }
+}
+
 export async function removeEntrySpeciesAction(
   speciesId: string
 ): Promise<{ ok: true } | { error: string }> {

@@ -21,6 +21,7 @@ import {
   createEntrySpeciesAction,
   updateEntrySpeciesAction,
   removeEntrySpeciesAction,
+  setEntryUserInputAction,
 } from '../../../_lib/harvest-log-actions'
 import {
   generateFilledHarvestLogPDFsAction,
@@ -31,6 +32,7 @@ import type {
   HarvestLogWithEntries,
   HarvestLogEntryWithRelations,
   HarvestLogEntrySpeciesRow,
+  LogTimeMapping,
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
@@ -321,6 +323,7 @@ export default function HarvestLogEditor({
                 slot={slotByEntryId.get(e.id) ?? null}
                 tripSpecies={tripSpecies}
                 speciesOptions={speciesOptions}
+                logTimeMappings={log.log_time_mappings}
               />
             ))
           )}
@@ -351,6 +354,7 @@ function EntryAccordion({
   slot,
   tripSpecies,
   speciesOptions,
+  logTimeMappings,
 }: {
   entry: HarvestLogEntryWithRelations
   slot: number | null
@@ -358,6 +362,10 @@ function EntryAccordion({
   // the per-row SpeciesField dropdown.
   tripSpecies: string
   speciesOptions: SpeciesOption[]
+  // v27.3.9: "Filled at log time" mappings, aggregated across every
+  // log doc the guide could generate against this trip. Each entry's
+  // accordion filters by hunter_slot to render its own subset.
+  logTimeMappings: LogTimeMapping[]
 }) {
   const router = useRouter()
   const [open, setOpen] = useState<boolean>(false)
@@ -601,6 +609,19 @@ function EntryAccordion({
               )}
             </div>
           </section>
+
+          {/* v27.3.9 - per-entry "Filled at log time" inputs sit ABOVE
+              "Total hours" so the guide's eye lands on them while still
+              in the per-hunter editing context. One input per mapping
+              that targets this hunter's slot. The fill engine refuses
+              to generate when any of these are blank for an included
+              entry. */}
+          <CustomLogFieldsSection
+            entryId={entry.id}
+            slot={slot}
+            logTimeMappings={logTimeMappings}
+            initialValues={entry.user_inputs}
+          />
 
           <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
             <label className="bb-form-label" htmlFor={`hours_${entry.id}`}>Total hours</label>
@@ -911,6 +932,109 @@ function SpeciesRow({
 // rows. Mode dropdown is mandatory; until the guide picks 'same' or
 // 'manual', the row is flagged incomplete (red helper text). 'manual'
 // reveals the free-text input below.
+
+// ── CustomLogFieldsSection (v27.3.9) ────────────────────────────────────
+//
+// Renders one input per "Filled at log time" mapping that targets this
+// hunter's slot. Auto-saves on blur via setEntryUserInputAction.
+// De-duplicates mappings by (field_name, label) so guides who have the
+// same field on multiple log docs don't see the input twice.
+
+function CustomLogFieldsSection({
+  entryId,
+  slot,
+  logTimeMappings,
+  initialValues,
+}: {
+  entryId: string
+  slot: number | null
+  logTimeMappings: LogTimeMapping[]
+  initialValues: Record<string, string>
+}) {
+  // De-dupe by field_name (collapse same-named fields across multiple
+  // mapped log docs). When two docs use the SAME field name with
+  // different labels, the first label wins — vanishingly rare in
+  // practice and a downstream cleanup if it surfaces.
+  const slotForLookup = slot ?? 1
+  const mineByName = useMemo(() => {
+    const out = new Map<string, LogTimeMapping>()
+    for (const m of logTimeMappings) {
+      if (m.hunter_slot !== slotForLookup) continue
+      if (!out.has(m.field_name)) out.set(m.field_name, m)
+    }
+    return Array.from(out.values())
+  }, [logTimeMappings, slotForLookup])
+
+  if (mineByName.length === 0) return null
+
+  return (
+    <section style={{ marginTop: '0.75rem' }}>
+      <span className="bb-form-label" style={{ display: 'block', marginBottom: '0.4rem' }}>
+        Custom fields <span style={{ opacity: 0.6, fontWeight: 400 }}>(filled at log time)</span>
+      </span>
+      <div className="flex flex-col gap-2">
+        {mineByName.map((m) => (
+          <CustomLogFieldRow
+            key={`${m.doc_id}:${m.field_name}`}
+            entryId={entryId}
+            mapping={m}
+            initialValue={initialValues[m.field_name] ?? ''}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CustomLogFieldRow({
+  entryId,
+  mapping,
+  initialValue,
+}: {
+  entryId: string
+  mapping: LogTimeMapping
+  initialValue: string
+}) {
+  const router = useRouter()
+  const [value, setValue] = useState(initialValue)
+  const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useFadingSavedStatus()
+
+  function commit() {
+    setStatus({ kind: 'saving' })
+    startTransition(async () => {
+      const res = await setEntryUserInputAction(entryId, mapping.field_name, value)
+      if ('error' in res) {
+        setStatus({ kind: 'error', message: res.error })
+        return
+      }
+      setStatus({ kind: 'saved', at: Date.now() })
+      router.refresh()
+    })
+  }
+
+  const fieldId = `userinput_${entryId}_${mapping.field_name.replace(/\W+/g, '_')}`
+  return (
+    <div className="bb-form-row" style={{ marginBottom: 0 }}>
+      <label className="bb-form-label" htmlFor={fieldId}>
+        {mapping.user_label}
+      </label>
+      <input
+        id={fieldId}
+        type="text"
+        className="bb-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        maxLength={500}
+        disabled={pending}
+      />
+      <div style={{ minHeight: '1rem', marginTop: '0.2rem' }}>
+        <StatusPill status={status} />
+      </div>
+    </div>
+  )
+}
 
 function SpeciesIdField({
   kind,

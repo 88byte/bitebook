@@ -80,6 +80,10 @@ type EntrySnapshot = {
     report_card_identifier: string | null
     report_card_identifier_mode: 'same' | 'manual' | 'blank' | null
   }>
+  // v27.3.9: per-entry values for fields the doc mapping flagged as
+  // 'user_input.log_time'. Keyed by mapping_field_name. Resolver
+  // returns this[fieldName] ?? '' when path === user_input.log_time.
+  user_inputs: Record<string, string>
 }
 
 type LogContext = {
@@ -156,12 +160,28 @@ function joinAddress(snapshot: Record<string, string | null> | null): {
 
 // Resolve a saved data_source_path to a value. Slot is 1-indexed (slot 0
 // means trip-level).
+// v27.3.9: fieldName threaded through so 'user_input.log_time' paths can
+// look up the per-entry value persisted in harvest_log_entry_user_inputs
+// keyed by (entry_id, mapping_field_name).
 function resolveSource(
   path: string,
   ctx: LogContext,
-  slot: number
+  slot: number,
+  fieldName: string
 ): ResolvedValue {
   if (!path || path === SKIP_VALUE) return null
+
+  // v27.3.9: "Filled at log time" sentinel — value lives on the entry
+  // (per-hunter slot), keyed by the original PDF field_name.
+  if (path === 'user_input.log_time') {
+    if (slot >= 1) {
+      const entry = ctx.entries[slot - 1]
+      if (!entry) return ''
+      return entry.user_inputs[fieldName] ?? ''
+    }
+    // Trip-level user_input not yet supported — return blank for now.
+    return ''
+  }
 
   // v27.2.0.3.4: signature_date.now resolves to TODAY's date at fill
   // time so the date is visible on the generated PDF immediately
@@ -432,23 +452,48 @@ export async function generateFilledHarvestLogPDFsAction(
   // first, falls through if the result is null/empty.
   const { data: mappings } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot')
+    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, user_label')
     .eq('doc_id', docId)
     .eq('mapping_kind', 'field')
-  type MappingEntry = { path: string; fallbackPath: string | null; manualSlot: number }
+  type MappingEntry = {
+    path: string
+    fallbackPath: string | null
+    manualSlot: number
+    userLabel: string | null
+  }
   const mappingByField = new Map<string, MappingEntry>()
   for (const m of mappings ?? []) {
     if (m.field_name && m.data_source_path) {
       const fb = (m as { fallback_path?: string | null }).fallback_path ?? null
+      const ul = (m as { user_label?: string | null }).user_label ?? null
       mappingByField.set(m.field_name, {
         path: m.data_source_path,
         fallbackPath: fb && typeof fb === 'string' && fb.trim() ? fb.trim() : null,
         manualSlot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
+        userLabel: ul && typeof ul === 'string' && ul.trim() ? ul.trim() : null,
       })
     }
   }
   if (mappingByField.size === 0) {
     return { error: 'No field mappings saved on this doc yet.' }
+  }
+
+  // v27.3.9: catalog every (field_name, hunter_slot) pair the doc has
+  // mapped to user_input.log_time. The pre-generate gate below checks
+  // that EVERY required slot has a saved value before fill runs.
+  const userInputMappings: Array<{
+    fieldName: string
+    label: string
+    manualSlot: number
+  }> = []
+  for (const [fieldName, m] of mappingByField) {
+    if (m.path === 'user_input.log_time') {
+      userInputMappings.push({
+        fieldName,
+        label: m.userLabel ?? fieldName,
+        manualSlot: m.manualSlot,
+      })
+    }
   }
 
   // Entries (only included), preserving insertion / participant order.
@@ -549,6 +594,7 @@ export async function generateFilledHarvestLogPDFsAction(
     tagRes,
     reportCardRes,
     speciesRes,
+    userInputsRes,
     guideProfileRes,
     guideBizRes,
     guideLicenseRes,
@@ -574,9 +620,18 @@ export async function generateFilledHarvestLogPDFsAction(
       : Promise.resolve({ data: [] }),
     sb
       .from('harvest_log_entry_species')
-      .select('id, entry_id, species, qty_harvested, qty_released, position, tag_identifier')
+      .select('id, entry_id, species, qty_harvested, qty_released, position, tag_identifier, tag_identifier_mode, report_card_identifier, report_card_identifier_mode')
       .in('entry_id', entryIds)
       .order('position', { ascending: true }),
+    // v27.3.9: per-entry "Filled at log time" values keyed by
+    // (entry_id, mapping_field_name). Used by resolver branch above
+    // and by the pre-generate completeness gate.
+    entryIds.length
+      ? sb
+          .from('harvest_log_entry_user_inputs')
+          .select('entry_id, mapping_field_name, value')
+          .in('entry_id', entryIds)
+      : Promise.resolve({ data: [] }),
     sb
       .from('profiles')
       .select('display_name, phone, address_street, address_street2, address_city, address_state, address_zip')
@@ -603,6 +658,51 @@ export async function generateFilledHarvestLogPDFsAction(
     const arr = speciesByEntry.get(s.entry_id) ?? []
     arr.push(s)
     speciesByEntry.set(s.entry_id, arr)
+  }
+
+  // v27.3.9: index user inputs by entry id -> { fieldName: value }.
+  // Empty/null values are kept in the map so the gate below can
+  // distinguish "saved blank" from "never touched."
+  type UserInputRow = { entry_id: string; mapping_field_name: string; value: string | null }
+  const userInputsByEntry: Record<string, Record<string, string>> = {}
+  for (const r of (userInputsRes.data ?? []) as UserInputRow[]) {
+    if (!userInputsByEntry[r.entry_id]) userInputsByEntry[r.entry_id] = {}
+    userInputsByEntry[r.entry_id][r.mapping_field_name] = r.value ?? ''
+  }
+
+  // v27.3.9: pre-generate completeness gate. Every "Filled at log
+  // time" mapping must have a non-empty value on every included
+  // entry that the mapping applies to. (manualSlot=0 means trip-
+  // level; not yet supported, so skipped.) When something is
+  // missing, refuse to generate and tell the guide which hunter +
+  // which field needs filling.
+  if (userInputMappings.length > 0) {
+    const missing: Array<{ slot: number; hunter: string; label: string }> = []
+    for (const um of userInputMappings) {
+      if (um.manualSlot < 1) continue
+      const idx = um.manualSlot - 1
+      const e = includedEntries[idx]
+      if (!e) continue
+      const value = userInputsByEntry[e.id]?.[um.fieldName]
+      if (!value || !value.trim()) {
+        const hunterName =
+          (hunterRes.data ?? []).find((h) => h.id === e.hunter_id)?.display_name ??
+          e.guest_name ??
+          `Hunter ${um.manualSlot}`
+        missing.push({ slot: um.manualSlot, hunter: hunterName, label: um.label })
+      }
+    }
+    if (missing.length > 0) {
+      const lines = missing
+        .slice(0, 6)
+        .map((m) => `  • ${m.hunter}: ${m.label}`)
+        .join('\n')
+      const more = missing.length > 6 ? `\n  • …and ${missing.length - 6} more` : ''
+      return {
+        error:
+          `Some "Filled at log time" fields are still blank. Open the harvest log and fill them in before generating:\n${lines}${more}`,
+      }
+    }
   }
 
   const entries: EntrySnapshot[] = includedEntries.map((e) => {
@@ -651,6 +751,7 @@ export async function generateFilledHarvestLogPDFsAction(
             valid_to: reportCard.valid_to,
           }
         : null,
+      user_inputs: userInputsByEntry[e.id] ?? {},
       species_rows: (speciesByEntry.get(e.id) ?? []).map((s) => {
         type ExtendedRow = {
           tag_identifier?: string | null
@@ -904,10 +1005,10 @@ export async function generateFilledHarvestLogPDFsAction(
       // (when set) if primary returns null/'' (empty string or falsy
       // boolean still passes through; only "really nothing" triggers
       // the fallback). Lets a single PDF field accept either-or sources.
-      let value = resolveSource(path, passCtx, effectiveSlot)
+      let value = resolveSource(path, passCtx, effectiveSlot, name)
       const isEmpty = (v: ResolvedValue): boolean => v === null || v === ''
       if (isEmpty(value) && mapping.fallbackPath) {
-        const fbVal = resolveSource(mapping.fallbackPath, passCtx, effectiveSlot)
+        const fbVal = resolveSource(mapping.fallbackPath, passCtx, effectiveSlot, name)
         if (!isEmpty(fbVal)) value = fbVal
       }
       try {

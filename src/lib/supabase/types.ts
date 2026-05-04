@@ -114,6 +114,7 @@ export type Database = {
           placement_coords: Json | null
           signature_role: string | null
           updated_at: string
+          user_label: string | null
         }
         Insert: {
           bbox?: Json | null
@@ -133,6 +134,7 @@ export type Database = {
           placement_coords?: Json | null
           signature_role?: string | null
           updated_at?: string
+          user_label?: string | null
         }
         Update: {
           bbox?: Json | null
@@ -152,6 +154,7 @@ export type Database = {
           placement_coords?: Json | null
           signature_role?: string | null
           updated_at?: string
+          user_label?: string | null
         }
         Relationships: [
           {
@@ -469,6 +472,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "harvest_log_entry_species_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "harvest_log_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harvest_log_entry_user_inputs: {
+        Row: {
+          created_at: string
+          entry_id: string
+          id: string
+          mapping_field_name: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          id?: string
+          mapping_field_name: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          id?: string
+          mapping_field_name?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_log_entry_user_inputs_entry_id_fkey"
             columns: ["entry_id"]
             isOneToOne: false
             referencedRelation: "harvest_log_entries"

@@ -184,6 +184,11 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: STATIC_TEXT_PREFIX,        label: 'Type your own value',                 category: 'special', valueType: 'string' },
   { value: STATIC_DATE_PREFIX,        label: 'Pick a date',                         category: 'special', valueType: 'string', type: 'date' },
   { value: STATIC_DATE_RANGE_PREFIX,  label: 'Pick a date range',                   category: 'special', valueType: 'string', type: 'date' },
+  // v27.3.9: "Filled at log time" sentinel. Resolves to NULL at PDF
+  // generate; the actual value is captured per-entry on the harvest
+  // log row above "Total hours" and pulled from
+  // harvest_log_entry_user_inputs at fill time.
+  { value: 'user_input.log_time',     label: 'Filled by guide during log entry',    category: 'special', valueType: 'string', type: 'text', perRow: true },
   // v27.1.5.4.1: signature_date.now sentinel. The fill engine resolves
   // this to NULL at PDF generation (leaves the field blank); the e-
   // signature engine fills it with the actual signing timestamp at the

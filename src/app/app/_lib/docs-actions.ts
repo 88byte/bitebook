@@ -789,6 +789,11 @@ export type MappingInput = {
    *  CDFW "TAG / REPORT CARD"). Same value space as data_source_path —
    *  pickerable path, "static:..." string, or "skip"/empty (no fallback). */
   fallback_path?: string | null
+  /** v27.3.9: user-facing label rendered on the harvest log entry row
+   *  above "Total hours" when data_source_path = "user_input.log_time".
+   *  Plain-English short title (4-8 words). Null/undefined when path
+   *  is anything else. */
+  user_label?: string | null
 }
 
 export type SaveMappingsResult =
@@ -825,6 +830,7 @@ export async function saveDocMappingsAction(
     hunterSlot: number
     isOverride: boolean
     explicit: boolean  // user touched this field this save
+    userLabel: string | null  // v27.3.9 (user_input.log_time only)
   }
   // Local sanitizer — same picker-sentinel + half-filled-range guards
   // applied to both primary and fallback paths.
@@ -859,7 +865,21 @@ export async function saveDocMappingsAction(
       : 0
     const hunterSlot = Math.max(0, Math.min(99, rawSlot))
     const isOverride = m.is_override === true
-    staged.set(fieldName, { path, fallbackPath, hunterSlot, isOverride, explicit: true })
+    // v27.3.9: only persist user_label when path is the log-time
+    // sentinel; otherwise null. Cap at 120 chars defensively.
+    const rawLabel = (m as { user_label?: string | null }).user_label
+    const userLabel =
+      path === 'user_input.log_time' && typeof rawLabel === 'string' && rawLabel.trim()
+        ? rawLabel.trim().slice(0, 120)
+        : null
+    staged.set(fieldName, {
+      path,
+      fallbackPath,
+      hunterSlot,
+      isOverride,
+      explicit: true,
+      userLabel,
+    })
   }
 
   // v27.1.1.0.3c.2: auto-mirror Hunter 1 → slots 2..N.
@@ -917,6 +937,9 @@ export async function saveDocMappingsAction(
       // a pending suggestion. The wizard surfaces the ✨ AI badge
       // only on rows where this is still true.
       is_ai_suggested: false,
+      // v27.3.9: user-facing label rendered above "Total hours" on
+      // the harvest log entry row. Null on every non-log-time path.
+      user_label: s.userLabel,
     })
   }
 
@@ -1138,6 +1161,14 @@ Rules:
 - For trip-level fields (catalog perRow=false), set hunter_slot=0.
 - slotHint is a regex-derived starting point — override it freely when the PDF page shows the box belongs to a different slot.
 - "confidence":"low" when the box is ambiguous or no catalog path fits.
+- "user_label" — REQUIRED when suggested_path = "user_input.log_time" (and only then). A short, plain-English rewrite of the PDF field name in the natural-language style the catalog labels use ("How many points on the antlers?", "Method of take", "Boat name"). Drop ALL_CAPS, drop trailing numbers like "_2", drop redundancy ("FIELD" / "BOX"). 4-8 words, sentence case. Empty string when path is anything else.
+
+USER_INPUT.LOG_TIME (last-resort sentinel for fields with no catalog match):
+- When the field truly does not match any catalog source (state-specific oddities like "Boat name", "Mooring number", "Trip leader certification #", lodge / outfitter custom add-ons), set suggested_path = "user_input.log_time" instead of "skip".
+- ALWAYS prefer this over "skip" when the field is clearly something the guide would TYPE during the hunt log (i.e. the field accepts a normal string value and the PDF page treats it as something to fill, not metadata).
+- ALWAYS prefer this when your confidence in any catalog match would otherwise be "low" — the guide will type the value at log time, no auto-fill needed.
+- Examples of fields that route here: "BOAT NAME", "MOORING #", "GUIDE CONTACT EMERGENCY", "TRIP LEADER CERT #", any custom field a state added to a generic log.
+- Set hunter_slot the same way as any per-row text field (read off the PDF page).
 
 DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "Tag Report Card" / "Harvest Report Card" / "Bear Tag Report" / "Deer Tag Report" / any "Report Card" field on a state log → MUST map to "hunter_harvest_report_card.identifier" (number) or its sibling fields. NEVER to "hunter_license.*" — a hunter's report card is a separate physical document from their hunting license.
@@ -1215,6 +1246,7 @@ Return the JSON array now.`
     fallback_path: string
     hunter_slot: number
     confidence: string
+    user_label: string
   }> = []
   try {
     const client = new Anthropic({ apiKey })
@@ -1265,6 +1297,11 @@ Return the JSON array now.`
                   description:
                     '"low" when the field is ambiguous or no catalog path fits well.',
                 },
+                user_label: {
+                  type: 'string',
+                  description:
+                    'REQUIRED when suggested_path = "user_input.log_time". A short plain-English label shown to the guide on the harvest log row above "Total hours." 4-8 words, sentence case, no ALL_CAPS, no trailing _N. Empty string for any other path.',
+                },
               },
               required: ['field_name', 'suggested_path', 'hunter_slot', 'confidence'],
             },
@@ -1304,6 +1341,7 @@ Return the JSON array now.`
       fallback_path?: unknown
       hunter_slot?: unknown
       confidence?: unknown
+      user_label?: unknown
     }>)
       .map((m) => ({
         field_name: typeof m.field_name === 'string' ? m.field_name : '',
@@ -1311,6 +1349,7 @@ Return the JSON array now.`
         fallback_path: typeof m.fallback_path === 'string' ? m.fallback_path : '',
         hunter_slot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
         confidence: typeof m.confidence === 'string' ? m.confidence : 'low',
+        user_label: typeof m.user_label === 'string' ? m.user_label : '',
       }))
       .filter((m) => m.field_name)
   } catch (e: unknown) {
@@ -1328,6 +1367,7 @@ Return the JSON array now.`
     data_source_path: string
     fallback_path: string | null
     hunter_slot: number
+    user_label: string | null
   }
   const accepted: Suggestion[] = []
   let rejected = 0
@@ -1347,11 +1387,18 @@ Return the JSON array now.`
         fallback = s.fallback_path
       }
     }
+    // v27.3.9: user_label only persists when the path is the
+    // log-time sentinel. Trim + cap defensively.
+    const userLabel =
+      s.path === 'user_input.log_time' && s.user_label
+        ? s.user_label.trim().slice(0, 120)
+        : null
     accepted.push({
       field_name: s.field_name,
       data_source_path: s.path,
       fallback_path: fallback,
       hunter_slot: slot,
+      user_label: userLabel,
     })
   }
 
@@ -1398,6 +1445,9 @@ Return the JSON array now.`
       // manual edit. ai_suggested_path is preserved on guide saves.
       ai_suggested_path: s.data_source_path,
       ai_suggested_slot: s.hunter_slot,
+      // v27.3.9: AI-rewritten plain-English label for "Filled at log
+      // time" mappings. Null on every other path.
+      user_label: s.user_label,
     })
   }
 
