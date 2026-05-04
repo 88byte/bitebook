@@ -3966,6 +3966,25 @@ body {
   border-color: rgba(179, 58, 46, 0.55);
 }
 
+/* v27.3.7 item 1 — generated-report row action cluster.
+   Defaults to a flex-wrap cluster on the right of the row (next to
+   filename + meta). On <=640px viewport, kicks onto its own line
+   below so the 4-5 icon tiles don't crowd the filename. */
+.bb-genrow-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .bb-genrow-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-top: 0.4rem;
+  }
+}
+
 /* Full-width compact-CTA variant. Pairs with .bb-cta-sm; just stretches
    to the parent width and centers contents. */
 .bb-cta-full {

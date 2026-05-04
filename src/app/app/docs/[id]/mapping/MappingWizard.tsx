@@ -854,6 +854,72 @@ export default function MappingWizard({
         </StepCard>
       )}
 
+      {/* v27.3.7 item 8 — Step 4 promoted to TOP of the wizard so the
+          "I'm done" CTA is in reach without scrolling past dozens of
+          field rows. The duplicate Step 4 footer was removed. Button
+          stretches to width:100% with a desktop max cap so it stays a
+          comfortable tap target on mobile + isn't a runway on widescreen. */}
+      <StepCard
+        stepNumber={4}
+        title="Done? Mark this mapping complete"
+        tone="copper"
+      >
+        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+          Once you&rsquo;re happy with each row, tap below. The auto-fill engine will use
+          these mappings on every report you generate. You can come back to edit anytime.
+        </p>
+        <div
+          style={{
+            marginTop: '0.75rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            alignItems: 'stretch',
+          }}
+        >
+          <button
+            type="button"
+            className="bb-cta"
+            onClick={() => save(true)}
+            disabled={pending}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+              width: '100%',
+              maxWidth: '24rem',
+            }}
+          >
+            <CheckCircle2 size={16} aria-hidden="true" />
+            {completedAt !== null
+              ? 'Saved + marked complete'
+              : pending
+              ? 'Working…'
+              : 'Mark mapping complete'}
+          </button>
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => save(false)}
+            disabled={pending}
+          >
+            {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+          </button>
+          <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+            Status: <strong>{currentStatus}</strong>
+          </span>
+        </div>
+        {savedAt !== null && mirroredCount > 0 && (
+          <p
+            className="bb-form-help"
+            style={{ margin: '0.6rem 0 0', color: 'var(--color-copper)' }}
+          >
+            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
+          </p>
+        )}
+      </StepCard>
+
       {/* Anchor target so the success-step CTA can scroll the user
           straight to the first field card. */}
       <div ref={fieldsAreaRef} />
@@ -945,62 +1011,9 @@ export default function MappingWizard({
         </p>
       )}
 
-      {/* v27.1.1.0.3d.2.10: renumbered to Step 4 (was Step 5). The
-          success banner above is now a non-numbered info tile, so the
-          numbered actions are: 1=Start, 2=Working, 3=Review, 4=Complete. */}
-      <StepCard
-        stepNumber={4}
-        title="Done? Mark this mapping complete"
-        tone="copper"
-      >
-        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-          Once you&rsquo;re happy with each row, tap below. The auto-fill engine will use
-          these mappings on every report you generate. You can come back to edit anytime.
-        </p>
-        <div
-          style={{
-            marginTop: '0.75rem',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.5rem',
-            alignItems: 'center',
-          }}
-        >
-          <button
-            type="button"
-            className="bb-cta"
-            onClick={() => save(true)}
-            disabled={pending}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <CheckCircle2 size={16} aria-hidden="true" />
-            {completedAt !== null
-              ? 'Saved + marked complete'
-              : pending
-              ? 'Working…'
-              : 'Mark mapping complete'}
-          </button>
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => save(false)}
-            disabled={pending}
-          >
-            {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
-          </button>
-          <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-            Status: <strong>{currentStatus}</strong>
-          </span>
-        </div>
-        {savedAt !== null && mirroredCount > 0 && (
-          <p
-            className="bb-form-help"
-            style={{ margin: '0.6rem 0 0', color: 'var(--color-copper)' }}
-          >
-            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
-          </p>
-        )}
-      </StepCard>
+      {/* v27.3.7 item 8 — Step 4 footer card removed; the Mark-complete
+          CTA was promoted to the top of the wizard so it's reachable
+          without scrolling past every field row. */}
     </section>
   )
 }

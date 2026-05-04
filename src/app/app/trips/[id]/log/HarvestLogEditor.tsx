@@ -21,7 +21,6 @@ import {
   createEntrySpeciesAction,
   updateEntrySpeciesAction,
   removeEntrySpeciesAction,
-  deleteHarvestLogAndRedirectAction,
 } from '../../../_lib/harvest-log-actions'
 import {
   generateFilledHarvestLogPDFsAction,
@@ -35,7 +34,7 @@ import type {
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
-import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw, PenLine } from 'lucide-react'
+import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw, Signature } from 'lucide-react'
 import SignModal from './SignModal'
 
 // v27.1.1.0.3a   — accordion editor.
@@ -140,8 +139,6 @@ export default function HarvestLogEditor({
   const [purposes, setPurposes] = useState<Set<string>>(initialPurposes)
   const [logStatus, setLogStatus] = useFadingSavedStatus()
 
-  const [confirmDelete, setConfirmDelete] = useState<boolean>(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const slotByEntryId = useMemo(() => {
     const map = new Map<string, number>()
@@ -177,16 +174,6 @@ export default function HarvestLogEditor({
     commitLogLevel(logDate, next)
   }
 
-  function runDelete() {
-    setDeleteError(null)
-    startTransition(async () => {
-      const res = await deleteHarvestLogAndRedirectAction(log.id)
-      if (res && 'error' in res) {
-        setDeleteError(res.error)
-      }
-    })
-  }
-
   return (
     <>
       <div className="flex flex-col gap-4 mt-4">
@@ -194,6 +181,22 @@ export default function HarvestLogEditor({
             for this trip, with Open / Download / Delete per row. Empty
             state nudges the guide to fill out the log + tap Generate. */}
         <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} />
+
+        {/* v27.3.7 item 7 — Generate moves to TOP of the section (was below
+            entries). Pairing it with the Logs tile creates a tight "what
+            you've made / make a new one" cluster at the top before the
+            user scrolls into per-hunter editing. */}
+        <GeneratePdfsSection
+          logId={log.id}
+          mappedDocs={mappedDocs}
+          tripState={tripState}
+          guideId={guideId}
+        />
+
+        {/* v27.3.7 item 9 — divider directly beneath the Generate block
+            so the "fill out details below" content reads as a separate
+            phase from the generation tools. */}
+        <div className="bb-page-divider" aria-hidden="true" />
 
         {/* Trip-level fields — auto-save on blur (date) / change (purpose).
             v27.1.1.0.3e.4 layout: 2-col grid (date | purpose), purpose
@@ -314,58 +317,10 @@ export default function HarvestLogEditor({
           )}
         </section>
 
-        {/* v27.1.1.0.3b: Generate filled PDFs.
-            v27.1.1.0.3e.2: state-aware filtering — picker auto-narrows to
-            mapped docs whose state === trip.state, with a fallback warning
-            when the trip's state has no matching log. */}
-        <GeneratePdfsSection
-          logId={log.id}
-          mappedDocs={mappedDocs}
-          tripState={tripState}
-          guideId={guideId}
-        />
-
-
-        {/* Danger zone — delete + start over. v27.1.1.0.3e.4: full-width
-            destructive CTA matches the mockup's red bar. */}
-        <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-          <div className="bb-tile-body">
-            <h2 className="bb-form-section-head">Danger zone</h2>
-            <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-              Deletes this report and starts over. Tags consumed by entries get released.
-            </p>
-            <button
-              type="button"
-              className="bb-cta-destructive"
-              onClick={() => setConfirmDelete(true)}
-              disabled={pending}
-              style={{ marginTop: '0.5rem' }}
-            >
-              <Trash2 size={16} aria-hidden="true" />
-              Delete report
-            </button>
-            {deleteError && (
-              <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A', marginTop: '0.4rem' }}>
-                {deleteError}
-              </p>
-            )}
-          </div>
-        </section>
-
-        <ConfirmModal
-          open={confirmDelete}
-          title="Delete this hunt report and start over?"
-          body="The report and every hunter's entry will be removed. Any tags consumed by these entries will be released. This can't be undone."
-          confirmLabel="Delete report"
-          destructive
-          typeToConfirm="DELETE"
-          isPending={pending}
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={() => {
-            setConfirmDelete(false)
-            runDelete()
-          }}
-        />
+        {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
+            "every hunt gets this hunt report." Reports auto-exist
+            per hunt; no manual deletion path. ConfirmModal removed
+            too. */}
 
         <input type="hidden" name="trip_id" value={tripId} />
       </div>
@@ -641,6 +596,17 @@ function EntryAccordion({
             />
           </div>
 
+          {/* v27.3.7 — REGRESSION FIX: Species / Harvested / Released
+              fields were invisible when an entry had zero species rows
+              and no linked tag. The "Add species" button was gated on
+              length>0, and PhantomSpeciesRow only rendered with
+              entry.tag?.species. End state: the user saw only the
+              "Optional. Add a species" helper text with no inputs and
+              no Add button. Now: PhantomSpeciesRow always renders when
+              there are no real species rows (with a blank species
+              field if there's no tag), and the "Add species" button
+              shows in the header at all times so users can stack
+              multiple harvests. */}
           <section style={{ marginTop: '0.75rem' }}>
             <div
               style={{
@@ -651,36 +617,28 @@ function EntryAccordion({
               }}
             >
               <span className="bb-form-label" style={{ marginBottom: 0 }}>Species</span>
-              {entry.species_rows.length > 0 && (
-                <button
-                  type="button"
-                  className="bb-text-action bb-text-action-copper"
-                  onClick={addSpecies}
-                  disabled={pending}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <Plus size={14} aria-hidden="true" />
-                  Add species
-                </button>
-              )}
+              <button
+                type="button"
+                className="bb-text-action bb-text-action-copper"
+                onClick={addSpecies}
+                disabled={pending}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <Plus size={14} aria-hidden="true" />
+                Add species
+              </button>
             </div>
 
             {entry.species_rows.length === 0 ? (
-              entry.tag?.species ? (
-                <>
-                  <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
-                    Fill in the details below. Add more species if more than one was harvested.
-                  </p>
-                  <PhantomSpeciesRow
-                    entryId={entry.id}
-                    tagSpecies={entry.tag.species}
-                  />
-                </>
-              ) : (
-                <p className="bb-form-help" style={{ margin: 0 }}>
-                  Optional. Add a species if this hunter took game on the trip.
+              <>
+                <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
+                  Fill in the details below. Add more species if more than one was harvested.
                 </p>
-              )
+                <PhantomSpeciesRow
+                  entryId={entry.id}
+                  tagSpecies={entry.tag?.species ?? ''}
+                />
+              </>
             ) : (
               <>
                 <p className="bb-form-help" style={{ margin: '0 0 0.4rem 0' }}>
@@ -1058,15 +1016,17 @@ function GeneratePdfsSection({
   return (
     <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
       <div className="bb-tile-body">
-        <h2 className="bb-form-section-head">Generate filled PDFs</h2>
-        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-          Fills the picked state form with this report. Hunters with
-          &ldquo;Include in report&rdquo; unchecked are skipped. Forms with
-          per-hunter slots overflow into multiple PDFs when needed.
+        {/* v27.3.7 — restructured Generate card per Flavio's flow:
+            instructional copy → name input → log template dropdown →
+            "Generate Filled Out Log" button. Section heading dropped
+            so the helper copy reads as the header itself. */}
+        <p className="bb-form-help" style={{ margin: 0 }}>
+          Generate a filled state harvest log for this trip. Hunters
+          with &ldquo;Include in report&rdquo; unchecked are skipped.
         </p>
 
-        {/* v27.1.1.0.3e.2: warning banner when the trip's state has no
-            matching mapped log. Falls through to showing all docs. */}
+        {/* warning banner when the trip's state has no matching
+            mapped log. Falls through to showing all docs. */}
         {usingFallback && (
           <p
             className="bb-form-help"
@@ -1084,41 +1044,10 @@ function GeneratePdfsSection({
           </p>
         )}
 
-        {sortedDocs.length > 1 && (
-          <div className="bb-form-row" style={{ marginTop: '0.5rem' }}>
-            <label className="bb-form-label" htmlFor="fill_doc_picker">Pick a log doc</label>
-            <select
-              id="fill_doc_picker"
-              className="bb-input"
-              value={docId}
-              onChange={(e) => setDocId(e.target.value)}
-            >
-              {sortedDocs.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label} ({describeDoc(d)})
-                  {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* v27.1.1.0.3e.4: "Using …" indicator always rendered above the
-            CTA, even on multi-doc state. Reflects the currently-picked
-            doc so the guide sees what's about to be filled. */}
-        {activeDoc && (
-          <p className="bb-form-help" style={{ margin: '0.4rem 0' }}>
-            Using <strong>{activeDoc.label}</strong> ({describeDoc(activeDoc)})
-            {activeDoc.mapping_status === 'partial' ? ' · partial mapping' : ''}.
-          </p>
-        )}
-
-        {/* v27.1.4.0.1: optional Report name. Empty → fall through to
-            the auto-name (`{trip.title} — {doc.label}`). Capped at 120
-            chars on the server. Cleared after a successful generate. */}
-        <div className="bb-form-row" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
+        {/* Title input first (before dropdown). */}
+        <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
           <label className="bb-form-label" htmlFor="report_name">
-            Report name <span style={{ opacity: 0.6 }}>(optional)</span>
+            Log title <span style={{ opacity: 0.6 }}>(optional)</span>
           </label>
           <input
             id="report_name"
@@ -1139,7 +1068,35 @@ function GeneratePdfsSection({
           <p className="bb-form-help">Leave blank to use the auto-generated name.</p>
         </div>
 
-        <div style={{ marginTop: '0.6rem' }}>
+        {/* Log template dropdown. Always render (even with single
+            option) so the user sees what's about to be used. */}
+        <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
+          <label className="bb-form-label" htmlFor="fill_doc_picker">Log template</label>
+          {sortedDocs.length > 1 ? (
+            <select
+              id="fill_doc_picker"
+              className="bb-input"
+              value={docId}
+              onChange={(e) => setDocId(e.target.value)}
+            >
+              {sortedDocs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label} ({describeDoc(d)})
+                  {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            activeDoc && (
+              <p className="bb-form-help" style={{ margin: 0 }}>
+                Using <strong>{activeDoc.label}</strong> ({describeDoc(activeDoc)})
+                {activeDoc.mapping_status === 'partial' ? ' · partial mapping' : ''}.
+              </p>
+            )
+          )}
+        </div>
+
+        <div style={{ marginTop: '0.75rem' }}>
           <button
             type="button"
             className="bb-cta-sm bb-cta-full"
@@ -1147,7 +1104,7 @@ function GeneratePdfsSection({
             disabled={pending || !docId}
           >
             <FileText size={14} aria-hidden="true" />
-            {pending ? 'Generating…' : 'Generate filled PDFs'}
+            {pending ? 'Generating…' : 'Generate Filled Out Log'}
           </button>
         </div>
 
@@ -1206,10 +1163,10 @@ function GeneratedReportsTile({
     return (
       <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Reports</h2>
+          <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
           <p className="bb-form-help" style={{ margin: 0 }}>
-            No reports yet. Fill out the log below and tap{' '}
-            <strong>Generate filled PDFs</strong> to create one.
+            No logs yet. Fill out the report below and tap{' '}
+            <strong>Generate Filled Out Log</strong> to create one.
           </p>
         </div>
       </section>
@@ -1218,7 +1175,7 @@ function GeneratedReportsTile({
   return (
     <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
       <div className="bb-tile-body">
-        <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Reports</h2>
+        <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
         <p className="bb-form-help" style={{ marginTop: 0, marginBottom: '0.6rem' }}>
           Filled state forms generated from this report. Tap any to open or download.
         </p>
@@ -1433,7 +1390,12 @@ function GeneratedReportRow({
             const wasRegenerated = Number.isFinite(updated) && updated - created > 1000
             const ts = wasRegenerated ? row.updated_at : row.created_at
             const label = wasRegenerated ? 'Updated' : 'Generated'
-            return <span>{label} {relativeTime(ts)}</span>
+            // v27.3.7: pair "X ago" with the explicit date so the
+            // user can see both relative + absolute at a glance.
+            const dateStr = new Date(ts).toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric'
+            })
+            return <span>{label} {relativeTime(ts)} · {dateStr}</span>
           })()}
           {row.pass_total > 1 && <span>· Pass {row.pass_index} of {row.pass_total}</span>}
           {row.page_count !== null && row.page_count !== undefined && (
@@ -1450,9 +1412,12 @@ function GeneratedReportRow({
           </p>
         )}
       </div>
-      <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="bb-genrow-actions">
         {/* v27.2.0.1: Signed-on pill rendered before the action tiles
-            when the report has been signed. */}
+            when the report has been signed.
+            v27.3.7 item 1: action cluster pulled onto its own row on
+            mobile (<640px) via .bb-genrow-actions so 4-5 icon tiles
+            don't crowd the filename + meta on narrow viewports. */}
         {isSigned && (
           <span
             aria-label={`Signed ${new Date(row.signed_at!).toLocaleDateString()}`}
@@ -1471,7 +1436,7 @@ function GeneratedReportRow({
               whiteSpace: 'nowrap',
             }}
           >
-            <PenLine size={12} aria-hidden="true" />
+            <Signature size={12} aria-hidden="true" />
             Signed {new Date(row.signed_at!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
         )}
@@ -1516,7 +1481,9 @@ function GeneratedReportRow({
               : 'Draw your signature and stamp today’s date on the report'
           }
         >
-          <PenLine size={16} aria-hidden="true" />
+          {/* v27.3.7: Signature icon (was PenLine) — collided with the
+              Pencil icon used for rename. Different visual now. */}
+          <Signature size={16} aria-hidden="true" />
           <span>{isSigned ? 'Re-sign' : 'Sign'}</span>
         </button>
         <button
