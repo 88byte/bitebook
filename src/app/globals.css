@@ -1850,6 +1850,23 @@ body {
 
 .bb-segmented input { display: none; }
 
+/* v27.3.10.1 - compact variant. Default .bb-segmented stretches
+   to fill its parent (1fr 1fr grid), which on the trip detail
+   page rendered as two wide buttons. .bb-segmented-compact swaps
+   to inline-flex with max-content width so the toggle reads as a
+   tight binary pill (Hunting | Fishing) rather than two CTAs.
+   Tighter padding too. */
+.bb-segmented-compact {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  grid-template-columns: none;
+}
+.bb-segmented-compact label {
+  padding: 0.45rem 1rem;
+  font-size: 0.74rem;
+}
+
 /* ── Skeleton loaders (loading.tsx) ──────────────────────────────────────── */
 /* Used by app/loading.tsx + nested loading.tsx files. Shown instantly on
    navigation while server work finishes. Tints/sizes match the real layout

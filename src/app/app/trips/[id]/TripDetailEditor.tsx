@@ -298,26 +298,18 @@ export default function TripDetailEditor({
             <StatusPill status={status} />
           </div>
 
+          {/* v27.3.10.1 - Activity toggle moved ABOVE Trip name and
+              switched to the compact segmented variant (inline-flex
+              binary pill instead of two wide CTAs). The activity is
+              the first decision the guide makes about a trip; the
+              name flows from there. */}
           <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
-            <label className="bb-form-label" htmlFor="title">Trip name</label>
-            <label className="bb-field">
-              <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
-              <input
-                id="title"
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => autoSave()}
-                className="bb-input bb-input-iconed"
-                autoComplete="off"
-              />
-            </label>
-          </div>
-
-          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
             <span className="bb-form-label">Activity</span>
-            <div className="bb-segmented" role="radiogroup" aria-label="Activity">
+            <div
+              className="bb-segmented bb-segmented-compact"
+              role="radiogroup"
+              aria-label="Activity"
+            >
               <label>
                 <input
                   type="radio"
@@ -346,6 +338,23 @@ export default function TripDetailEditor({
                 Fishing
               </label>
             </div>
+          </div>
+
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor="title">Trip name</label>
+            <label className="bb-field">
+              <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
+              <input
+                id="title"
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => autoSave()}
+                className="bb-input bb-input-iconed"
+                autoComplete="off"
+              />
+            </label>
           </div>
 
           <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
