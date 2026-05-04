@@ -82,88 +82,97 @@ export default async function HuntersPage() {
         objectPosition="center 28%"
       />
 
-      {/* Invite-a-hunter card */}
-      <section className="bb-net-card bb-net-invite mt-4">
-        <div className="bb-net-invite-head">
-          <span className="bb-net-invite-icon" aria-hidden="true">
-            <Mail size={20} />
-          </span>
-          <h2 className="bb-net-invite-title">Invite a hunter</h2>
-        </div>
-        <InviteForm />
-      </section>
+      {/* v27.3.2 — Hunters layout pass. Mobile stacks (Invite card,
+          then Your hunters, then Pending invites). On desktop the
+          Invite card becomes a sticky right-rail aside so it's always
+          in view while the guide scrolls their roster. */}
+      <div className="bb-hunters-grid mt-4">
+        <div className="flex flex-col gap-4">
+          <section>
+            <div className="bb-net-section-head">
+              <span className="bb-net-section-icon" aria-hidden="true">
+                <Users size={14} />
+              </span>
+              <span className="bb-net-section-title">Your hunters</span>
+            </div>
 
-      {/* YOUR HUNTERS section */}
-      <div className="bb-net-section-head">
-        <span className="bb-net-section-icon" aria-hidden="true">
-          <Users size={14} />
-        </span>
-        <span className="bb-net-section-title">Your hunters</span>
-      </div>
-
-      {accepted.length === 0 ? (
-        <div className="bb-empty">
-          <div className="bb-empty-title">No hunters yet</div>
-          <p className="bb-empty-sub">Invite your first hunter to get started.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {accepted.map((h) => {
-            const label = h.display_name ?? h.email
-            return (
-              <NetworkPersonCard
-                key={h.id}
-                avatarLetter={label.slice(0, 1).toUpperCase()}
-                name={label}
-                sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
-                action={
-                  <RemoveHunterButton
-                    inviteId={h.id}
-                    displayName={h.display_name ?? null}
-                    email={h.email}
-                  />
-                }
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {/* Pending invites — keep the existing dense row layout */}
-      {pending.length > 0 && (
-        <>
-          <div className="bb-net-section-head">
-            <span className="bb-net-section-icon" aria-hidden="true">
-              <Mail size={14} />
-            </span>
-            <span className="bb-net-section-title">Pending invites</span>
-          </div>
-          <div className="bb-detail-list">
-            {pending.map((p) => (
-              <div key={p.id} className="bb-detail-row bb-detail-row-pending">
-                <div className="bb-avatar" aria-hidden="true">
-                  {p.email.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="bb-detail-name">{p.email}</div>
-                  <div className="bb-detail-sub">
-                    Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
-                  </div>
-                </div>
-                <span className="bb-pill bb-pill-planned">Pending</span>
-                <div className="bb-resend-wrap">
-                  <ResendInviteButton
-                    inviteId={p.id}
-                    email={p.email}
-                    lastSentAt={p.last_sent_at}
-                  />
-                  <CancelInviteButton inviteId={p.id} email={p.email} />
-                </div>
+            {accepted.length === 0 ? (
+              <div className="bb-empty">
+                <div className="bb-empty-title">No hunters yet</div>
+                <p className="bb-empty-sub">Invite your first hunter to get started.</p>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            ) : (
+              <div className="flex flex-col gap-3">
+                {accepted.map((h) => {
+                  const label = h.display_name ?? h.email
+                  return (
+                    <NetworkPersonCard
+                      key={h.id}
+                      avatarLetter={label.slice(0, 1).toUpperCase()}
+                      name={label}
+                      sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
+                      action={
+                        <RemoveHunterButton
+                          inviteId={h.id}
+                          displayName={h.display_name ?? null}
+                          email={h.email}
+                        />
+                      }
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {pending.length > 0 && (
+            <section>
+              <div className="bb-net-section-head">
+                <span className="bb-net-section-icon" aria-hidden="true">
+                  <Mail size={14} />
+                </span>
+                <span className="bb-net-section-title">Pending invites</span>
+              </div>
+              <div className="bb-detail-list">
+                {pending.map((p) => (
+                  <div key={p.id} className="bb-detail-row bb-detail-row-pending">
+                    <div className="bb-avatar" aria-hidden="true">
+                      {p.email.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="bb-detail-name">{p.email}</div>
+                      <div className="bb-detail-sub">
+                        Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+                      </div>
+                    </div>
+                    <span className="bb-pill bb-pill-planned">Pending</span>
+                    <div className="bb-resend-wrap">
+                      <ResendInviteButton
+                        inviteId={p.id}
+                        email={p.email}
+                        lastSentAt={p.last_sent_at}
+                      />
+                      <CancelInviteButton inviteId={p.id} email={p.email} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <aside className="bb-hunters-grid-aside">
+          <section className="bb-net-card bb-net-invite">
+            <div className="bb-net-invite-head">
+              <span className="bb-net-invite-icon" aria-hidden="true">
+                <Mail size={20} />
+              </span>
+              <h2 className="bb-net-invite-title">Invite a hunter</h2>
+            </div>
+            <InviteForm />
+          </section>
+        </aside>
+      </div>
     </main>
   )
 }

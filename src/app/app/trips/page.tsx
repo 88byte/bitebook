@@ -212,9 +212,12 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
                 )}
               </div>
             ) : (
-              // v27.3.1: 2-col grid at >=1280px — keeps trip cards
-              // ~640px wide instead of 1300px on the wide shell.
-              <div role="list" className="bb-card-list-grid">
+              // v27.3.2: reverted v27.3.1's 2-col grid — Flavio:
+              // "2 columns in the trips doesnt make sense as a design
+              // option." Single-column list with each row capped via
+              // .bb-trip-list-narrow so cards read as a list, not a
+              // grid of tiles. Mobile single-col untouched.
+              <div role="list" className="bb-trip-list-narrow flex flex-col gap-3">
                 {rows.map((t) => (
                   <div role="listitem" key={t.id}>
                     <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />
