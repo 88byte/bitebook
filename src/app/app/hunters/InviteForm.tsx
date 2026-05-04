@@ -6,7 +6,10 @@ import { inviteHunterAction } from './actions'
 
 type SuccessMode = 'existing_hunter' | 'new_user'
 
-export default function InviteForm() {
+// v27.3.3.2 — `compact` renders a single-row inline layout for use
+// inside the /app/hunters banner right slot. Default vertical layout
+// stays for the mobile body card / standalone use.
+export default function InviteForm({ compact = false }: { compact?: boolean }) {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sentAt, setSentAt] = useState<number | null>(null)
@@ -35,6 +38,40 @@ export default function InviteForm() {
   }
 
   const showSent = sentAt !== null && Date.now() - sentAt < 30000
+
+  if (compact) {
+    return (
+      <form onSubmit={onSubmit} className="bb-hero-invite">
+        <span className="bb-hero-invite-label">Invite a hunter</span>
+        <input
+          name="email"
+          type="email"
+          className="bb-hero-invite-input"
+          required
+          placeholder="hunter@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          maxLength={200}
+          aria-label="Hunter email"
+        />
+        <button type="submit" className="bb-hero-invite-send" disabled={isPending}>
+          <UserPlus size={14} aria-hidden="true" />
+          {isPending ? 'Sending…' : 'Send'}
+        </button>
+        {error && (
+          <p role="alert" className="bb-hero-invite-msg" style={{ color: '#FFB29A' }}>
+            {error}
+          </p>
+        )}
+        {showSent && (
+          <p role="status" aria-live="polite" className="bb-hero-invite-msg">
+            <Check size={12} aria-hidden="true" />{' '}
+            {mode === 'existing_hunter' ? 'Hunter added' : 'Invite sent'}
+          </p>
+        )}
+      </form>
+    )
+  }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">

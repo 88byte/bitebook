@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import type { ReactNode } from 'react'
 
 // v27.0a.13: shared dark-bg hero used on /app, /app/h, /app/hunters,
 // /app/h/guides, /app/trips, /app/h/trips. The bg image is variable per
@@ -6,6 +7,11 @@ import Image from 'next/image'
 // dashboard keeps it light cream; network + trips pages use copper per
 // Flavio's brand-palette rule. Logo shield only renders on the dashboard
 // variant where it's contextual; suppressed on other pages.
+//
+// v27.3.3.2: optional rightSlot replaces the shield position with a
+// custom desktop-only element (e.g. inline invite form on /app/hunters).
+// Mobile (<1024px) suppresses the slot via CSS so the title stays the
+// banner focus.
 export default function DashboardHero({
   eyebrow,
   title,
@@ -14,6 +20,7 @@ export default function DashboardHero({
   eyebrowColor = 'light',
   showShield = true,
   objectPosition,
+  rightSlot,
 }: {
   eyebrow: string
   title: string
@@ -28,6 +35,8 @@ export default function DashboardHero({
    * behavior).
    */
   objectPosition?: string
+  /** Desktop-only right slot. Hidden on mobile via .bb-dash-hero-right-slot. */
+  rightSlot?: ReactNode
 }) {
   const eyebrowClass =
     eyebrowColor === 'copper'
@@ -52,7 +61,9 @@ export default function DashboardHero({
           <h1 className="bb-dash-hero-title">{title}</h1>
           <p className="bb-dash-hero-sub">{subtitle}</p>
         </div>
-        {showShield && (
+        {rightSlot ? (
+          <div className="bb-dash-hero-right-slot">{rightSlot}</div>
+        ) : showShield ? (
           <Image
             src="/bb-shield.png"
             alt=""
@@ -61,7 +72,7 @@ export default function DashboardHero({
             className="bb-dash-hero-shield"
             aria-hidden="true"
           />
-        )}
+        ) : null}
       </div>
     </section>
   )

@@ -1634,24 +1634,6 @@ body {
     position: sticky;
     top: 1.5rem;
   }
-  /* Compact invite footprint inside the aside — smaller padding,
-     compressed header, condensed input + button so the form takes
-     ~30% less vertical real estate than the default mobile card. */
-  .bb-hunters-grid-aside .bb-net-invite { padding: 0.7rem 0.85rem 0.85rem; }
-  .bb-hunters-grid-aside .bb-net-card { max-width: 100%; }
-  .bb-hunters-grid-aside .bb-net-invite-icon {
-    width: 1.6rem; height: 1.6rem; flex: 0 0 1.6rem;
-  }
-  .bb-hunters-grid-aside .bb-net-invite-icon svg { width: 14px; height: 14px; }
-  .bb-hunters-grid-aside .bb-net-invite-title {
-    font-size: 0.85rem;
-  }
-  .bb-hunters-grid-aside .bb-net-invite-head { gap: 0.5rem; }
-  .bb-hunters-grid-aside .bb-input { font-size: 0.85rem; padding: 0.45rem 0.6rem 0.45rem 2.1rem; }
-  .bb-hunters-grid-aside .bb-cta-block {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.85rem;
-  }
 }
 
 /* Stronger section heads on the hunters page — was bare text, now a
@@ -1679,6 +1661,107 @@ body {
    consistent across the app. */
 .bb-page-divider {
   border-top: 1px solid var(--color-card-divider);
+}
+
+/* v27.3.3.2 — hero rightSlot wrapper. Hidden on mobile (banner stays
+   focused on title); visible from >=1024px to host an inline action
+   like the compact invite form on /app/hunters. */
+.bb-dash-hero-right-slot {
+  display: none;
+}
+@media (min-width: 64rem) {
+  .bb-dash-hero-right-slot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+}
+
+/* v27.3.3.2 — banner inline invite. Single-row layout designed to
+   sit inside the dark hero on the right, with light-on-dark inputs
+   that match the banner aesthetic. Mobile is hidden via the slot
+   wrapper above. */
+.bb-hero-invite {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: rgba(11, 8, 6, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+}
+.bb-hero-invite-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.72);
+  padding-left: 0.25rem;
+  white-space: nowrap;
+}
+.bb-hero-invite-input {
+  flex: 1 1 14rem;
+  min-width: 11rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-ink);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-family: var(--font-barlow);
+  font-size: 0.85rem;
+  outline: none;
+}
+.bb-hero-invite-input:focus {
+  border-color: var(--color-copper);
+  box-shadow: 0 0 0 2px rgba(176, 108, 60, 0.25);
+}
+.bb-hero-invite-input::placeholder { color: var(--color-ink-muted); }
+.bb-hero-invite-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.bb-hero-invite-send:hover:not(:disabled) { filter: brightness(1.05); }
+.bb-hero-invite-send:disabled { opacity: 0.6; cursor: not-allowed; }
+.bb-hero-invite-msg {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--font-barlow);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Mobile body invite card hidden on desktop (banner slot owns it). */
+@media (min-width: 64rem) {
+  .bb-hunters-mobile-invite { display: none; }
+}
+
+/* v27.3.3.2 — /app/docs list cap. Docs cards stretched into wide
+   banners on the wide shell; cap the list at the same readable
+   width that trips uses (~38rem at desktop, more at ultrawide). */
+.bb-docs-list { max-width: 100%; }
+@media (min-width: 64rem) {
+  .bb-docs-list { max-width: 45rem; }
+}
+@media (min-width: 96rem) {
+  .bb-docs-list { max-width: 50rem; }
 }
 
 /* v27.3.2.1 — hunter search bar. Inline icon + input, capped width

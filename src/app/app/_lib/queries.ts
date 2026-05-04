@@ -429,12 +429,13 @@ export async function fetchTripsPage(
     .eq('guide_id', guideId)
     .order('starts_at', { ascending: false })
     .range(opts.from, opts.to)
-  // v27.1.1.0.3a.5: ALL filter excludes canceled trips. Canceled lives
-  // exclusively under its own CANCELED chip so the default trips list
-  // stays focused on planned/active/completed (the happy path). Pass
-  // status='canceled' explicitly to surface them.
+  // v27.3.3.2: 'all' filter now excludes WRAPPED + CANCELED trips.
+  // Wrapped/done trips live in the Recent column on /app/trips; the
+  // main column with chip='all' is the OPEN trips view (planned +
+  // active). Pass status='completed' or 'canceled' explicitly via
+  // chip to surface those.
   if (opts.status === 'all') {
-    query = query.in('status', ['planned', 'active', 'completed'])
+    query = query.in('status', ['planned', 'active'])
   } else {
     query = query.eq('status', opts.status)
   }

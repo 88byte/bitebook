@@ -100,6 +100,7 @@ export default async function HuntersPage({
         eyebrowColor="copper"
         showShield={false}
         objectPosition="center 28%"
+        rightSlot={<InviteForm compact />}
       />
 
       {/* v27.3.2.1: page divider — same border-style as docs/trips
@@ -108,12 +109,12 @@ export default async function HuntersPage({
           and content. */}
       <div className="bb-page-divider mt-4" aria-hidden="true" />
 
-      {/* v27.3.2.1 — Hunters redesign per Flavio's explicit flow:
-          1. Invite a hunter at TOP (above the list)
-          2. Search bar below invite
-          3. Hunter cards below search, with Pending invites in the
-             right rail on desktop. Mobile stacks everything. */}
-      <section className="bb-net-card bb-net-invite mt-4">
+      {/* v27.3.3.2 — Hunters redesign:
+          • DESKTOP (>=1024px): invite form lives in the banner right
+            slot; this body card is hidden via .bb-hunters-mobile-invite.
+          • MOBILE (<1024px): banner slot is hidden, this card carries
+            the invite form. Same flow, different placement. */}
+      <section className="bb-net-card bb-net-invite mt-4 bb-hunters-mobile-invite">
         <div className="bb-net-invite-head">
           <span className="bb-net-invite-icon" aria-hidden="true">
             <Mail size={20} />

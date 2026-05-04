@@ -123,7 +123,7 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        <section>
+        <section className="bb-col-divider">
           <div className="bb-dash-section-head">
             <span className="bb-dash-section-title">Recent trips</span>
             {recent.length > 0 && (

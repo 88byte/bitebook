@@ -249,7 +249,7 @@ export default function DocsLibraryList({ docs }: { docs: DocSummary[] }) {
         </div>
       )}
 
-      <div className="mt-3 flex flex-col gap-3">
+      <div className="bb-docs-list mt-3 flex flex-col gap-3">
         {docs.map((d) => (
           <SelectableDocRow
             key={d.id}
