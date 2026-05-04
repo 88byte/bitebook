@@ -63,7 +63,15 @@ type EntrySnapshot = {
     state: string | null
     valid_to: string | null
   } | null
-  species_rows: Array<{ species: string | null; qty_harvested: number; qty_released: number }>
+  // v27.3.7.2 item 1: per-row tag_identifier override. Free text on
+  // each species row so multi-species hunts can record each tag #
+  // separately (the entry-level linked tag only covers one).
+  species_rows: Array<{
+    species: string | null
+    qty_harvested: number
+    qty_released: number
+    tag_identifier: string | null
+  }>
 }
 
 type LogContext = {
@@ -306,7 +314,13 @@ function resolveSource(
   }
 
   // harvest_log_entry_species[N].field — N is 1-indexed.
-  const speciesMatch = /^harvest_log_entry_species\[(\d+)\]\.(species|qty_harvested|qty_released)$/.exec(path)
+  // v27.3.7.2 item 1: tag_identifier added to the per-species path
+  // namespace. Fallback chain: row's own tag_identifier override →
+  // for index 0 (first species), entry.tag.identifier → ''. So if a
+  // CDFW form maps "Tag #1" to harvest_log_entry_species[1].tag_identifier,
+  // it picks up the entry-linked wallet tag automatically when the
+  // guide hasn't typed an override; rows 2+ require manual entry.
+  const speciesMatch = /^harvest_log_entry_species\[(\d+)\]\.(species|qty_harvested|qty_released|tag_identifier)$/.exec(path)
   if (speciesMatch) {
     const idx = Number(speciesMatch[1]) - 1
     const sp = entry.species_rows[idx]
@@ -314,6 +328,13 @@ function resolveSource(
     if (speciesMatch[2] === 'species') return sp.species ?? ''
     if (speciesMatch[2] === 'qty_harvested') return String(sp.qty_harvested)
     if (speciesMatch[2] === 'qty_released') return String(sp.qty_released)
+    if (speciesMatch[2] === 'tag_identifier') {
+      if (sp.tag_identifier && sp.tag_identifier.trim()) return sp.tag_identifier
+      // First-row fallback to the entry-level linked tag so guides
+      // who only have one species per trip don't have to retype.
+      if (idx === 0) return entry.tag?.identifier ?? ''
+      return ''
+    }
   }
 
   // Legacy harvest.* paths — back-compat aliases that resolve to species[0]
@@ -534,7 +555,7 @@ export async function generateFilledHarvestLogPDFsAction(
       : Promise.resolve({ data: [] }),
     sb
       .from('harvest_log_entry_species')
-      .select('id, entry_id, species, qty_harvested, qty_released, position')
+      .select('id, entry_id, species, qty_harvested, qty_released, position, tag_identifier')
       .in('entry_id', entryIds)
       .order('position', { ascending: true }),
     sb
@@ -615,6 +636,9 @@ export async function generateFilledHarvestLogPDFsAction(
         species: s.species,
         qty_harvested: s.qty_harvested,
         qty_released: s.qty_released,
+        // v27.3.7.2 item 1: per-row tag override surfaces in the
+        // resolver via harvest_log_entry_species[N].tag_identifier.
+        tag_identifier: (s as { tag_identifier?: string | null }).tag_identifier ?? null,
       })),
     }
   })

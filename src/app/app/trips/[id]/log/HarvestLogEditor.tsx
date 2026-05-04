@@ -659,6 +659,7 @@ function EntryAccordion({
                 <PhantomSpeciesRow
                   entryId={entry.id}
                   tagSpecies={entry.tag?.species ?? ''}
+                  tagIdentifier={entry.tag?.identifier ?? ''}
                   tripSpecies={tripSpecies}
                   speciesOptions={speciesOptions}
                 />
@@ -713,19 +714,23 @@ function SpeciesRow({
   const [species, setSpecies] = useState(row.species ?? '')
   const [qH, setQH] = useState(String(row.qty_harvested))
   const [qR, setQR] = useState(String(row.qty_released))
+  // v27.3.7.2 item 1: per-row tag # override. Fixes multi-species
+  // hunts where the entry-level linked tag only covers one species.
+  const [tagId, setTagId] = useState(row.tag_identifier ?? '')
 
   // Latest-state ref so onBlur callbacks always send fresh values.
-  const stateRef = useRef({ species, qH, qR })
-  stateRef.current = { species, qH, qR }
+  const stateRef = useRef({ species, qH, qR, tagId })
+  stateRef.current = { species, qH, qR, tagId }
 
   function commit() {
-    const { species: sp, qH: h, qR: r } = stateRef.current
+    const { species: sp, qH: h, qR: r, tagId: t } = stateRef.current
     setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('species_id', row.id)
     fd.set('species', sp)
     fd.set('qty_harvested', h || '0')
     fd.set('qty_released', r || '0')
+    fd.set('tag_identifier', t)
     startTransition(async () => {
       const res = await updateEntrySpeciesAction(fd)
       if ('error' in res) {
@@ -773,6 +778,26 @@ function SpeciesRow({
             }}
             options={speciesOptions}
             placeholder="Pick a species"
+          />
+        </div>
+        {/* v27.3.7.2 item 1: per-species Tag # input. Free text. The
+            entry-level wallet-linked tag covers ONE species; this
+            field unblocks hunters who hunt multiple species in one
+            trip (each gets its own tag in real life). Multi-tag
+            wallet linking ships in a v27.3.8 follow-up. */}
+        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+          <label className="bb-form-label" htmlFor={`tag_${row.id}`}>
+            Tag # <span style={{ opacity: 0.6 }}>(optional)</span>
+          </label>
+          <input
+            id={`tag_${row.id}`}
+            type="text"
+            className="bb-input"
+            value={tagId}
+            onChange={(e) => setTagId(e.target.value)}
+            onBlur={commit}
+            placeholder="e.g. T-1234567"
+            maxLength={80}
           />
         </div>
         <div className="bb-form-row">
@@ -832,11 +857,16 @@ function SpeciesRow({
 function PhantomSpeciesRow({
   entryId,
   tagSpecies,
+  tagIdentifier,
   tripSpecies,
   speciesOptions,
 }: {
   entryId: string
   tagSpecies: string
+  // v27.3.7.2 item 1: pre-fill the Tag # input with the hunter's
+  // linked tag identifier (if any). Phantom row defaults; once a
+  // species row materializes, the SpeciesRow keeps the user's edits.
+  tagIdentifier: string
   // v27.3.7.1 item 3: trip-level species fallback default. Tag species
   // wins when set (tag was explicitly linked); otherwise we fall back
   // to the trip's species_targeted so the guide doesn't have to retype
@@ -848,23 +878,26 @@ function PhantomSpeciesRow({
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useFadingSavedStatus()
   const [species, setSpecies] = useState(tagSpecies || tripSpecies || '')
+  const [tagId, setTagId] = useState(tagIdentifier || '')
   const [qH, setQH] = useState('0')
   const [qR, setQR] = useState('0')
 
-  const stateRef = useRef({ species, qH, qR })
-  stateRef.current = { species, qH, qR }
+  const stateRef = useRef({ species, qH, qR, tagId })
+  stateRef.current = { species, qH, qR, tagId }
 
   function commit() {
-    const { species: sp, qH: h, qR: r } = stateRef.current
+    const { species: sp, qH: h, qR: r, tagId: t } = stateRef.current
     // Don't materialize an empty row — wait for the user to actually
-    // type something or set qty>0 before promoting to a real row.
-    if (!sp.trim() && (h === '' || h === '0') && (r === '' || r === '0')) return
+    // type something or set qty>0 or enter a tag # before promoting
+    // to a real row.
+    if (!sp.trim() && (h === '' || h === '0') && (r === '' || r === '0') && !t.trim()) return
     setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('entry_id', entryId)
     fd.set('species', sp)
     fd.set('qty_harvested', h || '0')
     fd.set('qty_released', r || '0')
+    fd.set('tag_identifier', t)
     startTransition(async () => {
       const res = await createEntrySpeciesAction(fd)
       if ('error' in res) {
@@ -896,6 +929,23 @@ function PhantomSpeciesRow({
             }}
             options={speciesOptions}
             placeholder="Pick a species"
+          />
+        </div>
+        {/* v27.3.7.2 item 1: per-species Tag # input. Pre-fills with
+            the hunter's linked tag identifier when set. */}
+        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+          <label className="bb-form-label" htmlFor={`phantom_tag_${entryId}`}>
+            Tag # <span style={{ opacity: 0.6 }}>(optional)</span>
+          </label>
+          <input
+            id={`phantom_tag_${entryId}`}
+            type="text"
+            className="bb-input"
+            value={tagId}
+            onChange={(e) => setTagId(e.target.value)}
+            onBlur={commit}
+            placeholder="e.g. T-1234567"
+            maxLength={80}
           />
         </div>
         <div className="bb-form-row">
@@ -976,30 +1026,28 @@ function GeneratePdfsSection({
   // existing behavior. Bite Book templates count as matches if their
   // state field is set; templates with state=null fall into the "any"
   // pool below.
-  const stateMatches = useMemo(() => {
-    if (!tripState) return mappedDocs
-    return mappedDocs.filter((d) => d.state === tripState)
+  // v27.3.7.2 item 2 — dropdown ALWAYS shows every mapped log
+  // (guide's library + Bite Book templates). Sort matching-state
+  // first so the most likely default lands on top. The previous
+  // narrow-to-state behavior was hiding non-matching docs entirely
+  // — Flavio could only see the auto-pick.
+  const sortedDocs = useMemo(() => {
+    const match: MappedLogDoc[] = []
+    const other: MappedLogDoc[] = []
+    for (const d of mappedDocs) {
+      if (tripState && d.state === tripState) match.push(d)
+      else other.push(d)
+    }
+    return [...match, ...other]
   }, [mappedDocs, tripState])
 
-  const usingFallback = !!tripState && stateMatches.length === 0
-  const visibleDocs = usingFallback ? mappedDocs : stateMatches
-
-  // Sort: matching state first, then non-matching. Stable across
-  // renders by mapping back to mappedDocs order within each bucket.
-  const sortedDocs = useMemo(() => {
-    if (!tripState || usingFallback) {
-      // No state filter (or fallback showing all) — sort: matching
-      // state first, then everything else.
-      const match: MappedLogDoc[] = []
-      const other: MappedLogDoc[] = []
-      for (const d of mappedDocs) {
-        if (tripState && d.state === tripState) match.push(d)
-        else other.push(d)
-      }
-      return [...match, ...other]
-    }
-    return visibleDocs
-  }, [mappedDocs, visibleDocs, tripState, usingFallback])
+  // Surface a soft warning (not a filter) when the trip has a state
+  // but no mapped log matches it — guide still sees everything but
+  // knows to upload the right state's log if they have one.
+  const usingFallback = useMemo(
+    () => !!tripState && !mappedDocs.some((d) => d.state === tripState),
+    [mappedDocs, tripState]
+  )
 
   // Default-pick the first doc in the visible/sorted list. Auto-select
   // sticks when sortedDocs reduces to length 1.

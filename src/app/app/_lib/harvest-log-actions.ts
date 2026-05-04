@@ -247,6 +247,8 @@ export async function createEntrySpeciesAction(
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
+  // v27.3.7.2 item 1: per-species tag # override. 80-char defensive cap.
+  const tagIdentifier = String(formData.get('tag_identifier') ?? '').trim().slice(0, 80) || null
 
   const sb = await createClient()
 
@@ -267,6 +269,7 @@ export async function createEntrySpeciesAction(
       species,
       qty_harvested: qHarv,
       qty_released: qRel,
+      tag_identifier: tagIdentifier,
     })
     .select('id')
     .single()
@@ -298,11 +301,18 @@ export async function updateEntrySpeciesAction(
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
+  // v27.3.7.2 item 1: per-species tag # override.
+  const tagIdentifier = String(formData.get('tag_identifier') ?? '').trim().slice(0, 80) || null
 
   const sb = await createClient()
   const { error } = await sb
     .from('harvest_log_entry_species')
-    .update({ species, qty_harvested: qHarv, qty_released: qRel })
+    .update({
+      species,
+      qty_harvested: qHarv,
+      qty_released: qRel,
+      tag_identifier: tagIdentifier,
+    })
     .eq('id', speciesId)
   if (error) {
     console.warn('[harvestLog.updateSpecies]', { code: error.code, message: error.message })

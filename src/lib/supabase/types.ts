@@ -432,6 +432,7 @@ export type Database = {
           qty_harvested: number
           qty_released: number
           species: string | null
+          tag_identifier: string | null
           updated_at: string
         }
         Insert: {
@@ -442,6 +443,7 @@ export type Database = {
           qty_harvested?: number
           qty_released?: number
           species?: string | null
+          tag_identifier?: string | null
           updated_at?: string
         }
         Update: {
@@ -452,6 +454,7 @@ export type Database = {
           qty_harvested?: number
           qty_released?: number
           species?: string | null
+          tag_identifier?: string | null
           updated_at?: string
         }
         Relationships: [
