@@ -352,7 +352,22 @@ function WalletStatusSection({
   // v27.0a.10: "View all" toggle — flips the deck into a vertical stack of
   // every card in this status bucket. Deck (idle) shows top + 2 peeks;
   // expanded shows everything full-width.
+  // v27.3.4: on desktop (>=1024px) we always render the grid instead of
+  // the deck. The deck pattern is mobile-touch-first; on a wide shell
+  // the stretched single card reads as a banner. Auto-detected via
+  // matchMedia so the grid kicks in immediately at lg+ without forcing
+  // the user to tap "View all."
   const [expanded, setExpanded] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(min-width: 64rem)')
+    const onChange = () => setIsDesktop(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const showGrid = expanded || isDesktop
 
   return (
     <section className="bb-wallet-section mt-4">
@@ -360,7 +375,7 @@ function WalletStatusSection({
         <span className="bb-wallet-section-title">
           {title} ({count})
         </span>
-        {items.length > 1 && (
+        {items.length > 1 && !isDesktop && (
           <button
             type="button"
             className="bb-text-action bb-text-action-copper"
@@ -374,7 +389,7 @@ function WalletStatusSection({
 
       {items.length === 0 ? (
         <EmptyState icon={emptyIcon} title={emptyTitle} sub={emptySub} />
-      ) : expanded ? (
+      ) : showGrid ? (
         <div className="bb-wallet-stack">
           {items.map((item) => (
             <WalletHeroCard

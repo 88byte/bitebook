@@ -3111,10 +3111,10 @@ body {
    cards render as clean paper cards. */
 
 /* v27.0a.10: vertical stack mode for "View all" expanded carousels */
-/* v27.3.3 — wallet expanded "View all" stack. Mobile: vertical
-   stack (preserves card aspect, scrolls). Desktop: 2-3 col grid
-   so cards read as cards, not stretched banners. Maintains the
-   ~1.6:1 wallet-card aspect on each tile. */
+/* v27.3.4 — wallet card grid. Mobile (<1024px): vertical stack
+   (preserves card aspect, scrolls). Desktop (>=1024px): 2-col grid;
+   3-col at >=1280px; 4-col at ultrawide. Each card holds a real
+   wallet aspect (~1.6:1) instead of stretching into a banner. */
 .bb-wallet-stack {
   display: flex;
   flex-direction: column;
@@ -3127,24 +3127,33 @@ body {
     gap: 1rem;
   }
 }
-@media (min-width: 96rem) {
+@media (min-width: 80rem) {
   .bb-wallet-stack {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+@media (min-width: 120rem) {
+  .bb-wallet-stack {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-/* In stack mode the cards take their grid cell — override the
-   carousel's flex 0 0 100% sizing so they fit cleanly. */
+/* Stack-mode cards: take full grid cell width, lock to wallet
+   aspect on desktop so even a tall content card stays visually a
+   card rather than stretching. min-height resets so aspect-ratio
+   wins; max-width caps so a single-card grid cell doesn't blow
+   up to 700px wide. */
 .bb-wallet-stack .bb-wallet-card {
   flex: 1 1 auto;
   width: 100%;
-  /* v27.3.3 — keep cards near a wallet aspect on desktop too,
-     so they don't stretch tall in a narrow grid cell. */
+  max-width: 100%;
 }
 @media (min-width: 64rem) {
   .bb-wallet-stack .bb-wallet-card {
     aspect-ratio: 1.6 / 1;
     min-height: 0;
+    max-height: 240px;
   }
 }
 
