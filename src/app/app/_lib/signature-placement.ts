@@ -181,53 +181,57 @@ export function resolvePlacements(
   return out
 }
 
-// v27.2.0.3.2 — alignment differs by source:
+// v27.2.0.3.4 — fill-width compositing.
 //
-//   'mapping' — the AcroForm widget rect on most state forms IS the
-//     text-input area, and the visual signature underline sits at the
-//     widget's bottom edge. Centering the image inside the box puts
-//     the strokes WAY above the line the user sees. Fix: bottom-
-//     anchor the image at the widget's bottom edge, with a 15%
-//     downward overshoot so strokes can dip below the line like a
-//     real handwritten signature.
+// Earlier versions letterboxed the signature inside the placement box
+// (preserving aspect ratio, letting either width OR height be smaller
+// than the box). When a signer drew a tall/narrow signature into a
+// wide placement box, the result was a small left-anchored signature
+// in a wide box — visually indistinguishable from "centered" because
+// the eye saw the empty whitespace to the right and judged the
+// composition as centered.
 //
-//   'drag-place' / 'default' — the box was drawn around where the
-//     user wants the signature to land. Vertical: center inside the
-//     box (signer drew it where they want it).
+// New rule: drawW always equals placement.w. Height scales to
+// preserve the captured signature's aspect ratio. This guarantees
+// the signature visually spans the user's intended signature area.
+// If the captured aspect makes drawH exceed placement.h, that's
+// acceptable — handwritten signatures often overshoot a single-line
+// area in real life.
 //
-// Horizontal alignment (all sources): LEFT-anchor. The signature PNG
-// is now cropped to its drawn-pixel bounding box at capture time
-// (SignaturePad v27.2.0.3.2), so left-anchoring puts the first
-// stroke at the box's left edge — which is how a handwritten name
-// reads. Centering looked off when the user signed wide/narrow.
+// Vertical alignment by source:
+//   'mapping'    — bottom-anchor at the widget's bottom edge with
+//                  15% overshoot below (signature crosses the
+//                  underline like real handwriting).
+//   'drag-place' — bottom-anchor inside the user's drawn box (the
+//                  user typically draws the box AROUND the signature
+//                  line, with the line at the bottom).
+//   'default'    — bottom-anchor inside the default last-page box.
 //
-// Returns ready-to-draw {x, y, w, h} in PDF points. Callers just
-// hand this to page.drawImage().
+// Horizontal: LEFT-anchor for all sources (drawX = placement.x).
+//
+// Returns ready-to-draw {x, y, w, h} in PDF points.
 export function computeDrawPosition(
   placement: ResolvedPlacement,
   signatureWidth: number,
   signatureHeight: number
 ): { x: number; y: number; w: number; h: number } {
   const imgRatio = signatureWidth / Math.max(signatureHeight, 1)
-  const boxRatio = placement.w / Math.max(placement.h, 1)
-  let drawW = placement.w
-  let drawH = placement.h
-  if (imgRatio > boxRatio) drawH = placement.w / imgRatio
-  else drawW = placement.h * imgRatio
+  // Always fill the box width. Height derives from signature aspect.
+  const drawW = placement.w
+  const drawH = drawW / Math.max(imgRatio, 0.001)
 
-  // Left-anchor horizontally (was: centered).
+  // Left-anchor horizontally.
   const drawX = placement.x
   let drawY: number
   if (placement.source === 'mapping') {
     // Bottom-anchor at the widget's bottom edge with a small
-    // overshoot below. drawY = placement.y - drawH * 0.15 puts the
-    // image bottom 15% of its height below the widget's bottom-left,
-    // which roughly matches how a real signature crosses an
-    // underline.
+    // overshoot below.
     drawY = placement.y - drawH * 0.15
   } else {
-    // Center vertically inside the user's drawn box.
-    drawY = placement.y + (placement.h - drawH) / 2
+    // Bottom-anchor at the box's bottom edge for drag-place /
+    // default. Real signatures sit ON the line, not floating
+    // centered above it.
+    drawY = placement.y
   }
   return { x: drawX, y: drawY, w: drawW, h: drawH }
 }

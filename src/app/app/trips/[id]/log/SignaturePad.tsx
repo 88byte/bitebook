@@ -2,21 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-// v27.2.0.3.2 — canvas-based signature pad. Captures finger / stylus /
+// v27.2.0.3.4 — canvas-based signature pad. Captures finger / stylus /
 // mouse strokes and serializes the result as a PNG data URL.
 //
-// Smoothing: connect successive points with quadratic Bezier curves
-// (mid-point trick) so jitter from low-res touch events doesn't read
-// as a jagged line.
+// Smoothing: midpoint-Bezier — each segment runs from the PREVIOUS
+// midpoint, through the current pointer position (the control), to
+// the CURRENT midpoint. This produces a continuous curve without
+// gaps. The earlier implementation (v27.2.0.1..v27.2.0.3.2) used
+// `quadraticCurveTo(last, last, mid)` which degenerates to a
+// straight line from `last` to `mid` and left a half-segment gap
+// every time the user's pointer landed between two midpoints —
+// that gap was the actual root cause of the "spotty pen" look.
 //
 // The canvas is drawn at devicePixelRatio so retina screens get a
 // crisp signature without blowing up the data URL more than ~3x.
 //
-// v27.2.0.3.2: bumped strokeWidth to read as real pen ink (was 2.5,
-// felt thin and spotty). toDataURL now crops to the bounding box of
-// drawn pixels with a small pad — the raw canvas carried huge
-// transparent margins that made signatures look "centered" inside
-// any composition box at sign time.
+// v27.2.0.3.4: lineWidth bumped to 6 CSS-px. At a typical DPR=2
+// the internal stroke is 12px wide; embedded at a typical 200pt
+// state-form signature box (scale factor ~0.3), the rendered
+// stroke lands at ~3.5pt — readable like a real pen, vs the
+// ~2.3pt that lineWidth=4 produced.
+//
+// toDataURL crops to the bounding box of drawn pixels with a small
+// pad — the raw canvas carries huge transparent margins that
+// otherwise made signatures look "centered" inside any composition
+// box at sign time. Verified in /tmp/crop_verify.js: bbox detection
+// is correct for full-stroke, empty, and single-dot cases.
 
 export type SignaturePadHandle = {
   isEmpty: () => boolean
@@ -41,6 +52,10 @@ export default function SignaturePad({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingRef = useRef<boolean>(false)
   const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  // v27.2.0.3.4: track previous midpoint for proper midpoint-Bezier
+  // smoothing. Each move emits a curve from prevMid → through last (control)
+  // → to mid. The next move starts where the last ended (prevMid := mid).
+  const prevMidRef = useRef<{ x: number; y: number } | null>(null)
   const isEmptyRef = useRef<boolean>(true)
   const [, force] = useState(0)
 
@@ -55,7 +70,7 @@ export default function SignaturePad({
     const ctx = c.getContext('2d')
     if (ctx) {
       ctx.scale(dpr, dpr)
-      ctx.lineWidth = 4.0
+      ctx.lineWidth = 6.0
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       ctx.strokeStyle = '#0B0806'
@@ -79,13 +94,14 @@ export default function SignaturePad({
     drawingRef.current = true
     const p = pointerCoords(ev)
     lastPointRef.current = p
+    prevMidRef.current = null // first move will start a fresh sub-path
     const ctx = c.getContext('2d')
     if (!ctx) return
     // Dot for taps — draws a small filled circle so a single click
     // still leaves a mark. Radius scales with the line weight so taps
     // read as the same ink density as drawn strokes.
     ctx.beginPath()
-    ctx.arc(p.x, p.y, 2.0, 0, Math.PI * 2)
+    ctx.arc(p.x, p.y, 3.0, 0, Math.PI * 2)
     ctx.fill()
     isEmptyRef.current = false
     onChange?.(false)
@@ -104,20 +120,42 @@ export default function SignaturePad({
       lastPointRef.current = p
       return
     }
-    // Quadratic Bezier with mid-point as the control end — gives smooth
-    // strokes without pre-buffering points.
+    // Proper midpoint-Bezier smoothing. Each segment is a quadratic
+    // Bezier from prevMid → control = last → end = currentMid. Sub-
+    // paths chain end-to-end (no gaps): the next segment starts
+    // exactly where this one ended.
     const mid = { x: (last.x + p.x) / 2, y: (last.y + p.y) / 2 }
     ctx.beginPath()
-    ctx.moveTo(last.x, last.y)
-    ctx.quadraticCurveTo(last.x, last.y, mid.x, mid.y)
+    if (prevMidRef.current) {
+      ctx.moveTo(prevMidRef.current.x, prevMidRef.current.y)
+      ctx.quadraticCurveTo(last.x, last.y, mid.x, mid.y)
+    } else {
+      // Bootstrap: first segment of a stroke runs straight from the
+      // initial pointer-down to the first midpoint. lineCap='round'
+      // smooths the kink at `last` when prevMid takes over.
+      ctx.moveTo(last.x, last.y)
+      ctx.lineTo(mid.x, mid.y)
+    }
     ctx.stroke()
+    prevMidRef.current = mid
     lastPointRef.current = p
   }
 
   function onPointerUp(ev: React.PointerEvent<HTMLCanvasElement>) {
+    // Close the stroke by drawing one final segment from the last
+    // midpoint to the final pointer position so the very end of the
+    // stroke isn't lopped off at prevMid.
+    const c = canvasRef.current
+    const ctx = c?.getContext('2d')
+    if (c && ctx && prevMidRef.current && lastPointRef.current) {
+      ctx.beginPath()
+      ctx.moveTo(prevMidRef.current.x, prevMidRef.current.y)
+      ctx.lineTo(lastPointRef.current.x, lastPointRef.current.y)
+      ctx.stroke()
+    }
     drawingRef.current = false
     lastPointRef.current = null
-    const c = canvasRef.current
+    prevMidRef.current = null
     if (c) {
       try {
         c.releasePointerCapture(ev.pointerId)
@@ -135,6 +173,7 @@ export default function SignaturePad({
     ctx.clearRect(0, 0, c.width / dpr, c.height / dpr)
     isEmptyRef.current = true
     lastPointRef.current = null
+    prevMidRef.current = null
     onChange?.(true)
     force((n) => n + 1)
   }

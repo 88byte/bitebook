@@ -138,12 +138,17 @@ function resolveSource(
 ): ResolvedValue {
   if (!path || path === SKIP_VALUE) return null
 
-  // v27.1.5.4.1: signature_date.now sentinel resolves to NULL at fill
-  // time. The field stays blank in the generated PDF; the e-signature
-  // engine (v27.2) overlays the actual signing date when the document
-  // is signed. This is intentional — auto-filling with today's date
-  // would lie about when the document was actually executed.
-  if (path === 'signature_date.now') return null
+  // v27.2.0.3.4: signature_date.now resolves to TODAY's date at fill
+  // time so the date is visible on the generated PDF immediately
+  // (Flavio: "i dont see the date on the pdf being generated"). The
+  // e-signature engine OVERWRITES this same field with the actual
+  // signing date when the doc is signed — so for a doc generated
+  // and signed on the same day, the value is identical; for a doc
+  // generated then signed later, the sign date wins. The earlier
+  // "leave blank to avoid lying" rationale was wrong: the gen-time
+  // date represents the fill timestamp, which IS today, and it gets
+  // refreshed on actual signing.
+  if (path === 'signature_date.now') return fmtDateMMDDYYYY(new Date().toISOString())
   // v27.2.0.3: e_signature.{role} sentinels. Same pattern — fill leaves
   // the AcroForm field blank; the signing engine reads the widget's
   // rect via pdf-lib and stamps the signer's image at sign time.
