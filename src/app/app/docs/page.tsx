@@ -92,6 +92,22 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
         </p>
       </header>
 
+      {/* v27.3.5: Upload doc CTA — moved ABOVE the tab strip so the
+          page-level primary action sits at the top of actionable
+          content, before tabs/chips/list. */}
+      {tab === 'my' && (
+        <div className="mt-3 flex">
+          <Link
+            href="/app/docs/new"
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Upload doc
+          </Link>
+        </div>
+      )}
+
       {/* v27.1.1.0.3e.5: top-level tabs. My docs vs Bite Book templates.
           Pattern mirrors the wallet tabs — copper underline on active,
           URL-driven so the back button works. */}
@@ -226,20 +242,9 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
         )}
       </nav>
 
-      {/* v27.3.1: Upload doc CTA, left-aligned under chip-row. Matches
-          New Trip (/app/trips) and Add New Card (/app/wallet) placement. */}
-      {tab === 'my' && (
-        <div className="mt-3 flex">
-          <Link
-            href="/app/docs/new"
-            className="bb-cta-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Plus size={14} aria-hidden="true" />
-            Upload doc
-          </Link>
-        </div>
-      )}
+      {/* v27.3.5: Upload doc CTA moved up — was below the chip-row,
+          now obviously moved by the JSX block above the tab line.
+          Kept this stub comment block to mark the relocation. */}
 
       {/* Tab body. My docs gets the bulk-select wrapper; templates gets
           a read-only DocRow list. */}

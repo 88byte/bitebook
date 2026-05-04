@@ -1625,6 +1625,14 @@ body {
     align-items: start;
   }
 }
+/* v27.3.5: on mobile, flip the order so PENDING INVITES (the right-
+   rail aside on desktop) renders FIRST, with accepted hunters second.
+   Source order is unchanged so desktop grid still places accepted on
+   the left and pending on the right. */
+@media (max-width: 63.99rem) {
+  .bb-hunters-grid > :first-child { order: 2; }
+  .bb-hunters-grid > :nth-child(2) { order: 1; }
+}
 .bb-hunters-grid-aside {
   min-width: 0;
 }
@@ -3751,26 +3759,38 @@ body {
    designation. Each line is a small label + value pair; pairs that are
    empty/null don't render. Lives under the state line, above the
    bottom block. */
+/* v27.3.5 — tag-card species/weapon/designation block moved to the
+   TOP-RIGHT corner of the card. Was a stacked block under the title;
+   now an absolute-positioned right-aligned column so the title
+   reads cleanly on the left. Title gets padding-right on tag-family
+   cards so it doesn't run under the meta. */
 .bb-wallet-card-meta {
-  margin-top: 0.55rem;
+  position: absolute;
+  top: 1rem;
+  right: 1.1rem;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 0.2rem;
+  max-width: 50%;
+  text-align: right;
 }
 .bb-wallet-card-meta-line {
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
   font-size: 0.78rem;
-  line-height: 1.2;
+  line-height: 1.15;
   margin: 0;
 }
 .bb-wallet-card-meta-label {
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(244, 239, 229, 0.62);
+  letter-spacing: 0.06em;
+  color: rgba(244, 239, 229, 0.6);
   font-weight: 500;
-  flex-shrink: 0;
+  font-size: 0.62rem;
 }
 .bb-wallet-card-meta-value {
   color: #F4EFE5;
@@ -3778,6 +3798,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* v27.0b.7.1 / .7.2: guide_license layout. The artwork has 4 baked-in

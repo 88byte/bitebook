@@ -209,6 +209,17 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
               Mobile stacks single-col. Mirrors /app dashboard pattern. */}
           <div className="bb-trips-grid mt-4">
             <section>
+              {/* v27.3.5: matching section head on the left column to
+                  pair with "Recent trips" on the right. Reads as a
+                  proper 2-col layout. */}
+              <div className="bb-net-section-head">
+                <span className="bb-net-section-icon" aria-hidden="true">
+                  <Bookmark size={14} />
+                </span>
+                <span className="bb-net-section-title">
+                  {status === 'all' ? 'Active trips' : (STATUSES.find((s) => s.key === status)?.label ?? 'Trips')}
+                </span>
+              </div>
               {rows.length === 0 ? (
                 <div className="bb-empty">
                   <div className="bb-empty-title">No trips match this filter</div>
