@@ -1435,9 +1435,19 @@ function FieldRow({
   const showsRangePicker = dropdownValue === STATIC_DATE_RANGE_PREFIX
 
   return (
+    // v27.3.10.2 item 3 — table-row treatment. Stripped the bb-tile
+    // card chrome (no padding bloat, shadow, border-radius) and
+    // replaced with a thin border-bottom divider so the field list
+    // reads as scannable table rows instead of stacked cards.
     <div
-      className="bb-tile"
-      style={{ padding: '0.875rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+      className="bb-mapping-row"
+      style={{
+        padding: '0.6rem 0',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.4rem',
+        borderBottom: '1px solid var(--color-card-divider)',
+      }}
     >
       <div
         style={{

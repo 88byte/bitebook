@@ -220,9 +220,26 @@ export async function addEntrySpeciesAction(
     .maybeSingle()
   const nextPos = (max?.position ?? -1) + 1
 
+  // v27.3.10.2 item 8 - 2nd+ species default to mode='blank' for both
+  // tag # and report card # so the new row does NOT auto-mirror the
+  // 1st species's wallet-linked values on the generated PDF. Guide
+  // must explicitly pick "Same as first species" or "Enter manually"
+  // to fill those columns. Index 0 (first species) keeps mode=null
+  // (UI doesn't render the dropdown for it anyway).
+  const insertPayload: {
+    entry_id: string
+    position: number
+    tag_identifier_mode?: string
+    report_card_identifier_mode?: string
+  } = { entry_id: entryId, position: nextPos }
+  if (nextPos >= 1) {
+    insertPayload.tag_identifier_mode = 'blank'
+    insertPayload.report_card_identifier_mode = 'blank'
+  }
+
   const { data, error } = await sb
     .from('harvest_log_entry_species')
-    .insert({ entry_id: entryId, position: nextPos })
+    .insert(insertPayload)
     .select('id')
     .single()
   if (error || !data) {

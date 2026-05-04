@@ -269,6 +269,11 @@ export default function HarvestLogEditor({
                 <span className="bb-form-label" style={{ marginBottom: '0.4rem' }}>
                   Trip purpose
                 </span>
+                {/* v27.3.10.2 item 1 — plain HTML checkboxes. The pill
+                    + colored ring around the whole label was reading as
+                    a "circle indicator" around the selection. Stripped
+                    to the standard square checkbox + text label
+                    pattern, no surrounding chrome. */}
                 <div className="bb-purpose-grid">
                   {PURPOSES.map((p) => (
                     <label
@@ -276,21 +281,17 @@ export default function HarvestLogEditor({
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.3rem 0.6rem',
-                        borderRadius: 999,
-                        border: `1px solid ${
-                          purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-tint)'
-                        }`,
+                        gap: '0.4rem',
                         cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        color: purposes.has(p.value) ? 'var(--color-copper)' : 'var(--color-ink-soft)',
+                        fontSize: '0.9rem',
+                        color: 'var(--color-ink)',
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={purposes.has(p.value)}
                         onChange={() => togglePurpose(p.value)}
+                        style={{ width: '1rem', height: '1rem' }}
                       />
                       {p.label}
                     </label>
@@ -1791,20 +1792,8 @@ function GeneratedReportRow({
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
-            <span
-              style={{
-                fontWeight: 600,
-                color: 'var(--color-ink)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flex: '1 1 0',
-                minWidth: 0,
-              }}
-              title={row.file_name}
-            >
-              {row.file_name}
-            </span>
+            {/* v27.3.10.2 item 2 — rename pencil moved to the LEFT of
+                the doc name (was on the right). Order: [pencil] [name]. */}
             <button
               type="button"
               onClick={() => {
@@ -1821,6 +1810,20 @@ function GeneratedReportRow({
             >
               <Pencil size={14} aria-hidden="true" />
             </button>
+            <span
+              style={{
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: '1 1 0',
+                minWidth: 0,
+              }}
+              title={row.file_name}
+            >
+              {row.file_name}
+            </span>
           </div>
         )}
         <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>

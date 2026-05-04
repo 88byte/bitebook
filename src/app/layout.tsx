@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.3.10.1-activity-toggle-above-trip-name-and-compact-segmented'
+const BUILD_TAG = 'v27.3.10.2-purpose-plain-checkboxes-pencil-left-mapping-table-and-2nd-species-default-blank'
 
 const barlow = Barlow({
   variable: '--font-barlow',
