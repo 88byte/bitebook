@@ -138,6 +138,11 @@ export default function WalletPage({
     <main className="bb-app-main">
       <WalletHero basePath={basePath} activeTab={activeTab} />
 
+      {/* v27.3.2.1: Add wallet item CTA at the TOP of the page (above
+          stats), matching the Create trip / Upload doc pattern from
+          v27.3.0+ and Flavio's spec for v27.3.2.1. */}
+      <WalletAddCta basePath={basePath} activeTab={activeTab} />
+
       {/* Stats grid — paper cards, one per visible type, copper border on
           active. Each card has a small copper-filled circle with a white
           per-type icon, big count, uppercase label. Tap selects type. This
@@ -203,10 +208,6 @@ export default function WalletPage({
           </button>
         </div>
       )}
-
-      {/* v27.0b.8: Add button relocated here from the hero — appears
-          between stats and section content. */}
-      <WalletAddCta basePath={basePath} activeTab={activeTab} />
 
       {/* ACTIVE section */}
       <WalletStatusSection

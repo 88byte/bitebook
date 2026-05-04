@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Plus, Archive, Bookmark } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
-import { fetchTripsPage } from '../_lib/queries'
+import { fetchTripsPage, fetchRecentTrips } from '../_lib/queries'
 import { fetchGuideTripTemplates } from '../_lib/trip-template-queries'
 import TripRow from '../_components/TripRow'
 import DashboardHero from '../_components/DashboardHero'
@@ -55,12 +55,14 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
   // Fetch both side-by-side so the tab counts in the header are accurate.
   // Templates list uses includeArchived semantics — when toggle is on, the
   // list shows ARCHIVED ONLY (matches docs-library archive-filter semantics).
-  const [{ rows, total }, templates, allTemplates] = await Promise.all([
+  const [{ rows, total }, templates, allTemplates, recentForAside] = await Promise.all([
     fetchTripsPage(profile.id, { status, from, to }),
     fetchGuideTripTemplates(profile.id, { includeArchived }),
     // active-only count for the tab header — independent of the archive
     // toggle so the tab label stays stable as the guide flips it.
     fetchGuideTripTemplates(profile.id, { includeArchived: false }),
+    // v27.3.2.1: recent wrapped trips for the desktop right-rail aside.
+    fetchRecentTrips(profile.id),
   ])
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -110,10 +112,20 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
         eyebrowColor="copper"
         showShield={false}
       />
-      {/* v27.3.0: New trip button moved DOWN — was right-aligned under
-          the hero, now left-aligned UNDER the chip filter row (see below).
-          The hero already has plenty of presence; the CTA reads more
-          intuitively when it sits with the list controls. */}
+      {/* v27.3.2.1: New Trip CTA at the TOP of the page (above the
+          tabs / chip-row), left-aligned. Earlier ships placed it
+          right-aligned in the hero (v27.3.0 moved it under the chip-
+          row); Flavio: "to TOP of /app/trips — like wallet/docs/
+          dashboard." Now sits as the first actionable element after
+          the hero banner. */}
+      {tab === 'trips' && total > 0 && (
+        <div className="mt-3 flex">
+          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create trip">
+            <Plus size={16} aria-hidden="true" />
+            Create trip
+          </Link>
+        </div>
+      )}
 
       {/* v27.1.4: top-level tabs — Trips vs Templates. Mirrors the docs
           library tab pattern (copper underline on active, URL-driven). */}
@@ -181,63 +193,76 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
             ))}
           </div>
 
-          {/* v27.3.0: New trip CTA, left-aligned under the chip row. */}
-          {total > 0 && (
-            <div className="mt-3 flex">
-              <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
-                <Plus size={16} aria-hidden="true" />
-                New trip
-              </Link>
-            </div>
-          )}
+          {/* v27.3.2.1: 2-col layout on desktop. Left = chip-filtered
+              trips list (primary). Right (>=1024px) = sticky aside with
+              "Recent trips" — most recent wrapped trips for quick access.
+              Mobile stacks single-col. Mirrors /app dashboard pattern. */}
+          <div className="bb-trips-grid mt-4">
+            <section>
+              {rows.length === 0 ? (
+                <div className="bb-empty">
+                  <div className="bb-empty-title">No trips match this filter</div>
+                  <p className="bb-empty-sub">
+                    {status === 'all'
+                      ? 'Create a trip to start logging hunters and harvests.'
+                      : 'Try another status or clear the filter.'}
+                  </p>
+                  {status === 'all' ? (
+                    <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
+                      <Plus size={16} aria-hidden="true" />
+                      Log your first trip
+                    </Link>
+                  ) : (
+                    <Link href="/app/trips" className="bb-btn-secondary mt-3 inline-flex">
+                      Show all trips
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div role="list" className="flex flex-col gap-3">
+                  {rows.map((t) => (
+                    <div role="listitem" key={t.id}>
+                      <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          <section className="mt-4">
-            {rows.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No trips match this filter</div>
-                <p className="bb-empty-sub">
-                  {status === 'all'
-                    ? 'Create a trip to start logging hunters and harvests.'
-                    : 'Try another status or clear the filter.'}
-                </p>
-                {status === 'all' ? (
-                  <Link href="/app/trips/new" className="bb-cta-sm mt-3 inline-flex">
-                    <Plus size={16} aria-hidden="true" />
-                    Log your first trip
-                  </Link>
-                ) : (
-                  <Link href="/app/trips" className="bb-btn-secondary mt-3 inline-flex">
-                    Show all trips
-                  </Link>
-                )}
-              </div>
-            ) : (
-              // v27.3.2: reverted v27.3.1's 2-col grid — Flavio:
-              // "2 columns in the trips doesnt make sense as a design
-              // option." Single-column list with each row capped via
-              // .bb-trip-list-narrow so cards read as a list, not a
-              // grid of tiles. Mobile single-col untouched.
-              <div role="list" className="bb-trip-list-narrow flex flex-col gap-3">
-                {rows.map((t) => (
-                  <div role="listitem" key={t.id}>
-                    <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />
-                  </div>
-                ))}
-              </div>
-            )}
+              {pageCount > 1 && (
+                <nav className="bb-pager" aria-label="Pagination">
+                  {page > 1 ? (
+                    <Link href={pageHref(page - 1)} className="bb-btn-secondary">← Previous</Link>
+                  ) : <span />}
+                  <span>Page {page} of {pageCount}</span>
+                  {page < pageCount ? (
+                    <Link href={pageHref(page + 1)} className="bb-btn-secondary">Next →</Link>
+                  ) : <span />}
+                </nav>
+              )}
+            </section>
 
-            {pageCount > 1 && (
-              <nav className="bb-pager" aria-label="Pagination">
-                {page > 1 ? (
-                  <Link href={pageHref(page - 1)} className="bb-btn-secondary">← Previous</Link>
-                ) : <span />}
-                <span>Page {page} of {pageCount}</span>
-                {page < pageCount ? (
-                  <Link href={pageHref(page + 1)} className="bb-btn-secondary">Next →</Link>
-                ) : <span />}
-              </nav>
+            {recentForAside.length > 0 && (
+              <aside className="bb-trips-grid-aside">
+                <div className="bb-net-section-head">
+                  <span className="bb-net-section-icon" aria-hidden="true">
+                    <Bookmark size={14} />
+                  </span>
+                  <span className="bb-net-section-title">Recent trips</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {recentForAside.slice(0, 5).map((t) => (
+                    <TripRow
+                      key={t.id}
+                      trip={t}
+                      hunters={t.hunters}
+                      rating={t.rating}
+                      reviewCount={t.reviewCount}
+                    />
+                  ))}
+                </div>
+              </aside>
             )}
-          </section>
+          </div>
         </>
       ) : (
         <>

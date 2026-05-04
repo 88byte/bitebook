@@ -1511,19 +1511,43 @@ body {
   gap: 0.75rem;
 }
 
-/* v27.3.2 — single-column trip list with a sensible cap so cards
-   don't stretch into 1300px-wide banners on the wide shell. ~720px
-   reads as a comfortable list-row width and matches the hunter card
-   pattern. Mobile is bounded by the page width; cap only kicks in
-   at desktop. */
+/* v27.3.2 (DEPRECATED v27.3.2.1) — single-col cap. Superseded by
+   .bb-trips-grid (2-col with sidebar on desktop). Kept around in
+   case any other surface wants the simpler pattern. */
 .bb-trip-list-narrow {
   max-width: 100%;
 }
 @media (min-width: 64rem) {
   .bb-trip-list-narrow { max-width: 45rem; }
 }
-@media (min-width: 96rem) {
-  .bb-trip-list-narrow { max-width: 50rem; }
+
+/* v27.3.2.1 — /app/trips 2-col layout with Recent trips aside.
+   Mirrors /app dashboard's bb-dash-pair pattern but with a fixed-
+   width right rail (22rem) so the aside reads as supplementary,
+   not a peer column. Mobile stacks single-col. */
+.bb-trips-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 100%;
+}
+@media (min-width: 64rem) {
+  .bb-trips-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    gap: 1.75rem;
+    align-items: start;
+    max-width: 80rem;
+  }
+}
+.bb-trips-grid-aside {
+  min-width: 0;
+}
+@media (min-width: 64rem) {
+  .bb-trips-grid-aside {
+    position: sticky;
+    top: 1.5rem;
+  }
 }
 
 /* Dashboard 2-up rail for Upcoming + Recent on desktop. */
@@ -1592,6 +1616,52 @@ body {
   background: var(--color-copper);
   border-radius: 2px;
 }
+
+/* v27.3.2.1 — global page-divider utility. Mirrors the border-bottom
+   line that /app/docs and /app/trips already provide via their tab
+   strips. Apply on pages that have no tab-strip (e.g. /app/hunters)
+   so the visual separation between header chrome and content stays
+   consistent across the app. */
+.bb-page-divider {
+  border-top: 1px solid var(--color-card-divider);
+}
+
+/* v27.3.2.1 — hunter search bar. Inline icon + input, capped width
+   so it reads as a search field and doesn't sprawl at desktop widths. */
+.bb-hunter-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 10px;
+  padding: 0.45rem 0.75rem;
+  max-width: 100%;
+}
+@media (min-width: 64rem) {
+  .bb-hunter-search { max-width: 32rem; }
+}
+.bb-hunter-search:focus-within {
+  border-color: rgba(176, 108, 60, 0.5);
+}
+.bb-hunter-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-soft);
+}
+.bb-hunter-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-barlow);
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  padding: 0.25rem 0;
+  min-width: 0;
+}
+.bb-hunter-search-input::placeholder { color: var(--color-ink-muted); }
 
 .bb-form-label {
   font-family: var(--font-barlow-condensed);

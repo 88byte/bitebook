@@ -1,4 +1,4 @@
-import { Mail, Users } from 'lucide-react'
+import { Mail, Users, Search } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import DashboardHero from '../_components/DashboardHero'
@@ -27,16 +27,22 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// v27.0a.12: Hunters page (guide-side) rebuilt to Flavio's mockup. Hero
-// banner reuses the dashboard image. Invite-a-hunter card has copper-circle
-// Mail icon header + icon-prefixed input + full-width copper Send Invite
-// button. Hunter cards use the new NetworkPersonCard with big avatar +
-// mountains watermark + bottom-right Remove action. Pending invites keep
-// the existing legacy row layout — they're transient and don't need the
-// hero-card treatment.
-export default async function HuntersPage() {
+// v27.3.2.1 — Hunters page redesign per Flavio:
+//   1. Invite-a-hunter card at TOP (above the list)
+//   2. Search bar BELOW the invite section
+//   3. Hunter cards BELOW the search
+//   4. Pending invites in a SECOND COLUMN on desktop (right rail aside)
+// Mobile stacks everything single-col. Server-side search filters by
+// display_name + email (case-insensitive contains).
+export default async function HuntersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const { profile } = await requireGuide()
   const supabase = await createClient()
+  const { q: rawQ } = await searchParams
+  const query = (rawQ ?? '').trim()
 
   const { data: invites } = await supabase
     .from('invitations')
@@ -70,6 +76,20 @@ export default async function HuntersPage() {
     })
   }
 
+  // v27.3.2.1: client-side filter for the search bar. Hunters list
+  // is small (almost always <100 rows for a single guide), so a
+  // simple JS contains-match on display_name + email beats hauling
+  // up a real full-text index.
+  const filteredAccepted = query
+    ? accepted.filter((a) => {
+        const needle = query.toLowerCase()
+        return (
+          a.email.toLowerCase().includes(needle) ||
+          (a.display_name ?? '').toLowerCase().includes(needle)
+        )
+      })
+    : accepted
+
   return (
     <main className="bb-app-main">
       <DashboardHero
@@ -82,95 +102,139 @@ export default async function HuntersPage() {
         objectPosition="center 28%"
       />
 
-      {/* v27.3.2 — Hunters layout pass. Mobile stacks (Invite card,
-          then Your hunters, then Pending invites). On desktop the
-          Invite card becomes a sticky right-rail aside so it's always
-          in view while the guide scrolls their roster. */}
-      <div className="bb-hunters-grid mt-4">
-        <div className="flex flex-col gap-4">
-          <section>
-            <div className="bb-net-section-head">
-              <span className="bb-net-section-icon" aria-hidden="true">
-                <Users size={14} />
-              </span>
-              <span className="bb-net-section-title">Your hunters</span>
-            </div>
+      {/* v27.3.2.1: page divider — same border-style as docs/trips
+          tab strips, applied here because Hunters has no tab strip
+          to provide that visual separation between header chrome
+          and content. */}
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
-            {accepted.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">No hunters yet</div>
-                <p className="bb-empty-sub">Invite your first hunter to get started.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {accepted.map((h) => {
-                  const label = h.display_name ?? h.email
-                  return (
-                    <NetworkPersonCard
-                      key={h.id}
-                      avatarLetter={label.slice(0, 1).toUpperCase()}
-                      name={label}
-                      sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
-                      action={
-                        <RemoveHunterButton
-                          inviteId={h.id}
-                          displayName={h.display_name ?? null}
-                          email={h.email}
-                        />
-                      }
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </section>
-
-          {pending.length > 0 && (
-            <section>
-              <div className="bb-net-section-head">
-                <span className="bb-net-section-icon" aria-hidden="true">
-                  <Mail size={14} />
-                </span>
-                <span className="bb-net-section-title">Pending invites</span>
-              </div>
-              <div className="bb-detail-list">
-                {pending.map((p) => (
-                  <div key={p.id} className="bb-detail-row bb-detail-row-pending">
-                    <div className="bb-avatar" aria-hidden="true">
-                      {p.email.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="bb-detail-name">{p.email}</div>
-                      <div className="bb-detail-sub">
-                        Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
-                      </div>
-                    </div>
-                    <span className="bb-pill bb-pill-planned">Pending</span>
-                    <div className="bb-resend-wrap">
-                      <ResendInviteButton
-                        inviteId={p.id}
-                        email={p.email}
-                        lastSentAt={p.last_sent_at}
-                      />
-                      <CancelInviteButton inviteId={p.id} email={p.email} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+      {/* v27.3.2.1 — Hunters redesign per Flavio's explicit flow:
+          1. Invite a hunter at TOP (above the list)
+          2. Search bar below invite
+          3. Hunter cards below search, with Pending invites in the
+             right rail on desktop. Mobile stacks everything. */}
+      <section className="bb-net-card bb-net-invite mt-4">
+        <div className="bb-net-invite-head">
+          <span className="bb-net-invite-icon" aria-hidden="true">
+            <Mail size={20} />
+          </span>
+          <h2 className="bb-net-invite-title">Invite a hunter</h2>
         </div>
+        <InviteForm />
+      </section>
+
+      <form
+        method="get"
+        role="search"
+        aria-label="Search hunters"
+        className="bb-hunter-search mt-4"
+      >
+        <span className="bb-hunter-search-icon" aria-hidden="true">
+          <Search size={16} />
+        </span>
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search hunters by name or email"
+          className="bb-hunter-search-input"
+          aria-label="Search hunters"
+        />
+      </form>
+
+      <div className="bb-hunters-grid mt-4">
+        <section>
+          <div className="bb-net-section-head">
+            <span className="bb-net-section-icon" aria-hidden="true">
+              <Users size={14} />
+            </span>
+            <span className="bb-net-section-title">
+              Your hunters
+              {query && (
+                <span style={{ opacity: 0.65, fontWeight: 500, marginLeft: 6 }}>
+                  ({filteredAccepted.length} of {accepted.length})
+                </span>
+              )}
+            </span>
+          </div>
+
+          {filteredAccepted.length === 0 ? (
+            <div className="bb-empty">
+              <div className="bb-empty-title">
+                {query ? 'No matches' : 'No hunters yet'}
+              </div>
+              <p className="bb-empty-sub">
+                {query
+                  ? 'Try a different name or email.'
+                  : 'Invite your first hunter to get started.'}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {filteredAccepted.map((h) => {
+                const label = h.display_name ?? h.email
+                return (
+                  <NetworkPersonCard
+                    key={h.id}
+                    avatarLetter={label.slice(0, 1).toUpperCase()}
+                    name={label}
+                    sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
+                    action={
+                      <RemoveHunterButton
+                        inviteId={h.id}
+                        displayName={h.display_name ?? null}
+                        email={h.email}
+                      />
+                    }
+                  />
+                )
+              })}
+            </div>
+          )}
+        </section>
 
         <aside className="bb-hunters-grid-aside">
-          <section className="bb-net-card bb-net-invite">
-            <div className="bb-net-invite-head">
-              <span className="bb-net-invite-icon" aria-hidden="true">
-                <Mail size={20} />
+          <div className="bb-net-section-head">
+            <span className="bb-net-section-icon" aria-hidden="true">
+              <Mail size={14} />
+            </span>
+            <span className="bb-net-section-title">
+              Pending invites
+              <span style={{ opacity: 0.65, fontWeight: 500, marginLeft: 6 }}>
+                ({pending.length})
               </span>
-              <h2 className="bb-net-invite-title">Invite a hunter</h2>
+            </span>
+          </div>
+          {pending.length === 0 ? (
+            <p className="bb-form-help" style={{ marginTop: '0.5rem' }}>
+              No pending invites — all caught up.
+            </p>
+          ) : (
+            <div className="bb-detail-list">
+              {pending.map((p) => (
+                <div key={p.id} className="bb-detail-row bb-detail-row-pending">
+                  <div className="bb-avatar" aria-hidden="true">
+                    {p.email.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="bb-detail-name">{p.email}</div>
+                    <div className="bb-detail-sub">
+                      Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+                    </div>
+                  </div>
+                  <span className="bb-pill bb-pill-planned">Pending</span>
+                  <div className="bb-resend-wrap">
+                    <ResendInviteButton
+                      inviteId={p.id}
+                      email={p.email}
+                      lastSentAt={p.last_sent_at}
+                    />
+                    <CancelInviteButton inviteId={p.id} email={p.email} />
+                  </div>
+                </div>
+              ))}
             </div>
-            <InviteForm />
-          </section>
+          )}
         </aside>
       </div>
     </main>
