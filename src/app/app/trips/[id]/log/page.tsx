@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { requireGuide } from '../../../_lib/auth'
-import { fetchTripDetail } from '../../../_lib/queries'
+import { fetchTripDetail, fetchSpecies } from '../../../_lib/queries'
 import {
   fetchHarvestLog,
   ensureHarvestLog,
@@ -66,9 +66,13 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
 
   // v27.1.1.0.3b: fetch mapped log docs for the Generate PDF picker.
   // v27.1.1.0.3e.3: also fetch the trip's generated PDF history.
-  const [mappedDocs, generatedLogs] = await Promise.all([
+  // v27.3.7.1 item 3: also fetch the species pool so the per-hunter
+  // species rows can use the same SpeciesField dropdown the trip
+  // form uses (consistency + default to trip species).
+  const [mappedDocs, generatedLogs, speciesOptions] = await Promise.all([
     fetchMappedLogDocs(profile.id),
     fetchTripGeneratedLogs(tripId),
+    fetchSpecies(),
   ])
 
   return (
@@ -96,8 +100,10 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         log={log}
         mappedDocs={mappedDocs}
         tripState={trip.state ?? null}
+        tripSpecies={trip.species_targeted ?? ''}
         guideId={profile.id}
         generatedLogs={generatedLogs}
+        speciesOptions={speciesOptions}
       />
     </main>
   )

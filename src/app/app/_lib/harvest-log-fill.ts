@@ -54,6 +54,15 @@ type EntrySnapshot = {
     zone: string | null
     weapon_restriction: string | null
   } | null
+  // v27.3.7.1 item 4: harvest report card pulled from wallet_items via
+  // live trip_wallet_items linkage so `hunter_harvest_report_card.*`
+  // paths resolve. Was stubbed empty in v27.1.1.0.3d.2.7 — Flavio's
+  // PDFs were rendering blank for tag report card fields.
+  report_card: {
+    identifier: string
+    state: string | null
+    valid_to: string | null
+  } | null
   species_rows: Array<{ species: string | null; qty_harvested: number; qty_released: number }>
 }
 
@@ -266,15 +275,20 @@ function resolveSource(
   if (path === 'hunter_license.valid_to') return fmtDateMMDDYYYY(entry.license?.valid_to)
   if (path === 'hunter_license.holder_name') return entry.hunter?.display_name ?? entry.guest_name ?? ''
 
-  // v27.1.1.0.3d.2.7: hunter_harvest_report_card.* + hunter_stamp.* —
-  // catalog-only stubs. The wizard now exposes these as dropdown options
-  // (and AI suggests them) so guides stop landing on hunter_license for
-  // their state's "Tag Report Card" / "Stamp" fields. Live fill values
-  // require extending EntrySnapshot to pull the matching wallet_items
-  // via trip_wallet_items joined by hunter+type+most-recent-link, which
-  // ships with the rest of the v27.1.1.1 auto-fill engine work. Returns
-  // empty string for now — the saved mapping is preserved either way.
-  if (path.startsWith('hunter_harvest_report_card.')) return ''
+  // v27.3.7.1 item 4: hunter_harvest_report_card.* now resolves against
+  // the live-linked wallet_item of type='harvest_report_card' for this
+  // entry's hunter (sourced via trip_wallet_items join in the action
+  // above). Was stubbed empty in v27.1.1.0.3d.2.7. Edge case: hunter
+  // links the report card AFTER the harvest log was created — the live
+  // map covers that.
+  if (path === 'hunter_harvest_report_card.identifier') return entry.report_card?.identifier ?? ''
+  if (path === 'hunter_harvest_report_card.state') return entry.report_card?.state ?? ''
+  if (path === 'hunter_harvest_report_card.valid_to')
+    return fmtDateMMDDYYYY(entry.report_card?.valid_to)
+  if (path === 'hunter_harvest_report_card.holder_name')
+    return entry.hunter?.display_name ?? entry.guest_name ?? ''
+  // hunter_stamp.* still stubbed — wallet_items doesn't have a 'stamp'
+  // type yet. Catalog mapping is preserved.
   if (path.startsWith('hunter_stamp.')) return ''
 
   if (path === 'wallet_consumed.identifier') return entry.tag?.identifier ?? ''
@@ -421,7 +435,14 @@ export async function generateFilledHarvestLogPDFsAction(
   // blank. Reading live here makes the fill always reflect the wallet's
   // current state. Profiles.license_doc_id is intentionally NOT consulted
   // anywhere in this flow.
+  // v27.3.7.1 item 4: extended to ALSO live-refresh tag + harvest report
+  // card. Same edge case Flavio hit: hunter linked their tag/report card
+  // AFTER the log was created (entry snapshot stale → PDF rendered blank
+  // for those fields). Now: most-recent linked wallet_item per
+  // (hunter, type) wins; entry snapshot is the fallback only.
   const liveLicenseByHunter = new Map<string, string>()
+  const liveTagByHunter = new Map<string, string>()
+  const liveReportCardByHunter = new Map<string, string>()
   if (hunterIds.length > 0) {
     const { data: twiRows } = await sb
       .from('trip_wallet_items')
@@ -436,8 +457,15 @@ export async function generateFilledHarvestLogPDFsAction(
       wallet_items: { id: string; type: string }
     }
     for (const r of (twiRows ?? []) as TwiRow[]) {
-      if (r.wallet_items?.type === 'license' && !liveLicenseByHunter.has(r.hunter_id)) {
+      const t = r.wallet_items?.type
+      if (t === 'license' && !liveLicenseByHunter.has(r.hunter_id)) {
         liveLicenseByHunter.set(r.hunter_id, r.wallet_items.id)
+      }
+      if (t === 'tag' && !liveTagByHunter.has(r.hunter_id)) {
+        liveTagByHunter.set(r.hunter_id, r.wallet_items.id)
+      }
+      if (t === 'harvest_report_card' && !liveReportCardByHunter.has(r.hunter_id)) {
+        liveReportCardByHunter.set(r.hunter_id, r.wallet_items.id)
       }
     }
   }
@@ -446,56 +474,90 @@ export async function generateFilledHarvestLogPDFsAction(
   // saved snapshot only if no live link exists. This also means we drop
   // any references to a relinked-then-replaced license item.
   const effectiveLicenseIdByEntry = new Map<string, string | null>()
+  // v27.3.7.1 item 4: same pattern for tag — live link beats stale snapshot.
+  const effectiveTagIdByEntry = new Map<string, string | null>()
+  // v27.3.7.1 item 4: report card — live link only (no snapshot column
+  // existed prior to this; the entry snapshot has no report_card field).
+  const effectiveReportCardIdByEntry = new Map<string, string | null>()
   for (const e of includedEntries) {
-    const live = e.hunter_id ? liveLicenseByHunter.get(e.hunter_id) ?? null : null
-    effectiveLicenseIdByEntry.set(e.id, live ?? e.license_wallet_item_id ?? null)
+    const liveL = e.hunter_id ? liveLicenseByHunter.get(e.hunter_id) ?? null : null
+    effectiveLicenseIdByEntry.set(e.id, liveL ?? e.license_wallet_item_id ?? null)
+    const liveT = e.hunter_id ? liveTagByHunter.get(e.hunter_id) ?? null : null
+    effectiveTagIdByEntry.set(e.id, liveT ?? e.tag_wallet_item_id ?? null)
+    const liveR = e.hunter_id ? liveReportCardByHunter.get(e.hunter_id) ?? null : null
+    effectiveReportCardIdByEntry.set(e.id, liveR)
   }
   const licenseIds = Array.from(
     new Set(
       Array.from(effectiveLicenseIdByEntry.values()).filter((x): x is string => !!x)
     )
   )
-  const tagIds = includedEntries.map((e) => e.tag_wallet_item_id).filter((x): x is string => !!x)
+  const tagIds = Array.from(
+    new Set(
+      Array.from(effectiveTagIdByEntry.values()).filter((x): x is string => !!x)
+    )
+  )
+  const reportCardIds = Array.from(
+    new Set(
+      Array.from(effectiveReportCardIdByEntry.values()).filter((x): x is string => !!x)
+    )
+  )
 
-  const [hunterRes, licenseRes, tagRes, speciesRes, guideProfileRes, guideBizRes, guideLicenseRes] =
-    await Promise.all([
-      hunterIds.length
-        ? sb.from('profiles').select('id, display_name, phone').in('id', hunterIds)
-        : Promise.resolve({ data: [] }),
-      licenseIds.length
-        ? sb.from('wallet_items').select('id, identifier, state, valid_to').in('id', licenseIds)
-        : Promise.resolve({ data: [] }),
-      tagIds.length
-        ? sb
-            .from('wallet_items')
-            .select('id, identifier, species, state, zone, extras')
-            .in('id', tagIds)
-        : Promise.resolve({ data: [] }),
-      sb
-        .from('harvest_log_entry_species')
-        .select('id, entry_id, species, qty_harvested, qty_released, position')
-        .in('entry_id', entryIds)
-        .order('position', { ascending: true }),
-      sb
-        .from('profiles')
-        .select('display_name, phone, address_street, address_street2, address_city, address_state, address_zip')
-        .eq('id', profile.id)
-        .maybeSingle(),
-      sb.from('guide_profiles').select('business_name').eq('user_id', profile.id).maybeSingle(),
-      sb
-        .from('wallet_items')
-        .select('identifier, state, valid_to')
-        .eq('user_id', profile.id)
-        .eq('type', 'guide_license')
-        .is('archived_at', null)
-        .order('valid_to', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ])
+  const [
+    hunterRes,
+    licenseRes,
+    tagRes,
+    reportCardRes,
+    speciesRes,
+    guideProfileRes,
+    guideBizRes,
+    guideLicenseRes,
+  ] = await Promise.all([
+    hunterIds.length
+      ? sb.from('profiles').select('id, display_name, phone').in('id', hunterIds)
+      : Promise.resolve({ data: [] }),
+    licenseIds.length
+      ? sb.from('wallet_items').select('id, identifier, state, valid_to').in('id', licenseIds)
+      : Promise.resolve({ data: [] }),
+    tagIds.length
+      ? sb
+          .from('wallet_items')
+          .select('id, identifier, species, state, zone, extras')
+          .in('id', tagIds)
+      : Promise.resolve({ data: [] }),
+    // v27.3.7.1 item 4: harvest report card pull for `hunter_harvest_report_card.*`
+    reportCardIds.length
+      ? sb
+          .from('wallet_items')
+          .select('id, identifier, state, valid_to')
+          .in('id', reportCardIds)
+      : Promise.resolve({ data: [] }),
+    sb
+      .from('harvest_log_entry_species')
+      .select('id, entry_id, species, qty_harvested, qty_released, position')
+      .in('entry_id', entryIds)
+      .order('position', { ascending: true }),
+    sb
+      .from('profiles')
+      .select('display_name, phone, address_street, address_street2, address_city, address_state, address_zip')
+      .eq('id', profile.id)
+      .maybeSingle(),
+    sb.from('guide_profiles').select('business_name').eq('user_id', profile.id).maybeSingle(),
+    sb
+      .from('wallet_items')
+      .select('identifier, state, valid_to')
+      .eq('user_id', profile.id)
+      .eq('type', 'guide_license')
+      .is('archived_at', null)
+      .order('valid_to', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   const hunterMap = new Map((hunterRes.data ?? []).map((h) => [h.id, h]))
   const licenseMap = new Map((licenseRes.data ?? []).map((w) => [w.id, w]))
   const tagMap = new Map((tagRes.data ?? []).map((w) => [w.id, w]))
+  const reportCardMap = new Map((reportCardRes.data ?? []).map((w) => [w.id, w]))
   const speciesByEntry = new Map<string, NonNullable<typeof speciesRes.data>>()
   for (const s of speciesRes.data ?? []) {
     const arr = speciesByEntry.get(s.entry_id) ?? []
@@ -510,8 +572,14 @@ export async function generateFilledHarvestLogPDFsAction(
     // profiles.license_doc_id.
     const effectiveLicenseId = effectiveLicenseIdByEntry.get(e.id) ?? null
     const license = effectiveLicenseId ? licenseMap.get(effectiveLicenseId) ?? null : null
-    const tag = e.tag_wallet_item_id ? tagMap.get(e.tag_wallet_item_id) ?? null : null
+    // v27.3.7.1 item 4: tag now sourced via live linkage map (was direct
+    // from stale entry snapshot). Same pattern license already used.
+    const effectiveTagId = effectiveTagIdByEntry.get(e.id) ?? null
+    const tag = effectiveTagId ? tagMap.get(effectiveTagId) ?? null : null
     const tagExtras = (tag?.extras ?? null) as Record<string, unknown> | null
+    // v27.3.7.1 item 4: harvest report card from live linkage.
+    const effectiveReportCardId = effectiveReportCardIdByEntry.get(e.id) ?? null
+    const reportCard = effectiveReportCardId ? reportCardMap.get(effectiveReportCardId) ?? null : null
     return {
       id: e.id,
       hunter_id: e.hunter_id,
@@ -534,6 +602,13 @@ export async function generateFilledHarvestLogPDFsAction(
               tagExtras && typeof tagExtras['weapon_restriction'] === 'string'
                 ? (tagExtras['weapon_restriction'] as string)
                 : null,
+          }
+        : null,
+      report_card: reportCard
+        ? {
+            identifier: reportCard.identifier,
+            state: reportCard.state,
+            valid_to: reportCard.valid_to,
           }
         : null,
       species_rows: (speciesByEntry.get(e.id) ?? []).map((s) => ({

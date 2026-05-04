@@ -36,6 +36,9 @@ import type {
 } from '../../../_lib/harvest-log-queries'
 import { Download, ExternalLink, Pencil, Check, X as XIcon, RotateCw, Signature } from 'lucide-react'
 import SignModal from './SignModal'
+import SpeciesField from '../../../_components/SpeciesField'
+
+type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
 
 // v27.1.1.0.3a   — accordion editor.
 // v27.1.1.0.3a.1 — total_hours per-entry, Delete report.
@@ -117,15 +120,24 @@ export default function HarvestLogEditor({
   log,
   mappedDocs,
   tripState,
+  tripSpecies,
   guideId,
   generatedLogs,
+  speciesOptions,
 }: {
   tripId: string
   log: HarvestLogWithEntries
   mappedDocs: MappedLogDoc[]
   tripState: string | null
+  // v27.3.7.1 item 3: trip's species_targeted, used as the default
+  // for new species rows so the guide doesn't have to retype it.
+  tripSpecies: string
   guideId: string
   generatedLogs: TripGeneratedLog[]
+  // v27.3.7.1 item 3: full species pool from the species table so
+  // per-hunter species rows render the same SpeciesField dropdown
+  // the trip form uses (consistency).
+  speciesOptions: SpeciesOption[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -177,15 +189,10 @@ export default function HarvestLogEditor({
   return (
     <>
       <div className="flex flex-col gap-4 mt-4">
-        {/* v27.1.1.0.3e.3: top-of-page tile listing already-generated PDFs
-            for this trip, with Open / Download / Delete per row. Empty
-            state nudges the guide to fill out the log + tap Generate. */}
-        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} />
-
-        {/* v27.3.7 item 7 — Generate moves to TOP of the section (was below
-            entries). Pairing it with the Logs tile creates a tight "what
-            you've made / make a new one" cluster at the top before the
-            user scrolls into per-hunter editing. */}
+        {/* v27.3.7.1 item 2 — Generate stays at TOP. The Logs list moved
+            to the BOTTOM of the page (was top in v27.3.7) per Flavio's
+            screenshot — the nested-card visual + top-position cluttered
+            the entry editing flow. */}
         <GeneratePdfsSection
           logId={log.id}
           mappedDocs={mappedDocs}
@@ -312,10 +319,19 @@ export default function HarvestLogEditor({
                 key={e.id}
                 entry={e}
                 slot={slotByEntryId.get(e.id) ?? null}
+                tripSpecies={tripSpecies}
+                speciesOptions={speciesOptions}
               />
             ))
           )}
         </section>
+
+        {/* v27.3.7.1 item 2 — Logs list at the BOTTOM of the page (was
+            top). Outer bb-tile wrapper stripped so the inner rows
+            (themselves bb-tile cards) don't render as cards-inside-a
+            -card. Heading + intro stay; rows render flat against the
+            page surface like the entries list above. */}
+        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} />
 
         {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
             "every hunt gets this hunt report." Reports auto-exist
@@ -333,9 +349,15 @@ export default function HarvestLogEditor({
 function EntryAccordion({
   entry,
   slot,
+  tripSpecies,
+  speciesOptions,
 }: {
   entry: HarvestLogEntryWithRelations
   slot: number | null
+  // v27.3.7.1 item 3: trip-level species default + species pool for
+  // the per-row SpeciesField dropdown.
+  tripSpecies: string
+  speciesOptions: SpeciesOption[]
 }) {
   const router = useRouter()
   const [open, setOpen] = useState<boolean>(false)
@@ -637,6 +659,8 @@ function EntryAccordion({
                 <PhantomSpeciesRow
                   entryId={entry.id}
                   tagSpecies={entry.tag?.species ?? ''}
+                  tripSpecies={tripSpecies}
+                  speciesOptions={speciesOptions}
                 />
               </>
             ) : (
@@ -646,7 +670,7 @@ function EntryAccordion({
                 </p>
                 <div className="flex flex-col gap-2">
                   {entry.species_rows.map((s) => (
-                    <SpeciesRow key={s.id} row={s} />
+                    <SpeciesRow key={s.id} row={s} speciesOptions={speciesOptions} />
                   ))}
                 </div>
               </>
@@ -674,7 +698,15 @@ function EntryAccordion({
 
 // ── SpeciesRow (real, persisted) ────────────────────────────────────────
 
-function SpeciesRow({ row }: { row: HarvestLogEntrySpeciesRow }) {
+function SpeciesRow({
+  row,
+  speciesOptions,
+}: {
+  row: HarvestLogEntrySpeciesRow
+  // v27.3.7.1 item 3: shared species pool drives the SpeciesField
+  // dropdown so this row matches the picker on every other form.
+  speciesOptions: SpeciesOption[]
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useFadingSavedStatus()
@@ -725,14 +757,22 @@ function SpeciesRow({ row }: { row: HarvestLogEntrySpeciesRow }) {
       <div className="bb-form-grid-2" style={{ gap: '0.4rem' }}>
         <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
           <label className="bb-form-label" htmlFor={`sp_${row.id}`}>Species</label>
-          <input
+          {/* v27.3.7.1 item 3: shared SpeciesField (same select used by
+              the trip form + wallet). Commits on next change since
+              <select> doesn't fire onBlur the same way as text inputs. */}
+          <SpeciesField
             id={`sp_${row.id}`}
-            type="text"
-            className="bb-input"
+            name={`species_${row.id}`}
             value={species}
-            onChange={(e) => setSpecies(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. Mule deer"
+            onChange={(next) => {
+              setSpecies(next)
+              // Commit on selection change. stateRef is updated above
+              // synchronously via the closure above, but ref captures
+              // post-render — schedule the commit after state flushes.
+              setTimeout(() => commit(), 0)
+            }}
+            options={speciesOptions}
+            placeholder="Pick a species"
           />
         </div>
         <div className="bb-form-row">
@@ -792,14 +832,22 @@ function SpeciesRow({ row }: { row: HarvestLogEntrySpeciesRow }) {
 function PhantomSpeciesRow({
   entryId,
   tagSpecies,
+  tripSpecies,
+  speciesOptions,
 }: {
   entryId: string
   tagSpecies: string
+  // v27.3.7.1 item 3: trip-level species fallback default. Tag species
+  // wins when set (tag was explicitly linked); otherwise we fall back
+  // to the trip's species_targeted so the guide doesn't have to retype
+  // it for every hunter.
+  tripSpecies: string
+  speciesOptions: SpeciesOption[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useFadingSavedStatus()
-  const [species, setSpecies] = useState(tagSpecies)
+  const [species, setSpecies] = useState(tagSpecies || tripSpecies || '')
   const [qH, setQH] = useState('0')
   const [qR, setQR] = useState('0')
 
@@ -836,14 +884,18 @@ function PhantomSpeciesRow({
       <div className="bb-form-grid-2" style={{ gap: '0.4rem' }}>
         <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
           <label className="bb-form-label" htmlFor={`phantom_sp_${entryId}`}>Species</label>
-          <input
+          {/* v27.3.7.1 item 3: shared SpeciesField. Default-fills from
+              tag.species OR trip.species_targeted (whichever is set). */}
+          <SpeciesField
             id={`phantom_sp_${entryId}`}
-            type="text"
-            className="bb-input"
+            name={`phantom_species_${entryId}`}
             value={species}
-            onChange={(e) => setSpecies(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. Mule deer"
+            onChange={(next) => {
+              setSpecies(next)
+              setTimeout(() => commit(), 0)
+            }}
+            options={speciesOptions}
+            placeholder="Pick a species"
           />
         </div>
         <div className="bb-form-row">
@@ -1068,32 +1120,26 @@ function GeneratePdfsSection({
           <p className="bb-form-help">Leave blank to use the auto-generated name.</p>
         </div>
 
-        {/* Log template dropdown. Always render (even with single
-            option) so the user sees what's about to be used. */}
+        {/* v27.3.7.1 item 1 — Log template dropdown ALWAYS rendered, even
+            with a single option, so guides can switch templates. The
+            previous "single option falls back to a paragraph" pattern
+            hid the picker entirely when only one mapped log existed,
+            which made the auto-selected default feel like a hard pin. */}
         <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
           <label className="bb-form-label" htmlFor="fill_doc_picker">Log template</label>
-          {sortedDocs.length > 1 ? (
-            <select
-              id="fill_doc_picker"
-              className="bb-input"
-              value={docId}
-              onChange={(e) => setDocId(e.target.value)}
-            >
-              {sortedDocs.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label} ({describeDoc(d)})
-                  {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
-                </option>
-              ))}
-            </select>
-          ) : (
-            activeDoc && (
-              <p className="bb-form-help" style={{ margin: 0 }}>
-                Using <strong>{activeDoc.label}</strong> ({describeDoc(activeDoc)})
-                {activeDoc.mapping_status === 'partial' ? ' · partial mapping' : ''}.
-              </p>
-            )
-          )}
+          <select
+            id="fill_doc_picker"
+            className="bb-input"
+            value={docId}
+            onChange={(e) => setDocId(e.target.value)}
+          >
+            {sortedDocs.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label} ({describeDoc(d)})
+                {d.mapping_status === 'partial' ? ' · partial mapping' : ''}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ marginTop: '0.75rem' }}>
@@ -1159,31 +1205,31 @@ function GeneratedReportsTile({
   // generateFilledHarvestLogPDFsAction(logId, source_doc_id, ..., row.id).
   logId: string
 }) {
+  // v27.3.7.1 item 2 — Render flat. The outer bb-tile wrapper was
+  // stripped (was creating window-within-a-window with the inner
+  // bb-tile rows). Heading + intro paragraph live on the page
+  // surface; rows render as standalone cards beneath them.
   if (generatedLogs.length === 0) {
     return (
-      <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-        <div className="bb-tile-body">
-          <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
-          <p className="bb-form-help" style={{ margin: 0 }}>
-            No logs yet. Fill out the report below and tap{' '}
-            <strong>Generate Filled Out Log</strong> to create one.
-          </p>
-        </div>
+      <section style={{ paddingTop: '0.5rem' }}>
+        <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
+        <p className="bb-form-help" style={{ margin: 0 }}>
+          No logs yet. Fill out the report above and tap{' '}
+          <strong>Generate Filled Out Log</strong> to create one.
+        </p>
       </section>
     )
   }
   return (
-    <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-      <div className="bb-tile-body">
-        <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
-        <p className="bb-form-help" style={{ marginTop: 0, marginBottom: '0.6rem' }}>
-          Filled state forms generated from this report. Tap any to open or download.
-        </p>
-        <div className="flex flex-col gap-2">
-          {generatedLogs.map((g) => (
-            <GeneratedReportRow key={g.id} row={g} logId={logId} />
-          ))}
-        </div>
+    <section style={{ paddingTop: '0.5rem' }}>
+      <h2 className="bb-form-section-head" style={{ marginBottom: '0.25rem' }}>Logs</h2>
+      <p className="bb-form-help" style={{ marginTop: 0, marginBottom: '0.6rem' }}>
+        Filled state forms generated from this report. Tap any to open or download.
+      </p>
+      <div className="flex flex-col gap-2">
+        {generatedLogs.map((g) => (
+          <GeneratedReportRow key={g.id} row={g} logId={logId} />
+        ))}
       </div>
     </section>
   )
