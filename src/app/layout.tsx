@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.2.0.2-waiver-signing-and-placement-schema'
+const BUILD_TAG = 'v27.2.0.3-mapping-driven-placement-and-guide-signing'
 
 const barlow = Barlow({
   variable: '--font-barlow',

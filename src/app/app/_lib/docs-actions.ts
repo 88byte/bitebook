@@ -1145,9 +1145,13 @@ DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
 - "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → "wallet_consumed.identifier" (the harvest tag the hunter punched).
 
-SIGNATURE FIELDS (signature-date catch + signature placeholder skip):
-- "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line / any signature-date placeholder → MUST map to "signature_date.now" (the new sentinel in the special category). NEVER "harvest_log.log_date" (hunt date), NEVER "wallet_consumed.valid_to" (tag expiry), NEVER any other date source. These fields fill ONLY when the document is actually signed via e-signature, NOT at PDF generation. The fill engine resolves "signature_date.now" to NULL at generate-time so the box stays blank until the signing flow runs.
-- "Signature" / "Sign Here" / "Initials" / "Hunter Signature" / "Guide Signature" / signature-type form fields → MUST map to "skip". Signature-block placement ships in v27.2 with the e-signature engine; auto-fill leaves these alone.
+SIGNATURE FIELDS (route to e-signature sentinels — never skip):
+- "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line / any signature-date placeholder → MUST map to "signature_date.now". NEVER "harvest_log.log_date" (hunt date), NEVER "wallet_consumed.valid_to" (tag expiry), NEVER any other date source. These fields fill ONLY when the document is actually signed via e-signature, NOT at PDF generation. The fill engine resolves "signature_date.now" to NULL at generate-time so the box stays blank until the signing flow runs.
+- "Signature" / "Sign Here" / "Initials" / signature-type form fields → MUST map to one of the e-signature sentinels:
+  - "Hunter Signature" / "Hunter Sign" / "Hunter Initials" / signature line clearly belonging to a hunter section → "e_signature.hunter".
+  - "Guide Signature" / "Guide Sign" / "Outfitter Signature" / "Master Guide Signature" / signature line clearly belonging to a guide section → "e_signature.guide".
+  - Generic "Signature" / "Sign Here" / "Initials" with no role hint → default to "e_signature.hunter" (waivers are hunter-signed by default; the guide can flip it to guide later via the wizard).
+- These resolve to NULL at fill time so the AcroForm field stays blank; the signing engine reads the widget rect from pdf-lib and stamps the signer's signature image there at signing time. NEVER use "skip" for signature widgets — that hides them from the signing engine.
 
 EITHER-OR FIELDS (use fallback_path):
 - When a label says "TAG / REPORT CARD", "TAG OR REPORT CARD", "License or Permit", "Phone or Email", "(if applicable)", or otherwise indicates EITHER of two sources is acceptable, set BOTH suggested_path AND fallback_path.

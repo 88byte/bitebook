@@ -181,6 +181,16 @@ export const DATA_SOURCES: DataSourceOption[] = [
   // Signature", or "Signature Date" field — NEVER map those to
   // harvest_log.log_date (hunt date) or wallet.valid_to.
   { value: 'signature_date.now',      label: 'Date when document is signed (fills at signing)', category: 'special', valueType: 'string', type: 'date' },
+  // v27.2.0.3: e-signature image sentinels — one per signer role. The
+  // fill engine resolves both to NULL (same pattern as signature_date.
+  // now); the signing engine reads doc_field_mappings rows mapped to
+  // these paths, looks up the AcroForm widget's rect via pdf-lib, and
+  // embeds the signer's signature image there. Pick e_signature.hunter
+  // for hunter-signed waiver fields, e_signature.guide for guide-signed
+  // ones. Field-name heuristics ("Hunter Signature" → hunter,
+  // "Guide Signature" → guide) drive AI auto-mapping.
+  { value: 'e_signature.hunter',      label: 'Hunter signature (fills at signing)',             category: 'special', valueType: 'string' },
+  { value: 'e_signature.guide',       label: 'Guide signature (fills at signing)',              category: 'special', valueType: 'string' },
   { value: SKIP_VALUE,                label: 'Skip — leave blank',                  category: 'special', valueType: 'string' },
   { value: 'static:checked',          label: 'Always checked',                      category: 'special', valueType: 'boolean' },
   { value: 'static:unchecked',        label: 'Always unchecked',                    category: 'special', valueType: 'boolean' },

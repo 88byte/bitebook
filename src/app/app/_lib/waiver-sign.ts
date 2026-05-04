@@ -21,6 +21,7 @@ import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField, type PDFImage } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from './auth'
+import { resolvePlacements, type MappingRow } from './signature-placement'
 
 export type SignWaiverResult =
   | { ok: true; signedFilePath: string; signedAt: string }
@@ -39,13 +40,7 @@ function decodeSignaturePngDataUrl(dataUrl: string): Uint8Array {
   return Uint8Array.from(Buffer.from(m[1], 'base64'))
 }
 
-type PlacementCoords = {
-  page?: number
-  x?: number
-  y?: number
-  w?: number
-  h?: number
-}
+// PlacementCoords moved to signature-placement.ts in v27.2.0.3.
 
 export async function signWaiverAction(
   tripDocActionId: string,
@@ -114,33 +109,18 @@ export async function signWaiverAction(
   }
   const baseBytes = new Uint8Array(await blob.arrayBuffer())
 
-  // 3. Load mappings: hunter-role signature placements + signature_date.now
-  // text fields. v27.2.0.3 placement wizard will let guides save coords
-  // here; until then placements is usually empty and we fall back.
-  type MappingRow = {
-    field_name: string
-    data_source_path: string | null
-    mapping_kind: string | null
-    signature_role: string | null
-    placement_coords: unknown
-  }
+  // 3. Load all doc_field_mappings for the parent doc. The signature-
+  // placement helper picks role-matched rows below; signature_date.now
+  // text fields are filled inline.
   const { data: maps } = await sb
     .from('doc_field_mappings')
     .select('field_name, data_source_path, mapping_kind, signature_role, placement_coords')
     .eq('doc_id', doc.id)
 
-  const placements: PlacementCoords[] = []
+  const allMappings = (maps ?? []) as MappingRow[]
   const dateFieldNames: string[] = []
-  for (const m of (maps ?? []) as MappingRow[]) {
-    if (m.mapping_kind === 'signature' && m.signature_role === 'hunter') {
-      const coords = (m.placement_coords ?? null) as PlacementCoords | null
-      if (coords) placements.push(coords)
-    }
+  for (const m of allMappings) {
     if ((m.mapping_kind ?? 'field') === 'field' && m.data_source_path === 'signature_date.now') {
-      // v27.2.0.3 will gate the date fill on signature_role too. Today
-      // we fill any signature_date.now field on a hunter sign — the
-      // common waiver case is "Hunter Date Signed" only, so this is
-      // safe in practice.
       dateFieldNames.push(m.field_name)
     }
   }
@@ -176,35 +156,24 @@ export async function signWaiverAction(
 
   const pages = pdf.getPages()
   if (pages.length === 0) return { error: 'Waiver PDF has no pages.' }
-  const mmToPt = (mm: number) => mm * 2.8346
 
-  function drawAt(coords: PlacementCoords | null) {
-    const pageIndex = coords?.page ?? pages.length - 1
-    const page = pages[Math.max(0, Math.min(pageIndex, pages.length - 1))]
-    if (!page) return
-    const { width: pageWidth, height: pageHeight } = page.getSize()
-    const boxW = coords?.w ?? mmToPt(68)
-    const boxH = coords?.h ?? mmToPt(22)
-    const boxX = coords?.x ?? pageWidth - boxW - mmToPt(10)
-    const boxY = coords?.y ?? mmToPt(30)
-
-    // Letterbox preserving aspect ratio inside the box.
+  // v27.2.0.3: precedence order via shared helper. Mapping-driven
+  // (AcroForm widget rect) wins; drag-place fractions next; default
+  // last-page bottom-right last.
+  const placements = resolvePlacements(pdf, allMappings, 'hunter')
+  for (const placement of placements) {
+    const page = pages[placement.pageIndex]
+    if (!page) continue
+    // Letterbox preserving aspect ratio inside the placement box.
     const imgRatio = signaturePng.width / Math.max(signaturePng.height, 1)
-    const boxRatio = boxW / boxH
-    let drawW = boxW
-    let drawH = boxH
-    if (imgRatio > boxRatio) drawH = boxW / imgRatio
-    else drawW = boxH * imgRatio
-    const drawX = boxX + (boxW - drawW) / 2
-    const drawY = boxY + (boxH - drawH) / 2
-    void pageHeight
+    const boxRatio = placement.w / placement.h
+    let drawW = placement.w
+    let drawH = placement.h
+    if (imgRatio > boxRatio) drawH = placement.w / imgRatio
+    else drawW = placement.h * imgRatio
+    const drawX = placement.x + (placement.w - drawW) / 2
+    const drawY = placement.y + (placement.h - drawH) / 2
     page.drawImage(signaturePng, { x: drawX, y: drawY, width: drawW, height: drawH })
-  }
-
-  if (placements.length === 0) {
-    drawAt(null) // default placement
-  } else {
-    for (const p of placements) drawAt(p)
   }
 
   const signedBytes = await pdf.save()
@@ -266,5 +235,164 @@ export async function signWaiverAction(
 
   revalidatePath(`/app/h/trips/${tripId}`)
   revalidatePath('/app/h')
+  return { ok: true, signedFilePath, signedAt }
+}
+
+// v27.2.0.3 — guide-side waiver signing.
+//
+// Anchors on trip_doc_id (per-trip-doc) instead of
+// trip_doc_hunter_action_id. The guide signs a waiver once for the
+// whole trip, regardless of how many hunters are on it.
+//
+// Storage path: signed/{guide_id}/waivers/{trip_id}/{doc_id}-signed-
+// guide-{ts}.pdf (the -guide suffix keeps it distinct from the
+// hunter-signed copy at the same trip level).
+//
+// Re-sign: appends a fresh doc_signatures row each time, but re-uses
+// the same signed_file_path on storage upsert when set on the trip_doc
+// (we read the latest doc_signatures row for trip_doc_id and overwrite
+// at its signature_field_index path — actually, simpler: always
+// timestamp the path on first sign, overwrite on re-sign by querying
+// for the most recent signed file).
+export async function signWaiverAsGuideAction(
+  tripDocId: string,
+  signatureDataUrl: string
+): Promise<SignWaiverResult> {
+  const { user, profile } = await requireUser()
+  if (!tripDocId) return { error: 'Missing trip-doc id.' }
+  if (!signatureDataUrl) return { error: 'Missing signature.' }
+  if (signatureDataUrl.length > 2_000_000) {
+    return { error: 'Signature image is too large (max ~2MB).' }
+  }
+  if (profile.role !== 'guide') {
+    return { error: 'Only guides can sign as guide.' }
+  }
+
+  const sb = await createClient()
+
+  // Load trip_doc + parent doc + parent trip for ownership check.
+  type TripDocRow = {
+    id: string
+    trip_id: string
+    doc_id: string
+    docs: { id: string; kind: string; file_path: string; guide_id: string } | null
+    trip: { id: string; guide_id: string } | null
+  }
+  const { data, error: tdErr } = await sb
+    .from('trip_docs')
+    .select(
+      `id, trip_id, doc_id,
+       docs:doc_id(id, kind, file_path, guide_id),
+       trip:trip_id(id, guide_id)`
+    )
+    .eq('id', tripDocId)
+    .maybeSingle()
+  const tripDoc = data as unknown as TripDocRow | null
+  if (tdErr || !tripDoc) return { error: tdErr?.message || 'Trip-doc not found.' }
+  if (!tripDoc.trip || tripDoc.trip.guide_id !== profile.id) {
+    return { error: 'Only the trip owner can sign as guide.' }
+  }
+  const doc = tripDoc.docs
+  if (!doc) return { error: 'Doc not found for this trip-doc.' }
+
+  const { data: blob, error: dlErr } = await sb.storage
+    .from('bb-private')
+    .download(doc.file_path)
+  if (dlErr || !blob) {
+    console.warn('[sign-guide:download]', { path: doc.file_path, message: dlErr?.message })
+    return { error: dlErr?.message || 'Could not load the waiver PDF.' }
+  }
+  const baseBytes = new Uint8Array(await blob.arrayBuffer())
+
+  const { data: maps } = await sb
+    .from('doc_field_mappings')
+    .select('field_name, data_source_path, mapping_kind, signature_role, placement_coords')
+    .eq('doc_id', doc.id)
+  const allMappings = (maps ?? []) as MappingRow[]
+  const dateFieldNames: string[] = []
+  for (const m of allMappings) {
+    if ((m.mapping_kind ?? 'field') === 'field' && m.data_source_path === 'signature_date.now') {
+      dateFieldNames.push(m.field_name)
+    }
+  }
+
+  const pdf = await PDFDocument.load(baseBytes, { ignoreEncryption: true })
+
+  if (dateFieldNames.length > 0) {
+    try {
+      const form = pdf.getForm()
+      const today = fmtDateMMDDYYYY(new Date())
+      for (const name of dateFieldNames) {
+        try {
+          const field = form.getField(name)
+          if (field instanceof PDFTextField) field.setText(today)
+        } catch { /* ignore */ }
+      }
+      try { form.flatten() } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }
+
+  let signaturePng: PDFImage
+  try {
+    const png = decodeSignaturePngDataUrl(signatureDataUrl)
+    signaturePng = await pdf.embedPng(png)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not decode signature image.' }
+  }
+
+  const pages = pdf.getPages()
+  if (pages.length === 0) return { error: 'Waiver PDF has no pages.' }
+
+  const placements = resolvePlacements(pdf, allMappings, 'guide')
+  for (const placement of placements) {
+    const page = pages[placement.pageIndex]
+    if (!page) continue
+    const imgRatio = signaturePng.width / Math.max(signaturePng.height, 1)
+    const boxRatio = placement.w / placement.h
+    let drawW = placement.w
+    let drawH = placement.h
+    if (imgRatio > boxRatio) drawH = placement.w / imgRatio
+    else drawW = placement.h * imgRatio
+    const drawX = placement.x + (placement.w - drawW) / 2
+    const drawY = placement.y + (placement.h - drawH) / 2
+    page.drawImage(signaturePng, { x: drawX, y: drawY, width: drawW, height: drawH })
+  }
+
+  const signedBytes = await pdf.save()
+  const ts = Date.now()
+  const signedFilePath = `signed/${user.id}/waivers/${tripDoc.trip_id}/${doc.id}-signed-guide-${ts}.pdf`
+  const { error: upErr } = await sb.storage
+    .from('bb-private')
+    .upload(signedFilePath, signedBytes, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
+  if (upErr) {
+    console.warn('[sign-guide:upload]', { path: signedFilePath, message: upErr.message })
+    return { error: upErr.message || 'Could not upload signed waiver.' }
+  }
+
+  const signedAt = new Date().toISOString()
+  let ipAddress: string | null = null
+  let userAgent: string | null = null
+  try {
+    const h = await headers()
+    ipAddress = h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || null
+    userAgent = h.get('user-agent') || null
+  } catch { /* ignore */ }
+  const signatureHash = createHash('sha256').update(signatureDataUrl).digest('hex')
+  const { error: sigErr } = await sb.from('doc_signatures').insert({
+    trip_doc_id: tripDoc.id,
+    signer_id: profile.id,
+    signature_data: `sha256:${signatureHash}`,
+    signed_at: signedAt,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+  })
+  if (sigErr) {
+    console.warn('[sign-guide:audit-insert]', { code: sigErr.code, message: sigErr.message })
+  }
+
+  revalidatePath(`/app/trips/${tripDoc.trip_id}`)
   return { ok: true, signedFilePath, signedAt }
 }

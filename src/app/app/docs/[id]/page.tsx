@@ -103,6 +103,24 @@ export default async function DocDetailPage({
         />
       )}
 
+      {/* v27.2.0.3: waiver-class docs get a "Place signatures" link
+          to the drag-place wizard. Mapping-driven placements (data_
+          source_path = e_signature.{role} on AcroForm signature
+          widgets) take precedence at sign time; the wizard is the
+          fallback for PDFs without form fields. */}
+      {viewerOwnsDoc && doc.kind === 'waiver' && !isArchived && (
+        <div className="mt-3">
+          <Link
+            href={`/app/docs/${doc.id}/sign-placement`}
+            className="bb-btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Place signatures
+          </Link>
+        </div>
+      )}
+
       {/* v27.1.5.3.5: post-replace banner. hash_changed = the new PDF's
           field set differs from the old one, so existing mappings may
           point at fields that no longer exist; nudge a re-run of AI

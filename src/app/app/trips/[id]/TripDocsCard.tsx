@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  PenLine,
   Plus,
   Settings as SettingsIcon,
   Sparkles,
@@ -33,6 +34,7 @@ import {
 import type { TripDocRow, AttachableDoc } from '../../_lib/trip-doc-queries'
 import AttachDocModal from './AttachDocModal'
 import ManageDocActionsModal from './ManageDocActionsModal'
+import SignAsGuideModal from './SignAsGuideModal'
 
 export type TripDocsParticipant = {
   id: string
@@ -346,6 +348,14 @@ function DocAttachmentRow({
         </button>
 
         <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {/* v27.2.0.3: Sign as guide — opens SignAsGuideModal which
+              calls signWaiverAsGuideAction. Only renders for waiver
+              kinds; resource docs aren't signed. The action gates
+              role-server-side, so even if a non-guide somehow saw
+              this button it would no-op. */}
+          {row.doc.kind === 'waiver' && (
+            <SignAsGuideButton tripDocId={row.id} docLabel={row.doc.label} unsignedUrl={row.signed_url ?? null} pending={pending} />
+          )}
           {(row.doc.kind === 'waiver' || row.doc.kind === 'resource') && (
             <button
               type="button"
@@ -428,5 +438,44 @@ function KindBadge({ kind, isTemplate }: { kind: string; isTemplate: boolean }) 
     >
       {docKindLabel(kind)}
     </span>
+  )
+}
+
+// v27.2.0.3 — guide-side sign trigger inside the trip-doc row. Each
+// instance owns its own modal-open state so multiple rows on the
+// same trip don't share toggles.
+function SignAsGuideButton({
+  tripDocId,
+  docLabel,
+  unsignedUrl,
+  pending,
+}: {
+  tripDocId: string
+  docLabel: string
+  unsignedUrl: string | null
+  pending: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={pending}
+        className="bb-btn-secondary"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+        title="Sign this waiver as guide"
+      >
+        <PenLine size={14} aria-hidden="true" />
+        Sign as guide
+      </button>
+      <SignAsGuideModal
+        open={open}
+        onClose={() => setOpen(false)}
+        tripDocId={tripDocId}
+        docLabel={docLabel}
+        unsignedUrl={unsignedUrl}
+      />
+    </>
   )
 }

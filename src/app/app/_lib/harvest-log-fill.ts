@@ -144,6 +144,10 @@ function resolveSource(
   // is signed. This is intentional — auto-filling with today's date
   // would lie about when the document was actually executed.
   if (path === 'signature_date.now') return null
+  // v27.2.0.3: e_signature.{role} sentinels. Same pattern — fill leaves
+  // the AcroForm field blank; the signing engine reads the widget's
+  // rect via pdf-lib and stamps the signer's image at sign time.
+  if (path === 'e_signature.hunter' || path === 'e_signature.guide') return null
 
   // Static prefixes
   if (path === 'static:checked') return true

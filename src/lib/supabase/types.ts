@@ -168,6 +168,7 @@ export type Database = {
           id: string
           trip_doc_hunter_action_id: string | null
           trip_generated_log_id: string | null
+          trip_doc_id: string | null
           signer_id: string
           signature_field_index: number | null
           signature_data: string
@@ -179,6 +180,7 @@ export type Database = {
           id?: string
           trip_doc_hunter_action_id?: string | null
           trip_generated_log_id?: string | null
+          trip_doc_id?: string | null
           signer_id: string
           signature_field_index?: number | null
           signature_data: string
@@ -190,6 +192,7 @@ export type Database = {
           id?: string
           trip_doc_hunter_action_id?: string | null
           trip_generated_log_id?: string | null
+          trip_doc_id?: string | null
           signer_id?: string
           signature_field_index?: number | null
           signature_data?: string
