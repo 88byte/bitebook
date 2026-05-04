@@ -111,6 +111,9 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
 
   return (
     <main className="bb-app-main">
+      {/* v27.3.6: Create trip CTA moved INTO the banner via rightSlot
+          (which renders below the subtitle per v27.3.4.1). Same
+          pattern as the invite-hunter inline form on /app/hunters. */}
       <DashboardHero
         eyebrow="Your trips"
         title="My trips"
@@ -118,21 +121,17 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
         bgImage="/bb-trips-hero.png"
         eyebrowColor="copper"
         showShield={false}
+        rightSlot={
+          tab === 'trips' && total > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create trip">
+                <Plus size={16} aria-hidden="true" />
+                Create trip
+              </Link>
+            </div>
+          ) : null
+        }
       />
-      {/* v27.3.2.1: New Trip CTA at the TOP of the page (above the
-          tabs / chip-row), left-aligned. Earlier ships placed it
-          right-aligned in the hero (v27.3.0 moved it under the chip-
-          row); Flavio: "to TOP of /app/trips — like wallet/docs/
-          dashboard." Now sits as the first actionable element after
-          the hero banner. */}
-      {tab === 'trips' && total > 0 && (
-        <div className="mt-3 flex">
-          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create trip">
-            <Plus size={16} aria-hidden="true" />
-            Create trip
-          </Link>
-        </div>
-      )}
 
       {/* v27.3.3: divider after top CTAs, before content/tabs. */}
       <div className="bb-page-divider mt-4" aria-hidden="true" />

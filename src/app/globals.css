@@ -2301,6 +2301,36 @@ body {
   background-color: #25422A;
 }
 
+/* v27.3.6 — Trip detail action row. Mobile: two stacked rows
+   (primary cluster on top, view/share cluster below). Desktop:
+   single row with primary cluster left, secondary right via
+   margin-left:auto. Each cluster uses flex-wrap so buttons can
+   reflow if any single button label is unusually long. */
+.bb-trip-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.bb-trip-actions-primary,
+.bb-trip-actions-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (min-width: 40rem) {
+  .bb-trip-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .bb-trip-actions-secondary {
+    margin-left: auto;
+  }
+}
+
 .bb-cta-sm-destructive {
   background-color: #B33A2E;
   color: #FFFFFF;
@@ -2444,14 +2474,25 @@ body {
 }
 
 /* Stats grid — paper cards in a row, scroll if too many */
+/* v27.3.6 — wallet category counters wrap onto multiple rows on
+   mobile (was single-row grid + horizontal scroll, which clipped at
+   <480px when all 8 categories were visible). Mobile / small: 4-col
+   wrap grid, 2 rows for typical hunter wallet. Tablet+: single-row
+   horizontal layout with auto scroll if it overflows. */
 .bb-wallet-stats {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(58px, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  scrollbar-width: thin;
+}
+@media (min-width: 40rem) {
+  .bb-wallet-stats {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(58px, 1fr);
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: thin;
+  }
 }
 
 .bb-wallet-stat-card {

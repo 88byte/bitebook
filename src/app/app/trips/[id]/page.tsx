@@ -130,18 +130,24 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           together; the RIGHT cluster is "viewing/sharing what's
           already in the trip." Forest green visually separates the
           right-side actions from the copper primary on the left. */}
+      {/* v27.3.6: mobile (<640px) breaks the action row into TWO rows.
+          Row 1: lifecycle cluster (Save as template / Wrap up trip /
+          Cancel trip). Row 2: view/share cluster (View hunt logs /
+          Share with warden). Desktop keeps the inline single-row
+          layout with the right cluster pushed via margin-left:auto. */}
       <div
-        className="mt-2 flex flex-wrap gap-2"
+        className="bb-trip-actions"
         aria-label="Trip actions"
-        style={{ alignItems: 'center' }}
       >
-        {(trip.status === 'active' || trip.status === 'planned' || trip.status === 'completed') && (
-          <SaveAsTemplateButton tripId={trip.id} defaultLabel={trip.title} />
-        )}
-        {isOpen && <WrapUpTripButton tripId={trip.id} />}
-        {isOpen && <CancelTripButton tripId={trip.id} />}
-        {isClosed && <ReopenTripButton tripId={trip.id} />}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="bb-trip-actions-primary">
+          {(trip.status === 'active' || trip.status === 'planned' || trip.status === 'completed') && (
+            <SaveAsTemplateButton tripId={trip.id} defaultLabel={trip.title} />
+          )}
+          {isOpen && <WrapUpTripButton tripId={trip.id} />}
+          {isOpen && <CancelTripButton tripId={trip.id} />}
+          {isClosed && <ReopenTripButton tripId={trip.id} />}
+        </div>
+        <div className="bb-trip-actions-secondary">
           <Link
             href={`/app/trips/${trip.id}/log`}
             className="bb-cta-sm bb-cta-sm-forest"
@@ -160,7 +166,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             <Share2 size={14} aria-hidden="true" />
             Share with warden
           </button>
-        </span>
+        </div>
       </div>
 
       {/* v27.3.3.1: divider below action row, before content. */}

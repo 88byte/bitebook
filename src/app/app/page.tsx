@@ -43,6 +43,8 @@ export default async function DashboardPage() {
 
   return (
     <main className="bb-app-main">
+      {/* v27.3.6: showShield={false} — Flavio doesn't want the antler
+          shield on the dashboard banner. Banner stays clean. */}
       <DashboardHero
         eyebrow="Welcome back"
         title={greetingName}
@@ -51,6 +53,7 @@ export default async function DashboardPage() {
             ? 'You have no upcoming trips.'
             : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
+        showShield={false}
       />
 
       {/* v27.3.3: divider after hero, before content. */}

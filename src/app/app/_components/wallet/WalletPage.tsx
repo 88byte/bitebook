@@ -138,10 +138,9 @@ export default function WalletPage({
     <main className="bb-app-main">
       <WalletHero basePath={basePath} activeTab={activeTab} />
 
-      {/* v27.3.2.1: Add wallet item CTA at the TOP of the page (above
-          stats), matching the Create trip / Upload doc pattern from
-          v27.3.0+ and Flavio's spec for v27.3.2.1. */}
-      <WalletAddCta basePath={basePath} activeTab={activeTab} />
+      {/* v27.3.6: Add wallet item CTA moved INTO the banner, below
+          subtitle. Standalone instance removed; WalletHero now hosts
+          it via the .bb-dash-hero-below-sub slot. */}
 
       {/* v27.3.3: divider after top CTA. */}
       <div className="bb-page-divider mt-4" aria-hidden="true" />
@@ -293,10 +292,21 @@ function WalletHero({
           <p className="bb-page-eyebrow">Your wallet</p>
           <h1 className="bb-page-title bb-wallet-hero-title">Wallet</h1>
           <p className="bb-page-sub">Licenses, tags, and credentials in one place.</p>
+          {/* v27.3.6: Add wallet item CTA inline UNDER the subtitle in
+              the banner (was a separate block right after the hero).
+              Matches the invite-hunter pattern + Flavio's request. */}
+          <div className="bb-dash-hero-below-sub">
+            <Link
+              href={`${basePath}/new?type=${activeTab}`}
+              className="bb-cta-sm"
+              aria-label="Add new card"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Plus size={16} aria-hidden="true" />
+              Add new card
+            </Link>
+          </div>
         </div>
-        {/* v27.0b.8: Add button relocated to underneath the stat counters
-            (rendered separately as <WalletAddCta />). The hero now only
-            shows title + subtitle. */}
       </div>
     </section>
   )
