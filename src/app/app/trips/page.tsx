@@ -251,14 +251,22 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
               )}
             </section>
 
-            {recentForAside.length > 0 && (
-              <aside className="bb-trips-grid-aside bb-col-divider">
-                <div className="bb-net-section-head">
-                  <span className="bb-net-section-icon" aria-hidden="true">
-                    <Bookmark size={14} />
-                  </span>
-                  <span className="bb-net-section-title">Recent trips</span>
-                </div>
+            {/* v27.3.3.1: Recent column ALWAYS renders (was gated on
+                recentForAside.length>0 — that hid the column when the
+                main filter already showed every recent trip). Empty
+                state replaces the list when dedupe leaves nothing. */}
+            <aside className="bb-trips-grid-aside bb-col-divider">
+              <div className="bb-net-section-head">
+                <span className="bb-net-section-icon" aria-hidden="true">
+                  <Bookmark size={14} />
+                </span>
+                <span className="bb-net-section-title">Recent trips</span>
+              </div>
+              {recentForAside.length === 0 ? (
+                <p className="bb-form-help" style={{ marginTop: '0.5rem' }}>
+                  Nothing extra — your recent trips are already visible in the list.
+                </p>
+              ) : (
                 <div className="flex flex-col gap-3">
                   {recentForAside.slice(0, 5).map((t) => (
                     <TripRow
@@ -270,8 +278,8 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
                     />
                   ))}
                 </div>
-              </aside>
-            )}
+              )}
+            </aside>
           </div>
         </>
       ) : (

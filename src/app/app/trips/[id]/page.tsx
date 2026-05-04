@@ -118,43 +118,53 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         </div>
       </header>
 
-      {/* v27.1.1.0.3e.6: action row — Edit dropped (everything below is
-          inline-editable). Wrap up / Cancel / Reopen / Generate hunt
-          report stay. */}
+      {/* v27.3.3.1 — action row reordered per Flavio:
+            LEFT cluster:
+              • Save as template (secondary)
+              • Wrap up trip (PRIMARY copper)
+              • Cancel trip (destructive secondary)
+            RIGHT cluster (off to the right):
+              • View hunt logs (forest-green tinted .bb-cta-sm-forest)
+              • Share with warden (secondary, disabled placeholder)
+          The LEFT cluster keeps the "trip lifecycle" controls
+          together; the RIGHT cluster is "viewing/sharing what's
+          already in the trip." Forest green visually separates the
+          right-side actions from the copper primary on the left. */}
       <div
         className="mt-2 flex flex-wrap gap-2"
         aria-label="Trip actions"
         style={{ alignItems: 'center' }}
       >
-        {isOpen && <WrapUpTripButton tripId={trip.id} />}
-        {isOpen && <CancelTripButton tripId={trip.id} />}
-        {isClosed && <ReopenTripButton tripId={trip.id} />}
-        <Link
-          href={`/app/trips/${trip.id}/log`}
-          className="bb-cta-sm"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-        >
-          <Activity size={14} aria-hidden="true" />
-          {harvestLogSummary.exists ? 'View hunt logs' : 'Generate hunt logs'}
-        </Link>
-        {/* v27.1.4: Save as template — captures activity / location / hunt
-            details + non-log linked docs into a reusable template. Visible
-            on active AND wrapped trips (a wrapped trip is often the best
-            candidate to template — proven recipe). */}
         {(trip.status === 'active' || trip.status === 'planned' || trip.status === 'completed') && (
           <SaveAsTemplateButton tripId={trip.id} defaultLabel={trip.title} />
         )}
-        <button
-          type="button"
-          className="bb-btn-secondary"
-          disabled
-          title="Warden share ships later in Sprint 2"
-          aria-label="Share with warden (coming soon)"
-        >
-          <Share2 size={14} aria-hidden="true" />
-          Share with warden
-        </button>
+        {isOpen && <WrapUpTripButton tripId={trip.id} />}
+        {isOpen && <CancelTripButton tripId={trip.id} />}
+        {isClosed && <ReopenTripButton tripId={trip.id} />}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <Link
+            href={`/app/trips/${trip.id}/log`}
+            className="bb-cta-sm bb-cta-sm-forest"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Activity size={14} aria-hidden="true" />
+            {harvestLogSummary.exists ? 'View hunt logs' : 'Generate hunt logs'}
+          </Link>
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            disabled
+            title="Warden share ships later in Sprint 2"
+            aria-label="Share with warden (coming soon)"
+          >
+            <Share2 size={14} aria-hidden="true" />
+            Share with warden
+          </button>
+        </span>
       </div>
+
+      {/* v27.3.3.1: divider below action row, before content. */}
+      <div className="bb-page-divider mt-3" aria-hidden="true" />
 
       {/* v27.1.3.0.5: participant status panel — restored from v27.0b.6
           (was lost when v27.1.1.0.3e.6 merged read-only DetailCells into
@@ -162,7 +172,21 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           collapsed Hunters section in the editor below owns the
           add/remove flow; this panel only visualizes who's on the trip
           and whether they've linked their license + tag. */}
-      {participants.length > 0 && (
+      {participants.length > 0 && (() => {
+        // v27.3.3.1 — title flips when any hunter has a pending
+        // license/tag link, so the guide sees the section as a
+        // todo when something's incomplete.
+        const anyPending = participants.some((p) => {
+          if (!p.hunter_id) return false
+          const links = walletLinksByHunter.get(p.hunter_id) ?? []
+          const hasLicense = links.some((l) => l.type === 'license')
+          const hasTag = links.some((l) => l.type === 'tag')
+          if (!hasLicense) return true
+          if (!hasTag && trip.species_targeted) return true
+          return false
+        })
+        const sectionTitle = anyPending ? 'Hunters still needing action' : 'Hunters on this trip'
+        return (
         <section className="bb-tile bb-form-section mt-4">
           <div className="bb-tile-body">
             <h2
@@ -170,7 +194,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
               <Users size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-              Hunters on this trip
+              {sectionTitle}
             </h2>
             <div className="bb-detail-list">
               {participants.map((p) => {
@@ -259,7 +283,8 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             </div>
           </div>
         </section>
-      )}
+      )
+      })()}
 
       <div className="mt-4">
         <TripDetailEditor

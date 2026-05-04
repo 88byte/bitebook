@@ -1608,10 +1608,10 @@ body {
   .bb-pending-card { max-width: 44rem; }
 }
 
-/* v27.3.3 — Hunters page 2-column layout. Right rail narrowed
-   from 22rem to 18rem (Flavio: invite window oversized). Internal
-   padding of .bb-net-card is reduced separately for the aside so
-   the form takes less screen real estate. */
+/* v27.3.3.1 — Hunters page 2-column layout. Right rail narrowed
+   further to 16rem (was 18rem). Invite aside compacted (smaller
+   header, tighter padding, smaller submit) so it doesn't dominate
+   the page. */
 .bb-hunters-grid {
   display: flex;
   flex-direction: column;
@@ -1621,8 +1621,8 @@ body {
 @media (min-width: 64rem) {
   .bb-hunters-grid {
     display: grid;
-    grid-template-columns: minmax(0, 38rem) 18rem;
-    gap: 2rem;
+    grid-template-columns: minmax(0, 38rem) 16rem;
+    gap: 1.75rem;
     align-items: start;
   }
 }
@@ -1634,9 +1634,24 @@ body {
     position: sticky;
     top: 1.5rem;
   }
-  /* Smaller invite footprint inside the aside */
-  .bb-hunters-grid-aside .bb-net-invite { padding: 0.85rem 1rem 1rem; }
+  /* Compact invite footprint inside the aside — smaller padding,
+     compressed header, condensed input + button so the form takes
+     ~30% less vertical real estate than the default mobile card. */
+  .bb-hunters-grid-aside .bb-net-invite { padding: 0.7rem 0.85rem 0.85rem; }
   .bb-hunters-grid-aside .bb-net-card { max-width: 100%; }
+  .bb-hunters-grid-aside .bb-net-invite-icon {
+    width: 1.6rem; height: 1.6rem; flex: 0 0 1.6rem;
+  }
+  .bb-hunters-grid-aside .bb-net-invite-icon svg { width: 14px; height: 14px; }
+  .bb-hunters-grid-aside .bb-net-invite-title {
+    font-size: 0.85rem;
+  }
+  .bb-hunters-grid-aside .bb-net-invite-head { gap: 0.5rem; }
+  .bb-hunters-grid-aside .bb-input { font-size: 0.85rem; padding: 0.45rem 0.6rem 0.45rem 2.1rem; }
+  .bb-hunters-grid-aside .bb-cta-block {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
+  }
 }
 
 /* Stronger section heads on the hunters page — was bare text, now a
@@ -2188,6 +2203,18 @@ body {
   justify-content: flex-end;
   margin-top: 1rem;
 }
+/* v27.3.3.1 — forest-green primary variant. Used on the trip
+   detail right-cluster (View hunt logs) to differentiate from the
+   copper Wrap up trip primary on the left. Both read as "primary"
+   actions but for different intents. */
+.bb-cta-sm-forest {
+  background-color: #2F5233;
+  color: #FFFFFF;
+}
+.bb-cta-sm-forest:hover:not(:disabled) {
+  background-color: #25422A;
+}
+
 .bb-cta-sm-destructive {
   background-color: #B33A2E;
   color: #FFFFFF;

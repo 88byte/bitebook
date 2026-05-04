@@ -68,10 +68,12 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
         </p>
       </header>
 
-      {/* v27.3.3: top-aligned Create trip CTA. Uses the HTML form=
-          attribute to submit the NewTripForm below — same handler,
-          just reachable without scrolling on long forms. */}
-      <div className="mt-3 flex">
+      {/* v27.3.3.1: Create trip + Use template on the same action row,
+          ABOVE the divider. Use template was below the divider in
+          v27.3.3 — Flavio: "buttons should be above the divider."
+          Both submit-style actions live in this row. Create trip is
+          the primary copper CTA, Use template is the secondary. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="submit"
           form="new-trip-form"
@@ -81,20 +83,15 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
           <Plus size={16} aria-hidden="true" />
           Create trip
         </button>
-      </div>
-
-      <div className="bb-page-divider mt-4" aria-hidden="true" />
-
-      {/* v27.1.4: Use template picker. Hidden when the guide has zero
-          active templates so the empty state isn't a dead button. */}
-      {templates.length > 0 && (
-        <div className="mt-3 flex">
+        {templates.length > 0 && (
           <UseTemplateButton
             templates={templates}
             activeTemplateId={templateData?.template.id ?? null}
           />
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
       {/* v27.1.4: when ?template= resolved to a real template, show a
           compact banner above the form. Banner stays visible regardless

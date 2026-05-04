@@ -136,6 +136,10 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Sear
               </div>
             </section>
 
+            {/* v27.3.3.1: divider above All reviews so the section
+                separates cleanly from the summary card above. */}
+            <div className="bb-page-divider mt-4" aria-hidden="true" />
+
             <section className="mt-4" aria-labelledby="reviews-list">
               <div
                 className="flex items-center justify-between"

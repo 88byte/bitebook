@@ -324,11 +324,15 @@ export default function NewTripForm({
 
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 
-      <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={pending} className="bb-cta">
-          {pending ? 'Creating trip...' : 'Create trip'}
-        </button>
-      </div>
+      {/* v27.3.3.1: bottom Create trip button removed — the top
+          Create trip CTA in the page header (form='new-trip-form'
+          attribute) is the single submit. Pending state on the top
+          button covers the in-flight UX. */}
+      {pending && (
+        <p className="bb-form-help" role="status" style={{ marginTop: '0.25rem' }}>
+          Creating trip…
+        </p>
+      )}
     </form>
   )
 }
