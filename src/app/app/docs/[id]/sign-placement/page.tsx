@@ -6,9 +6,11 @@ import { requireGuide } from '../../../_lib/auth'
 import { fetchGuideDoc } from '../../../_lib/docs-queries'
 import SignPlacementWizard from './SignPlacementWizard'
 
-// v27.2.0.3.1 — signature placement wizard route. Waiver- and
+// v27.2.0.3.3 — signature placement wizard route. Waiver- and
 // harvest_log-class docs both use this; resource docs don't have a
-// signing flow.
+// signing flow. Both signer roles (hunter + guide) are pickable on
+// either kind — logs are guide-signed by default but state forms can
+// have hunter-signature lines too.
 //
 // Server side fetches:
 //   - the doc (RLS-gated to owner OR template viewer)
@@ -95,9 +97,8 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
         <p className="bb-page-eyebrow">{doc.kind === 'log' ? 'Harvest log setup' : 'Waiver setup'}</p>
         <h1 className="bb-page-title">Place signatures</h1>
         <p className="bb-page-sub">
-          {doc.kind === 'log'
-            ? 'Drop a box where the guide signs. The signing flow paints your signature inside the box.'
-            : 'Drop boxes where the hunter and guide sign. The signing flow paints their signature inside each box.'}
+          Drop boxes where the hunter and guide sign. The signing flow paints
+          their signature inside each box.
         </p>
       </header>
 
@@ -110,7 +111,6 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
           docId={id}
           pdfUrl={signed.signedUrl}
           initialPlacements={initialPlacements}
-          kind={doc.kind === 'log' ? 'log' : 'waiver'}
         />
       )}
     </main>
