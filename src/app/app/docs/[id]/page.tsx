@@ -103,12 +103,12 @@ export default async function DocDetailPage({
         />
       )}
 
-      {/* v27.2.0.3: waiver-class docs get a "Place signatures" link
-          to the drag-place wizard. Mapping-driven placements (data_
-          source_path = e_signature.{role} on AcroForm signature
-          widgets) take precedence at sign time; the wizard is the
-          fallback for PDFs without form fields. */}
-      {viewerOwnsDoc && doc.kind === 'waiver' && !isArchived && (
+      {/* v27.2.0.3.1: waiver- and log-class docs both get a "Place
+          signatures" link to the drag-place wizard. Mapping-driven
+          placements (data_source_path = e_signature.{role} on
+          AcroForm signature widgets) take precedence at sign time;
+          the wizard is the fallback for PDFs without form fields. */}
+      {viewerOwnsDoc && (doc.kind === 'waiver' || doc.kind === 'log') && !isArchived && (
         <div className="mt-3">
           <Link
             href={`/app/docs/${doc.id}/sign-placement`}

@@ -6,8 +6,9 @@ import { requireGuide } from '../../../_lib/auth'
 import { fetchGuideDoc } from '../../../_lib/docs-queries'
 import SignPlacementWizard from './SignPlacementWizard'
 
-// v27.2.0.3 — signature placement wizard route. Waiver-class docs only;
-// log docs use AcroForm-driven fill, not signature placement.
+// v27.2.0.3.1 — signature placement wizard route. Waiver- and
+// harvest_log-class docs both use this; resource docs don't have a
+// signing flow.
 //
 // Server side fetches:
 //   - the doc (RLS-gated to owner OR template viewer)
@@ -25,8 +26,9 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
   const { id } = await params
   const doc = await fetchGuideDoc(profile.id, id)
   if (!doc) notFound()
-  if (doc.kind !== 'waiver') {
-    // v27.2.0.3 scope: only waivers. Log/resource get redirected to detail.
+  if (doc.kind !== 'waiver' && doc.kind !== 'log') {
+    // v27.2.0.3.1: waivers + harvest logs both support placement.
+    // Resource docs don't have a signing flow, so 404.
     notFound()
   }
   if (doc.guide_id !== profile.id) {
@@ -90,11 +92,12 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
         </Link>
       </div>
       <header>
-        <p className="bb-page-eyebrow">Waiver setup</p>
+        <p className="bb-page-eyebrow">{doc.kind === 'log' ? 'Harvest log setup' : 'Waiver setup'}</p>
         <h1 className="bb-page-title">Place signatures</h1>
         <p className="bb-page-sub">
-          Drop boxes where the hunter and guide sign. The signing flow paints
-          their signature inside each box.
+          {doc.kind === 'log'
+            ? 'Drop a box where the guide signs. The signing flow paints your signature inside the box.'
+            : 'Drop boxes where the hunter and guide sign. The signing flow paints their signature inside each box.'}
         </p>
       </header>
 
@@ -107,6 +110,7 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
           docId={id}
           pdfUrl={signed.signedUrl}
           initialPlacements={initialPlacements}
+          kind={doc.kind === 'log' ? 'log' : 'waiver'}
         />
       )}
     </main>

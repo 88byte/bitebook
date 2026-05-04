@@ -1,6 +1,6 @@
 'use server'
 
-// v27.2.0.1 — sign harvest log PDFs.
+// v27.2.0.3.1 — sign harvest log PDFs.
 //
 // Takes an already-generated trip_generated_logs row + a signature
 // PNG data URL, produces a signed copy of the PDF:
@@ -9,13 +9,11 @@
 //      AcroForm text fields mapped to data_source_path = 'signature_
 //      date.now'. Fills those with today's date in MM/DD/YYYY (US
 //      state-form locale).
-//   3. Looks up doc_field_mappings rows with mapping_kind='signature'
-//      to get placement coords. v27.2.0.1 ships without the placement
-//      wizard (that's v27.2.0.2), so usually no coords are saved.
-//      Falls back to a sensible default: bottom-right of the LAST
-//      page, ~24mm wide × 12mm tall, ~10mm from the right edge,
-//      ~30mm from the bottom.
-//   4. Embeds the signature PNG at coords on the chosen page.
+//   3. Resolves signature placement via the shared
+//      signature-placement.ts helper (mapping → drag-place → default
+//      precedence), with role='guide' since harvest logs are signed
+//      by the guide.
+//   4. Embeds the signature PNG at each resolved placement.
 //   5. Saves the result to bb-private/signed/{guide_id}/{trip_id}/
 //      {generated_log_id}-signed-{ts}.pdf via the user-session client
 //      (signed_owner_all RLS policy gates this prefix).
@@ -35,6 +33,11 @@ import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
+import {
+  resolvePlacements,
+  computeDrawPosition,
+  type MappingRow,
+} from './signature-placement'
 
 export type SignHarvestLogResult =
   | { ok: true; signedFilePath: string; signedAt: string }
@@ -101,29 +104,22 @@ export async function signHarvestLogPdfAction(
   }
   const baseBytes = new Uint8Array(await blob.arrayBuffer())
 
-  // 3. Pull any signature_date.now mappings + signature placement
-  // coords for the source doc. mapping_kind='field' → text-fill paths;
-  // mapping_kind='signature' → placement (extras carries the coords).
-  type FieldMappingRow = {
-    field_name: string
-    data_source_path: string | null
-    mapping_kind: string | null
-  }
-  let dateFieldNames: string[] = []
+  // 3. Pull doc_field_mappings rows for the source doc — used by both
+  // signature_date.now text fills and the shared placement resolver.
+  const dateFieldNames: string[] = []
+  let allMappings: MappingRow[] = []
   if (row.source_doc_id) {
     const { data: maps } = await sb
       .from('doc_field_mappings')
-      .select('field_name, data_source_path, mapping_kind')
+      .select('field_name, data_source_path, mapping_kind, signature_role, placement_coords')
       .eq('doc_id', row.source_doc_id)
-    for (const m of (maps ?? []) as FieldMappingRow[]) {
+    allMappings = (maps ?? []) as MappingRow[]
+    for (const m of allMappings) {
       if ((m.mapping_kind ?? 'field') === 'field' && m.data_source_path === 'signature_date.now') {
         dateFieldNames.push(m.field_name)
       }
     }
   }
-  // v27.2.0.2 will introduce a placement schema (page_index + x/y/w/h
-  // on doc_field_mappings via new columns or a sibling table). For
-  // v27.2.0.1 we always fall back to the default placement below.
 
   // 4. Compose the signed PDF.
   const pdf = await PDFDocument.load(baseBytes, { ignoreEncryption: true })
@@ -157,8 +153,9 @@ export async function signHarvestLogPdfAction(
     }
   }
 
-  // 4b. Embed the signature image + draw on the last page at default
-  // coords (until v27.2.0.2 ships per-doc placement).
+  // 4b. Embed the signature image + draw at every resolved placement.
+  // Harvest logs are signed by the guide, so role='guide' for the
+  // resolver (mapping → drag-place → default precedence).
   let signaturePng
   try {
     const png = decodeSignaturePngDataUrl(signatureDataUrl)
@@ -167,39 +164,21 @@ export async function signHarvestLogPdfAction(
     return { error: e instanceof Error ? e.message : 'Could not decode signature image.' }
   }
   const pages = pdf.getPages()
-  const lastPage = pages[pages.length - 1]
-  if (!lastPage) {
+  if (pages.length === 0) {
     return { error: 'Generated PDF has no pages.' }
   }
-  const { width: pageWidth, height: pageHeight } = lastPage.getSize()
-  // Default placement: ~68mm wide × 22mm tall, anchored 10mm from the
-  // right edge and 30mm from the bottom of the last page. PDF unit is
-  // 1/72in; 1mm ≈ 2.834pt.
-  const mmToPt = (mm: number) => mm * 2.8346
-  const sigW = mmToPt(68)
-  const sigH = mmToPt(22)
-  const sigX = pageWidth - sigW - mmToPt(10)
-  const sigY = mmToPt(30)
-  // Preserve aspect ratio of the captured signature inside the bounded
-  // box — letterbox horizontally if the strokes were drawn taller-
-  // than-wide on the canvas.
-  const imgRatio = signaturePng.width / Math.max(signaturePng.height, 1)
-  const boxRatio = sigW / sigH
-  let drawW = sigW
-  let drawH = sigH
-  if (imgRatio > boxRatio) {
-    drawH = sigW / imgRatio
-  } else {
-    drawW = sigH * imgRatio
+  const placements = resolvePlacements(pdf, allMappings, 'guide')
+  for (const placement of placements) {
+    const page = pages[placement.pageIndex]
+    if (!page) continue
+    const draw = computeDrawPosition(placement, signaturePng.width, signaturePng.height)
+    page.drawImage(signaturePng, {
+      x: draw.x,
+      y: draw.y,
+      width: draw.w,
+      height: draw.h,
+    })
   }
-  const drawX = sigX + (sigW - drawW) / 2
-  const drawY = sigY + (sigH - drawH) / 2
-  lastPage.drawImage(signaturePng, {
-    x: drawX,
-    y: drawY,
-    width: drawW,
-    height: drawH,
-  })
 
   const signedBytes = await pdf.save()
 

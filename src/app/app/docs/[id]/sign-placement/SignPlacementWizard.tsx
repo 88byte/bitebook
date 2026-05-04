@@ -52,9 +52,13 @@ type Props = {
   docId: string
   pdfUrl: string
   initialPlacements: Placement[]
+  // v27.2.0.3.1: harvest_log docs are guide-signed only, so we hide
+  // the "Add hunter signature" button for kind='log'. Waivers can
+  // have both roles.
+  kind?: 'waiver' | 'log'
 }
 
-export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }: Props) {
+export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements, kind = 'waiver' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const pdfDocRef = useRef<unknown>(null) // pdfjs PDFDocumentProxy
@@ -254,21 +258,23 @@ export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }
     <div className="bb-form-narrow mt-4 flex flex-col gap-3">
       <section className="bb-tile" style={{ padding: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => addBox('hunter')}
-            disabled={loading}
-            className="bb-cta-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-          >
-            <Plus size={14} aria-hidden="true" />
-            Add hunter signature
-          </button>
+          {kind === 'waiver' && (
+            <button
+              type="button"
+              onClick={() => addBox('hunter')}
+              disabled={loading}
+              className="bb-cta-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <Plus size={14} aria-hidden="true" />
+              Add hunter signature
+            </button>
+          )}
           <button
             type="button"
             onClick={() => addBox('guide')}
             disabled={loading}
-            className="bb-btn-secondary"
+            className={kind === 'waiver' ? 'bb-btn-secondary' : 'bb-cta-sm'}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
           >
             <Plus size={14} aria-hidden="true" />
@@ -432,9 +438,9 @@ export default function SignPlacementWizard({ docId, pdfUrl, initialPlacements }
       </section>
 
       <p className="bb-form-help" style={{ margin: 0 }}>
-        Hunter sigs are copper, guide sigs are forest green. Drag the box to
-        move; drag the corner to resize. Coordinates persist as fractions
-        of the page so the layout stays correct at any zoom.
+        {kind === 'log'
+          ? 'Drop a guide signature box where you sign the harvest log. Drag the box to move; drag the corner to resize. Coordinates persist as fractions of the page so the layout stays correct at any zoom.'
+          : 'Hunter sigs are copper, guide sigs are forest green. Drag the box to move; drag the corner to resize. Coordinates persist as fractions of the page so the layout stays correct at any zoom.'}
       </p>
       {/* Suppress unused dimension state warning — pageDim is captured
           for future thumbnail rendering / coordinate debugging in

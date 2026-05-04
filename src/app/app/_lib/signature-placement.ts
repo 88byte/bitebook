@@ -180,3 +180,47 @@ export function resolvePlacements(
 
   return out
 }
+
+// v27.2.0.3.1 — alignment differs by source:
+//
+//   'mapping' — the AcroForm widget rect on most state forms IS the
+//     text-input area, and the visual signature underline sits at the
+//     widget's bottom edge. Centering the image inside the box puts
+//     the strokes WAY above the line the user sees. Fix: bottom-
+//     anchor the image at the widget's bottom edge, with a 15%
+//     downward overshoot so strokes can dip below the line like a
+//     real handwritten signature.
+//
+//   'drag-place' / 'default' — the box was drawn around where the
+//     user wants the signature to land, so center-align inside it.
+//
+// Returns ready-to-draw {x, y, w, h} in PDF points. Callers just
+// hand this to page.drawImage().
+export function computeDrawPosition(
+  placement: ResolvedPlacement,
+  signatureWidth: number,
+  signatureHeight: number
+): { x: number; y: number; w: number; h: number } {
+  const imgRatio = signatureWidth / Math.max(signatureHeight, 1)
+  const boxRatio = placement.w / Math.max(placement.h, 1)
+  let drawW = placement.w
+  let drawH = placement.h
+  if (imgRatio > boxRatio) drawH = placement.w / imgRatio
+  else drawW = placement.h * imgRatio
+
+  // Always center horizontally.
+  const drawX = placement.x + (placement.w - drawW) / 2
+  let drawY: number
+  if (placement.source === 'mapping') {
+    // Bottom-anchor at the widget's bottom edge with a small
+    // overshoot below. drawY = placement.y - drawH * 0.15 puts the
+    // image bottom 15% of its height below the widget's bottom-left,
+    // which roughly matches how a real signature crosses an
+    // underline.
+    drawY = placement.y - drawH * 0.15
+  } else {
+    // Center vertically inside the user's drawn box.
+    drawY = placement.y + (placement.h - drawH) / 2
+  }
+  return { x: drawX, y: drawY, w: drawW, h: drawH }
+}

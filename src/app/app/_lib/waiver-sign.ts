@@ -21,7 +21,7 @@ import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField, type PDFImage } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from './auth'
-import { resolvePlacements, type MappingRow } from './signature-placement'
+import { resolvePlacements, computeDrawPosition, type MappingRow } from './signature-placement'
 
 export type SignWaiverResult =
   | { ok: true; signedFilePath: string; signedAt: string }
@@ -164,16 +164,10 @@ export async function signWaiverAction(
   for (const placement of placements) {
     const page = pages[placement.pageIndex]
     if (!page) continue
-    // Letterbox preserving aspect ratio inside the placement box.
-    const imgRatio = signaturePng.width / Math.max(signaturePng.height, 1)
-    const boxRatio = placement.w / placement.h
-    let drawW = placement.w
-    let drawH = placement.h
-    if (imgRatio > boxRatio) drawH = placement.w / imgRatio
-    else drawW = placement.h * imgRatio
-    const drawX = placement.x + (placement.w - drawW) / 2
-    const drawY = placement.y + (placement.h - drawH) / 2
-    page.drawImage(signaturePng, { x: drawX, y: drawY, width: drawW, height: drawH })
+    // v27.2.0.3.1: bottom-anchor for mapping-driven, center for drag-
+    // place / default. See computeDrawPosition for the rationale.
+    const draw = computeDrawPosition(placement, signaturePng.width, signaturePng.height)
+    page.drawImage(signaturePng, { x: draw.x, y: draw.y, width: draw.w, height: draw.h })
   }
 
   const signedBytes = await pdf.save()
@@ -347,15 +341,8 @@ export async function signWaiverAsGuideAction(
   for (const placement of placements) {
     const page = pages[placement.pageIndex]
     if (!page) continue
-    const imgRatio = signaturePng.width / Math.max(signaturePng.height, 1)
-    const boxRatio = placement.w / placement.h
-    let drawW = placement.w
-    let drawH = placement.h
-    if (imgRatio > boxRatio) drawH = placement.w / imgRatio
-    else drawW = placement.h * imgRatio
-    const drawX = placement.x + (placement.w - drawW) / 2
-    const drawY = placement.y + (placement.h - drawH) / 2
-    page.drawImage(signaturePng, { x: drawX, y: drawY, width: drawW, height: drawH })
+    const draw = computeDrawPosition(placement, signaturePng.width, signaturePng.height)
+    page.drawImage(signaturePng, { x: draw.x, y: draw.y, width: draw.w, height: draw.h })
   }
 
   const signedBytes = await pdf.save()
