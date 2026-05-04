@@ -140,9 +140,9 @@ export async function signHarvestLogPdfAction(
           // replaced/edited PDF — skip silently.
         }
       }
-      // Re-flatten so the new date is baked into the rendered output
-      // (the original generation already flattened; flattening again
-      // on a freshly-loaded copy bakes in the new values).
+      // v27.2.0.3.2: gen-time no longer flattens (so signature_date.now
+      // fields stay live for us to fill here). Bake everything in now
+      // so the final signed output isn't editable.
       try {
         form.flatten()
       } catch {

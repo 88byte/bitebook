@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-// v27.2.0.1 — canvas-based signature pad. Captures finger / stylus /
+// v27.2.0.3.2 — canvas-based signature pad. Captures finger / stylus /
 // mouse strokes and serializes the result as a PNG data URL.
 //
 // Smoothing: connect successive points with quadratic Bezier curves
@@ -11,6 +11,12 @@ import { useEffect, useRef, useState } from 'react'
 //
 // The canvas is drawn at devicePixelRatio so retina screens get a
 // crisp signature without blowing up the data URL more than ~3x.
+//
+// v27.2.0.3.2: bumped strokeWidth to read as real pen ink (was 2.5,
+// felt thin and spotty). toDataURL now crops to the bounding box of
+// drawn pixels with a small pad — the raw canvas carried huge
+// transparent margins that made signatures look "centered" inside
+// any composition box at sign time.
 
 export type SignaturePadHandle = {
   isEmpty: () => boolean
@@ -49,10 +55,11 @@ export default function SignaturePad({
     const ctx = c.getContext('2d')
     if (ctx) {
       ctx.scale(dpr, dpr)
-      ctx.lineWidth = 2.5
+      ctx.lineWidth = 4.0
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       ctx.strokeStyle = '#0B0806'
+      ctx.fillStyle = '#0B0806'
     }
   }, [])
 
@@ -75,10 +82,10 @@ export default function SignaturePad({
     const ctx = c.getContext('2d')
     if (!ctx) return
     // Dot for taps — draws a small filled circle so a single click
-    // still leaves a mark.
+    // still leaves a mark. Radius scales with the line weight so taps
+    // read as the same ink density as drawn strokes.
     ctx.beginPath()
-    ctx.arc(p.x, p.y, 1.25, 0, Math.PI * 2)
-    ctx.fillStyle = '#0B0806'
+    ctx.arc(p.x, p.y, 2.0, 0, Math.PI * 2)
     ctx.fill()
     isEmptyRef.current = false
     onChange?.(false)
@@ -133,7 +140,65 @@ export default function SignaturePad({
   }
 
   function toDataURL(): string {
-    return canvasRef.current?.toDataURL('image/png') ?? ''
+    const c = canvasRef.current
+    if (!c) return ''
+    const ctx = c.getContext('2d')
+    if (!ctx) return c.toDataURL('image/png')
+    // Scan the alpha channel for the bounding box of drawn pixels.
+    // The raw canvas spans the full pad (~600×200 CSS px × DPR), but a
+    // typical signature only occupies a fraction of that area. Without
+    // cropping, downstream PDF compositing letterboxes the full canvas
+    // inside the placement box — so the visible signature appears
+    // centered inside the box even when we want it left-anchored.
+    const w = c.width
+    const h = c.height
+    let data: Uint8ClampedArray
+    try {
+      data = ctx.getImageData(0, 0, w, h).data
+    } catch {
+      // CORS-tainted canvas would throw — but we never drawImage from
+      // a remote source, so this should never happen. Fall back to
+      // full-canvas export rather than failing the sign.
+      return c.toDataURL('image/png')
+    }
+    let minX = w
+    let minY = h
+    let maxX = -1
+    let maxY = -1
+    for (let y = 0; y < h; y++) {
+      const rowStart = y * w * 4
+      for (let x = 0; x < w; x++) {
+        const a = data[rowStart + x * 4 + 3]
+        if (a > 0) {
+          if (x < minX) minX = x
+          if (y < minY) minY = y
+          if (x > maxX) maxX = x
+          if (y > maxY) maxY = y
+        }
+      }
+    }
+    if (maxX < 0) {
+      // Empty canvas — caller should have guarded with isEmpty(), but
+      // be defensive.
+      return c.toDataURL('image/png')
+    }
+    // Pad the bbox by a few canvas pixels so stroke caps near the
+    // edge aren't visually clipped at the very edge of the PNG.
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3))
+    const pad = Math.round(6 * dpr)
+    minX = Math.max(0, minX - pad)
+    minY = Math.max(0, minY - pad)
+    maxX = Math.min(w - 1, maxX + pad)
+    maxY = Math.min(h - 1, maxY + pad)
+    const cw = maxX - minX + 1
+    const ch = maxY - minY + 1
+    const tmp = document.createElement('canvas')
+    tmp.width = cw
+    tmp.height = ch
+    const tctx = tmp.getContext('2d')
+    if (!tctx) return c.toDataURL('image/png')
+    tctx.drawImage(c, minX, minY, cw, ch, 0, 0, cw, ch)
+    return tmp.toDataURL('image/png')
   }
 
   // Expose the pad's API on the global window via a ref-shaped object

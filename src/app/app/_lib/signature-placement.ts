@@ -181,7 +181,7 @@ export function resolvePlacements(
   return out
 }
 
-// v27.2.0.3.1 — alignment differs by source:
+// v27.2.0.3.2 — alignment differs by source:
 //
 //   'mapping' — the AcroForm widget rect on most state forms IS the
 //     text-input area, and the visual signature underline sits at the
@@ -192,7 +192,14 @@ export function resolvePlacements(
 //     real handwritten signature.
 //
 //   'drag-place' / 'default' — the box was drawn around where the
-//     user wants the signature to land, so center-align inside it.
+//     user wants the signature to land. Vertical: center inside the
+//     box (signer drew it where they want it).
+//
+// Horizontal alignment (all sources): LEFT-anchor. The signature PNG
+// is now cropped to its drawn-pixel bounding box at capture time
+// (SignaturePad v27.2.0.3.2), so left-anchoring puts the first
+// stroke at the box's left edge — which is how a handwritten name
+// reads. Centering looked off when the user signed wide/narrow.
 //
 // Returns ready-to-draw {x, y, w, h} in PDF points. Callers just
 // hand this to page.drawImage().
@@ -208,8 +215,8 @@ export function computeDrawPosition(
   if (imgRatio > boxRatio) drawH = placement.w / imgRatio
   else drawW = placement.h * imgRatio
 
-  // Always center horizontally.
-  const drawX = placement.x + (placement.w - drawW) / 2
+  // Left-anchor horizontally (was: centered).
+  const drawX = placement.x
   let drawY: number
   if (placement.source === 'mapping') {
     // Bottom-anchor at the widget's bottom edge with a small

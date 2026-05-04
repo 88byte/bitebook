@@ -802,12 +802,15 @@ export async function generateFilledHarvestLogPDFsAction(
       }
     }
 
-    // Flatten so the values are baked in (simpler for downstream viewers).
-    try {
-      form.flatten()
-    } catch {
-      /* some forms have appearance issues — leave editable if flatten fails */
-    }
+    // v27.2.0.3.2 — DO NOT flatten at generation time. Flatten removes
+    // all form fields, including `signature_date.now`-mapped fields
+    // that need to remain available so the sign-time engine
+    // (harvest-log-sign.ts) can stamp today's date into them when the
+    // guide actually signs. Pre-flatten signed: those fields would
+    // already be erased, and sign-time `form.getField()` silently
+    // fails. The sign engine flattens AFTER filling the date +
+    // drawing the signature, so the final signed PDF still ends up
+    // baked-in.
 
     const filledBytes = await pdf.save()
 
