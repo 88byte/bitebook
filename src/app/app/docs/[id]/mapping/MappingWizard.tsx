@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  RefreshCw,
+  Search,
+  Sparkles,
+} from 'lucide-react'
 import {
   extractDocFieldsAction,
   saveDocMappingsAction,
@@ -172,6 +181,36 @@ export default function MappingWizard({
   // successful suggestion run; renders an "✨ AI suggested N fields"
   // toast with a green-ish copper accent before collapsing.
   const [aiSuccessCount, setAiSuccessCount] = useState<number | null>(null)
+
+  // v27.3.10.3 — design pass on the field list. Replaces the long flat
+  // groups.map() render with: a sticky toolbar (search + filter chips +
+  // re-run AI), slot-grouped sections (Trip-level + Hunter 1..N) with
+  // tap-to-collapse headers, and a compact "name → source · status" row
+  // that expands inline to the existing FieldRow editor on tap. The goal
+  // is to keep 50+ field forms (DFW 992b ext) scannable without
+  // sacrificing any of the existing edit affordances.
+  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  type FilterMode = 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
+  const [filterMode, setFilterMode] = useState<FilterMode>('all')
+  const [collapsedSlots, setCollapsedSlots] = useState<Set<number>>(new Set())
+
+  function toggleFieldExpanded(fieldName: string) {
+    setExpandedFields((prev) => {
+      const next = new Set(prev)
+      if (next.has(fieldName)) next.delete(fieldName)
+      else next.add(fieldName)
+      return next
+    })
+  }
+  function toggleSlotCollapsed(slot: number) {
+    setCollapsedSlots((prev) => {
+      const next = new Set(prev)
+      if (next.has(slot)) next.delete(slot)
+      else next.add(slot)
+      return next
+    })
+  }
   // v27.1.1.0.3d.2.5: ref for Step 3's "Review N AI suggestions" CTA
   // to scroll the user to the field cards. MUST be declared before any
   // conditional early returns so React's rules-of-hooks order stays
@@ -614,14 +653,98 @@ export default function MappingWizard({
     )
   }
 
-  // v27.1.1.0.3c.5: group fields by base name + slot pattern so the
-  // wizard collapses repeating Hunter 1-5 fields under a single primary
-  // row (mirror covers slots 2..N) and tucks complex sequential groups
-  // (10-slot SPECIES TAKEN, 10-slot Tag Report Card) into single
-  // expandable accordions. On Flavio's CDFW 992-B PDF this trims the
-  // visible row count from 83 -> 23.
-  const groups = buildFieldGroups(fields, slotOverrides)
+  // v27.3.10.3: buildFieldGroups (base-name simple-mirror/complex
+  // grouping) retired in favor of slot-based sectioning below — the
+  // helper + FieldGroup type are kept in this file for potential
+  // future re-use, but no longer drive the render. computeSlot1ByBase
+  // stays — renderFieldRow still consults it for the mirror dropdown
+  // affordance on slot >= 2 fields.
   const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
+
+  // v27.3.10.3: per-field effective slot. Manual override > 0 wins,
+  // else regex auto-detect via parseFieldNameInline. Slot 0 = trip-level.
+  function effSlotForField(f: DocPdfField): number {
+    const ov = slotOverrides[f.name] ?? 0
+    if (ov > 0) return ov
+    return parseFieldNameInline(f.name).slot
+  }
+
+  // v27.3.10.3: per-field status — drives the colored pill. Order of
+  // precedence: needs-review (AI hasn't been confirmed) > log-time
+  // (will be filled at hunt log entry time) > skipped (no source) >
+  // mapped (any other path).
+  type FieldStatus = 'mapped' | 'log-time' | 'needs-review' | 'skipped'
+  function statusForField(fieldName: string): FieldStatus {
+    if (aiSuggestedFlags[fieldName] === true) return 'needs-review'
+    const sel = selection[fieldName] ?? ''
+    if (!sel || sel === SKIP_VALUE) return 'skipped'
+    if (
+      sel === STATIC_TEXT_PREFIX ||
+      sel === STATIC_DATE_PREFIX ||
+      sel === STATIC_DATE_RANGE_PREFIX
+    ) {
+      return 'skipped'
+    }
+    if (sel === 'user_input.log_time') return 'log-time'
+    return 'mapped'
+  }
+
+  // v27.3.10.3: short human label for the chosen source, for the
+  // compact row "→ <source>" hint. Falls back to "Skipped" / "AI
+  // suggestion" / static literal display. Kept short so 50+ field
+  // forms stay scannable on mobile.
+  function shortSourceLabel(fieldName: string): string {
+    const status = statusForField(fieldName)
+    if (status === 'skipped') return 'Skipped'
+    const sel = selection[fieldName] ?? ''
+    if (isStaticText(sel)) {
+      const v = staticTextValue(sel)
+      return v ? `"${v}"` : 'Static text'
+    }
+    if (isStaticDate(sel)) {
+      return staticDateValue(sel) || 'Static date'
+    }
+    if (isStaticDateRange(sel)) {
+      const { start, end } = staticDateRangeValue(sel)
+      return start && end ? `${start} → ${end}` : 'Date range'
+    }
+    if (sel === 'user_input.log_time') return 'Filled at log entry'
+    const found = DATA_SOURCES.find((s) => s.value === sel)
+    return found?.label ?? sel
+  }
+
+  // v27.3.10.3: counts per filter chip — shown inline so the guide
+  // can see at a glance how many "Needs review" rows remain.
+  const filterCounts = (() => {
+    const c = { all: 0, mapped: 0, 'needs-review': 0, skipped: 0, 'log-time': 0 }
+    for (const f of fields ?? []) {
+      c.all++
+      c[statusForField(f.name)]++
+    }
+    return c
+  })()
+
+  // v27.3.10.3: filter predicate — combines search query + filter chip.
+  function passesFilter(f: DocPdfField): boolean {
+    const q = searchQuery.trim().toLowerCase()
+    if (q && !f.name.toLowerCase().includes(q)) return false
+    if (filterMode === 'all') return true
+    return statusForField(f.name) === filterMode
+  }
+
+  // v27.3.10.3: slot-based sectioning. Each section keeps the natural
+  // PDF tab order of its fields. Slots present are sorted ascending so
+  // Trip-level (0) → Hunter 1 → Hunter 2 → ... reads top-to-bottom.
+  const sections = (() => {
+    const bySlot = new Map<number, DocPdfField[]>()
+    for (const f of fields ?? []) {
+      const s = effSlotForField(f)
+      if (!bySlot.has(s)) bySlot.set(s, [])
+      bySlot.get(s)!.push(f)
+    }
+    const slots = [...bySlot.keys()].sort((a, b) => a - b)
+    return slots.map((slot) => ({ slot, members: bySlot.get(slot)! }))
+  })()
 
   // v27.1.1.0.3d.2.5: stage discriminant + helper. Hook (useRef) was
   // moved to the top of the component above the early returns to
@@ -818,8 +941,8 @@ export default function MappingWizard({
               <>
                 {' '}
                 <span style={{ color: 'var(--color-ink-soft)' }}>
-                  ({fields.length} total box{fields.length === 1 ? '' : 'es'}, grouped into{' '}
-                  {groups.length} row{groups.length === 1 ? '' : 's'}.)
+                  ({fields.length} total box{fields.length === 1 ? '' : 'es'} across{' '}
+                  {sections.length} section{sections.length === 1 ? '' : 's'}.)
                 </span>
               </>
             )}
@@ -958,52 +1081,173 @@ export default function MappingWizard({
         </div>
       )}
 
-      {/* v27.1.1.0.3c.5: render groups instead of raw fields. Three group
-          kinds: 'single' (no siblings), 'simple-mirror' (slots 1..N, N<=5
-          contiguous — slot 1 visible, siblings tucked under <details>),
-          'complex' (everything else — fully collapsed accordion). */}
-      {groups.map((g) => {
-        if (g.kind === 'single') {
-          return renderFieldRow(g.field)
-        }
-        if (g.kind === 'simple-mirror') {
-          return (
-            <div key={`simple-${g.base}`} className="bb-tile" style={{ padding: 0 }}>
-              <div style={{ padding: '0.5rem 1rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-copper)', letterSpacing: '0.04em' }}>
-                  {g.siblings.length + 1} HUNTERS · MIRRORED
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-ink-soft)' }}>
-                  Map Hunter 1 below — slots {g.siblings.map((s) => parseFieldNameInline(s.name).slot || '?').join(', ')} inherit on save.
-                </span>
-              </div>
-              {renderFieldRow(g.primary)}
-              <details style={{ padding: '0 1rem 0.875rem' }}>
-                <summary style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)', cursor: 'pointer', padding: '0.4rem 0' }}>
-                  Edit Hunter 2-{g.siblings.length + 1} individually ({g.siblings.length} field{g.siblings.length === 1 ? '' : 's'})
-                </summary>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' }}>
-                  {g.siblings.map(renderFieldRow)}
-                </div>
-              </details>
-            </div>
-          )
-        }
-        // complex group — single accordion with all fields nested.
+      {/* v27.3.10.3: real design pass on the field list. Replaces the
+          long flat groups.map() with: a sticky toolbar (search + filter
+          chips + Re-run AI), slot-grouped sections (Trip-level, Hunter
+          1..N) with sticky tap-to-collapse headers showing field counts
+          + status summary, and a compact name → source · status row
+          that expands inline to the existing FieldRow editor on tap.
+          Mirror save logic at line 690 (renderFieldRow's mirrorPath)
+          is unchanged — slot 2..N rows still inherit slot 1 unless the
+          guide flips override in advanced mode. The grouping just
+          changes what's *visible by default*; the underlying state +
+          save payload is identical to v27.3.10.2.
+
+          Why slot grouping over the prior 'simple-mirror' / 'complex'
+          group kinds: on real DFW 50+ field forms (multi-hunter +
+          paired tag/report card columns) the base-name grouping
+          collapsed unrelated rows together and hid slot 2..N siblings
+          behind <details>. Slot grouping reads more naturally — guides
+          mentally walk the form per-hunter — and surfaces each hunter
+          section with a status summary so the guide knows where to
+          focus review effort. */}
+
+      <MappingToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        filterMode={filterMode}
+        onFilterChange={setFilterMode}
+        filterCounts={filterCounts}
+        onRerunAi={handleSuggestMappings}
+        rerunDisabled={pending || aiSuggesting}
+      />
+
+      {sections.map(({ slot, members }) => {
+        const visible = members.filter(passesFilter)
+        if (visible.length === 0) return null
+        const isCollapsed = collapsedSlots.has(slot)
+        // Per-section status summary: count of mapped + needs-review +
+        // skipped + log-time across the section's full member list (not
+        // filtered) so the header reads consistently regardless of
+        // which chip is active.
+        const stats = { mapped: 0, 'needs-review': 0, skipped: 0, 'log-time': 0 }
+        for (const m of members) stats[statusForField(m.name)]++
+        const sectionTitle = slot === 0 ? 'Trip-level' : `Hunter ${slot}`
+        // Build the human summary: "8 fields · 6 mapped · 2 needs review"
+        const summaryParts: string[] = [`${members.length} field${members.length === 1 ? '' : 's'}`]
+        if (stats.mapped > 0) summaryParts.push(`${stats.mapped} mapped`)
+        if (stats['needs-review'] > 0) summaryParts.push(`${stats['needs-review']} needs review`)
+        if (stats['log-time'] > 0) summaryParts.push(`${stats['log-time']} log-time`)
+        if (stats.skipped > 0) summaryParts.push(`${stats.skipped} skipped`)
         return (
-          <details key={`complex-${g.base}`} className="bb-tile" style={{ padding: '0.875rem 1rem' }}>
-            <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600, color: 'var(--color-ink)' }}>{g.base}</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-ink-soft)' }}>
-                {g.fields.length} sequential fields &mdash; tap to map individually
+          <div key={`section-${slot}`} className="bb-mapping-section">
+            <button
+              type="button"
+              className="bb-mapping-section-head"
+              onClick={() => toggleSlotCollapsed(slot)}
+              aria-expanded={!isCollapsed}
+              aria-controls={`section-${slot}-body`}
+            >
+              <span className="bb-mapping-section-title-wrap">
+                <span className="bb-mapping-section-title">{sectionTitle}</span>
+                <span className="bb-mapping-section-summary">
+                  {summaryParts.map((p, i) => (
+                    <span key={i}>
+                      {i > 0 ? ' · ' : ''}
+                      {i === 0 ? <strong>{p}</strong> : p}
+                    </span>
+                  ))}
+                </span>
               </span>
-            </summary>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
-              {g.fields.map(renderFieldRow)}
-            </div>
-          </details>
+              <ChevronDown
+                size={16}
+                aria-hidden="true"
+                className={
+                  'bb-mapping-section-chevron' + (isCollapsed ? ' is-collapsed' : '')
+                }
+              />
+            </button>
+            {!isCollapsed && (
+              <div id={`section-${slot}-body`}>
+                {visible.map((f) => {
+                  const isExpanded = expandedFields.has(f.name)
+                  if (isExpanded) {
+                    return (
+                      <div
+                        key={f.name}
+                        className="bb-mapping-row-expanded"
+                      >
+                        <button
+                          type="button"
+                          className="bb-mapping-row-compact"
+                          style={{ padding: '0 0 0.4rem', borderBottom: 'none', minHeight: 0 }}
+                          onClick={() => toggleFieldExpanded(f.name)}
+                          aria-expanded={true}
+                        >
+                          <StatusPill status={statusForField(f.name)} />
+                          <div className="bb-mapping-row-compact-name">
+                            <span className="bb-mapping-row-compact-label">{f.name}</span>
+                          </div>
+                          <ChevronDown
+                            size={16}
+                            aria-hidden="true"
+                            className="bb-mapping-row-compact-chevron"
+                          />
+                        </button>
+                        {renderFieldRow(f)}
+                      </div>
+                    )
+                  }
+                  return (
+                    <button
+                      key={f.name}
+                      type="button"
+                      className="bb-mapping-row-compact"
+                      onClick={() => toggleFieldExpanded(f.name)}
+                      aria-expanded={false}
+                    >
+                      <StatusPill status={statusForField(f.name)} />
+                      <div className="bb-mapping-row-compact-name">
+                        <span className="bb-mapping-row-compact-label">{f.name}</span>
+                        <span className="bb-mapping-row-compact-source">
+                          <span className="bb-mapping-row-compact-source-arrow">→</span>
+                          {shortSourceLabel(f.name)}
+                        </span>
+                      </div>
+                      <ChevronRight
+                        size={16}
+                        aria-hidden="true"
+                        className="bb-mapping-row-compact-chevron"
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )
       })}
+
+      {/* Empty state when search + filter combination matches nothing. */}
+      {sections.every(({ members }) => members.filter(passesFilter).length === 0) && (
+        <div className="bb-mapping-empty" role="status">
+          No fields match your search or filter.
+          {(searchQuery || filterMode !== 'all') && (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="bb-text-action"
+                onClick={() => {
+                  setSearchQuery('')
+                  setFilterMode('all')
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-copper)',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: 'inherit',
+                  textDecoration: 'underline',
+                }}
+              >
+                Clear filters
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {saveError && (
         <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
@@ -1345,6 +1589,98 @@ function SlotBadgeButton({
       {isOverridden ? ' ·' : ''}
     </button>
   )
+}
+
+// v27.3.10.3: sticky top toolbar for the redesigned wizard. Search
+// input + filter chips (with live counts) + Re-run AI button. Wraps
+// to two rows on phones.
+function MappingToolbar({
+  searchQuery,
+  onSearchChange,
+  filterMode,
+  onFilterChange,
+  filterCounts,
+  onRerunAi,
+  rerunDisabled,
+}: {
+  searchQuery: string
+  onSearchChange: (v: string) => void
+  filterMode: 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
+  onFilterChange: (v: 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time') => void
+  filterCounts: { all: number; mapped: number; 'needs-review': number; skipped: number; 'log-time': number }
+  onRerunAi: () => void
+  rerunDisabled: boolean
+}) {
+  const chips: Array<{
+    key: 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
+    label: string
+    count: number
+  }> = [
+    { key: 'all', label: 'All', count: filterCounts.all },
+    { key: 'mapped', label: 'Mapped', count: filterCounts.mapped },
+    { key: 'needs-review', label: 'Needs review', count: filterCounts['needs-review'] },
+    { key: 'log-time', label: 'Log-time', count: filterCounts['log-time'] },
+    { key: 'skipped', label: 'Skipped', count: filterCounts.skipped },
+  ]
+  return (
+    <div className="bb-mapping-toolbar">
+      <div className="bb-mapping-toolbar-row">
+        <div className="bb-mapping-search">
+          <Search size={14} aria-hidden="true" className="bb-mapping-search-icon" />
+          <input
+            type="search"
+            placeholder="Search fields…"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            aria-label="Search PDF field names"
+          />
+        </div>
+        <button
+          type="button"
+          className="bb-mapping-rerun"
+          onClick={onRerunAi}
+          disabled={rerunDisabled}
+          title="Re-run AI mapping suggestions"
+        >
+          <Sparkles size={13} aria-hidden="true" />
+          Re-run AI
+        </button>
+      </div>
+      <div className="bb-mapping-filters" aria-label="Filter fields by status">
+        {chips.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            className="bb-mapping-chip"
+            aria-pressed={filterMode === c.key}
+            onClick={() => onFilterChange(c.key)}
+          >
+            {c.label}
+            <span className="bb-mapping-chip-count">{c.count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// v27.3.10.3: status pill for compact rows. Four variants:
+// mapped (green) | log-time (blue) | needs-review (copper) | skipped (gray).
+function StatusPill({
+  status,
+}: {
+  status: 'mapped' | 'log-time' | 'needs-review' | 'skipped'
+}) {
+  const className = `bb-status-pill bb-status-pill-${status}`
+  const label =
+    status === 'mapped'
+      ? 'Mapped'
+      : status === 'log-time'
+      ? 'Log-time'
+      : status === 'needs-review'
+      ? 'Review'
+      : 'Skipped'
+  return <span className={className}>{label}</span>
 }
 
 function FieldRow({

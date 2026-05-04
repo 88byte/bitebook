@@ -1867,6 +1867,282 @@ body {
   font-size: 0.74rem;
 }
 
+/* ── v27.3.10.3 mapping wizard redesign ─────────────────────────────────────
+   Replaces the long flat field list with: a sticky toolbar (search + filter
+   chips + Re-run AI), slot-grouped sections (Trip-level, Hunter 1..N) with
+   collapsible headers showing field counts + status summary, and a
+   compact row → tap-to-expand pattern so 50+ field forms read as a
+   tight scannable index instead of a runway of cards. */
+.bb-mapping-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0 0.7rem;
+  position: sticky;
+  top: 0;
+  background: var(--color-paper);
+  z-index: 5;
+  border-bottom: 1px solid var(--color-card-divider);
+}
+.bb-mapping-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.bb-mapping-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  position: relative;
+}
+.bb-mapping-search input {
+  width: 100%;
+  padding: 0.55rem 0.8rem 0.55rem 2.1rem;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.bb-mapping-search input:focus {
+  outline: 2px solid var(--color-copper);
+  outline-offset: -1px;
+}
+.bb-mapping-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+.bb-mapping-filters {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bb-mapping-chip {
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-divider);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.bb-mapping-chip:hover {
+  border-color: var(--color-ink-soft);
+}
+.bb-mapping-chip[aria-pressed='true'] {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border-color: var(--color-ink);
+}
+.bb-mapping-chip-count {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+.bb-mapping-rerun {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-card-divider);
+  background: transparent;
+  color: var(--color-copper);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bb-mapping-rerun:hover {
+  border-color: var(--color-copper);
+  background: rgba(168, 92, 50, 0.04);
+}
+.bb-mapping-rerun:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bb-mapping-section {
+  margin: 0.5rem 0 0;
+}
+.bb-mapping-section + .bb-mapping-section {
+  margin-top: 1.4rem;
+}
+.bb-mapping-section-head {
+  position: sticky;
+  top: 6rem;
+  z-index: 3;
+  background: var(--color-paper);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0 0.45rem;
+  border-bottom: 1px solid var(--color-card-divider);
+  cursor: pointer;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+.bb-mapping-section-head:hover .bb-mapping-section-title {
+  color: var(--color-copper);
+}
+.bb-mapping-section-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.bb-mapping-section-title {
+  font-family: var(--font-barlow-condensed), 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--color-ink);
+  text-transform: uppercase;
+  margin: 0;
+}
+.bb-mapping-section-summary {
+  font-size: 0.78rem;
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.bb-mapping-section-summary strong {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.bb-mapping-section-chevron {
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+.bb-mapping-section-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.bb-mapping-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.78rem 0;
+  border-bottom: 1px solid var(--color-card-divider);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  color: inherit;
+  min-height: 3.25rem;
+}
+.bb-mapping-row-compact:hover {
+  background: rgba(168, 92, 50, 0.04);
+}
+.bb-mapping-row-compact:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: -2px;
+}
+.bb-mapping-row-compact-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.bb-mapping-row-compact-label {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-size: 0.92rem;
+  word-break: break-word;
+}
+.bb-mapping-row-compact-source {
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  word-break: break-word;
+}
+.bb-mapping-row-compact-source-arrow {
+  color: var(--color-ink-tint, #BFB5A6);
+  flex-shrink: 0;
+}
+.bb-mapping-row-compact-chevron {
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+}
+
+.bb-status-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.bb-status-pill-mapped {
+  background: rgba(63, 107, 58, 0.14);
+  color: #2F5A2A;
+}
+.bb-status-pill-needs-review {
+  background: rgba(168, 92, 50, 0.16);
+  color: var(--color-copper);
+}
+.bb-status-pill-skipped {
+  background: var(--color-card-divider);
+  color: var(--color-ink-muted);
+}
+.bb-status-pill-log-time {
+  background: rgba(58, 110, 165, 0.14);
+  color: #2A5A8C;
+}
+
+.bb-mapping-row-expanded {
+  padding: 0.6rem 0 1rem;
+  border-bottom: 1px solid var(--color-card-divider);
+  background: rgba(168, 92, 50, 0.025);
+}
+
+.bb-mapping-empty {
+  padding: 1.4rem 0;
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 480px) {
+  .bb-mapping-rerun {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .bb-mapping-section-head {
+    top: 7.5rem;
+  }
+}
+
 /* ── Skeleton loaders (loading.tsx) ──────────────────────────────────────── */
 /* Used by app/loading.tsx + nested loading.tsx files. Shown instantly on
    navigation while server work finishes. Tints/sizes match the real layout
