@@ -515,26 +515,14 @@ export default function TripDetailEditor({
         </div>
       </CollapsedSection>
 
-      {/* HUNTERS (collapsed → expand inline) */}
-      <CollapsedSection
-        icon={<Users size={18} aria-hidden="true" />}
-        eyebrow="Hunters"
-        summary={huntersSummary}
-        actionLabel={expanded.has('hunters') ? 'Save' : 'Manage'}
-        expanded={expanded.has('hunters')}
-        onToggle={() => handleSectionToggle('hunters')}
-      >
-        <div className="bb-form-row">
-          <span className="bb-form-label">Hunters on this trip</span>
-          <HuntersMultiSelect
-            hunters={hunterList}
-            selected={selected}
-            onToggle={toggleHunter}
-            onAddHunter={addHunter}
-          />
-          <p className="bb-form-help">Tap Save above to commit the hunter list.</p>
-        </div>
-      </CollapsedSection>
+      {/* v27.3.8.1 item 1 — Hunters CollapsedSection removed. The
+          new HuntersOnTripPanel above the editor owns the full
+          flow (status pills + add/remove). The participant state +
+          HuntersMultiSelect helpers in this component are unused
+          for now; left in place because the autoSave plumbing
+          still serializes them into FormData via syncParticipants
+          (no-op at the action level when canonical participant
+          sync runs through syncTripParticipantsAction). */}
 
       {/* NOTES (collapsed → expand inline) */}
       <CollapsedSection

@@ -26,13 +26,14 @@ export type HarvestLogActionResult =
   | { ok: true; id: string }
   | { error: string }
 
-// v27.3.7.3 - normalize the tag/report-card mode form value. Only
-// 'same' and 'manual' are persisted; everything else (incl. ''
-// placeholder) becomes null.
-function readMode(raw: FormDataEntryValue | null): 'same' | 'manual' | null {
+// v27.3.7.3 + v27.3.8.1 - normalize the tag/report-card mode form
+// value. 'same' / 'manual' / 'blank' are persisted; everything else
+// (incl. '' placeholder) becomes null (= unset / mandatory choice).
+function readMode(raw: FormDataEntryValue | null): 'same' | 'manual' | 'blank' | null {
   const v = String(raw ?? '').trim()
   if (v === 'same') return 'same'
   if (v === 'manual') return 'manual'
+  if (v === 'blank') return 'blank'
   return null
 }
 

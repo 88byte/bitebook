@@ -1143,7 +1143,8 @@ DOCUMENT-TYPE DISAMBIGUATION (critical — common AI mistake):
 - "Tag Report Card" / "Harvest Report Card" / "Bear Tag Report" / "Deer Tag Report" / any "Report Card" field on a state log → MUST map to "hunter_harvest_report_card.identifier" (number) or its sibling fields. NEVER to "hunter_license.*" — a hunter's report card is a separate physical document from their hunting license.
 - "License" / "License #" / "License Number" / "License DOC ID" → "hunter_license.identifier" (or "guide_license.identifier" if the field sits in a guide section).
 - "Stamp" / "Federal Duck Stamp" / "Migratory Bird Stamp" → "hunter_stamp.identifier" (number) or "hunter_stamp.jurisdiction"/"state"/"year".
-- "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → "wallet_consumed.identifier" (the harvest tag the hunter punched).
+- "Tag" without "Report Card" (e.g. "Tag #", "Tag Number") → use "harvest_log_entry_species[N].tag_identifier" where N is the species column (1, 2, or 3 — read off the PDF page; the first species column = [1], second = [2], third = [3]). NEVER "wallet_consumed.identifier" for multi-species forms — that path resolves to the entry-level wallet-linked tag and only fills the FIRST species's tag column. The per-species tag_identifier path resolves the correct tag # per species (auto-fills first row from the linked tag, takes guide-entered overrides for rows 2+).
+- "Report Card" tag # field (e.g. "Tag # / Report Card #" "Report Card #") on a state log → use "harvest_log_entry_species[N].report_card_identifier" with the same species-column rule. NEVER "hunter_harvest_report_card.identifier" for multi-species forms — that's the entry-level path; per-species fills correctly.
 
 SIGNATURE FIELDS (route to e-signature sentinels — never skip):
 - "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line / any signature-date placeholder → MUST map to "signature_date.now". NEVER "harvest_log.log_date" (hunt date), NEVER "wallet_consumed.valid_to" (tag expiry), NEVER any other date source. These fields fill ONLY when the document is actually signed via e-signature, NOT at PDF generation. The fill engine resolves "signature_date.now" to NULL at generate-time so the box stays blank until the signing flow runs.
@@ -1156,7 +1157,7 @@ SIGNATURE FIELDS (route to e-signature sentinels — never skip):
 EITHER-OR FIELDS (use fallback_path):
 - When a label says "TAG / REPORT CARD", "TAG OR REPORT CARD", "License or Permit", "Phone or Email", "(if applicable)", or otherwise indicates EITHER of two sources is acceptable, set BOTH suggested_path AND fallback_path.
 - The engine evaluates suggested_path first; if it's empty (no value on the entry), it falls through to fallback_path.
-- Pick the more common case as the primary. For "TAG / REPORT CARD" on a CDFW form, prefer "wallet_consumed.identifier" (the punched tag) as primary and "hunter_harvest_report_card.identifier" as fallback.
+- Pick the more common case as the primary. For "TAG / REPORT CARD" on a CDFW form, prefer "harvest_log_entry_species[N].tag_identifier" (the punched tag, per species column N) as primary and "harvest_log_entry_species[N].report_card_identifier" as fallback.
 - For ordinary single-source fields, omit fallback_path (or set to empty string). Only use it when the label genuinely accepts either-or.
 
 When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`

@@ -739,15 +739,20 @@ function SpeciesRow({
   const [species, setSpecies] = useState(row.species ?? '')
   const [qH, setQH] = useState(String(row.qty_harvested))
   const [qR, setQR] = useState(String(row.qty_released))
-  // v27.3.7.3: tag # / report card # mode + value state. Modes are
-  // 'same' | 'manual' | '' (placeholder; treated as null on save).
-  type Mode = 'same' | 'manual' | ''
+  // v27.3.7.3 + v27.3.8.1: tag # / report card # mode + value state.
+  // Modes are 'same' | 'manual' | 'blank' | '' (placeholder; treated
+  // as null on save).
+  type Mode = 'same' | 'manual' | 'blank' | ''
   const initialTagMode: Mode =
-    row.tag_identifier_mode === 'same' || row.tag_identifier_mode === 'manual'
+    row.tag_identifier_mode === 'same' ||
+    row.tag_identifier_mode === 'manual' ||
+    row.tag_identifier_mode === 'blank'
       ? row.tag_identifier_mode
       : ''
   const initialReportMode: Mode =
-    row.report_card_identifier_mode === 'same' || row.report_card_identifier_mode === 'manual'
+    row.report_card_identifier_mode === 'same' ||
+    row.report_card_identifier_mode === 'manual' ||
+    row.report_card_identifier_mode === 'blank'
       ? row.report_card_identifier_mode
       : ''
   const [tagMode, setTagMode] = useState<Mode>(initialTagMode)
@@ -919,8 +924,8 @@ function SpeciesIdField({
 }: {
   kind: 'tag' | 'report_card'
   fieldId: string
-  mode: 'same' | 'manual' | ''
-  setMode: (m: 'same' | 'manual' | '') => void
+  mode: 'same' | 'manual' | 'blank' | ''
+  setMode: (m: 'same' | 'manual' | 'blank' | '') => void
   value: string
   setValue: (v: string) => void
   firstValue: string
@@ -941,7 +946,7 @@ function SpeciesIdField({
         className="bb-input"
         value={mode}
         onChange={(e) => {
-          const next = e.target.value as 'same' | 'manual' | ''
+          const next = e.target.value as 'same' | 'manual' | 'blank' | ''
           setMode(next)
           if (next !== 'manual') setValue('')
           setTimeout(() => commit(), 0)
@@ -951,6 +956,9 @@ function SpeciesIdField({
         <option value="">Choose…</option>
         <option value="same">{sameLabel}</option>
         <option value="manual">Enter manually</option>
+        {/* v27.3.8.1 item 2a: explicit "Leave blank" so the guide
+            can confirm a deliberately-empty field on the PDF. */}
+        <option value="blank">Leave blank</option>
       </select>
       {mode === 'manual' && (
         <input
@@ -967,7 +975,7 @@ function SpeciesIdField({
       )}
       {isUnset && (
         <p className="bb-form-help" style={{ color: '#B33A2E', marginTop: '0.25rem' }}>
-          {label} required for additional species — pick &ldquo;same as first&rdquo; or enter manually.
+          {label} required for additional species — pick &ldquo;same as first&rdquo;, enter manually, or leave blank.
         </p>
       )}
     </div>

@@ -66,17 +66,19 @@ type EntrySnapshot = {
   // v27.3.7.2 item 1: per-row tag_identifier override. Free text on
   // each species row so multi-species hunts can record each tag #
   // separately (the entry-level linked tag only covers one).
-  // v27.3.7.3: 2nd+ rows use a mandatory mode dropdown — 'same' reuses
-  // the entry-level wallet-linked id, 'manual' uses the free text.
+  // v27.3.7.3 + v27.3.8.1: 2nd+ rows use a mandatory mode dropdown —
+  //   'same'   reuses the entry-level wallet-linked id
+  //   'manual' uses the free-text override
+  //   'blank'  forces the field empty on the generated PDF
   // Same pattern for harvest_report_card_identifier.
   species_rows: Array<{
     species: string | null
     qty_harvested: number
     qty_released: number
     tag_identifier: string | null
-    tag_identifier_mode: 'same' | 'manual' | null
+    tag_identifier_mode: 'same' | 'manual' | 'blank' | null
     report_card_identifier: string | null
-    report_card_identifier_mode: 'same' | 'manual' | null
+    report_card_identifier_mode: 'same' | 'manual' | 'blank' | null
   }>
 }
 
@@ -341,12 +343,15 @@ function resolveSource(
       if (idx === 0) return entry.tag?.identifier ?? ''
       if (sp.tag_identifier_mode === 'same') return entry.tag?.identifier ?? ''
       if (sp.tag_identifier_mode === 'manual') return sp.tag_identifier ?? ''
+      // v27.3.8.1: 'blank' explicitly empties the field on the PDF.
+      if (sp.tag_identifier_mode === 'blank') return ''
       return ''
     }
     if (speciesMatch[2] === 'report_card_identifier') {
       if (idx === 0) return entry.report_card?.identifier ?? ''
       if (sp.report_card_identifier_mode === 'same') return entry.report_card?.identifier ?? ''
       if (sp.report_card_identifier_mode === 'manual') return sp.report_card_identifier ?? ''
+      if (sp.report_card_identifier_mode === 'blank') return ''
       return ''
     }
   }
@@ -654,12 +659,16 @@ export async function generateFilledHarvestLogPDFsAction(
           report_card_identifier_mode?: string | null
         }
         const ext = s as ExtendedRow
-        const tagMode =
-          ext.tag_identifier_mode === 'same' || ext.tag_identifier_mode === 'manual'
+        const tagMode: 'same' | 'manual' | 'blank' | null =
+          ext.tag_identifier_mode === 'same' ||
+          ext.tag_identifier_mode === 'manual' ||
+          ext.tag_identifier_mode === 'blank'
             ? ext.tag_identifier_mode
             : null
-        const reportMode =
-          ext.report_card_identifier_mode === 'same' || ext.report_card_identifier_mode === 'manual'
+        const reportMode: 'same' | 'manual' | 'blank' | null =
+          ext.report_card_identifier_mode === 'same' ||
+          ext.report_card_identifier_mode === 'manual' ||
+          ext.report_card_identifier_mode === 'blank'
             ? ext.report_card_identifier_mode
             : null
         return {

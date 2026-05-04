@@ -6,7 +6,6 @@ import {
   Activity,
   Users,
 } from 'lucide-react'
-import { initials } from '../../_lib/format'
 import { requireGuide } from '../../_lib/auth'
 import {
   fetchTripDetail,
@@ -26,6 +25,10 @@ import CancelTripButton from './CancelTripButton'
 import SaveAsTemplateButton from './SaveAsTemplateButton'
 import TripDetailEditor from './TripDetailEditor'
 import TripDocsCard from './TripDocsCard'
+import HuntersOnTripPanel, {
+  type ParticipantRow,
+  type WalletLink,
+} from './HuntersOnTripPanel'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -172,125 +175,20 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
       {/* v27.3.3.1: divider below action row, before content. */}
       <div className="bb-page-divider mt-3" aria-hidden="true" />
 
-      {/* v27.1.3.0.5: participant status panel — restored from v27.0b.6
-          (was lost when v27.1.1.0.3e.6 merged read-only DetailCells into
-          the inline TripDetailEditor). Read-only by design — the
-          collapsed Hunters section in the editor below owns the
-          add/remove flow; this panel only visualizes who's on the trip
-          and whether they've linked their license + tag. */}
-      {participants.length > 0 && (() => {
-        // v27.3.3.1 — title flips when any hunter has a pending
-        // license/tag link, so the guide sees the section as a
-        // todo when something's incomplete.
-        const anyPending = participants.some((p) => {
-          if (!p.hunter_id) return false
-          const links = walletLinksByHunter.get(p.hunter_id) ?? []
-          const hasLicense = links.some((l) => l.type === 'license')
-          const hasTag = links.some((l) => l.type === 'tag')
-          if (!hasLicense) return true
-          if (!hasTag && trip.species_targeted) return true
-          return false
-        })
-        const sectionTitle = anyPending ? 'Hunters still needing action' : 'Hunters on this trip'
-        return (
-        <section className="bb-tile bb-form-section mt-4">
-          <div className="bb-tile-body">
-            <h2
-              className="bb-form-section-head"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <Users size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-              {sectionTitle}
-            </h2>
-            <div className="bb-detail-list">
-              {participants.map((p) => {
-                const name = p.profile?.display_name ?? p.guest_name ?? 'Unnamed hunter'
-                const links = p.hunter_id ? walletLinksByHunter.get(p.hunter_id) ?? [] : []
-                const hasLicense = links.some((l) => l.type === 'license')
-                const hasTag = links.some((l) => l.type === 'tag')
-                const pending: string[] = []
-                if (p.hunter_id) {
-                  if (!hasLicense) pending.push('license')
-                  if (!hasTag && trip.species_targeted) pending.push('tag')
-                }
-                return (
-                  <div key={p.id} className="bb-detail-row">
-                    <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="bb-detail-name">{name}</div>
-                      <div className="bb-detail-sub">
-                        {p.profile ? 'Bite Book hunter' : 'Guest'} · {p.role}
-                      </div>
-                      {(links.length > 0 || pending.length > 0) && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '0.35rem',
-                            marginTop: '0.4rem',
-                          }}
-                        >
-                          {links.map((l) => {
-                            const typeLabel =
-                              l.type === 'license'
-                                ? 'License'
-                                : l.type === 'tag'
-                                  ? 'Tag'
-                                  : l.type === 'permit'
-                                    ? 'Permit'
-                                    : l.type === 'stamp'
-                                      ? 'Stamp'
-                                      : 'Doc'
-                            return (
-                              <span
-                                key={l.id}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.15rem 0.5rem',
-                                  borderRadius: '999px',
-                                  background: 'var(--color-paper-tint)',
-                                  border: '1px solid var(--color-ink-tint)',
-                                  fontSize: '0.78rem',
-                                  color: 'var(--color-ink)',
-                                }}
-                              >
-                                <strong style={{ fontWeight: 600 }}>{typeLabel}:</strong>{' '}
-                                {l.identifier}
-                                {l.species ? ` · ${l.species}` : ''}
-                                {' ✓'}
-                              </span>
-                            )
-                          })}
-                          {pending.map((kind) => (
-                            <span
-                              key={`pending-${kind}`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '999px',
-                                background: 'var(--color-copper)',
-                                color: '#fff',
-                                fontSize: '0.78rem',
-                                fontWeight: 600,
-                              }}
-                            >
-                              Pending: {kind}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )
-      })()}
+      {/* v27.3.8.1 item 1 — single combined panel for hunters. Replaces
+          the prior split between (a) read-only status panel here and
+          (b) Hunters accordion inside TripDetailEditor that owned add/
+          remove. One section: status pills + a Manage hunters toggle
+          that reveals HuntersMultiSelect inline and auto-saves. */}
+      <HuntersOnTripPanel
+        tripId={trip.id}
+        participants={participants as ParticipantRow[]}
+        walletLinksByHunter={walletLinksByHunter as Map<string, WalletLink[]>}
+        candidates={candidates}
+        initialSelectedIds={initialSelectedIds}
+        speciesTargeted={trip.species_targeted}
+        canManage={isOpen}
+      />
 
       <div className="mt-4">
         <TripDetailEditor

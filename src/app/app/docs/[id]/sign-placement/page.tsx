@@ -95,7 +95,7 @@ export default async function SignPlacementPage({ params }: { params: Params }) 
       </div>
       <header>
         <p className="bb-page-eyebrow">{doc.kind === 'log' ? 'Harvest log setup' : 'Waiver setup'}</p>
-        <h1 className="bb-page-title">Place signatures</h1>
+        <h1 className="bb-page-title">Set signature locations</h1>
         <p className="bb-page-sub">
           Drop boxes where the hunter and guide sign. The signing flow paints
           their signature inside each box.

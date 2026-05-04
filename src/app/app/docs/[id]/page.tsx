@@ -103,23 +103,12 @@ export default async function DocDetailPage({
         />
       )}
 
-      {/* v27.2.0.3.1: waiver- and log-class docs both get a "Place
-          signatures" link to the drag-place wizard. Mapping-driven
-          placements (data_source_path = e_signature.{role} on
-          AcroForm signature widgets) take precedence at sign time;
-          the wizard is the fallback for PDFs without form fields. */}
-      {viewerOwnsDoc && (doc.kind === 'waiver' || doc.kind === 'log') && !isArchived && (
-        <div className="mt-3">
-          <Link
-            href={`/app/docs/${doc.id}/sign-placement`}
-            className="bb-btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-            Place signatures
-          </Link>
-        </div>
-      )}
+      {/* v27.3.8.1 item 4: "Place signatures" CTA moved into the
+          Field mapping section (next to "Edit mapping") and renamed
+          to "Set signature locations" so the action verb matches
+          what the wizard actually does. The standalone CTA above
+          this section was confusing — it sat alone with no header
+          context. */}
 
       {/* v27.1.5.3.5: post-replace banner. hash_changed = the new PDF's
           field set differs from the old one, so existing mappings may
@@ -240,7 +229,15 @@ export default async function DocDetailPage({
                   ? 'Match each PDF box to a Bite Book data source so the auto-fill engine knows what to write into your reports. AI can pre-fill suggestions you review — this is the next step.'
                   : 'See how this template maps PDF boxes to Bite Book data sources. The mapping is owned by the template author.'}
               </p>
-              <div style={{ marginTop: '0.6rem' }}>
+              <div
+                style={{
+                  marginTop: '0.6rem',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                }}
+              >
                 <Link
                   href={`/app/docs/${doc.id}/mapping`}
                   className="bb-cta-sm"
@@ -252,7 +249,20 @@ export default async function DocDetailPage({
                       : 'Edit mapping'
                     : 'View mapping'}
                 </Link>
-                <span style={{ marginLeft: '0.6rem', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                {/* v27.3.8.1 item 4: signature-placement CTA lives
+                    next to Edit mapping. Renamed from "Place
+                    signatures" -> "Set signature locations" for
+                    clarity. */}
+                {viewerOwnsDoc && !isArchived && (
+                  <Link
+                    href={`/app/docs/${doc.id}/sign-placement`}
+                    className="bb-btn-secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    Set signature locations
+                  </Link>
+                )}
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
                   Status: <strong>{doc.mapping_status}</strong>
                 </span>
               </div>
@@ -294,7 +304,15 @@ export default async function DocDetailPage({
                     ? 'Map text fields here; signature placement ships next (v27.1.2).'
                     : 'See how this template maps text fields.'}
                 </p>
-                <div style={{ marginTop: '0.6rem' }}>
+                <div
+                  style={{
+                    marginTop: '0.6rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                  }}
+                >
                   <Link
                     href={`/app/docs/${doc.id}/mapping`}
                     className="bb-cta-sm"
@@ -306,6 +324,17 @@ export default async function DocDetailPage({
                         : 'Edit mapping'
                       : 'View mapping'}
                   </Link>
+                  {/* v27.3.8.1 item 4: same pattern as the log
+                      kind — sig placement next to Edit mapping. */}
+                  {viewerOwnsDoc && !isArchived && (
+                    <Link
+                      href={`/app/docs/${doc.id}/sign-placement`}
+                      className="bb-btn-secondary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      Set signature locations
+                    </Link>
+                  )}
                 </div>
               </div>
             </section>

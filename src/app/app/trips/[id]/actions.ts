@@ -23,6 +23,48 @@ type Kind = Database['public']['Enums']['harvest_kind']
 
 export type AddParticipantsResult = { ok: true } | { error: string }
 
+// v27.3.8.1 item 1 — auto-save participant sync from the combined
+// "Hunters on this trip" panel. Replaces the deleted TripDetailEditor
+// Hunters accordion's full-trip-update path; this action only touches
+// trip_participants (and ensures the harvest log) without requiring
+// the rest of the trip's required fields in the form data.
+export async function syncTripParticipantsAction(
+  tripId: string,
+  hunterIds: string[]
+): Promise<{ ok: true } | { error: string }> {
+  const { profile } = await requireGuide()
+  if (!tripId) return { error: 'Missing trip id.' }
+
+  const sb = await createClient()
+  const { data: trip } = await sb
+    .from('trips')
+    .select('id, status, guide_id')
+    .eq('id', tripId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (!trip) return { error: 'Trip not found.' }
+  if (trip.status !== 'planned' && trip.status !== 'active') {
+    return { error: 'This trip is closed; the hunter list is locked.' }
+  }
+
+  const cleaned = hunterIds.filter((id) => id && !id.startsWith('pending:'))
+  const result = await syncTripParticipants(profile.id, tripId, cleaned)
+  if ('error' in result) return { error: result.error }
+
+  try {
+    await ensureHarvestLog(tripId, profile.id)
+  } catch (e) {
+    console.warn('[syncTripParticipants:ensureHarvestLog]', e)
+  }
+
+  revalidatePath(`/app/trips/${tripId}`)
+  revalidatePath('/app/trips')
+  revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
+  return { ok: true }
+}
+
 // v25.4: add accepted hunters to an existing trip from the trip detail page.
 export async function addTripParticipantsAction(
   formData: FormData
