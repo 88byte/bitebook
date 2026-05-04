@@ -147,22 +147,25 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'harvest_log_entry.notes',       label: "This hunter's notes",         category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
   // Species rows 1..3 (1-indexed). State forms typically have 1-3 species
   // columns per hunter row; engine reads species_rows[N-1] for each path.
-  { value: 'harvest_log_entry_species[1].species',        label: 'First species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[1].qty_harvested',  label: 'How many of the first species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[1].qty_released',   label: 'How many of the first species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  // v27.3.7.2 item 1: per-species tag # (free text, manual entry on
-  // the harvest log row). Use when a hunter takes multiple species
-  // and each has its own tag — wallet_consumed.identifier only covers
-  // the entry-level linked tag, which is one species.
-  { value: 'harvest_log_entry_species[1].tag_identifier', label: 'Tag # for the first species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[2].species',        label: 'Second species this hunter took',          category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[2].qty_harvested',  label: 'How many of the second species harvested', category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[2].qty_released',   label: 'How many of the second species released',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[2].tag_identifier', label: 'Tag # for the second species',             category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[3].species',        label: 'Third species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[3].qty_harvested',  label: 'How many of the third species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[3].qty_released',   label: 'How many of the third species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[3].tag_identifier', label: 'Tag # for the third species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[1].species',                 label: 'First species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[1].qty_harvested',           label: 'How many of the first species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[1].qty_released',            label: 'How many of the first species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  // v27.3.7.2 / v27.3.7.3: per-species tag # / report card #. 1st
+  // species auto-fills from the entry-linked wallet items. 2nd+
+  // species use a mandatory mode dropdown (same|manual) on the
+  // harvest log row that drives this resolver value.
+  { value: 'harvest_log_entry_species[1].tag_identifier',          label: 'Tag # for the first species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[1].report_card_identifier',  label: 'Report card # for the first species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[2].species',                 label: 'Second species this hunter took',          category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[2].qty_harvested',           label: 'How many of the second species harvested', category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[2].qty_released',            label: 'How many of the second species released',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[2].tag_identifier',          label: 'Tag # for the second species',             category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[2].report_card_identifier',  label: 'Report card # for the second species',     category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[3].species',                 label: 'Third species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[3].qty_harvested',           label: 'How many of the third species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[3].qty_released',            label: 'How many of the third species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[3].tag_identifier',          label: 'Tag # for the third species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[3].report_card_identifier',  label: 'Report card # for the third species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
 
   // ── Per-hunter slot: tag the entry consumed ─────────────────────────
   { value: 'wallet_consumed.identifier',         label: 'Tag number',                              category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },

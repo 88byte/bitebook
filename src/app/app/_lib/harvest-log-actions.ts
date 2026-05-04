@@ -26,6 +26,16 @@ export type HarvestLogActionResult =
   | { ok: true; id: string }
   | { error: string }
 
+// v27.3.7.3 - normalize the tag/report-card mode form value. Only
+// 'same' and 'manual' are persisted; everything else (incl. ''
+// placeholder) becomes null.
+function readMode(raw: FormDataEntryValue | null): 'same' | 'manual' | null {
+  const v = String(raw ?? '').trim()
+  if (v === 'same') return 'same'
+  if (v === 'manual') return 'manual'
+  return null
+}
+
 // ── generateHarvestLogAction ─────────────────────────────────────────────
 
 export async function generateHarvestLogAction(
@@ -247,8 +257,13 @@ export async function createEntrySpeciesAction(
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
-  // v27.3.7.2 item 1: per-species tag # override. 80-char defensive cap.
+  // v27.3.7.2 item 1 + v27.3.7.3: per-species tag # / report card #
+  // override + their mode (same|manual|null). 80-char cap on free text.
   const tagIdentifier = String(formData.get('tag_identifier') ?? '').trim().slice(0, 80) || null
+  const tagIdentifierMode = readMode(formData.get('tag_identifier_mode'))
+  const reportCardIdentifier =
+    String(formData.get('report_card_identifier') ?? '').trim().slice(0, 80) || null
+  const reportCardIdentifierMode = readMode(formData.get('report_card_identifier_mode'))
 
   const sb = await createClient()
 
@@ -270,6 +285,9 @@ export async function createEntrySpeciesAction(
       qty_harvested: qHarv,
       qty_released: qRel,
       tag_identifier: tagIdentifier,
+      tag_identifier_mode: tagIdentifierMode,
+      report_card_identifier: reportCardIdentifier,
+      report_card_identifier_mode: reportCardIdentifierMode,
     })
     .select('id')
     .single()
@@ -301,8 +319,13 @@ export async function updateEntrySpeciesAction(
     return { error: 'Quantities must be non-negative whole numbers.' }
   }
   const species = String(formData.get('species') ?? '').trim() || null
-  // v27.3.7.2 item 1: per-species tag # override.
+  // v27.3.7.2 item 1 + v27.3.7.3: per-species tag # / report card #
+  // override + their mode (same|manual|null).
   const tagIdentifier = String(formData.get('tag_identifier') ?? '').trim().slice(0, 80) || null
+  const tagIdentifierMode = readMode(formData.get('tag_identifier_mode'))
+  const reportCardIdentifier =
+    String(formData.get('report_card_identifier') ?? '').trim().slice(0, 80) || null
+  const reportCardIdentifierMode = readMode(formData.get('report_card_identifier_mode'))
 
   const sb = await createClient()
   const { error } = await sb
@@ -312,6 +335,9 @@ export async function updateEntrySpeciesAction(
       qty_harvested: qHarv,
       qty_released: qRel,
       tag_identifier: tagIdentifier,
+      tag_identifier_mode: tagIdentifierMode,
+      report_card_identifier: reportCardIdentifier,
+      report_card_identifier_mode: reportCardIdentifierMode,
     })
     .eq('id', speciesId)
   if (error) {

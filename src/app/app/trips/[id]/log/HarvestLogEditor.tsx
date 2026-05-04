@@ -659,7 +659,6 @@ function EntryAccordion({
                 <PhantomSpeciesRow
                   entryId={entry.id}
                   tagSpecies={entry.tag?.species ?? ''}
-                  tagIdentifier={entry.tag?.identifier ?? ''}
                   tripSpecies={tripSpecies}
                   speciesOptions={speciesOptions}
                 />
@@ -670,8 +669,21 @@ function EntryAccordion({
                   Fill in the details below. Add more species if more than one was harvested.
                 </p>
                 <div className="flex flex-col gap-2">
-                  {entry.species_rows.map((s) => (
-                    <SpeciesRow key={s.id} row={s} speciesOptions={speciesOptions} />
+                  {entry.species_rows.map((s, i) => (
+                    <SpeciesRow
+                      key={s.id}
+                      row={s}
+                      rowIndex={i}
+                      entryTagIdentifier={entry.tag?.identifier ?? ''}
+                      // v27.3.7.3: report_card isn't loaded in the
+                      // editor query (HarvestLogEntryWithRelations
+                      // doesn't include it; the fill engine live-
+                      // loads it from trip_wallet_items at generate
+                      // time). The dropdown label hides the value
+                      // until that data flows here in a later ship.
+                      entryReportCardIdentifier=""
+                      speciesOptions={speciesOptions}
+                    />
                   ))}
                 </div>
               </>
@@ -701,9 +713,22 @@ function EntryAccordion({
 
 function SpeciesRow({
   row,
+  rowIndex,
+  entryTagIdentifier,
+  entryReportCardIdentifier,
   speciesOptions,
 }: {
   row: HarvestLogEntrySpeciesRow
+  // v27.3.7.3: 0-based row index. The first species (index 0) hides
+  // the manual Tag # / Report card # inputs so they don't compete
+  // with the entry's auto-filled wallet-linked items. 2nd+ rows
+  // surface a mandatory dropdown (same|manual).
+  rowIndex: number
+  // v27.3.7.3: entry-level wallet-linked tag + report card identifiers
+  // shown in the "Same as first species" dropdown copy so the guide
+  // can verify the value before picking that option.
+  entryTagIdentifier: string
+  entryReportCardIdentifier: string
   // v27.3.7.1 item 3: shared species pool drives the SpeciesField
   // dropdown so this row matches the picker on every other form.
   speciesOptions: SpeciesOption[]
@@ -714,23 +739,38 @@ function SpeciesRow({
   const [species, setSpecies] = useState(row.species ?? '')
   const [qH, setQH] = useState(String(row.qty_harvested))
   const [qR, setQR] = useState(String(row.qty_released))
-  // v27.3.7.2 item 1: per-row tag # override. Fixes multi-species
-  // hunts where the entry-level linked tag only covers one species.
+  // v27.3.7.3: tag # / report card # mode + value state. Modes are
+  // 'same' | 'manual' | '' (placeholder; treated as null on save).
+  type Mode = 'same' | 'manual' | ''
+  const initialTagMode: Mode =
+    row.tag_identifier_mode === 'same' || row.tag_identifier_mode === 'manual'
+      ? row.tag_identifier_mode
+      : ''
+  const initialReportMode: Mode =
+    row.report_card_identifier_mode === 'same' || row.report_card_identifier_mode === 'manual'
+      ? row.report_card_identifier_mode
+      : ''
+  const [tagMode, setTagMode] = useState<Mode>(initialTagMode)
   const [tagId, setTagId] = useState(row.tag_identifier ?? '')
+  const [reportMode, setReportMode] = useState<Mode>(initialReportMode)
+  const [reportId, setReportId] = useState(row.report_card_identifier ?? '')
 
   // Latest-state ref so onBlur callbacks always send fresh values.
-  const stateRef = useRef({ species, qH, qR, tagId })
-  stateRef.current = { species, qH, qR, tagId }
+  const stateRef = useRef({ species, qH, qR, tagMode, tagId, reportMode, reportId })
+  stateRef.current = { species, qH, qR, tagMode, tagId, reportMode, reportId }
 
   function commit() {
-    const { species: sp, qH: h, qR: r, tagId: t } = stateRef.current
+    const cur = stateRef.current
     setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('species_id', row.id)
-    fd.set('species', sp)
-    fd.set('qty_harvested', h || '0')
-    fd.set('qty_released', r || '0')
-    fd.set('tag_identifier', t)
+    fd.set('species', cur.species)
+    fd.set('qty_harvested', cur.qH || '0')
+    fd.set('qty_released', cur.qR || '0')
+    fd.set('tag_identifier', cur.tagMode === 'manual' ? cur.tagId : '')
+    fd.set('tag_identifier_mode', cur.tagMode)
+    fd.set('report_card_identifier', cur.reportMode === 'manual' ? cur.reportId : '')
+    fd.set('report_card_identifier_mode', cur.reportMode)
     startTransition(async () => {
       const res = await updateEntrySpeciesAction(fd)
       if ('error' in res) {
@@ -780,26 +820,38 @@ function SpeciesRow({
             placeholder="Pick a species"
           />
         </div>
-        {/* v27.3.7.2 item 1: per-species Tag # input. Free text. The
-            entry-level wallet-linked tag covers ONE species; this
-            field unblocks hunters who hunt multiple species in one
-            trip (each gets its own tag in real life). Multi-tag
-            wallet linking ships in a v27.3.8 follow-up. */}
-        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
-          <label className="bb-form-label" htmlFor={`tag_${row.id}`}>
-            Tag # <span style={{ opacity: 0.6 }}>(optional)</span>
-          </label>
-          <input
-            id={`tag_${row.id}`}
-            type="text"
-            className="bb-input"
-            value={tagId}
-            onChange={(e) => setTagId(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. T-1234567"
-            maxLength={80}
-          />
-        </div>
+        {/* v27.3.7.3: 2nd+ species rows surface mandatory mode
+            dropdowns for Tag # and Report Card #. "Same as first
+            species" reuses the entry-level linked wallet item id;
+            "Enter manually" reveals a free-text input. Until the
+            guide picks one (mode==''), the row is flagged as
+            incomplete and the resolver returns blank for these
+            paths. The 1st species (rowIndex 0) auto-fills from the
+            entry's wallet-linked tag/report card without any UI. */}
+        {rowIndex > 0 && (
+          <>
+            <SpeciesIdField
+              kind="tag"
+              fieldId={`tag_${row.id}`}
+              mode={tagMode}
+              setMode={setTagMode}
+              value={tagId}
+              setValue={setTagId}
+              firstValue={entryTagIdentifier}
+              commit={commit}
+            />
+            <SpeciesIdField
+              kind="report_card"
+              fieldId={`rc_${row.id}`}
+              mode={reportMode}
+              setMode={setReportMode}
+              value={reportId}
+              setValue={setReportId}
+              firstValue={entryReportCardIdentifier}
+              commit={commit}
+            />
+          </>
+        )}
         <div className="bb-form-row">
           <label className="bb-form-label">Harvested</label>
           <input
@@ -848,6 +900,80 @@ function SpeciesRow({
   )
 }
 
+// ── SpeciesIdField (mandatory mode dropdown) ────────────────────────────
+//
+// v27.3.7.3: shared field for Tag # and Report Card # on 2nd+ species
+// rows. Mode dropdown is mandatory; until the guide picks 'same' or
+// 'manual', the row is flagged incomplete (red helper text). 'manual'
+// reveals the free-text input below.
+
+function SpeciesIdField({
+  kind,
+  fieldId,
+  mode,
+  setMode,
+  value,
+  setValue,
+  firstValue,
+  commit,
+}: {
+  kind: 'tag' | 'report_card'
+  fieldId: string
+  mode: 'same' | 'manual' | ''
+  setMode: (m: 'same' | 'manual' | '') => void
+  value: string
+  setValue: (v: string) => void
+  firstValue: string
+  commit: () => void
+}) {
+  const label = kind === 'tag' ? 'Tag #' : 'Report card #'
+  const sameLabel = firstValue
+    ? `Same as first species (${firstValue})`
+    : 'Same as first species'
+  const isUnset = mode === ''
+  return (
+    <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
+      <label className="bb-form-label" htmlFor={fieldId}>
+        {label} <span style={{ color: '#B33A2E' }}>*</span>
+      </label>
+      <select
+        id={fieldId}
+        className="bb-input"
+        value={mode}
+        onChange={(e) => {
+          const next = e.target.value as 'same' | 'manual' | ''
+          setMode(next)
+          if (next !== 'manual') setValue('')
+          setTimeout(() => commit(), 0)
+        }}
+        style={isUnset ? { borderColor: '#B33A2E' } : undefined}
+      >
+        <option value="">Choose…</option>
+        <option value="same">{sameLabel}</option>
+        <option value="manual">Enter manually</option>
+      </select>
+      {mode === 'manual' && (
+        <input
+          type="text"
+          className="bb-input"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          placeholder={kind === 'tag' ? 'e.g. T-1234567' : 'e.g. RC-987654'}
+          maxLength={80}
+          style={{ marginTop: '0.4rem' }}
+          autoFocus
+        />
+      )}
+      {isUnset && (
+        <p className="bb-form-help" style={{ color: '#B33A2E', marginTop: '0.25rem' }}>
+          {label} required for additional species — pick &ldquo;same as first&rdquo; or enter manually.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── PhantomSpeciesRow ───────────────────────────────────────────────────
 //
 // Pre-fills species from the entry's linked tag.species (live-pull). On
@@ -857,16 +983,11 @@ function SpeciesRow({
 function PhantomSpeciesRow({
   entryId,
   tagSpecies,
-  tagIdentifier,
   tripSpecies,
   speciesOptions,
 }: {
   entryId: string
   tagSpecies: string
-  // v27.3.7.2 item 1: pre-fill the Tag # input with the hunter's
-  // linked tag identifier (if any). Phantom row defaults; once a
-  // species row materializes, the SpeciesRow keeps the user's edits.
-  tagIdentifier: string
   // v27.3.7.1 item 3: trip-level species fallback default. Tag species
   // wins when set (tag was explicitly linked); otherwise we fall back
   // to the trip's species_targeted so the guide doesn't have to retype
@@ -878,26 +999,28 @@ function PhantomSpeciesRow({
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useFadingSavedStatus()
   const [species, setSpecies] = useState(tagSpecies || tripSpecies || '')
-  const [tagId, setTagId] = useState(tagIdentifier || '')
   const [qH, setQH] = useState('0')
   const [qR, setQR] = useState('0')
 
-  const stateRef = useRef({ species, qH, qR, tagId })
-  stateRef.current = { species, qH, qR, tagId }
+  // v27.3.7.3: phantom row is ALWAYS the first species (index 0), so
+  // the Tag # input is intentionally absent — the entry's wallet-
+  // linked tag auto-fills the first species's tag # via the
+  // resolver fallback (sp.tag_identifier ?? entry.tag.identifier).
+  const stateRef = useRef({ species, qH, qR })
+  stateRef.current = { species, qH, qR }
 
   function commit() {
-    const { species: sp, qH: h, qR: r, tagId: t } = stateRef.current
+    const { species: sp, qH: h, qR: r } = stateRef.current
     // Don't materialize an empty row — wait for the user to actually
-    // type something or set qty>0 or enter a tag # before promoting
-    // to a real row.
-    if (!sp.trim() && (h === '' || h === '0') && (r === '' || r === '0') && !t.trim()) return
+    // type something or set qty>0 before promoting to a real row.
+    if (!sp.trim() && (h === '' || h === '0') && (r === '' || r === '0')) return
     setStatus({ kind: 'saving' })
     const fd = new FormData()
     fd.set('entry_id', entryId)
     fd.set('species', sp)
     fd.set('qty_harvested', h || '0')
     fd.set('qty_released', r || '0')
-    fd.set('tag_identifier', t)
+    // tag_identifier intentionally not sent — first row auto-fills.
     startTransition(async () => {
       const res = await createEntrySpeciesAction(fd)
       if ('error' in res) {
@@ -931,23 +1054,10 @@ function PhantomSpeciesRow({
             placeholder="Pick a species"
           />
         </div>
-        {/* v27.3.7.2 item 1: per-species Tag # input. Pre-fills with
-            the hunter's linked tag identifier when set. */}
-        <div className="bb-form-row" style={{ gridColumn: '1 / -1' }}>
-          <label className="bb-form-label" htmlFor={`phantom_tag_${entryId}`}>
-            Tag # <span style={{ opacity: 0.6 }}>(optional)</span>
-          </label>
-          <input
-            id={`phantom_tag_${entryId}`}
-            type="text"
-            className="bb-input"
-            value={tagId}
-            onChange={(e) => setTagId(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. T-1234567"
-            maxLength={80}
-          />
-        </div>
+        {/* v27.3.7.3: Tag # input removed from phantom row — first
+            species auto-fills from the entry's wallet-linked tag.
+            2nd+ species rows (rendered as real SpeciesRow once
+            inserted) carry the manual override input. */}
         <div className="bb-form-row">
           <label className="bb-form-label">Harvested</label>
           <input
@@ -1190,10 +1300,15 @@ function GeneratePdfsSection({
           </select>
         </div>
 
+        {/* v27.3.7.3: drop bb-cta-full — button was stretching the
+            full card width, which felt oversized vs page-level
+            primary CTAs (Create Trip, Add new card, Send invite,
+            etc.). Plain bb-cta-sm sizes it inline-flex like the
+            rest of the system. */}
         <div style={{ marginTop: '0.75rem' }}>
           <button
             type="button"
-            className="bb-cta-sm bb-cta-full"
+            className="bb-cta-sm"
             onClick={generate}
             disabled={pending || !docId}
           >

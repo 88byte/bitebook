@@ -431,8 +431,11 @@ export type Database = {
           position: number
           qty_harvested: number
           qty_released: number
+          report_card_identifier: string | null
+          report_card_identifier_mode: string | null
           species: string | null
           tag_identifier: string | null
+          tag_identifier_mode: string | null
           updated_at: string
         }
         Insert: {
@@ -442,8 +445,11 @@ export type Database = {
           position?: number
           qty_harvested?: number
           qty_released?: number
+          report_card_identifier?: string | null
+          report_card_identifier_mode?: string | null
           species?: string | null
           tag_identifier?: string | null
+          tag_identifier_mode?: string | null
           updated_at?: string
         }
         Update: {
@@ -453,8 +459,11 @@ export type Database = {
           position?: number
           qty_harvested?: number
           qty_released?: number
+          report_card_identifier?: string | null
+          report_card_identifier_mode?: string | null
           species?: string | null
           tag_identifier?: string | null
+          tag_identifier_mode?: string | null
           updated_at?: string
         }
         Relationships: [

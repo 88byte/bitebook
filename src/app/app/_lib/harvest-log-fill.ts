@@ -66,11 +66,17 @@ type EntrySnapshot = {
   // v27.3.7.2 item 1: per-row tag_identifier override. Free text on
   // each species row so multi-species hunts can record each tag #
   // separately (the entry-level linked tag only covers one).
+  // v27.3.7.3: 2nd+ rows use a mandatory mode dropdown — 'same' reuses
+  // the entry-level wallet-linked id, 'manual' uses the free text.
+  // Same pattern for harvest_report_card_identifier.
   species_rows: Array<{
     species: string | null
     qty_harvested: number
     qty_released: number
     tag_identifier: string | null
+    tag_identifier_mode: 'same' | 'manual' | null
+    report_card_identifier: string | null
+    report_card_identifier_mode: 'same' | 'manual' | null
   }>
 }
 
@@ -314,13 +320,16 @@ function resolveSource(
   }
 
   // harvest_log_entry_species[N].field — N is 1-indexed.
-  // v27.3.7.2 item 1: tag_identifier added to the per-species path
-  // namespace. Fallback chain: row's own tag_identifier override →
-  // for index 0 (first species), entry.tag.identifier → ''. So if a
-  // CDFW form maps "Tag #1" to harvest_log_entry_species[1].tag_identifier,
-  // it picks up the entry-linked wallet tag automatically when the
-  // guide hasn't typed an override; rows 2+ require manual entry.
-  const speciesMatch = /^harvest_log_entry_species\[(\d+)\]\.(species|qty_harvested|qty_released|tag_identifier)$/.exec(path)
+  // v27.3.7.2 / v27.3.7.3: tag_identifier + report_card_identifier
+  // resolution.
+  // 1st species (idx===0): always auto-fills from entry.tag /
+  // entry.report_card (the entry-level wallet-linked items).
+  // 2nd+ species (idx>=1): mode dropdown drives it —
+  //   'same' = inherit the same value as 1st species
+  //   'manual' = use the row's typed identifier
+  //   null = unset (mandatory; render as blank, the UI flags it
+  //          and prevents save until the guide picks one).
+  const speciesMatch = /^harvest_log_entry_species\[(\d+)\]\.(species|qty_harvested|qty_released|tag_identifier|report_card_identifier)$/.exec(path)
   if (speciesMatch) {
     const idx = Number(speciesMatch[1]) - 1
     const sp = entry.species_rows[idx]
@@ -329,10 +338,15 @@ function resolveSource(
     if (speciesMatch[2] === 'qty_harvested') return String(sp.qty_harvested)
     if (speciesMatch[2] === 'qty_released') return String(sp.qty_released)
     if (speciesMatch[2] === 'tag_identifier') {
-      if (sp.tag_identifier && sp.tag_identifier.trim()) return sp.tag_identifier
-      // First-row fallback to the entry-level linked tag so guides
-      // who only have one species per trip don't have to retype.
       if (idx === 0) return entry.tag?.identifier ?? ''
+      if (sp.tag_identifier_mode === 'same') return entry.tag?.identifier ?? ''
+      if (sp.tag_identifier_mode === 'manual') return sp.tag_identifier ?? ''
+      return ''
+    }
+    if (speciesMatch[2] === 'report_card_identifier') {
+      if (idx === 0) return entry.report_card?.identifier ?? ''
+      if (sp.report_card_identifier_mode === 'same') return entry.report_card?.identifier ?? ''
+      if (sp.report_card_identifier_mode === 'manual') return sp.report_card_identifier ?? ''
       return ''
     }
   }
@@ -632,14 +646,34 @@ export async function generateFilledHarvestLogPDFsAction(
             valid_to: reportCard.valid_to,
           }
         : null,
-      species_rows: (speciesByEntry.get(e.id) ?? []).map((s) => ({
-        species: s.species,
-        qty_harvested: s.qty_harvested,
-        qty_released: s.qty_released,
-        // v27.3.7.2 item 1: per-row tag override surfaces in the
-        // resolver via harvest_log_entry_species[N].tag_identifier.
-        tag_identifier: (s as { tag_identifier?: string | null }).tag_identifier ?? null,
-      })),
+      species_rows: (speciesByEntry.get(e.id) ?? []).map((s) => {
+        type ExtendedRow = {
+          tag_identifier?: string | null
+          tag_identifier_mode?: string | null
+          report_card_identifier?: string | null
+          report_card_identifier_mode?: string | null
+        }
+        const ext = s as ExtendedRow
+        const tagMode =
+          ext.tag_identifier_mode === 'same' || ext.tag_identifier_mode === 'manual'
+            ? ext.tag_identifier_mode
+            : null
+        const reportMode =
+          ext.report_card_identifier_mode === 'same' || ext.report_card_identifier_mode === 'manual'
+            ? ext.report_card_identifier_mode
+            : null
+        return {
+          species: s.species,
+          qty_harvested: s.qty_harvested,
+          qty_released: s.qty_released,
+          // v27.3.7.2 / v27.3.7.3: per-row override values + their
+          // mandatory dropdown mode for 2nd+ species rows.
+          tag_identifier: ext.tag_identifier ?? null,
+          tag_identifier_mode: tagMode,
+          report_card_identifier: ext.report_card_identifier ?? null,
+          report_card_identifier_mode: reportMode,
+        }
+      }),
     }
   })
 

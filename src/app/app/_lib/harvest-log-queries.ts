@@ -61,7 +61,7 @@ export async function fetchHarvestLog(
       : Promise.resolve({ data: [] }),
     entryIds.length
       ? sb.from('harvest_log_entry_species')
-          .select('id, entry_id, species, qty_harvested, qty_released, position, tag_identifier, created_at, updated_at')
+          .select('id, entry_id, species, qty_harvested, qty_released, position, tag_identifier, tag_identifier_mode, report_card_identifier, report_card_identifier_mode, created_at, updated_at')
           .in('entry_id', entryIds)
           .order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
