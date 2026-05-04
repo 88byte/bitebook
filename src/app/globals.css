@@ -1662,33 +1662,24 @@ body {
   border-top: 1px solid var(--color-card-divider);
 }
 
-/* v27.3.3.2 — hero rightSlot wrapper. Hidden on mobile (banner stays
-   focused on title); visible from >=1024px to host an inline action
-   like the compact invite form on /app/hunters. */
-.bb-dash-hero-right-slot {
-  display: none;
-}
-@media (min-width: 64rem) {
-  .bb-dash-hero-right-slot {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-shrink: 0;
-  }
+/* v27.3.4.1 — hero slot UNDER the subtitle. Used on /app/hunters to
+   place the inline invite form inline with banner text on both
+   mobile and desktop. (Replaces the v27.3.3.2 right-side rightSlot
+   pattern per Flavio.) */
+.bb-dash-hero-below-sub {
+  margin-top: 0.85rem;
 }
 
-/* v27.3.3.3 — banner inline invite. Title on row 1 (uppercase
-   Barlow Condensed, matches hero typography), email input + Send
-   on row 2. Margin-right pulls the block ~1.75rem off the banner's
-   right edge so it doesn't sit flush. Mobile is hidden via the
-   slot wrapper above (banner rightSlot is desktop-only). */
+/* v27.3.4.1 — banner inline invite. Lives under the hero subtitle
+   (was right-side aside in v27.3.3.x). Title row 1 + email input +
+   Send on row 2. Capped at 22rem so the form doesn't span the full
+   banner width on a wide shell. */
 .bb-hero-invite {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
   max-width: 22rem;
-  margin-right: 1.75rem;
 }
 .bb-hero-invite-title {
   margin: 0;
@@ -1751,10 +1742,11 @@ body {
   gap: 0.25rem;
 }
 
-/* Mobile body invite card hidden on desktop (banner slot owns it). */
-@media (min-width: 64rem) {
-  .bb-hunters-mobile-invite { display: none; }
-}
+/* v27.3.4.1: banner now shows the invite on BOTH mobile and desktop
+   (was desktop-only). Hide the duplicate body card always. Kept the
+   class name as the surface still renders the original invite card
+   in case we need to flip it back. */
+.bb-hunters-mobile-invite { display: none; }
 
 /* v27.3.3.2 — /app/docs list cap. Docs cards stretched into wide
    banners on the wide shell; cap the list at the same readable
@@ -2413,12 +2405,16 @@ body {
   );
 }
 
+/* v27.3.4.1 — align with .bb-dash-hero-inner so the title + subtitle
+   sit centered vertically in the banner (was flex-start, which made
+   the wallet title hug the top of the banner unlike every other
+   page). */
 .bb-wallet-hero-inner {
   position: relative;
   z-index: 2;
   height: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1.1rem;

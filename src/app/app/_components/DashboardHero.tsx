@@ -60,10 +60,15 @@ export default function DashboardHero({
           <p className={eyebrowClass}>{eyebrow}</p>
           <h1 className="bb-dash-hero-title">{title}</h1>
           <p className="bb-dash-hero-sub">{subtitle}</p>
+          {/* v27.3.4.1: rightSlot moved here — under the subtitle —
+              per Flavio. Was hidden on the right via
+              .bb-dash-hero-right-slot; now sits inline with the
+              banner's text column on both mobile and desktop. */}
+          {rightSlot ? (
+            <div className="bb-dash-hero-below-sub">{rightSlot}</div>
+          ) : null}
         </div>
-        {rightSlot ? (
-          <div className="bb-dash-hero-right-slot">{rightSlot}</div>
-        ) : showShield ? (
+        {!rightSlot && showShield ? (
           <Image
             src="/bb-shield.png"
             alt=""
