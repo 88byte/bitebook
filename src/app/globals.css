@@ -1473,6 +1473,73 @@ body {
   .bb-form-narrow { max-width: 72rem; }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   v27.3.1 — desktop card-list grid + width caps for components that
+   stretched into oversized banners on the new wide app shell.
+
+   .bb-card-list-grid: replace `<div className="flex flex-col gap-3">`
+   trip lists with this. Mobile = single column (current behavior);
+   ≥1280px = 2-col grid so trip cards sit ~640px wide, not 1300px.
+
+   .bb-net-card / .bb-cta-block / .bb-pending-card: capped at sensible
+   max-widths on desktop. Hunter network / invite cards used to stretch
+   the full bb-app-main width — felt funky on a 1480px shell.
+
+   Brand button hierarchy (DOCUMENTED, not new — formalizes the
+   convention so future ships stay consistent):
+     • PRIMARY — .bb-cta-sm (copper fill, white text). One per surface.
+     • SECONDARY — .bb-btn-secondary (outline, ink text). Multiple OK.
+     • DESTRUCTIVE — .bb-cta-sm-destructive (red fill). Confirms first.
+     • TEXT-ONLY — .bb-text-action / .bb-text-action-copper (link-like,
+       inline). Use for "View all", "Resend", "Cancel invite" actions.
+     • BLOCK CTA — .bb-cta-block (full-width copper banner). Reserve
+       for top-of-section calls-to-action only. Capped on desktop.
+
+   Placement convention (per v27.3.0):
+     • Page-level primary CTAs (New trip, Add card, Upload doc) live
+       LEFT-ALIGNED under the chip-row, not in the hero header.
+     • Detail-page action bars sit flush on the page (no .bb-tile).
+   ───────────────────────────────────────────────────────────────────── */
+
+.bb-card-list-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+@media (min-width: 80rem) {
+  .bb-card-list-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+@media (min-width: 96rem) {
+  .bb-card-list-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Dashboard 2-up rail for Upcoming + Recent on desktop. */
+.bb-dash-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 80rem) {
+  .bb-dash-pair {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+}
+
+/* Component caps on wide screens. Mobile / tablet untouched. */
+@media (min-width: 80rem) {
+  .bb-net-card { max-width: 44rem; }
+  .bb-cta-block { max-width: 26rem; }
+  .bb-pending-card { max-width: 44rem; }
+}
+
 .bb-form-label {
   font-family: var(--font-barlow-condensed);
   font-weight: 700;

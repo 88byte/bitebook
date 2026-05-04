@@ -212,7 +212,9 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
                 )}
               </div>
             ) : (
-              <div role="list" className="flex flex-col gap-4">
+              // v27.3.1: 2-col grid at >=1280px — keeps trip cards
+              // ~640px wide instead of 1300px on the wide shell.
+              <div role="list" className="bb-card-list-grid">
                 {rows.map((t) => (
                   <div role="listitem" key={t.id}>
                     <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />

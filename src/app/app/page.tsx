@@ -107,72 +107,76 @@ export default async function DashboardPage() {
         <StatIconedCard icon={Trophy} value={stats.harvests} label="Harvests" />
       </div>
 
-      {/* Upcoming */}
-      <section className="mt-5">
-        <div className="bb-dash-section-head">
-          <span className="bb-dash-section-title">Upcoming</span>
-          {upcoming.length > 0 && (
-            <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
-              View all
-            </Link>
+      {/* v27.3.1: Upcoming + Recent now sit side-by-side at >=1280px via
+          .bb-dash-pair. Mobile keeps the existing single-column stack.
+          Real desktop dashboards put the two trip lists in parallel
+          rails so the page reads as a status board, not a long scroll. */}
+      <div className="bb-dash-pair mt-5">
+        <section>
+          <div className="bb-dash-section-head">
+            <span className="bb-dash-section-title">Upcoming</span>
+            {upcoming.length > 0 && (
+              <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
+                View all
+              </Link>
+            )}
+          </div>
+          {upcoming.length === 0 ? (
+            <div className="bb-empty">
+              <div className="bb-empty-title">Nothing on the books</div>
+              <p className="bb-empty-sub">Plan a trip to see it appear here.</p>
+            </div>
+          ) : (
+            <div role="list" className="flex flex-col gap-3">
+              {upcoming.slice(0, 3).map((t) => (
+                <div role="listitem" key={t.id}>
+                  <TripRow
+                    trip={t}
+                    hunters={t.hunters}
+                    rating={t.rating}
+                    reviewCount={t.reviewCount}
+                  />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-        {upcoming.length === 0 ? (
-          <div className="bb-empty">
-            <div className="bb-empty-title">Nothing on the books</div>
-            <p className="bb-empty-sub">Plan a trip to see it appear here.</p>
-          </div>
-        ) : (
-          <div role="list" className="flex flex-col gap-3">
-            {upcoming.slice(0, 3).map((t) => (
-              <div role="listitem" key={t.id}>
-                <TripRow
-                  trip={t}
-                  hunters={t.hunters}
-                  rating={t.rating}
-                  reviewCount={t.reviewCount}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
 
-      {/* Recent trips */}
-      <section className="mt-5">
-        <div className="bb-dash-section-head">
-          <span className="bb-dash-section-title">Recent trips</span>
-          {recent.length > 0 && (
-            <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
-              View all
-            </Link>
+        <section>
+          <div className="bb-dash-section-head">
+            <span className="bb-dash-section-title">Recent trips</span>
+            {recent.length > 0 && (
+              <Link href="/app/trips" className="bb-text-action bb-text-action-copper">
+                View all
+              </Link>
+            )}
+          </div>
+          {recent.length === 0 ? (
+            // v27.1.1.0.3e.5: empty-state CTA dropped — Quick Actions widget
+            // at the top of the dashboard already exposes "Add trip" so the
+            // duplicate "Log your first trip" button here was clutter.
+            <div className="bb-empty">
+              <div className="bb-empty-title">No wrapped trips yet</div>
+              <p className="bb-empty-sub">
+                Bite Book is built around trips — each ties hunters, tags, and harvests to one record.
+              </p>
+            </div>
+          ) : (
+            <div role="list" className="flex flex-col gap-3">
+              {recent.slice(0, 3).map((t) => (
+                <div role="listitem" key={t.id}>
+                  <TripRow
+                    trip={t}
+                    hunters={t.hunters}
+                    rating={t.rating}
+                    reviewCount={t.reviewCount}
+                  />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-        {recent.length === 0 ? (
-          // v27.1.1.0.3e.5: empty-state CTA dropped — Quick Actions widget
-          // at the top of the dashboard already exposes "Add trip" so the
-          // duplicate "Log your first trip" button here was clutter.
-          <div className="bb-empty">
-            <div className="bb-empty-title">No wrapped trips yet</div>
-            <p className="bb-empty-sub">
-              Bite Book is built around trips — each ties hunters, tags, and harvests to one record.
-            </p>
-          </div>
-        ) : (
-          <div role="list" className="flex flex-col gap-3">
-            {recent.slice(0, 3).map((t) => (
-              <div role="listitem" key={t.id}>
-                <TripRow
-                  trip={t}
-                  hunters={t.hunters}
-                  rating={t.rating}
-                  reviewCount={t.reviewCount}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      </div>
     </main>
   )
 }

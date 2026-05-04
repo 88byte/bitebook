@@ -77,30 +77,19 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
 
   return (
     <main className="bb-app-main">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="bb-page-eyebrow">Documents</p>
-          <h1 className="bb-page-title">
-            {tab === 'templates' ? 'Bite Book templates' : 'Your library'}
-          </h1>
-          <p className="bb-page-sub">
-            {tab === 'templates'
-              ? 'Pre-built forms shared by Bite Book. Tap to view or use on a trip.'
-              : 'Waivers, harvest logs, and resources you can attach to any trip.'}
-          </p>
-        </div>
-        {tab === 'my' && (
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <Link
-              href="/app/docs/new"
-              className="bb-cta-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <Plus size={14} aria-hidden="true" />
-              Upload doc
-            </Link>
-          </div>
-        )}
+      {/* v27.3.1: Upload doc button moved DOWN to under the chip-row,
+          left-aligned, matching the New Trip + Add New Card pattern from
+          v27.3.0. Header now reads as plain title + sub. */}
+      <header>
+        <p className="bb-page-eyebrow">Documents</p>
+        <h1 className="bb-page-title">
+          {tab === 'templates' ? 'Bite Book templates' : 'Your library'}
+        </h1>
+        <p className="bb-page-sub">
+          {tab === 'templates'
+            ? 'Pre-built forms shared by Bite Book. Tap to view or use on a trip.'
+            : 'Waivers, harvest logs, and resources you can attach to any trip.'}
+        </p>
       </header>
 
       {/* v27.1.1.0.3e.5: top-level tabs. My docs vs Bite Book templates.
@@ -236,6 +225,21 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
           </Link>
         )}
       </nav>
+
+      {/* v27.3.1: Upload doc CTA, left-aligned under chip-row. Matches
+          New Trip (/app/trips) and Add New Card (/app/wallet) placement. */}
+      {tab === 'my' && (
+        <div className="mt-3 flex">
+          <Link
+            href="/app/docs/new"
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Upload doc
+          </Link>
+        </div>
+      )}
 
       {/* Tab body. My docs gets the bulk-select wrapper; templates gets
           a read-only DocRow list. */}
