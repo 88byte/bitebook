@@ -193,7 +193,7 @@ export default async function HuntersPage({
           )}
         </section>
 
-        <aside className="bb-hunters-grid-aside">
+        <aside className="bb-hunters-grid-aside bb-col-divider">
           <div className="bb-net-section-head">
             <span className="bb-net-section-icon" aria-hidden="true">
               <Mail size={14} />

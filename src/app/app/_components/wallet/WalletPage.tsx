@@ -143,6 +143,9 @@ export default function WalletPage({
           v27.3.0+ and Flavio's spec for v27.3.2.1. */}
       <WalletAddCta basePath={basePath} activeTab={activeTab} />
 
+      {/* v27.3.3: divider after top CTA. */}
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
+
       {/* Stats grid — paper cards, one per visible type, copper border on
           active. Each card has a small copper-filled circle with a white
           per-type icon, big count, uppercase label. Tap selects type. This

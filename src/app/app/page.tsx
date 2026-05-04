@@ -14,7 +14,6 @@ import {
   fetchRecentTrips,
   fetchDashboardStats,
   fetchUpcomingTrips,
-  fetchPendingInviteCount,
 } from './_lib/queries'
 import TripRow from './_components/TripRow'
 import DashboardHero from './_components/DashboardHero'
@@ -33,11 +32,10 @@ import DashboardHero from './_components/DashboardHero'
 export default async function DashboardPage() {
   const { profile, guide } = await requireGuide()
 
-  const [recent, stats, upcoming, pendingInvites] = await Promise.all([
+  const [recent, stats, upcoming] = await Promise.all([
     fetchRecentTrips(profile.id),
     fetchDashboardStats(profile.id),
     fetchUpcomingTrips(profile.id, 5),
-    fetchPendingInviteCount(profile.id),
   ])
 
   const greetingName = guide?.business_name?.trim() || profile.display_name
@@ -54,6 +52,9 @@ export default async function DashboardPage() {
             : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
       />
+
+      {/* v27.3.3: divider after hero, before content. */}
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
       {/* Quick Actions */}
       <h2 className="bb-dash-section-title mt-4">Quick Actions</h2>
@@ -78,27 +79,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Pending invites */}
-      <Link href="/app/hunters" className="bb-pending-card mt-3" aria-label="Manage hunters">
-        <div className="bb-pending-left">
-          <span className="bb-pending-icon" aria-hidden="true">
-            <Users size={20} />
-          </span>
-          <span className="bb-pending-meta">
-            <span className="bb-pending-count">{pendingInvites}</span>
-            <span className="bb-pending-label">
-              {pendingInvites === 1 ? 'invite waiting' : 'invites waiting'}
-            </span>
-          </span>
-        </div>
-        <span
-          className="bb-text-action bb-text-action-copper"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-        >
-          Manage hunters
-          <ArrowRight size={14} aria-hidden="true" />
-        </span>
-      </Link>
+      {/* v27.3.3: removed pending-invites widget per Flavio. */}
 
       {/* Stats trio */}
       <div className="bb-stat-row mt-3">

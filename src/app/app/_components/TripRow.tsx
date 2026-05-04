@@ -61,7 +61,7 @@ export default function TripRow({
             </span>
             <span className="bb-trip-meta-cell-text">{dateLabel}</span>
           </span>
-          <span className="bb-trip-meta-cell">
+          <span className="bb-trip-meta-cell bb-trip-meta-cell--location">
             <span className="bb-trip-meta-cell-icon" aria-hidden="true">
               <MapPin size={14} strokeWidth={1.5} />
             </span>
@@ -83,6 +83,13 @@ export default function TripRow({
         )}
       </div>
       <StatusPill status={trip.status} />
+      {/* v27.3.3 — desktop-only location pin: same content as the
+          inline location cell (which hides itself at >=1024px),
+          rendered at the bottom-right corner of the card. */}
+      <span className="bb-trip-loc-pin" aria-hidden="true">
+        <MapPin size={13} strokeWidth={1.5} />
+        {locLabel}
+      </span>
     </Link>
   )
 }

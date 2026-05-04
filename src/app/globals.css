@@ -1032,8 +1032,13 @@ body {
   white-space: nowrap;
 }
 
-.bb-pill-planned   { background: #F1E9DA; color: #6B5530; }
-.bb-pill-active    { background: #DDE7DD; color: #2F5233; }
+/* v27.3.3 — pill colors aligned with status labels (labels.ts):
+   planned → "Active"     (ready/usable) → fresh green
+   active  → "In progress" (field-active) → amber/copper
+   completed → "Done"     (finished)     → muted neutral
+   canceled → "Canceled"                 → red */
+.bb-pill-planned   { background: #D6EBD2; color: #245A2A; }
+.bb-pill-active    { background: #F1E0CC; color: #7A4A1F; }
 .bb-pill-completed { background: #E5DDD0; color: #5C5247; }
 .bb-pill-canceled  { background: #F2D6CE; color: #8C3C2A; }
 
@@ -1521,10 +1526,10 @@ body {
   .bb-trip-list-narrow { max-width: 45rem; }
 }
 
-/* v27.3.2.1 — /app/trips 2-col layout with Recent trips aside.
-   Mirrors /app dashboard's bb-dash-pair pattern but with a fixed-
-   width right rail (22rem) so the aside reads as supplementary,
-   not a peer column. Mobile stacks single-col. */
+/* v27.3.3 — /app/trips 2-col layout. Main column capped narrower
+   (~38rem) so trip cards read at a comfortable list-row width;
+   right rail (Recent trips) at 18rem. Was: 1fr + 22rem. Mobile
+   stacks single-col. */
 .bb-trips-grid {
   display: flex;
   flex-direction: column;
@@ -1534,10 +1539,9 @@ body {
 @media (min-width: 64rem) {
   .bb-trips-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 22rem;
-    gap: 1.75rem;
+    grid-template-columns: minmax(0, 38rem) 18rem;
+    gap: 2rem;
     align-items: start;
-    max-width: 80rem;
   }
 }
 .bb-trips-grid-aside {
@@ -1548,6 +1552,40 @@ body {
     position: sticky;
     top: 1.5rem;
   }
+}
+
+/* v27.3.3 — vertical column divider for any 2-col layout. Mobile:
+   no divider (single-col). Desktop: 1px line on the LEFT of the
+   right-rail column, with matching padding-left so content doesn't
+   sit hard against the line. Used by .bb-hunters-grid-aside,
+   .bb-trips-grid-aside, .bb-dash-pair > section:nth-child(2). */
+@media (min-width: 64rem) {
+  .bb-col-divider {
+    border-left: 1px solid var(--color-card-divider);
+    padding-left: 1.75rem;
+  }
+}
+
+/* v27.3.3 — Trip card location to bottom-right on desktop. Mobile
+   keeps the inline meta cell. .bb-trip-row already has position:
+   relative for the watermark, so absolute positioning sticks. */
+.bb-trip-loc-pin { display: none; }
+@media (min-width: 64rem) {
+  .bb-trip-meta-cell--location { display: none; }
+  .bb-trip-loc-pin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    position: absolute;
+    bottom: 0.85rem;
+    right: 1rem;
+    z-index: 2;
+    font-family: var(--font-barlow);
+    font-size: 0.78rem;
+    color: var(--color-ink-soft);
+    pointer-events: none;
+  }
+  .bb-trip-loc-pin svg { color: var(--color-ink-muted); }
 }
 
 /* Dashboard 2-up rail for Upcoming + Recent on desktop. */
@@ -1570,10 +1608,10 @@ body {
   .bb-pending-card { max-width: 44rem; }
 }
 
-/* v27.3.2 — Hunters page 2-column layout. Mobile stacks (current);
-   ≥1024px puts the hunter list on the left and the Invite-a-hunter
-   card on the right as a sticky aside so the invite form is always
-   in view while the guide scrolls through their roster. */
+/* v27.3.3 — Hunters page 2-column layout. Right rail narrowed
+   from 22rem to 18rem (Flavio: invite window oversized). Internal
+   padding of .bb-net-card is reduced separately for the aside so
+   the form takes less screen real estate. */
 .bb-hunters-grid {
   display: flex;
   flex-direction: column;
@@ -1583,10 +1621,9 @@ body {
 @media (min-width: 64rem) {
   .bb-hunters-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 22rem;
-    gap: 1.75rem;
+    grid-template-columns: minmax(0, 38rem) 18rem;
+    gap: 2rem;
     align-items: start;
-    max-width: 72rem;
   }
 }
 .bb-hunters-grid-aside {
@@ -1597,6 +1634,9 @@ body {
     position: sticky;
     top: 1.5rem;
   }
+  /* Smaller invite footprint inside the aside */
+  .bb-hunters-grid-aside .bb-net-invite { padding: 0.85rem 1rem 1rem; }
+  .bb-hunters-grid-aside .bb-net-card { max-width: 100%; }
 }
 
 /* Stronger section heads on the hunters page — was bare text, now a
@@ -2958,17 +2998,41 @@ body {
    cards render as clean paper cards. */
 
 /* v27.0a.10: vertical stack mode for "View all" expanded carousels */
+/* v27.3.3 — wallet expanded "View all" stack. Mobile: vertical
+   stack (preserves card aspect, scrolls). Desktop: 2-3 col grid
+   so cards read as cards, not stretched banners. Maintains the
+   ~1.6:1 wallet-card aspect on each tile. */
 .bb-wallet-stack {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
+@media (min-width: 64rem) {
+  .bb-wallet-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+@media (min-width: 96rem) {
+  .bb-wallet-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 
-/* In stack mode the cards take the full available width — override the
-   carousel's flex 0 0 100% sizing so they expand naturally. */
+/* In stack mode the cards take their grid cell — override the
+   carousel's flex 0 0 100% sizing so they fit cleanly. */
 .bb-wallet-stack .bb-wallet-card {
   flex: 1 1 auto;
   width: 100%;
+  /* v27.3.3 — keep cards near a wallet aspect on desktop too,
+     so they don't stretch tall in a narrow grid cell. */
+}
+@media (min-width: 64rem) {
+  .bb-wallet-stack .bb-wallet-card {
+    aspect-ratio: 1.6 / 1;
+    min-height: 0;
+  }
 }
 
 /* v27.0a.11: trip card calendar-shape date block (replaces the v26.5 plain

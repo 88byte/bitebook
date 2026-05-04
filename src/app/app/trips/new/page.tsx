@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowLeft, Bookmark } from 'lucide-react'
+import { ArrowLeft, Bookmark, Plus } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchAcceptedHunters, fetchSpecies } from '../../_lib/queries'
 import {
@@ -67,6 +67,23 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
           Set the basics now. You can add harvests, photos, and warden shares once you&rsquo;re in the field.
         </p>
       </header>
+
+      {/* v27.3.3: top-aligned Create trip CTA. Uses the HTML form=
+          attribute to submit the NewTripForm below — same handler,
+          just reachable without scrolling on long forms. */}
+      <div className="mt-3 flex">
+        <button
+          type="submit"
+          form="new-trip-form"
+          className="bb-cta-sm"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <Plus size={16} aria-hidden="true" />
+          Create trip
+        </button>
+      </div>
+
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
       {/* v27.1.4: Use template picker. Hidden when the guide has zero
           active templates so the empty state isn't a dead button. */}

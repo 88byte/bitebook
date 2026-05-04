@@ -104,7 +104,7 @@ export default function NewTripForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form id="new-trip-form" onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* v27.1.4: hidden template_id is only present when the form is in
           template-clone mode. createTripFromTemplateAction reads it from
           the FormData. */}

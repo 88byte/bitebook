@@ -55,7 +55,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
   // Fetch both side-by-side so the tab counts in the header are accurate.
   // Templates list uses includeArchived semantics — when toggle is on, the
   // list shows ARCHIVED ONLY (matches docs-library archive-filter semantics).
-  const [{ rows, total }, templates, allTemplates, recentForAside] = await Promise.all([
+  const [{ rows, total }, templates, allTemplates, recentRaw] = await Promise.all([
     fetchTripsPage(profile.id, { status, from, to }),
     fetchGuideTripTemplates(profile.id, { includeArchived }),
     // active-only count for the tab header — independent of the archive
@@ -64,6 +64,13 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
     // v27.3.2.1: recent wrapped trips for the desktop right-rail aside.
     fetchRecentTrips(profile.id),
   ])
+
+  // v27.3.3 — Recent rail dedupe. Strip out any trips already visible
+  // in the main filtered list so a single trip never appears in both
+  // columns at once. (e.g. when the chip is "Done", recent wrapped
+  // trips are obviously the same rows.)
+  const visibleIds = new Set(rows.map((r) => r.id))
+  const recentForAside = recentRaw.filter((r) => !visibleIds.has(r.id))
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function chipHref(key: TripStatus | 'all') {
@@ -126,6 +133,9 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
           </Link>
         </div>
       )}
+
+      {/* v27.3.3: divider after top CTAs, before content/tabs. */}
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
       {/* v27.1.4: top-level tabs — Trips vs Templates. Mirrors the docs
           library tab pattern (copper underline on active, URL-driven). */}
@@ -242,7 +252,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
             </section>
 
             {recentForAside.length > 0 && (
-              <aside className="bb-trips-grid-aside">
+              <aside className="bb-trips-grid-aside bb-col-divider">
                 <div className="bb-net-section-head">
                   <span className="bb-net-section-icon" aria-hidden="true">
                     <Bookmark size={14} />
