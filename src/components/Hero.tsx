@@ -20,13 +20,17 @@ export default function Hero({
 
       <div className="bb-hero-in relative z-10 flex flex-col items-center gap-2 sm:gap-3 max-w-md w-full">
         <Link href="/" aria-label="Bite Book home">
+          {/* v27.3.0: bumped DESKTOP logo size DOWN. The lg:360 from earlier
+              releases looked great on the marketing hero but pushed the
+              login form well below the fold on a typical 1440x900 desktop.
+              Mobile / tablet sizes (170 / 240) preserved exactly. */}
           <Image
             src="/bb-logo-mark.png"
             alt="Bite Book"
             width={1024}
             height={1024}
-            sizes="(min-width: 1024px) 360px, (min-width: 768px) 300px, 170px"
-            className="h-[170px] w-[170px] sm:h-[240px] sm:w-[240px] md:h-[300px] md:w-[300px] lg:h-[360px] lg:w-[360px]"
+            sizes="(min-width: 1024px) 220px, (min-width: 768px) 240px, 170px"
+            className="h-[170px] w-[170px] sm:h-[200px] sm:w-[200px] md:h-[220px] md:w-[220px] lg:h-[220px] lg:w-[220px]"
             priority
           />
         </Link>

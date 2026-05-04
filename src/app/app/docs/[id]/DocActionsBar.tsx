@@ -107,10 +107,13 @@ export default function DocActionsBar({
 
   return (
     <>
+      {/* v27.3.0: lifted out of the .bb-tile container so the action row
+          sits flush on the page like /app/trips/[id] does — no other
+          detail page wraps its actions in a white panel. Same flex
+          flow + gap, just without the panel chrome. */}
       <div
-        className="bb-tile mt-3"
+        className="mt-3"
         style={{
-          padding: '0.75rem 1rem',
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.5rem',

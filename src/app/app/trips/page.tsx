@@ -110,14 +110,10 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
         eyebrowColor="copper"
         showShield={false}
       />
-      {tab === 'trips' && total > 0 && (
-        <div className="mt-3 flex justify-end">
-          <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
-            <Plus size={16} aria-hidden="true" />
-            New trip
-          </Link>
-        </div>
-      )}
+      {/* v27.3.0: New trip button moved DOWN — was right-aligned under
+          the hero, now left-aligned UNDER the chip filter row (see below).
+          The hero already has plenty of presence; the CTA reads more
+          intuitively when it sits with the list controls. */}
 
       {/* v27.1.4: top-level tabs — Trips vs Templates. Mirrors the docs
           library tab pattern (copper underline on active, URL-driven). */}
@@ -184,6 +180,16 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
               </Link>
             ))}
           </div>
+
+          {/* v27.3.0: New trip CTA, left-aligned under the chip row. */}
+          {total > 0 && (
+            <div className="mt-3 flex">
+              <Link href="/app/trips/new" className="bb-cta-sm" aria-label="Create new trip">
+                <Plus size={16} aria-hidden="true" />
+                New trip
+              </Link>
+            </div>
+          )}
 
           <section className="mt-4">
             {rows.length === 0 ? (

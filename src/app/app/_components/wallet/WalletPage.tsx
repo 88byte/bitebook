@@ -310,7 +310,7 @@ function WalletAddCta({
   activeTab: WalletItemType
 }) {
   return (
-    <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+    <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-start' }}>
       <Link
         href={`${basePath}/new?type=${activeTab}`}
         className="bb-cta-sm"

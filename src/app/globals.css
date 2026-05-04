@@ -1464,6 +1464,14 @@ body {
     margin-right: auto;
   }
 }
+/* v27.3.0: at >=1280px, give form pages a touch more horizontal room
+   so they don't feel like a 600px column floating in a 1480px shell. */
+@media (min-width: 80rem) {
+  .bb-form-narrow { max-width: 64rem; }
+}
+@media (min-width: 96rem) {
+  .bb-form-narrow { max-width: 72rem; }
+}
 
 .bb-form-label {
   font-family: var(--font-barlow-condensed);
@@ -1581,7 +1589,9 @@ body {
     height: 100dvh;
     overflow-y: auto;
   }
-  /* On desktop with sidebar, give the main content room to breathe. */
+  /* On desktop with sidebar, give the main content room to breathe.
+     v27.3.0 — wide-screen tier bumps. The 1180px cap felt mobile-shaped
+     on >=1280px monitors. Pages now have proportional room at xl / 2xl. */
   .bb-app-main {
     max-width: 1180px;
     padding-left: 2rem;
@@ -1589,6 +1599,12 @@ body {
     padding-top: 2rem;
     margin: 0 auto;
   }
+}
+@media (min-width: 80rem) {
+  .bb-app-main { max-width: 1320px; padding-left: 2.5rem; padding-right: 2.5rem; }
+}
+@media (min-width: 96rem) {
+  .bb-app-main { max-width: 1480px; padding-left: 3rem; padding-right: 3rem; }
 }
 
 .bb-sidebar-brand {
