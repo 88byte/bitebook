@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { FileText, Building, Map, Mountain, TreeDeciduous, PawPrint, Crosshair } from 'lucide-react'
+import { FileText, Building, Map, Mountain, TreeDeciduous, Crosshair, Users, Paperclip } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
 import { methodsForKind } from '@/lib/methods'
 import { createTripAction } from '../actions'
@@ -9,8 +9,15 @@ import { createTripFromTemplateAction } from '../../_lib/trip-template-actions'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import DateTimeField from '../../_components/DateTimeField'
 import SpeciesField from '../../_components/SpeciesField'
+import type { AttachableDoc } from '../../_lib/trip-doc-queries'
 
 type SpeciesOption = { name: string; kind: 'hunting' | 'fishing' }
+
+const DOC_KIND_LABEL: Record<string, string> = {
+  waiver: 'Waiver',
+  resource: 'Resource',
+  other: 'Doc',
+}
 
 // v27.1.4: optional initial values for the "Use template" flow. When the
 // caller passes initial+templateId, the form pre-fills activity/location/
@@ -37,6 +44,7 @@ export default function NewTripForm({
   initial = null,
   templateId = null,
   speciesOptions,
+  attachableDocs = [],
 }: {
   hunters: HunterOption[]
   initial?: NewTripInitial | null
@@ -44,6 +52,10 @@ export default function NewTripForm({
   // v27.1.3.0.2: full species pool from the species table for the
   // Hunt details Species picker. Same source as wallet/harvest forms.
   speciesOptions: SpeciesOption[]
+  // v27.6.2.1: docs the guide can pre-attach at create time. Populated
+  // from fetchAttachableDocsForGuide — owned + Bite Book templates,
+  // archived + log-kind already filtered out.
+  attachableDocs?: AttachableDoc[]
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +70,18 @@ export default function NewTripForm({
   // v27.1.3.0.2: controlled value for the SpeciesField so kind-toggle and
   // template pre-fill flow through cleanly.
   const [species, setSpecies] = useState<string>(initial?.species_targeted ?? '')
+  // v27.6.2.1: pre-creation docs picker state. doc_ids are submitted
+  // alongside hunter_ids; createTripAction attaches each post-insert.
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
+
+  function toggleDoc(id: string) {
+    setSelectedDocs((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -68,6 +92,7 @@ export default function NewTripForm({
       // profile.id we don't have yet. Skip them on submit.
       if (!id.startsWith('pending:')) fd.append('hunter_ids', id)
     })
+    selectedDocs.forEach((id) => fd.append('doc_ids', id))
     startTransition(async () => {
       try {
         // v27.1.4: when a templateId is present we route through
@@ -104,11 +129,18 @@ export default function NewTripForm({
   }
 
   return (
-    <form id="new-trip-form" onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form id="new-trip-form" onSubmit={onSubmit} className="bb-trip-detail-grid">
       {/* v27.1.4: hidden template_id is only present when the form is in
           template-clone mode. createTripFromTemplateAction reads it from
           the FormData. */}
       {templateId && <input type="hidden" name="template_id" value={templateId} />}
+
+      {/* v27.6.2.1 — full 2-col layout matching /app/trips/[id]:
+          LEFT: editor sections (Trip overview / Location / Hunt details / Notes).
+          LEFT BOTTOM: pre-creation docs picker.
+          RIGHT (spans both rows): hunters multi-select panel.
+          Mobile collapses to single column via bb-trip-detail-grid CSS. */}
+      <div className="bb-trip-detail-grid-editor flex flex-col gap-4">
 
       {/* TRIP OVERVIEW — v27.6.2: matches /app/trips/[id]
           TripDetailEditor's layout. Activity (compact segmented) at
@@ -305,22 +337,6 @@ export default function NewTripForm({
         </div>
       </section>
 
-      {/* HUNTERS */}
-      <section className="bb-tile bb-form-section">
-        <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Hunters</h2>
-          <div className="bb-form-row">
-            <span className="bb-form-label">Add hunters to this trip</span>
-            <HuntersMultiSelect
-              hunters={hunterList}
-              selected={selected}
-              onToggle={toggleHunter}
-              onAddHunter={addHunter}
-            />
-          </div>
-        </div>
-      </section>
-
       {/* NOTES */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
@@ -349,6 +365,99 @@ export default function NewTripForm({
           Creating trip…
         </p>
       )}
+
+      </div>{/* /editor */}
+
+      {/* DOCS — left-bottom column on desktop (matches /app/trips/[id]
+          .bb-trip-detail-grid-docs slot which holds TripDocsCard). On
+          mobile this stacks under the editor. v27.6.2.1 — pre-creation
+          docs are queued in form state via doc_ids and attached server-
+          side after the trip is inserted. */}
+      <div className="bb-trip-detail-grid-docs">
+        <section className="bb-tile bb-form-section">
+          <div className="bb-tile-body">
+            <h2 className="bb-form-section-head">
+              <Paperclip size={14} aria-hidden="true" style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} />
+              Docs
+            </h2>
+            {attachableDocs.length === 0 ? (
+              <p className="bb-form-help">
+                No attachable docs yet. Add waivers + resources from the Documents library so you can attach them to trips here.
+              </p>
+            ) : (
+              <>
+                <p className="bb-form-help" style={{ marginBottom: '0.5rem' }}>
+                  Attach waivers + resources for hunters to see on this trip. You can also add more after the trip is created.
+                </p>
+                <div role="list" className="flex flex-col gap-2">
+                  {attachableDocs.map((d) => {
+                    const checked = selectedDocs.has(d.id)
+                    return (
+                      <label
+                        key={d.id}
+                        role="listitem"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.55rem 0.7rem',
+                          border: `1px solid ${checked ? 'var(--color-copper)' : 'var(--color-card-divider)'}`,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          background: checked ? 'rgba(176, 108, 60, 0.06)' : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleDoc(d.id)}
+                          aria-label={`Attach ${d.label}`}
+                          style={{ width: 16, height: 16 }}
+                        />
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontWeight: 600, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {d.label}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-ink-soft)', marginTop: 1 }}>
+                            {DOC_KIND_LABEL[d.kind] ?? d.kind}
+                            {d.is_template ? ' · Bite Book template' : ''}
+                            {d.state ? ` · ${d.state}` : ''}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      </div>{/* /docs */}
+
+      {/* HUNTERS — right column, spans both rows on desktop (matches
+          /app/trips/[id] .bb-trip-detail-grid-hunters slot which holds
+          HuntersOnTripPanel). Pre-creation: HuntersMultiSelect picks
+          existing hunters AND/OR invites new ones; on submit those
+          hunter_ids are attached to the new trip. */}
+      <div className="bb-trip-detail-grid-hunters">
+        <section className="bb-tile bb-form-section">
+          <div className="bb-tile-body">
+            <h2 className="bb-form-section-head">
+              <Users size={14} aria-hidden="true" style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} />
+              Hunters
+            </h2>
+            <p className="bb-form-help" style={{ marginBottom: '0.5rem' }}>
+              Add hunters now or after the trip is created. Pick from your roster or invite by email.
+            </p>
+            <HuntersMultiSelect
+              hunters={hunterList}
+              selected={selected}
+              onToggle={toggleHunter}
+              onAddHunter={addHunter}
+            />
+          </div>
+        </section>
+      </div>{/* /hunters */}
     </form>
   )
 }

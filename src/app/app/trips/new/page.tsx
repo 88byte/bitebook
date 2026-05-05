@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowLeft, Bookmark, Plus } from 'lucide-react'
 import { requireGuide } from '../../_lib/auth'
 import { fetchAcceptedHunters, fetchSpecies } from '../../_lib/queries'
+import { fetchAttachableDocsForGuide } from '../../_lib/trip-doc-queries'
 import {
   fetchGuideTripTemplate,
   fetchGuideTripTemplates,
@@ -22,13 +23,16 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   const sp = await searchParams
   const templateId = typeof sp.template === 'string' && sp.template.length > 0 ? sp.template : null
 
-  const [hunters, templates, templateData, speciesOptions] = await Promise.all([
+  const [hunters, templates, templateData, speciesOptions, attachableDocs] = await Promise.all([
     fetchAcceptedHunters(profile.id),
     fetchGuideTripTemplates(profile.id, { includeArchived: false }),
     templateId
       ? fetchGuideTripTemplate(profile.id, templateId)
       : Promise.resolve(null),
     fetchSpecies(),
+    // v27.6.2.1 — pre-creation docs picker pulls from the same source
+    // as /app/trips/[id]'s post-creation TripDocsCard.
+    fetchAttachableDocsForGuide(profile.id),
   ])
 
   // Build the initial values payload from the template (if present + active).
@@ -124,12 +128,15 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
         </section>
       )}
 
-      <div className="bb-form-narrow mt-4">
+      {/* v27.6.2.1 — drops bb-form-narrow so the form can span the
+          full bb-trip-detail-grid 2-col layout (matches /app/trips/[id]). */}
+      <div className="mt-4">
         <NewTripForm
           hunters={hunters}
           initial={initial}
           templateId={templateData ? templateData.template.id : null}
           speciesOptions={speciesOptions}
+          attachableDocs={attachableDocs}
         />
       </div>
     </main>

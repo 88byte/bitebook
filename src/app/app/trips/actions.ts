@@ -81,6 +81,41 @@ export async function createTripAction(formData: FormData) {
     }
   }
 
+  // v27.6.2.1 — pre-creation doc attachment. The new-trip form's
+  // right-column docs picker submits doc_ids; we attach each to the
+  // newly-created trip via the same path /app/trips/[id] uses
+  // post-creation. hunter_visible defaults to true so attached docs
+  // are immediately visible to participants. Best-effort per doc:
+  // a single attach failure logs + continues so the rest of the
+  // selection still attaches.
+  const docIds = formData.getAll('doc_ids').map((v) => String(v)).filter(Boolean)
+  if (docIds.length > 0) {
+    const sb = await createClient()
+    for (const docId of docIds) {
+      // Vet ownership inline (lightweight version of vetAttachableDoc):
+      // doc must be owned by this guide OR be a Bite Book template,
+      // not archived, not kind=log.
+      const { data: doc } = await sb
+        .from('docs')
+        .select('id, kind, is_template, guide_id, archived_at')
+        .eq('id', docId)
+        .or(`guide_id.eq.${profile.id},is_template.eq.true`)
+        .maybeSingle()
+      if (!doc || doc.archived_at || doc.kind === 'log') continue
+      const { error: attachErr } = await sb
+        .from('trip_docs')
+        .insert({
+          trip_id: insertResult.id,
+          doc_id: docId,
+          hunter_visible: true,
+          created_by: profile.id,
+        })
+      if (attachErr) {
+        console.warn('[createTripAction:attach-doc]', { docId, message: attachErr.message })
+      }
+    }
+  }
+
   // v24: mark first_trip onboarding step done. Best-effort; failure does not
   // block the redirect since the trip itself is already saved.
   try {
