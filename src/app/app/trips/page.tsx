@@ -118,9 +118,10 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
         eyebrow="Your trips"
         title="My trips"
         subtitle={heroSub}
-        bgImage="/bb-trips-hero.png"
+        bgImage="/banners/trips-hero.png"
         eyebrowColor="copper"
         showShield={false}
+        objectPosition="top"
         rightSlot={
           tab === 'trips' && total > 0 ? (
             <div className="flex flex-wrap items-center gap-2">

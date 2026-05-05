@@ -199,15 +199,21 @@ export default function HarvestLogEditor({
 
   return (
     <>
-      {/* v27.5.0.4 — desktop 2-col grid via .bb-log-grid. LEFT col gets
-          [Trip-level → Generate → Logs]; RIGHT col gets [note → Entries].
-          Mobile preserves the v27.3.7 single-col order via
-          grid-template-areas: Generate at top, then divider, then
-          Trip-level details, note, Entries, Logs at bottom. The divider
-          is hidden on desktop (column gap takes over). */}
-      <div className="bb-log-grid mt-4">
-        <div className="bb-log-grid-generate">
-          {/* v27.3.7.1 item 2 — Generate stays at TOP on mobile. */}
+      {/* v27.5.0.4 / .4.2 — desktop 2-col layout via .bb-log-2col.
+          Restructured to wrapped column containers so each column
+          grows independently — expanding a hunter accordion in the
+          right column no longer pushes left-column spacing.
+          LEFT col: Generate (top) → Trip-level → Logs (bottom).
+          RIGHT col: note → Entries.
+          Mobile single-col flow: Generate → divider → Trip-level →
+          Logs → note → Entries (DOM order matches the wrapper
+          structure). Logs moves up from bottom to mid-flow on mobile;
+          acceptable trade-off for independent columns on desktop. */}
+      <div className="bb-log-2col mt-4">
+        <div className="bb-log-col-left">
+          {/* v27.3.7.1 item 2 — Generate at TOP of left column.
+              v27.5.0.4.2 — restored to top after the v27.5.0.4
+              areas-based layout dropped it below tripdetails. */}
           <GeneratePdfsSection
             logId={log.id}
             mappedDocs={mappedDocs}
@@ -216,19 +222,16 @@ export default function HarvestLogEditor({
             reportName={reportName}
             setReportName={setReportName}
           />
-        </div>
 
-        {/* v27.3.7 item 9 — divider directly beneath the Generate block
-            on mobile only (.bb-log-grid hides it on desktop). */}
-        <div className="bb-log-grid-divider bb-page-divider" aria-hidden="true" />
+          {/* v27.3.7 item 9 — divider beneath Generate on mobile only.
+              Hidden on desktop via .bb-log-mobile-divider rule. */}
+          <div className="bb-log-mobile-divider bb-page-divider" aria-hidden="true" />
 
         {/* Trip-level fields — auto-save on blur (date) / change (purpose).
             v27.1.1.0.3e.4 layout: 2-col grid (date | purpose), purpose
-            laid out as 3-col pill grid. Helper text moves to a card-level
-            footer outside both columns.
-            v27.5.0.4: wrapped in .bb-log-grid-tripdetails for the
-            desktop 2-col reflow. */}
-        <section className="bb-log-grid-tripdetails bb-tile bb-form-section">
+            laid out as 3-col pill grid.
+            v27.5.0.4.2: lives inside .bb-log-col-left wrapper. */}
+        <section className="bb-tile bb-form-section">
           <div className="bb-tile-body">
             <div
               style={{
@@ -347,64 +350,63 @@ export default function HarvestLogEditor({
           </div>
         </section>
 
-        {/* v27.5.0.3 — quiet inline note explaining the include/exclude
-            behavior. v27.5.0.4: wrapped in .bb-log-grid-note for the
-            desktop 2-col reflow (sits at the top of the right column
-            on desktop, just above the entries). */}
-        <p
-          className="bb-log-grid-note bb-form-help"
-          style={{
-            margin: 0,
-            fontSize: '0.85rem',
-            color: 'var(--color-ink-soft)',
-          }}
-        >
-          Hunters with &ldquo;include in report&rdquo; unchecked are excluded from this report.
-        </p>
-
-        {/* Entries — v27.5.0.4 grid-area="entries" so it spans
-            multiple rows on desktop (right column). */}
-        <section className="bb-log-grid-entries flex flex-col gap-3">
-          {log.entries.length === 0 ? (
-            <div className="bb-tile">
-              <div className="bb-tile-body" style={{ padding: '1rem' }}>
-                <p className="bb-form-help" style={{ margin: 0 }}>
-                  No entries yet. Add hunters to this trip and re-open the report.
-                </p>
-              </div>
-            </div>
-          ) : (
-            log.entries.map((e) => (
-              <EntryAccordion
-                key={e.id}
-                entry={e}
-                slot={slotByEntryId.get(e.id) ?? null}
-                tripSpecies={tripSpecies}
-                speciesOptions={speciesOptions}
-                logTimeMappings={log.log_time_mappings}
-              />
-            ))
-          )}
-        </section>
-
-        {/* v27.3.7.1 item 2 — Logs list at the BOTTOM of the page (was
-            top). Outer bb-tile wrapper stripped so the inner rows
-            (themselves bb-tile cards) don't render as cards-inside-a
-            -card. Heading + intro stay; rows render flat against the
-            page surface like the entries list above.
-            v27.5.0.4: wrapped in .bb-log-grid-logs for the desktop
-            2-col reflow (sits at the bottom of the LEFT column on
-            desktop, end of mobile single-col). */}
-        <div className="bb-log-grid-logs">
+        {/* v27.3.7.1 item 2 / v27.5.0.4.2 — Logs list. On desktop sits
+            at the bottom of the LEFT column (independent of right col
+            growth). On mobile sits between Trip-level and the right-
+            col contents (note + Entries) — a slight reorder from
+            v27.3.7's "logs at very bottom" but the trade-off keeps
+            each desktop column's height independent. */}
+        <div>
           <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} defaultSignatureDataUrl={defaultSignatureDataUrl} />
         </div>
+        </div>{/* /bb-log-col-left */}
 
-        {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
-            "every hunt gets this hunt report." Reports auto-exist
-            per hunt; no manual deletion path. ConfirmModal removed
-            too. */}
+        <div className="bb-log-col-right">
+          {/* v27.5.0.3 — quiet inline note explaining the include/exclude
+              behavior. v27.5.0.4.2: lives at top of right column on
+              desktop. */}
+          <p
+            className="bb-form-help"
+            style={{
+              margin: 0,
+              fontSize: '0.85rem',
+              color: 'var(--color-ink-soft)',
+            }}
+          >
+            Hunters with &ldquo;include in report&rdquo; unchecked are excluded from this report.
+          </p>
 
-        <input type="hidden" name="trip_id" value={tripId} />
+          {/* Entries — accordion list. Right column on desktop; expanding
+              an accordion only grows this column, not the left. */}
+          <section className="flex flex-col gap-3">
+            {log.entries.length === 0 ? (
+              <div className="bb-tile">
+                <div className="bb-tile-body" style={{ padding: '1rem' }}>
+                  <p className="bb-form-help" style={{ margin: 0 }}>
+                    No entries yet. Add hunters to this trip and re-open the report.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              log.entries.map((e) => (
+                <EntryAccordion
+                  key={e.id}
+                  entry={e}
+                  slot={slotByEntryId.get(e.id) ?? null}
+                  tripSpecies={tripSpecies}
+                  speciesOptions={speciesOptions}
+                  logTimeMappings={log.log_time_mappings}
+                />
+              ))
+            )}
+          </section>
+
+          {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
+              "every hunt gets this hunt report." Reports auto-exist
+              per hunt; no manual deletion path. */}
+
+          <input type="hidden" name="trip_id" value={tripId} />
+        </div>{/* /bb-log-col-right */}
       </div>
     </>
   )

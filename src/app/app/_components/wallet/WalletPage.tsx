@@ -279,12 +279,13 @@ function WalletHero({
   return (
     <section className="bb-wallet-hero">
       <Image
-        src="/bb-wallet-hero.png"
+        src="/banners/wallet-hero.png"
         alt=""
         fill
         priority
         sizes="(max-width: 1024px) 100vw, 64rem"
         className="bb-wallet-hero-img"
+        style={{ objectPosition: 'top' }}
       />
       <div className="bb-wallet-hero-overlay" />
       <div className="bb-wallet-hero-inner">

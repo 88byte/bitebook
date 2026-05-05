@@ -110,7 +110,12 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           the full <main> width — at 1280px+ the buttons appeared
           left-anchored against an empty right-side gutter. Single
           centered column eliminates the off-balance feel. */}
-      <div className="bb-form-narrow">
+      {/* v27.5.0.4.2 — bb-form-narrow dropped. Trip detail uses the
+          v27.5.0.4 .bb-trip-detail-grid below which is a 2-col layout
+          on desktop; capping the outer container at 64rem/72rem
+          undid the v27.5.0.4.1 wider .bb-app-main and made the page
+          feel cramped on widescreen. The grid expands to fill
+          .bb-app-main now. */}
       <Link
         href="/app/trips"
         className="inline-flex items-center gap-1 text-sm font-semibold mb-1"
@@ -267,7 +272,6 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             defaultSignatureDataUrl={defaultSignatureDataUrl}
           />
         </div>
-      </div>
       </div>
     </main>
   )

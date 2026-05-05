@@ -10,6 +10,7 @@ import {
 } from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
 import DocsLibraryList from './DocsLibraryList'
+import DashboardHero from '../_components/DashboardHero'
 
 type SearchParams = Promise<{ kind?: string; archived?: string; just_completed?: string; tab?: string }>
 
@@ -77,36 +78,38 @@ export default async function DocsPage({ searchParams }: { searchParams: SearchP
 
   return (
     <main className="bb-app-main">
-      {/* v27.3.1: Upload doc button moved DOWN to under the chip-row,
-          left-aligned, matching the New Trip + Add New Card pattern from
-          v27.3.0. Header now reads as plain title + sub. */}
-      <header>
-        <p className="bb-page-eyebrow">Documents</p>
-        <h1 className="bb-page-title">
-          {tab === 'templates' ? 'Bite Book templates' : 'Your library'}
-        </h1>
-        <p className="bb-page-sub">
-          {tab === 'templates'
+      {/* v27.5.0.4.2 — Documents page banner. Was a plain page header;
+          now matches /app, /app/trips, /app/wallet, /app/hunters with
+          the DashboardHero pattern. Upload doc CTA moved into the
+          hero's rightSlot. */}
+      <DashboardHero
+        eyebrow="Documents"
+        title={tab === 'templates' ? 'Bite Book templates' : 'Your library'}
+        subtitle={
+          tab === 'templates'
             ? 'Pre-built forms shared by Bite Book. Tap to view or use on a trip.'
-            : 'Waivers, harvest logs, and resources you can attach to any trip.'}
-        </p>
-      </header>
-
-      {/* v27.3.5: Upload doc CTA — moved ABOVE the tab strip so the
-          page-level primary action sits at the top of actionable
-          content, before tabs/chips/list. */}
-      {tab === 'my' && (
-        <div className="mt-3 flex">
-          <Link
-            href="/app/docs/new"
-            className="bb-cta-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Plus size={14} aria-hidden="true" />
-            Upload doc
-          </Link>
-        </div>
-      )}
+            : 'Waivers, harvest logs, and resources you can attach to any trip.'
+        }
+        bgImage="/banners/docs-hero.png"
+        eyebrowColor="copper"
+        showShield={false}
+        objectPosition="top"
+        rightSlot={
+          tab === 'my' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/app/docs/new"
+                className="bb-cta-sm"
+                aria-label="Upload doc"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Plus size={14} aria-hidden="true" />
+                Upload doc
+              </Link>
+            </div>
+          ) : null
+        }
+      />
 
       {/* v27.1.1.0.3e.5: top-level tabs. My docs vs Bite Book templates.
           Pattern mirrors the wallet tabs — copper underline on active,

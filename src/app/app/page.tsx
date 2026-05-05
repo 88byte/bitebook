@@ -68,6 +68,8 @@ export default async function DashboardPage() {
             : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
         showShield={false}
+        bgImage="/banners/dashboard-hero.png"
+        objectPosition="top"
       />
 
       {/* v27.5.0 — warden share signature banner. Shown to existing

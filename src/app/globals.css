@@ -1477,6 +1477,18 @@ body {
 @media (min-width: 96rem) {
   .bb-form-narrow { max-width: 72rem; }
 }
+/* v27.5.0.4.2 — bump bb-form-narrow at ≥1920 / ≥2560 so form-shaped
+   pages (settings, onboarding, wallet sub-pages, reviews, support,
+   trips/new) inherit some of the v27.5.0.4.1 wider .bb-app-main
+   real estate. Caps stay reasonable for forms — no infinite line
+   length — but track widescreen viewports so the form column doesn't
+   read as a thin floating box. */
+@media (min-width: 120rem) {
+  .bb-form-narrow { max-width: 84rem; }
+}
+@media (min-width: 160rem) {
+  .bb-form-narrow { max-width: 96rem; }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    v27.3.1 — desktop card-list grid + width caps for components that
@@ -3272,6 +3284,30 @@ body {
   margin: 0;
 }
 
+/* v27.5.0.4.2 — bump hero typography at desktop breakpoints so
+   banner reads proportionally on the new wider .bb-app-main (1800/
+   2000/2200px at 1536/1920/2560). Mobile clamp keeps current sizing
+   under 1280; bumps above. */
+@media (min-width: 80rem) {
+  .bb-dash-hero-title { font-size: clamp(2.2rem, 5vw, 3rem); }
+  .bb-dash-hero-sub { font-size: 1.05rem; }
+  .bb-dash-hero-eyebrow { font-size: 0.78rem; }
+}
+@media (min-width: 120rem) {
+  .bb-dash-hero-title { font-size: clamp(2.6rem, 4vw, 3.4rem); }
+  .bb-dash-hero-sub { font-size: 1.15rem; }
+}
+
+/* v27.5.0.4.2 — page-level title/subtitle bump at desktop. The
+   inner-page eyebrow + title (e.g. "Hunt report" + trip title) feel
+   small against the new wider container. Modest bump above 1280. */
+@media (min-width: 80rem) {
+  .bb-page-title { font-size: 2.125rem; }
+}
+@media (min-width: 96rem) {
+  .bb-page-title { font-size: 2.375rem; }
+}
+
 .bb-dash-hero-shield {
   flex-shrink: 0;
   width: clamp(64px, 18vw, 96px);
@@ -4474,40 +4510,37 @@ body {
   }
 }
 
-/* v27.5.0.4 — Hunt report 2-col on desktop. Mobile preserves the
-   current order: Generate at top → divider → Trip-level → note →
-   Entries → Logs at bottom. Desktop reflows to LEFT col [Trip-level
-   → Generate → Logs] and RIGHT col [note → Entries]. The divider
-   is hidden on desktop (column gap provides separation). */
-.bb-log-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+/* v27.5.0.4 / .4.2 — Hunt report 2-col on desktop. Restructured to
+   wrapped column containers (was grid-template-areas with row spans).
+   Each column is now an independent flex stack — expanding a hunter
+   accordion in the right column doesn't push the left column's
+   row heights, fixing the "expanding hunter card affects spacing on
+   the left column" issue Flavio hit. align-items: start keeps the
+   right column top-aligned (was inheriting middle-of-page).
+   Generate stays at the TOP of the left column on desktop (was
+   dropping below tripdetails in the prior areas-based layout). */
+.bb-log-2col {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  grid-template-areas:
-    "generate"
-    "divider"
-    "tripdetails"
-    "note"
-    "entries"
-    "logs";
 }
-.bb-log-grid-generate    { grid-area: generate; min-width: 0; }
-.bb-log-grid-divider     { grid-area: divider; min-width: 0; }
-.bb-log-grid-tripdetails { grid-area: tripdetails; min-width: 0; }
-.bb-log-grid-note        { grid-area: note; min-width: 0; }
-.bb-log-grid-entries     { grid-area: entries; min-width: 0; }
-.bb-log-grid-logs        { grid-area: logs; min-width: 0; }
+.bb-log-col-left,
+.bb-log-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
 @media (min-width: 64rem) {
-  .bb-log-grid {
+  .bb-log-2col {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1.75rem;
     align-items: start;
-    grid-template-areas:
-      "tripdetails note"
-      "generate    entries"
-      "logs        entries";
   }
-  .bb-log-grid-divider { display: none; }
+  /* Mobile-only divider between Generate and Trip-level. The column
+     gap takes over on desktop. */
+  .bb-log-mobile-divider { display: none; }
 }
 
 /* v27.5.0.4 — belt-and-suspenders for any input inside a tile body
