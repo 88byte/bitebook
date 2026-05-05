@@ -23,6 +23,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isAdminEmail } from './auth'
 
 export type GuideTier = 'full' | 'read_only' | 'locked'
 
@@ -36,7 +37,7 @@ export type SubscriptionState = {
 export type TierResult = {
   tier: GuideTier
   /** Reason short-code surfaced in error messages. */
-  reason: 'no_row' | 'incomplete' | 'past_due' | 'canceled' | 'ok' | 'comp'
+  reason: 'no_row' | 'incomplete' | 'past_due' | 'canceled' | 'ok' | 'comp' | 'admin'
   /** Subscription row used to compute the tier (null when no row). */
   subscription: SubscriptionState | null
 }
@@ -62,13 +63,33 @@ function tierFromStatus(status: SubscriptionState['status']): { tier: GuideTier;
 
 export const getGuideTier = cache(async (userId: string): Promise<TierResult> => {
   const admin = createAdminClient()
-  const { data: row } = await admin
+
+  // v27.6.2 — Admins always tier=full, regardless of subscription
+  // status. Bypass at the top of the function so the trial banner /
+  // read-only banner / locked interstitial never trip on Flavio's
+  // own account. The outfitter_subscriptions row stays as-is — we're
+  // not fighting Stripe state, just refusing to gate admins on it.
+  // Email match via ADMIN_EMAILS (v27.6.0.2) is the canonical check.
+  // We still pull the subscription row so callers that introspect
+  // subscription.* (settings billing panel) keep working.
+  const { data: subRow } = await admin
     .from('outfitter_subscriptions')
     .select('status, current_period_end, trial_end, comp_until')
     .eq('guide_id', userId)
     .maybeSingle<SubscriptionState>()
 
-  if (!row) {
+  let adminEmail = false
+  try {
+    const { data: userRes } = await admin.auth.admin.getUserById(userId)
+    adminEmail = isAdminEmail(userRes?.user?.email ?? null)
+  } catch (e) {
+    console.warn('[billing-tier:admin-lookup]', (e as Error).message)
+  }
+  if (adminEmail) {
+    return { tier: 'full', reason: 'admin', subscription: subRow ?? null }
+  }
+
+  if (!subRow) {
     // Defensive: a guide row should exist post-checkout. If one
     // doesn't, treat as locked so they can't write before billing
     // is reconciled. The settings panel surfaces a contact-support
@@ -83,15 +104,15 @@ export const getGuideTier = cache(async (userId: string): Promise<TierResult> =>
   // status-based tier resolution. Date comparison is YYYY-MM-DD vs
   // today's YYYY-MM-DD so timezone drift can't accidentally expire a
   // comp at midnight UTC.
-  if (row.comp_until) {
+  if (subRow.comp_until) {
     const today = new Date().toISOString().slice(0, 10)
-    if (row.comp_until >= today) {
-      return { tier: 'full', reason: 'comp', subscription: row }
+    if (subRow.comp_until >= today) {
+      return { tier: 'full', reason: 'comp', subscription: subRow }
     }
   }
 
-  const { tier, reason } = tierFromStatus(row.status)
-  return { tier, reason, subscription: row }
+  const { tier, reason } = tierFromStatus(subRow.status)
+  return { tier, reason, subscription: subRow }
 })
 
 // Human-readable copy keyed by reason. Centralized so banners +
@@ -133,8 +154,12 @@ export async function assertWriteAllowed(
   userId: string,
   role?: string | null,
 ): Promise<WriteGateResult> {
-  // Hunters and admins don't have outfitter_subscriptions rows. Skip
-  // the lookup so we don't 'locked' them via reason='no_row'.
+  // Hunters skip the gate — they don't have outfitter_subscriptions
+  // rows. v27.6.0.2 — the role==='admin' bypass below is dead-code
+  // today (admins are guides with role='guide' + email match), but
+  // we keep it for forward compatibility if profile.role gains 'admin'
+  // assignments again in the future. Admins-as-guides are caught by
+  // getGuideTier()'s email-based bypass (v27.6.2).
   if (role === 'hunter' || role === 'admin') return { ok: true }
   const t = await getGuideTier(userId)
   if (t.tier === 'full') return { ok: true }

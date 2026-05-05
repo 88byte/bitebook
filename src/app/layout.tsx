@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.6.2-status-helpers-all-filter-trip-overview'
+const BUILD_TAG = 'v27.6.2-admin-full-tier-reviews-banner-create-trip-match'
 
 const barlow = Barlow({
   variable: '--font-barlow',

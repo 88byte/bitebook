@@ -91,7 +91,10 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
         )}
       </div>
 
-      <div className="bb-page-divider mt-4" aria-hidden="true" />
+      {/* v27.6.2 — page-divider dropped to match /app/trips/[id]
+          (which goes straight from action row to first tile with
+          no horizontal rule between). Keeps the create flow visually
+          aligned with the trip detail surface. */}
 
       {/* v27.1.4: when ?template= resolved to a real template, show a
           compact banner above the form. Banner stays visible regardless

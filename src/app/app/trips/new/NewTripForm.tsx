@@ -114,10 +114,23 @@ export default function NewTripForm({
           TripDetailEditor's layout. Activity (compact segmented) at
           the top, Trip name, then Start/End dates 2-col. Replaces
           the prior split Basics + Dates sections so Create-trip
-          reads as a stripped-down trip detail. */}
+          reads as a stripped-down trip detail.
+          v27.6.2 (resume) — heading row gets a "New" pill on the
+          right to mirror trip-detail's StatusPill placement. */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Trip overview</h2>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <h2 className="bb-form-section-head" style={{ margin: 0 }}>Trip overview</h2>
+            <span className="bb-pill bb-pill-planned">New</span>
+          </div>
 
           <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <span className="bb-form-label">Activity</span>

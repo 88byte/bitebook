@@ -4,6 +4,7 @@ import { requireGuide } from '../_lib/auth'
 import { fetchGuideReviews, fetchGuideReviewStats } from '../_lib/queries'
 import type { ReviewSort } from '../_lib/queries'
 import { initials, relativeOrDate } from '../_lib/format'
+import DashboardHero from '../_components/DashboardHero'
 import SortSelect from './SortSelect'
 
 type SearchParams = Promise<{ sort?: string }>
@@ -36,15 +37,23 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Sear
 
   return (
     <main className="bb-app-main">
-      <header>
-        <p className="bb-page-eyebrow">Feedback</p>
-        <h1 className="bb-page-title">Reviews</h1>
-        <p className="bb-page-sub">
-          {isEmpty
+      {/* v27.6.2 — DashboardHero replaces the plain text header so /app/reviews
+          matches the banner pattern used on dashboard / hunters / trips /
+          wallet / docs. Uses the new /banners/reviews-hero.png. Eyebrow is
+          copper to match other secondary pages. */}
+      <DashboardHero
+        eyebrow="Feedback"
+        title="Reviews"
+        subtitle={
+          isEmpty
             ? 'No reviews yet.'
-            : `${stats.count} ${stats.count === 1 ? 'review' : 'reviews'} from your hunters.`}
-        </p>
-      </header>
+            : `${stats.count} ${stats.count === 1 ? 'review' : 'reviews'} from your hunters.`
+        }
+        bgImage="/banners/reviews-hero.png"
+        eyebrowColor="copper"
+        showShield={false}
+        objectPosition="top"
+      />
 
       <div className="bb-form-narrow">
         {isEmpty ? (
