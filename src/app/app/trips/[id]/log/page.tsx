@@ -9,6 +9,7 @@ import {
   fetchMappedLogDocs,
   fetchTripGeneratedLogs,
 } from '../../../_lib/harvest-log-queries'
+import { loadGuideDefaultSignatureDataUrl } from '../../../_lib/guide-default-signature'
 import HarvestLogEditor from './HarvestLogEditor'
 
 type Params = Promise<{ id: string }>
@@ -69,10 +70,13 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   // v27.3.7.1 item 3: also fetch the species pool so the per-hunter
   // species rows can use the same SpeciesField dropdown the trip
   // form uses (consistency + default to trip species).
-  const [mappedDocs, generatedLogs, speciesOptions] = await Promise.all([
+  const [mappedDocs, generatedLogs, speciesOptions, defaultSignatureDataUrl] = await Promise.all([
     fetchMappedLogDocs(profile.id),
     fetchTripGeneratedLogs(tripId),
     fetchSpecies(),
+    // v27.4.0 — pre-fetch the guide's saved default signature so the
+    // SignModal pre-fills with it when opened.
+    loadGuideDefaultSignatureDataUrl(profile.id),
   ])
 
   return (
@@ -104,6 +108,7 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         guideId={profile.id}
         generatedLogs={generatedLogs}
         speciesOptions={speciesOptions}
+        defaultSignatureDataUrl={defaultSignatureDataUrl}
       />
     </main>
   )

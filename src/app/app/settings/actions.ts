@@ -1,9 +1,13 @@
 'use server'
 
+import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireGuide } from '../_lib/auth'
 import { markStepDone } from '../_lib/onboarding'
+import { US_STATES } from '@/lib/us-states'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getStripe } from '@/lib/stripe'
 
 const SPECIALTY_OPTIONS = new Set([
   'Big game',
@@ -48,15 +52,44 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
 
   // Outfitter details (guide_profiles.*)
   const business_name = String(formData.get('business_name') ?? '').trim() || null
-  // v27.1.1.0.3e.5: license_number no longer captured here. Guide license
-  // lives on the wallet (wallet_items.type='guide_license'). The
-  // guide_profiles.license_number column is left untouched on update so
-  // existing values are preserved.
-  // v25.9.2: outfitter `state` field removed from the form per UX feedback —
-  // residential address state on profiles already captures where the guide is
-  // based. Existing guide_profiles.state values are preserved by NOT writing
-  // the field below. If we need to track operating regions distinct from
-  // residence later, add a multi-select rather than a single state.
+
+  // v27.4.0 — Guide license fieldset, written into the columns the
+  // schema already had reserved (state, license_number,
+  // guide_license_expires_at). This is the guide's professional
+  // outfitter/master-guide license, separate from the hunter wallet
+  // entries. Optional — guides who don't carry a state-issued license
+  // can leave all three blank. Empty strings normalize to NULL.
+  const licenseStateRaw = String(formData.get('license_state') ?? '').trim().toUpperCase()
+  const license_state =
+    licenseStateRaw && licenseStateRaw.length === 2 && (US_STATES as readonly string[]).includes(licenseStateRaw)
+      ? licenseStateRaw
+      : null
+  const license_number = String(formData.get('license_number') ?? '').trim().slice(0, 64) || null
+  const licenseExpiresRaw = String(formData.get('license_expires_at') ?? '').trim()
+  // ISO yyyy-mm-dd or empty. Postgres date column will reject malformed
+  // values; we let it bubble up as a save error rather than try to parse.
+  const license_expires_at =
+    licenseExpiresRaw && /^\d{4}-\d{2}-\d{2}$/.test(licenseExpiresRaw) ? licenseExpiresRaw : null
+
+  // v27.4.0 — Defaults fieldset. default_log_doc_id ties the trip's
+  // "Generate harvest log" flow to a specific log doc by default.
+  // Empty string clears the default (writes NULL). Validated against
+  // the guide's own non-archived log docs below.
+  const defaultLogDocIdRaw = String(formData.get('default_log_doc_id') ?? '').trim()
+  let default_log_doc_id: string | null = null
+  if (defaultLogDocIdRaw) {
+    // Defense-in-depth: confirm the doc exists, belongs to this guide,
+    // and is a kind=log non-archived row before we trust the value.
+    const { data: docCheck } = await (await createClient())
+      .from('docs')
+      .select('id')
+      .eq('id', defaultLogDocIdRaw)
+      .eq('guide_id', user.id)
+      .eq('kind', 'log')
+      .is('archived_at', null)
+      .maybeSingle()
+    default_log_doc_id = docCheck?.id ?? null
+  }
 
   const partyRaw = Number(formData.get('max_party_size') ?? 6)
   const max_party_size = Number.isFinite(partyRaw)
@@ -104,6 +137,12 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
       max_party_size,
       specialties: specialties.length ? specialties : null,
       bio,
+      // v27.4.0 — guide license fieldset.
+      state: license_state,
+      license_number,
+      guide_license_expires_at: license_expires_at,
+      // v27.4.0 — defaults fieldset.
+      default_log_doc_id,
     })
     .eq('user_id', user.id)
 
@@ -151,4 +190,165 @@ export async function requestEmailChangeAction(formData: FormData): Promise<Emai
   }
 
   return { ok: true, pending_email: newEmail }
+}
+
+// ── v27.4.0 — Signature defaults ───────────────────────────────────────────
+//
+// Saves the guide's drawn signature to bb-private at
+// `signatures/{user_id}/signature.png` and writes the path to
+// `guide_profiles.default_signature_path`. Sign modals read this path
+// at sign time and pre-fill the canvas — guides can accept or
+// re-draw per-event without retyping their signature on every doc.
+//
+// Storage RLS (signatures_owner_all) gates writes to the matching
+// `auth.uid()` folder. Path is stable so we overwrite in place
+// instead of generating a new filename on each save.
+
+export type SignatureDefaultResult = { ok: true; path: string } | { error: string }
+
+const SIGNATURE_BUCKET = 'bb-private' as const
+
+function signaturePathFor(userId: string): string {
+  return `signatures/${userId}/signature.png`
+}
+
+export async function saveDefaultSignatureAction(dataUrl: string): Promise<SignatureDefaultResult> {
+  const { user } = await requireGuide()
+  if (!dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
+    return { error: 'Signature image must be a PNG data URL.' }
+  }
+  // Cap raw size at 1 MB to keep storage cost bounded — typical
+  // bbox-cropped signatures land at 30–80 KB.
+  const base64 = dataUrl.slice('data:image/png;base64,'.length)
+  if (base64.length > 1_500_000) {
+    return { error: 'Signature image is too large. Try clearing and signing again.' }
+  }
+  const buf = Buffer.from(base64, 'base64')
+  if (buf.length === 0) return { error: 'Signature image is empty.' }
+
+  const supabase = await createClient()
+  const path = signaturePathFor(user.id)
+  const upload = await supabase.storage
+    .from(SIGNATURE_BUCKET)
+    .upload(path, buf, { contentType: 'image/png', upsert: true })
+  if (upload.error) {
+    console.warn('[settings.saveDefaultSignatureAction:upload]', {
+      message: upload.error.message,
+    })
+    return { error: upload.error.message || 'Could not save signature.' }
+  }
+
+  const updated = await supabase
+    .from('guide_profiles')
+    .update({ default_signature_path: path })
+    .eq('user_id', user.id)
+  if (updated.error) {
+    console.warn('[settings.saveDefaultSignatureAction:db]', {
+      code: updated.error.code,
+      message: updated.error.message,
+    })
+    return { error: updated.error.message || 'Saved the file but couldn\'t link it to your profile.' }
+  }
+
+  revalidatePath('/app/settings')
+  return { ok: true, path }
+}
+
+export async function clearDefaultSignatureAction(): Promise<SettingsActionResult> {
+  const { user } = await requireGuide()
+  const supabase = await createClient()
+  const path = signaturePathFor(user.id)
+  // Best-effort delete — RLS already gates by auth.uid(), no user_id
+  // check needed.
+  await supabase.storage.from(SIGNATURE_BUCKET).remove([path])
+  const updated = await supabase
+    .from('guide_profiles')
+    .update({ default_signature_path: null })
+    .eq('user_id', user.id)
+  if (updated.error) {
+    console.warn('[settings.clearDefaultSignatureAction]', {
+      code: updated.error.code,
+      message: updated.error.message,
+    })
+    return { error: updated.error.message || 'Could not clear default signature.' }
+  }
+  revalidatePath('/app/settings')
+  return { ok: true }
+}
+
+// ── v27.4.0 — Billing (Stripe Customer Portal) ─────────────────────────────
+//
+// `createBillingPortalAction` looks up the guide's stripe_customer_id,
+// creates a one-time portal session, and `redirect()`s the browser to
+// the Stripe-hosted portal. The portal handles change-card,
+// change-plan (between bitebook_guide_monthly_v2 / annual_v2),
+// cancel/reactivate, and invoice history. On portal exit, Stripe
+// returns the user to /app/settings?tab=billing.
+//
+// Edge cases:
+//   - No outfitter_subscriptions row → return error so the UI shows
+//     "contact support" instead of attempting the portal.
+//   - Row exists but stripe_customer_id is NULL → same.
+//   - status='incomplete' → portal can't recover an incomplete sub
+//     cleanly; the UI surfaces a "Restart signup" CTA in that case
+//     (handled in BillingPanel rendering, not here).
+// Form-action compatible: accepts FormData (ignored), returns Promise<void>.
+// Redirects throw the Next.js redirect signal — they don't return. Any
+// real failure path redirects back to the settings billing tab with a
+// `?billing_error=` query param so the BillingPanel can surface the
+// message inline. The BillingPanel pre-gates rendering on a present
+// subscription row, so the error path is mostly defensive.
+export async function createBillingPortalAction(_formData?: FormData): Promise<void> {
+  const { user } = await requireGuide()
+
+  const admin = createAdminClient()
+  const { data: sub, error: subErr } = await admin
+    .from('outfitter_subscriptions')
+    .select('stripe_customer_id, status')
+    .eq('guide_id', user.id)
+    .maybeSingle()
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL
+    ? process.env.NEXT_PUBLIC_SITE_URL
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://bitebook.lastbite.pro'
+
+  if (subErr) {
+    console.warn('[settings.createBillingPortalAction:lookup]', {
+      code: subErr.code,
+      message: subErr.message,
+    })
+    redirect(`${origin}/app/settings?tab=billing&billing_error=lookup_failed`)
+  }
+  if (!sub || !sub.stripe_customer_id) {
+    redirect(`${origin}/app/settings?tab=billing&billing_error=no_subscription`)
+  }
+
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    console.warn('[settings.createBillingPortalAction:stripe-init]', {
+      message: (e as Error).message,
+    })
+    redirect(`${origin}/app/settings?tab=billing&billing_error=stripe_unavailable`)
+  }
+
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripe_customer_id,
+      return_url: `${origin}/app/settings?tab=billing`,
+    })
+    redirect(session.url)
+  } catch (e) {
+    // Re-throw redirect signals — Next.js uses thrown errors for
+    // redirect/notFound. Anything else is a real failure.
+    if (e instanceof Error && e.message === 'NEXT_REDIRECT') throw e
+    if ((e as { digest?: string })?.digest?.startsWith('NEXT_REDIRECT')) throw e
+    console.warn('[settings.createBillingPortalAction:portal]', {
+      message: (e as Error).message,
+    })
+    redirect(`${origin}/app/settings?tab=billing&billing_error=portal_failed`)
+  }
 }

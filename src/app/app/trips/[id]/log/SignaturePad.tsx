@@ -41,6 +41,19 @@ type Props = {
   /** Width hint in CSS px. The canvas auto-grows on mount; this is just initial. */
   cssWidth?: number
   cssHeight?: number
+  /**
+   * v27.4.0 — optional initial signature data URL. When provided, the
+   * canvas pre-fills with the image fitted into the visible CSS area
+   * (preserving aspect ratio, left-anchored). Used by:
+   *   - Settings → Signature defaults (load existing default into the
+   *     editor)
+   *   - SignModal / SignAsGuideModal / SignWaiverModal (pre-fill with
+   *     the guide's saved default so the guide can accept-with-one-click
+   *     or tap "Re-draw" to override per-event).
+   * isEmpty() flips false once the image is painted, so callers can
+   * Save without forcing the user to lift the pen.
+   */
+  initialDataURL?: string | null
 }
 
 // Single component because the modal owns the ref via a nested handle.
@@ -48,6 +61,7 @@ export default function SignaturePad({
   onChange,
   cssWidth = 600,
   cssHeight = 200,
+  initialDataURL = null,
 }: Props & { padRef?: React.MutableRefObject<SignaturePadHandle | null> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingRef = useRef<boolean>(false)
@@ -77,6 +91,42 @@ export default function SignaturePad({
       ctx.fillStyle = '#0B0806'
     }
   }, [])
+
+  // v27.4.0 — pre-fill the canvas with an initialDataURL when supplied.
+  // Runs after the DPR setup effect (mount-only deps) and again whenever
+  // initialDataURL changes. The image is drawn into the visible CSS-px
+  // area, fitted with `contain` so the saved signature never gets
+  // squashed if the canvas aspect ratio differs from the source.
+  // isEmpty flips false on successful paint so the caller's Save button
+  // un-disables without requiring a fresh stroke.
+  useEffect(() => {
+    if (!initialDataURL) return
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = c.getContext('2d')
+    if (!ctx) return
+    const img = new Image()
+    img.onload = () => {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3))
+      const cssW = c.width / dpr
+      const cssH = c.height / dpr
+      // Fit `contain` — preserve aspect ratio, anchor left/top.
+      const ratio = Math.min(cssW / img.width, cssH / img.height)
+      const drawW = img.width * ratio
+      const drawH = img.height * ratio
+      // Clear first in case the canvas already had content.
+      ctx.clearRect(0, 0, cssW, cssH)
+      ctx.drawImage(img, 8, 8, drawW, drawH)
+      isEmptyRef.current = false
+      onChange?.(false)
+      force((n) => n + 1)
+    }
+    img.onerror = () => {
+      // Bad data URL — leave the canvas empty rather than throwing.
+    }
+    img.src = initialDataURL
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDataURL])
 
   function pointerCoords(ev: PointerEvent | React.PointerEvent): { x: number; y: number } {
     const c = canvasRef.current

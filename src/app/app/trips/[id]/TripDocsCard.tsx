@@ -46,11 +46,18 @@ export default function TripDocsCard({
   tripDocs,
   attachable,
   participants,
+  defaultSignatureDataUrl = null,
 }: {
   tripId: string
   tripDocs: TripDocRow[]
   attachable: AttachableDoc[]
   participants: TripDocsParticipant[]
+  /**
+   * v27.4.0 — guide's saved default signature, base64 PNG data URL.
+   * Threaded into SignAsGuideModal so the canvas pre-fills with it
+   * when the guide opens "Sign as guide" on a waiver.
+   */
+  defaultSignatureDataUrl?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -162,6 +169,7 @@ export default function TripDocsCard({
                 onToggleVisibility={(v) => handleVisibility(row, v)}
                 onManageActions={() => setManageRow(row)}
                 onDetach={() => setConfirmDetach(row)}
+                defaultSignatureDataUrl={defaultSignatureDataUrl}
               />
             ))}
           </div>
@@ -222,6 +230,7 @@ function DocAttachmentRow({
   onToggleVisibility,
   onManageActions,
   onDetach,
+  defaultSignatureDataUrl,
 }: {
   row: TripDocRow
   pending: boolean
@@ -229,6 +238,8 @@ function DocAttachmentRow({
   onToggleVisibility: (next: boolean) => void
   onManageActions: () => void
   onDetach: () => void
+  /** v27.4.0 — guide's saved default signature, threaded through. */
+  defaultSignatureDataUrl: string | null
 }) {
   const Icon = docKindIcon(row.doc.kind)
   return (
@@ -354,7 +365,7 @@ function DocAttachmentRow({
               role-server-side, so even if a non-guide somehow saw
               this button it would no-op. */}
           {row.doc.kind === 'waiver' && (
-            <SignAsGuideButton tripDocId={row.id} docLabel={row.doc.label} unsignedUrl={row.signed_url ?? null} pending={pending} />
+            <SignAsGuideButton tripDocId={row.id} docLabel={row.doc.label} unsignedUrl={row.signed_url ?? null} pending={pending} defaultSignatureDataUrl={defaultSignatureDataUrl} />
           )}
           {(row.doc.kind === 'waiver' || row.doc.kind === 'resource') && (
             <button
@@ -449,11 +460,14 @@ function SignAsGuideButton({
   docLabel,
   unsignedUrl,
   pending,
+  defaultSignatureDataUrl,
 }: {
   tripDocId: string
   docLabel: string
   unsignedUrl: string | null
   pending: boolean
+  /** v27.4.0 — guide's saved default signature, threaded through. */
+  defaultSignatureDataUrl: string | null
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -475,6 +489,7 @@ function SignAsGuideButton({
         tripDocId={tripDocId}
         docLabel={docLabel}
         unsignedUrl={unsignedUrl}
+        defaultSignatureDataUrl={defaultSignatureDataUrl}
       />
     </>
   )

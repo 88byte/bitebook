@@ -17,12 +17,18 @@ export default function SignAsGuideModal({
   tripDocId,
   docLabel,
   unsignedUrl,
+  defaultSignatureDataUrl = null,
 }: {
   open: boolean
   onClose: () => void
   tripDocId: string
   docLabel: string
   unsignedUrl: string | null
+  /**
+   * v27.4.0 — guide's saved default signature, base64 PNG data URL.
+   * Pre-fills the SignaturePad on open. Tap Clear to draw fresh.
+   */
+  defaultSignatureDataUrl?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -42,9 +48,10 @@ export default function SignAsGuideModal({
   useEffect(() => {
     if (open) {
       setError(null)
-      setIsEmpty(true)
+      // v27.4.0: pre-filled with default signature → not empty.
+      setIsEmpty(!defaultSignatureDataUrl)
     }
-  }, [open])
+  }, [open, defaultSignatureDataUrl])
 
   function findPad(): SignaturePadHandle | null {
     const root = padContainerRef.current
@@ -133,8 +140,18 @@ export default function SignAsGuideModal({
         )}
 
         <div ref={padContainerRef}>
-          <SignaturePad onChange={(empty) => setIsEmpty(empty)} cssHeight={200} />
+          <SignaturePad
+            onChange={(empty) => setIsEmpty(empty)}
+            cssHeight={200}
+            initialDataURL={defaultSignatureDataUrl}
+          />
         </div>
+        {defaultSignatureDataUrl && (
+          <p className="bb-form-help" style={{ margin: 0, color: 'var(--color-ink-soft)' }}>
+            Pre-filled with your saved signature. Tap <strong>Clear</strong> to sign fresh for
+            this document.
+          </p>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button

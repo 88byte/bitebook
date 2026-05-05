@@ -126,6 +126,7 @@ export default function HarvestLogEditor({
   guideId,
   generatedLogs,
   speciesOptions,
+  defaultSignatureDataUrl = null,
 }: {
   tripId: string
   log: HarvestLogWithEntries
@@ -140,6 +141,9 @@ export default function HarvestLogEditor({
   // per-hunter species rows render the same SpeciesField dropdown
   // the trip form uses (consistency).
   speciesOptions: SpeciesOption[]
+  // v27.4.0 — guide's saved default signature, base64 PNG data URL.
+  // Threaded through to SignModal so the canvas pre-fills.
+  defaultSignatureDataUrl?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -335,7 +339,7 @@ export default function HarvestLogEditor({
             (themselves bb-tile cards) don't render as cards-inside-a
             -card. Heading + intro stay; rows render flat against the
             page surface like the entries list above. */}
-        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} />
+        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} defaultSignatureDataUrl={defaultSignatureDataUrl} />
 
         {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
             "every hunt gets this hunt report." Reports auto-exist
@@ -1598,11 +1602,15 @@ function GeneratePdfsSection({
 function GeneratedReportsTile({
   generatedLogs,
   logId,
+  defaultSignatureDataUrl,
 }: {
   generatedLogs: TripGeneratedLog[]
   // v27.1.3.0.3: thread logId so each row's Re-generate button can call
   // generateFilledHarvestLogPDFsAction(logId, source_doc_id, ..., row.id).
   logId: string
+  // v27.4.0 — guide's saved default signature, threaded through to
+  // each row's SignModal.
+  defaultSignatureDataUrl: string | null
 }) {
   // v27.3.7.1 item 2 — Render flat. The outer bb-tile wrapper was
   // stripped (was creating window-within-a-window with the inner
@@ -1627,7 +1635,7 @@ function GeneratedReportsTile({
       </p>
       <div className="flex flex-col gap-2">
         {generatedLogs.map((g) => (
-          <GeneratedReportRow key={g.id} row={g} logId={logId} />
+          <GeneratedReportRow key={g.id} row={g} logId={logId} defaultSignatureDataUrl={defaultSignatureDataUrl} />
         ))}
       </div>
     </section>
@@ -1637,12 +1645,15 @@ function GeneratedReportsTile({
 function GeneratedReportRow({
   row,
   logId,
+  defaultSignatureDataUrl,
 }: {
   row: TripGeneratedLog
   // v27.1.3.0.3: logId threaded down so the Re-generate button can
   // invoke the fill action with the same (logId, source_doc_id) pair
   // that originally produced this row.
   logId: string
+  // v27.4.0 — guide's saved default signature, base64 PNG data URL.
+  defaultSignatureDataUrl: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -1966,6 +1977,7 @@ function GeneratedReportRow({
         fileName={row.file_name}
         unsignedUrl={row.signed_url}
         alreadySigned={isSigned}
+        defaultSignatureDataUrl={defaultSignatureDataUrl}
       />
       <ConfirmModal
         open={confirmOpen}

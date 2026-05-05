@@ -17,6 +17,7 @@ import {
   fetchTripDocsForGuide,
   fetchAttachableDocsForGuide,
 } from '../../_lib/trip-doc-queries'
+import { loadGuideDefaultSignatureDataUrl } from '../../_lib/guide-default-signature'
 import StatusPill from '../../_components/StatusPill'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
@@ -46,7 +47,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter] = await Promise.all([
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
@@ -57,6 +58,9 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
     // status panel (license / tag / pending — restored from v27.0b.6
     // which was lost in the v27.1.1.0.3e.6 edit-merge).
     fetchTripWalletLinks(trip.id),
+    // v27.4.0 — pre-fetch guide's default signature for Sign-as-guide
+    // modal pre-fill on waiver docs.
+    loadGuideDefaultSignatureDataUrl(profile.id),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -232,6 +236,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           tripDocs={tripDocs}
           attachable={attachableDocs}
           participants={docParticipants}
+          defaultSignatureDataUrl={defaultSignatureDataUrl}
         />
       </div>
       </div>

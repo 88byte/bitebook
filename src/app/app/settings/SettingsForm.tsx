@@ -16,6 +16,8 @@ const SPECIALTIES = [
   'Muzzleloader',
 ] as const
 
+type LogDocOption = { id: string; label: string; state: string | null }
+
 type Initial = {
   // Identity (profiles)
   first_name: string
@@ -33,11 +35,24 @@ type Initial = {
   max_party_size: number
   specialties: string[]
   bio: string
+  // v27.4.0 — Guide license fieldset (guide_profiles)
+  license_state: string
+  license_number: string
+  license_expires_at: string
+  // v27.4.0 — Defaults fieldset (guide_profiles)
+  default_log_doc_id: string
   // Account (read-only display)
   email: string
 }
 
-export default function SettingsForm({ initial }: { initial: Initial }) {
+export default function SettingsForm({
+  initial,
+  logDocs,
+}: {
+  initial: Initial
+  /** v27.4.0 — guide-owned non-archived log docs for the default-log dropdown. */
+  logDocs: LogDocOption[]
+}) {
   // Identity
   const [firstName, setFirstName] = useState(initial.first_name)
   const [lastName, setLastName] = useState(initial.last_name)
@@ -53,6 +68,12 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
   const [partySize, setPartySize] = useState(String(initial.max_party_size))
   const [bio, setBio] = useState(initial.bio)
   const [specs, setSpecs] = useState<Set<string>>(new Set(initial.specialties))
+  // v27.4.0 — Guide license fieldset
+  const [licenseState, setLicenseState] = useState(initial.license_state)
+  const [licenseNumber, setLicenseNumber] = useState(initial.license_number)
+  const [licenseExpires, setLicenseExpires] = useState(initial.license_expires_at)
+  // v27.4.0 — Defaults fieldset
+  const [defaultLogDocId, setDefaultLogDocId] = useState(initial.default_log_doc_id)
 
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -312,6 +333,94 @@ export default function SettingsForm({ initial }: { initial: Initial }) {
             maxLength={280}
           />
           <p className="bb-form-help">{bioLeft} characters left</p>
+        </div>
+      </fieldset>
+
+      {/* v27.4.0 — Guide license fieldset. State-issued outfitter /
+          master-guide license, distinct from hunter wallet entries.
+          All three fields optional — guides without a state license
+          can leave blank. */}
+      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Guide license</legend>
+        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+          Your state-issued guide or outfitter license. Optional — leave blank if your state doesn&rsquo;t
+          require one.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="license_state">State</label>
+            <select
+              id="license_state"
+              name="license_state"
+              className="bb-input"
+              value={licenseState}
+              onChange={(e) => setLicenseState(e.target.value)}
+            >
+              <option value="">— Not specified —</option>
+              {US_STATES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="bb-form-row">
+            <label className="bb-form-label" htmlFor="license_number">License number</label>
+            <input
+              id="license_number"
+              name="license_number"
+              className="bb-input"
+              type="text"
+              maxLength={64}
+              value={licenseNumber}
+              onChange={(e) => setLicenseNumber(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="license_expires_at">Expiration date</label>
+          <input
+            id="license_expires_at"
+            name="license_expires_at"
+            className="bb-input"
+            type="date"
+            value={licenseExpires}
+            onChange={(e) => setLicenseExpires(e.target.value)}
+          />
+        </div>
+      </fieldset>
+
+      {/* v27.4.0 — Defaults fieldset. Currently hosts default state
+          harvest log; expand here as more per-guide defaults land. */}
+      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Defaults</legend>
+        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+          Defaults that pre-fill on new trips. You can always override per trip.
+        </p>
+
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="default_log_doc_id">Default state harvest log</label>
+          <select
+            id="default_log_doc_id"
+            name="default_log_doc_id"
+            className="bb-input"
+            value={defaultLogDocId}
+            onChange={(e) => setDefaultLogDocId(e.target.value)}
+          >
+            <option value="">— Pick per trip —</option>
+            {logDocs.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}{d.state ? ` · ${d.state}` : ''}
+              </option>
+            ))}
+          </select>
+          {logDocs.length === 0 && (
+            <p className="bb-form-help">
+              Upload a harvest log doc on the Documents page first to set a default here.
+            </p>
+          )}
         </div>
       </fieldset>
 

@@ -21,6 +21,7 @@ export default function SignModal({
   fileName,
   unsignedUrl,
   alreadySigned,
+  defaultSignatureDataUrl = null,
 }: {
   open: boolean
   onClose: () => void
@@ -28,6 +29,14 @@ export default function SignModal({
   fileName: string
   unsignedUrl: string
   alreadySigned: boolean
+  /**
+   * v27.4.0 — guide's saved default signature, base64 PNG data URL,
+   * loaded on the server. When non-null, the SignaturePad pre-fills
+   * with this image so the guide can Save without re-drawing. They
+   * can tap "Re-draw" (the existing Clear button, repurposed) to
+   * draw a fresh signature for this specific document.
+   */
+  defaultSignatureDataUrl?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -45,13 +54,18 @@ export default function SignModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [open, pending, onClose])
 
-  // Reset error + empty flag whenever the modal re-opens.
+  // Reset error + empty flag whenever the modal re-opens. v27.4.0 —
+  // when a default signature exists, the pad starts non-empty (the
+  // image is already painted), so isEmpty defaults to false in that
+  // case. SignaturePad's initialDataURL effect will fire and call
+  // onChange(false) once the image loads; we just match that here so
+  // the Save button is enabled on first paint without a flicker.
   useEffect(() => {
     if (open) {
       setError(null)
-      setIsEmpty(true)
+      setIsEmpty(!defaultSignatureDataUrl)
     }
-  }, [open])
+  }, [open, defaultSignatureDataUrl])
 
   function findPadHandle(): SignaturePadHandle | null {
     const root = padContainerRef.current
@@ -187,8 +201,18 @@ export default function SignModal({
         )}
 
         <div ref={padContainerRef}>
-          <SignaturePad onChange={(empty) => setIsEmpty(empty)} cssHeight={200} />
+          <SignaturePad
+            onChange={(empty) => setIsEmpty(empty)}
+            cssHeight={200}
+            initialDataURL={defaultSignatureDataUrl}
+          />
         </div>
+        {defaultSignatureDataUrl && (
+          <p className="bb-form-help" style={{ margin: 0, color: 'var(--color-ink-soft)' }}>
+            Pre-filled with your saved signature. Tap <strong>Clear</strong> to draw a fresh one for
+            this document.
+          </p>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
