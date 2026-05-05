@@ -69,7 +69,10 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
   const { trip, guide, participants } = detail
   const guideLabel = guide ? (guide.business_name?.trim() || guide.display_name) : 'Your guide'
   const dateRange = tripDateRange(trip.starts_at, trip.ends_at)
-  const otherHunters = participants.filter((p) => p.hunter_id !== profile.id)
+  // v27.6.3.1 — for the right-column hunters panel show ALL participants
+  // including the current hunter (with a "you" marker), mirroring guide
+  // /app/trips/[id] which shows the full participant list.
+  const allHunters = participants
 
   // v27.0b.6 (B): derive Action Needed items for this hunter on this trip.
   // Only on planned/active trips. Sane default set: 1 license action +
@@ -134,7 +137,15 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
         </div>
       </header>
 
-      <div className="bb-form-narrow mt-4 flex flex-col gap-4">
+      {/* v27.6.3.1 — 2-col layout matching /app/trips/[id]:
+          LEFT TOP: Action needed + Guide + Dates + Location + Hunt
+          details + Notes + Your harvests + Review.
+          LEFT BOTTOM: Trip docs.
+          RIGHT (spans both rows): Other hunters on this trip.
+          Mobile collapses to single column via the bb-trip-detail-grid
+          grid-template-areas. */}
+      <div className="bb-trip-detail-grid mt-4">
+        <div className="bb-trip-detail-grid-editor flex flex-col gap-4">
         {/* v27.0b.6 (B): Action-needed card. Renders only on planned/active
             trips when the hunter still has unfulfilled actions (license +
             tag-per-species). Returns null when actions array is empty. */}
@@ -229,37 +240,6 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
           </div>
         </section>
 
-        {/* TRIP DOCS — v27.1.3: hunter-visible attached docs + per-hunter
-            sign/view actions. Returns null when no docs visible. */}
-        <HunterTripDocsSection docs={tripDocs} />
-
-        {/* OTHER HUNTERS */}
-        <section className="bb-tile bb-form-section" aria-labelledby="td-other-hunters">
-          <div className="bb-tile-body">
-            <SectionHead id="td-other-hunters" icon={Users} label="Other hunters" />
-            {otherHunters.length === 0 ? (
-              <div className="bb-empty">
-                <div className="bb-empty-title">Just you on this trip</div>
-                <p className="bb-empty-sub">No other hunters were added to this trip.</p>
-              </div>
-            ) : (
-              <div className="bb-detail-list">
-                {otherHunters.map((p) => {
-                  const name = p.profile?.display_name ?? p.guest_name ?? 'Hunter'
-                  return (
-                    <div key={p.id} className="bb-detail-row">
-                      <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="bb-detail-name">{name}</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-
         {/* REVIEW (only on completed trips) */}
         {isCompleted && (
           <ReviewForm
@@ -268,6 +248,65 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
             canEdit={canEdit}
           />
         )}
+        </div>{/* /editor */}
+
+        {/* TRIP DOCS — v27.6.3.1: moved into the docs slot of the 2-col
+            grid (matches /app/trips/[id] .bb-trip-detail-grid-docs).
+            HunterTripDocsSection returns null when no docs are visible,
+            so the docs cell collapses cleanly when empty. */}
+        <div className="bb-trip-detail-grid-docs">
+          <HunterTripDocsSection docs={tripDocs} />
+        </div>
+
+        {/* HUNTERS — v27.6.3.1: right column, spans both rows on
+            desktop. Lists all hunters on the trip including the
+            current hunter with a "(you)" marker. Mirrors guide
+            /app/trips/[id] HuntersOnTripPanel placement. */}
+        <div className="bb-trip-detail-grid-hunters">
+          <section className="bb-tile bb-form-section" aria-labelledby="td-hunters">
+            <div className="bb-tile-body">
+              <SectionHead id="td-hunters" icon={Users} label="Hunters on this trip" />
+              {allHunters.length === 0 ? (
+                <div className="bb-empty">
+                  <div className="bb-empty-title">No hunters yet</div>
+                  <p className="bb-empty-sub">Your guide hasn&rsquo;t added anyone to this trip.</p>
+                </div>
+              ) : (
+                <div className="bb-detail-list">
+                  {allHunters.map((p) => {
+                    const isMe = p.hunter_id === profile.id
+                    const name = p.profile?.display_name ?? p.guest_name ?? 'Hunter'
+                    return (
+                      <div key={p.id} className="bb-detail-row">
+                        <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="bb-detail-name">
+                            {name}
+                            {isMe ? (
+                              <span
+                                style={{
+                                  marginLeft: '0.4rem',
+                                  fontSize: '0.7rem',
+                                  fontFamily: 'var(--font-barlow-condensed)',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.06em',
+                                  color: 'var(--color-copper)',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                You
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>{/* /hunters */}
       </div>
     </main>
   )

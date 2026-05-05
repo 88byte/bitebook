@@ -1145,6 +1145,50 @@ export async function fetchHunterTripsPage(
   return { rows, total }
 }
 
+// v27.6.3.2 — calendar query, hunter side. Mirror of fetchTripsInRange
+// but pivots through trip_participants → trips. Returns trips this
+// hunter is on that overlap [fromIso, toIso], filtered by the same
+// chip-status the cards list uses. status='all' includes every status
+// except canceled (mirrors the v27.1.1.0.3a.5 fetchHunterTripsPage
+// rule). The component reads `kind`+`status` for activity-driven bar
+// colors per v27.6.1.
+export async function fetchHunterTripsInRange(
+  hunterId: string,
+  fromIso: string,
+  toIso: string,
+  status: TripStatus | 'all',
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('trip_participants')
+    .select(`trip:trips!inner(${TRIP_ROW_COLS}, trip_participants(count))`)
+    .eq('hunter_id', hunterId)
+  if (error) {
+    console.warn('[queries.fetchHunterTripsInRange]', { hunterId, code: error.code, message: error.message })
+    return []
+  }
+  const fromMs = new Date(fromIso).getTime()
+  const toMs = new Date(toIso).getTime()
+  const filtered = (data ?? [])
+    .map((row) => (row as { trip: Record<string, unknown> | null }).trip)
+    .filter((t): t is Record<string, unknown> => !!t)
+    .filter((t) => {
+      const s = (t as { status?: string }).status
+      if (status === 'all') return s !== 'canceled'
+      return s === status
+    })
+    .filter((t) => {
+      const startsAt = (t as { starts_at?: string }).starts_at
+      const endsAt = (t as { ends_at?: string | null }).ends_at ?? null
+      if (!startsAt) return false
+      const startMs = new Date(startsAt).getTime()
+      const endMs = endsAt ? new Date(endsAt).getTime() : startMs
+      // Overlap: trip.start <= range.end AND trip.end >= range.start.
+      return startMs <= toMs && endMs >= fromMs
+    })
+  return filtered.map(shapeHunterTripRow)
+}
+
 export type HunterTripDetail = {
   trip: Pick<Trip, 'id' | 'title' | 'kind' | 'status' | 'starts_at' | 'ends_at' | 'location_name' | 'city' | 'state' | 'zone' | 'county' | 'species_targeted' | 'method' | 'notes'>
   guide: { id: string; display_name: string; business_name: string | null } | null

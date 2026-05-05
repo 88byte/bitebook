@@ -74,26 +74,38 @@ function ymKey(d: Date): string {
   return `${y}-${m}`
 }
 
-function chipHref(view: 'cards' | 'calendar', status: TripStatus | 'all', ym: string): string {
+function chipHref(
+  basePath: string,
+  view: 'cards' | 'calendar',
+  status: TripStatus | 'all',
+  ym: string,
+): string {
   const sp = new URLSearchParams()
   if (status !== 'all') sp.set('status', status)
   if (view === 'calendar') sp.set('view', 'calendar')
   sp.set('ym', ym)
-  return `/app/trips${sp.toString() ? `?${sp}` : ''}`
+  return `${basePath}${sp.toString() ? `?${sp}` : ''}`
 }
 
+// v27.6.3.2 — basePath + tripDetailBasePath let the hunter side
+// (/app/h/trips) reuse this component without forking. Defaults stay
+// guide-side so existing call sites don't need updates.
 export default function TripsCalendar({
   trips,
   year,
   month,
   status,
   view,
+  basePath = '/app/trips',
+  tripDetailBasePath = '/app/trips',
 }: {
   trips: CalendarTrip[]
   year: number
   month: number // 0-indexed
   status: TripStatus | 'all'
   view: 'cards' | 'calendar'
+  basePath?: string
+  tripDetailBasePath?: string
 }) {
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, {
     month: 'long',
@@ -129,21 +141,21 @@ export default function TripsCalendar({
         </div>
         <div className="bb-cal-head-nav">
           <Link
-            href={chipHref(view, status, ymKey(prevDate))}
+            href={chipHref(basePath, view, status, ymKey(prevDate))}
             className="bb-cal-nav-btn"
             aria-label="Previous month"
           >
             <ChevronLeft size={16} aria-hidden="true" />
           </Link>
           <Link
-            href={chipHref(view, status, todayYm)}
+            href={chipHref(basePath, view, status, todayYm)}
             className="bb-cal-today-btn"
             aria-current={currentYm === todayYm ? 'true' : undefined}
           >
             Today
           </Link>
           <Link
-            href={chipHref(view, status, ymKey(nextDate))}
+            href={chipHref(basePath, view, status, ymKey(nextDate))}
             className="bb-cal-nav-btn"
             aria-label="Next month"
           >
@@ -236,7 +248,7 @@ export default function TripsCalendar({
                   return (
                     <Link
                       key={p.trip.id + '-' + wIdx}
-                      href={`/app/trips/${p.trip.id}`}
+                      href={`${tripDetailBasePath}/${p.trip.id}`}
                       className={
                         'bb-cal-bar ' +
                         barColorClass(p.trip) +
