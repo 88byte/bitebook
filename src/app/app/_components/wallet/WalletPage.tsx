@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
+import DashboardHero from '../DashboardHero'
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
@@ -276,40 +276,40 @@ function WalletHero({
   basePath: string
   activeTab: WalletItemType
 }) {
+  // v27.5.0.4.3 — refactored to use DashboardHero. Was a custom
+  // section with its own bb-wallet-hero-* CSS that included a LIGHT
+  // cream-color gradient overlay (rgba 250/247/242, fading toward
+  // transparent on the right). Against the new wildlife banner
+  // image, that overlay produced a "weird fade" effect because the
+  // cream wash bleached out the image's left side. Other banners
+  // (dashboard / trips / hunters / docs) all use DashboardHero with
+  // a DARK ink-color overlay for legibility against light text — so
+  // the wallet banner now matches them. Single source of truth for
+  // all banner styling. The bb-wallet-hero-* CSS classes are now
+  // orphaned but harmless; cleanup deferred.
   return (
-    <section className="bb-wallet-hero">
-      <Image
-        src="/banners/wallet-hero.png"
-        alt=""
-        fill
-        priority
-        sizes="(max-width: 1024px) 100vw, 64rem"
-        className="bb-wallet-hero-img"
-        style={{ objectPosition: 'top' }}
-      />
-      <div className="bb-wallet-hero-overlay" />
-      <div className="bb-wallet-hero-inner">
-        <div className="bb-wallet-hero-text">
-          <p className="bb-page-eyebrow">Your wallet</p>
-          <h1 className="bb-page-title bb-wallet-hero-title">Wallet</h1>
-          <p className="bb-page-sub">Licenses, tags, and credentials in one place.</p>
-          {/* v27.3.6: Add wallet item CTA inline UNDER the subtitle in
-              the banner (was a separate block right after the hero).
-              Matches the invite-hunter pattern + Flavio's request. */}
-          <div className="bb-dash-hero-below-sub">
-            <Link
-              href={`${basePath}/new?type=${activeTab}`}
-              className="bb-cta-sm"
-              aria-label="Add new card"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <Plus size={16} aria-hidden="true" />
-              Add new card
-            </Link>
-          </div>
+    <DashboardHero
+      eyebrow="Your wallet"
+      title="Wallet"
+      subtitle="Licenses, tags, and credentials in one place."
+      bgImage="/banners/wallet-hero.png"
+      eyebrowColor="copper"
+      showShield={false}
+      objectPosition="top"
+      rightSlot={
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`${basePath}/new?type=${activeTab}`}
+            className="bb-cta-sm"
+            aria-label="Add new card"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Plus size={16} aria-hidden="true" />
+            Add new card
+          </Link>
         </div>
-      </div>
-    </section>
+      }
+    />
   )
 }
 
