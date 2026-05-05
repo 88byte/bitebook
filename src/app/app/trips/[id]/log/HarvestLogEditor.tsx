@@ -22,6 +22,7 @@ import {
   updateEntrySpeciesAction,
   removeEntrySpeciesAction,
   setEntryUserInputAction,
+  setLogUserInputAction,
 } from '../../../_lib/harvest-log-actions'
 import {
   generateFilledHarvestLogPDFsAction,
@@ -347,6 +348,16 @@ export default function HarvestLogEditor({
             <p className="bb-form-help" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
               Hours per hunter live on each hunter&rsquo;s entry below.
             </p>
+
+            {/* v27.5.0.4.4 — trip-level "Filled at log time" inputs.
+                Renders one input per mapping whose effective slot is 0
+                (no per-hunter context). Hidden when no such mappings
+                exist (most trips). */}
+            <TripLevelCustomFieldsSection
+              logId={log.id}
+              logTimeMappings={log.log_time_mappings}
+              initialValues={log.user_inputs}
+            />
           </div>
         </section>
 
@@ -1017,11 +1028,16 @@ function CustomLogFieldsSection({
   // mapped log docs). When two docs use the SAME field name with
   // different labels, the first label wins — vanishingly rare in
   // practice and a downstream cleanup if it surfaces.
+  // v27.5.0.4.4: filter on `effective_slot` instead of literal
+  // `hunter_slot`. The fill engine resolves slot via parseFieldName
+  // when manual override is 0; the UI now mirrors that. Fixes Flavio's
+  // "hunter-level inputs missing" report when a guide marks a "_2"
+  // suffixed field without manually setting the slot picker.
   const slotForLookup = slot ?? 1
   const mineByName = useMemo(() => {
     const out = new Map<string, LogTimeMapping>()
     for (const m of logTimeMappings) {
-      if (m.hunter_slot !== slotForLookup) continue
+      if (m.effective_slot !== slotForLookup) continue
       if (!out.has(m.field_name)) out.set(m.field_name, m)
     }
     return Array.from(out.values())
@@ -1045,6 +1061,100 @@ function CustomLogFieldsSection({
         ))}
       </div>
     </section>
+  )
+}
+
+// v27.5.0.4.4 — TRIP-LEVEL custom fields. Mirror of
+// CustomLogFieldsSection but keyed on the harvest_log row instead of
+// an entry. Renders one input per user_input.log_time mapping whose
+// effective slot is 0 (no per-hunter context). Auto-saves via
+// setLogUserInputAction → harvest_log_user_inputs.
+function TripLevelCustomFieldsSection({
+  logId,
+  logTimeMappings,
+  initialValues,
+}: {
+  logId: string
+  logTimeMappings: LogTimeMapping[]
+  initialValues: Record<string, string>
+}) {
+  const tripLevelByName = useMemo(() => {
+    const out = new Map<string, LogTimeMapping>()
+    for (const m of logTimeMappings) {
+      if (m.effective_slot !== 0) continue
+      if (!out.has(m.field_name)) out.set(m.field_name, m)
+    }
+    return Array.from(out.values())
+  }, [logTimeMappings])
+
+  if (tripLevelByName.length === 0) return null
+
+  return (
+    <section style={{ marginTop: '0.75rem' }}>
+      <span className="bb-form-label" style={{ display: 'block', marginBottom: '0.4rem' }}>
+        Custom fields <span style={{ opacity: 0.6, fontWeight: 400 }}>(filled at log time, trip-level)</span>
+      </span>
+      <div className="flex flex-col gap-2">
+        {tripLevelByName.map((m) => (
+          <TripLevelCustomLogFieldRow
+            key={`${m.doc_id}:${m.field_name}`}
+            logId={logId}
+            mapping={m}
+            initialValue={initialValues[m.field_name] ?? ''}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function TripLevelCustomLogFieldRow({
+  logId,
+  mapping,
+  initialValue,
+}: {
+  logId: string
+  mapping: LogTimeMapping
+  initialValue: string
+}) {
+  const router = useRouter()
+  const [value, setValue] = useState(initialValue)
+  const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useFadingSavedStatus()
+
+  function commit() {
+    setStatus({ kind: 'saving' })
+    startTransition(async () => {
+      const res = await setLogUserInputAction(logId, mapping.field_name, value)
+      if ('error' in res) {
+        setStatus({ kind: 'error', message: res.error })
+        return
+      }
+      setStatus({ kind: 'saved', at: Date.now() })
+      router.refresh()
+    })
+  }
+
+  const fieldId = `loginput_${logId}_${mapping.field_name.replace(/\W+/g, '_')}`
+  return (
+    <div className="bb-form-row" style={{ marginBottom: 0 }}>
+      <label className="bb-form-label" htmlFor={fieldId}>
+        {mapping.user_label}
+      </label>
+      <input
+        id={fieldId}
+        type="text"
+        className="bb-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        maxLength={500}
+        disabled={pending}
+      />
+      <div style={{ minHeight: '1rem', marginTop: '0.2rem' }}>
+        <StatusPill status={status} />
+      </div>
+    </div>
   )
 }
 

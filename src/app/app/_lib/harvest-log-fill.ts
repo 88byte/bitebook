@@ -124,6 +124,10 @@ type LogContext = {
   log: {
     log_date: string | null
     trip_purpose: string[]
+    // v27.5.0.4.4 — trip-level "Filled at log time" values keyed by
+    // mapping_field_name. Resolver consults this when a
+    // user_input.log_time mapping has effective slot 0.
+    user_inputs: Record<string, string>
   }
   entries: EntrySnapshot[]
 }
@@ -180,14 +184,15 @@ function resolveSource(
 
   // v27.3.9: "Filled at log time" sentinel — value lives on the entry
   // (per-hunter slot), keyed by the original PDF field_name.
+  // v27.5.0.4.4: slot=0 now reads from log.user_inputs (trip-level
+  // values stored in harvest_log_user_inputs).
   if (path === 'user_input.log_time') {
     if (slot >= 1) {
       const entry = ctx.entries[slot - 1]
       if (!entry) return ''
       return entry.user_inputs[fieldName] ?? ''
     }
-    // Trip-level user_input not yet supported — return blank for now.
-    return ''
+    return ctx.log.user_inputs[fieldName] ?? ''
   }
 
   // v27.2.0.3.4: signature_date.now resolves to TODAY's date at fill
@@ -683,6 +688,18 @@ export async function generateFilledHarvestLogPDFsAction(
     userInputsByEntry[r.entry_id][r.mapping_field_name] = r.value ?? ''
   }
 
+  // v27.5.0.4.4: trip-level user_input.log_time values, keyed by
+  // mapping_field_name. Resolver consults this when the mapping's
+  // effective slot is 0 (no per-hunter context).
+  const { data: logUserInputsRes } = await sb
+    .from('harvest_log_user_inputs')
+    .select('mapping_field_name, value')
+    .eq('log_id', logId)
+  const logUserInputs: Record<string, string> = {}
+  for (const r of (logUserInputsRes ?? []) as Array<{ mapping_field_name: string; value: string | null }>) {
+    logUserInputs[r.mapping_field_name] = r.value ?? ''
+  }
+
   // v27.3.9 / v27.3.9.1: pre-generate "Filled at log time" check.
   // SOFT confirmation, not a block: when at least one included entry
   // is missing a required input AND the caller did not pass
@@ -698,7 +715,20 @@ export async function generateFilledHarvestLogPDFsAction(
       hunter_slot: number
     }> = []
     for (const um of userInputMappings) {
-      if (um.manualSlot < 1) continue
+      // v27.5.0.4.4: trip-level (manualSlot < 1) checked against
+      // logUserInputs. Per-hunter (manualSlot >= 1) unchanged.
+      if (um.manualSlot < 1) {
+        const value = logUserInputs[um.fieldName]
+        if (!value || !value.trim()) {
+          missing.push({
+            hunter: 'Trip-level',
+            label: um.label,
+            field_name: um.fieldName,
+            hunter_slot: 0,
+          })
+        }
+        continue
+      }
       const idx = um.manualSlot - 1
       const e = includedEntries[idx]
       if (!e) continue
@@ -838,6 +868,9 @@ export async function generateFilledHarvestLogPDFsAction(
     log: {
       log_date: log.log_date,
       trip_purpose: Array.isArray(log.trip_purpose) ? (log.trip_purpose as string[]) : [],
+      // v27.5.0.4.4: trip-level user_input.log_time values, loaded
+      // above. Resolver consults this when slot=0.
+      user_inputs: logUserInputs,
     },
     entries,
   }

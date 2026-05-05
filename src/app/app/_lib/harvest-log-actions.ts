@@ -419,6 +419,42 @@ export async function setEntryUserInputAction(
   return { ok: true }
 }
 
+// v27.5.0.4.4: persist a TRIP-LEVEL "Filled at log time" value. Mirror
+// of setEntryUserInputAction but keyed on the harvest_log row instead
+// of an entry. Used by mappings whose effective slot resolves to 0.
+export async function setLogUserInputAction(
+  logId: string,
+  mappingFieldName: string,
+  value: string
+): Promise<{ ok: true } | { error: string }> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+  const id = String(logId ?? '').trim()
+  const field = String(mappingFieldName ?? '').trim()
+  if (!id) return { error: 'Missing log id.' }
+  if (!field) return { error: 'Missing mapping field name.' }
+  const cleanValue = String(value ?? '').slice(0, 500)
+
+  const sb = await createClient()
+  const { error } = await sb
+    .from('harvest_log_user_inputs')
+    .upsert(
+      {
+        log_id: id,
+        mapping_field_name: field,
+        value: cleanValue,
+      },
+      { onConflict: 'log_id,mapping_field_name' }
+    )
+  if (error) {
+    console.warn('[harvestLog.setLogUserInput]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not save value.' }
+  }
+  revalidatePath('/app/trips', 'layout')
+  return { ok: true }
+}
+
 export async function removeEntrySpeciesAction(
   speciesId: string
 ): Promise<{ ok: true } | { error: string }> {

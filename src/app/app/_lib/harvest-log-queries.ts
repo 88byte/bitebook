@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Database, TablesInsert } from '@/lib/supabase/types'
+import { parseFieldName } from './harvest-log-fill-types'
 
 // v27.1.1.0.3a — read paths for the harvest_logs / harvest_log_entries /
 // harvest_log_entry_species pivot. The fill engine (v27.1.1.0.3b) consumes
@@ -24,12 +25,21 @@ export type HarvestLogEntryWithRelations = HarvestLogEntryRow & {
 // editor needs to surface as guide-typed inputs. One entry per
 // (doc, hunter_slot, mapping_field_name). Populated only for log
 // docs the guide can fill from this trip.
+// v27.5.0.4.4 — effective slot mirrors the fill engine's slot
+// resolution: if the saved hunter_slot is 0, fall back to
+// parseFieldName(field_name).slot. This way a guide who marks a "_2"
+// suffixed field as user_input.log_time without explicitly setting the
+// slot picker still sees the input on Hunter 2's accordion (the fill
+// engine already resolved it correctly; the UI was the gap).
 export type LogTimeMapping = {
   doc_id: string
   doc_label: string
   field_name: string
   user_label: string
-  hunter_slot: number  // 1..5 = which hunter; 0 = trip-level (not yet rendered)
+  hunter_slot: number  // saved value: 0 = no manual slot, 1..N = explicit
+  /** v27.5.0.4.4 — derived: hunter_slot if > 0 else parseFieldName.slot.
+   *  0 = trip-level; 1..N = per-hunter. */
+  effective_slot: number
 }
 
 export type HarvestLogWithEntries = HarvestLogRow & {
@@ -37,6 +47,10 @@ export type HarvestLogWithEntries = HarvestLogRow & {
   // v27.3.9: aggregated across every log doc the guide can generate.
   // Editor merges these into per-entry "Custom fields" inputs.
   log_time_mappings: LogTimeMapping[]
+  // v27.5.0.4.4 — trip-level "Filled at log time" values keyed by
+  // mapping_field_name. Mirror of the per-entry user_inputs map but
+  // log-scoped. Populated by fetchHarvestLog.
+  user_inputs: Record<string, string>
 }
 
 export async function fetchHarvestLog(
@@ -125,7 +139,23 @@ export async function fetchHarvestLog(
   // captures inputs once even if the guide later switches templates.
   const logTimeMappings = await fetchLogTimeMappingsForGuide(sb)
 
-  return { ...log, entries: entriesWithRelations, log_time_mappings: logTimeMappings }
+  // v27.5.0.4.4 — trip-level user_input.log_time values, keyed on this
+  // log's id. Mirror of the per-entry user_inputs fetch above.
+  const { data: logUiRows } = await sb
+    .from('harvest_log_user_inputs')
+    .select('mapping_field_name, value')
+    .eq('log_id', log.id)
+  const logUserInputs: Record<string, string> = {}
+  for (const r of (logUiRows ?? []) as Array<{ mapping_field_name: string; value: string | null }>) {
+    logUserInputs[r.mapping_field_name] = r.value ?? ''
+  }
+
+  return {
+    ...log,
+    entries: entriesWithRelations,
+    log_time_mappings: logTimeMappings,
+    user_inputs: logUserInputs,
+  }
 }
 
 // v27.3.9: pull every "Filled at log time" mapping the guide owns
@@ -154,12 +184,19 @@ async function fetchLogTimeMappingsForGuide(
   const out: LogTimeMapping[] = []
   for (const r of (data ?? []) as unknown as Row[]) {
     if (!r.docs || r.docs.kind !== 'log') continue
+    // v27.5.0.4.4 — effective slot mirrors fill engine: manual slot if >0
+    // else regex on the field name. This keeps the UI in sync with how
+    // the fill engine actually resolves the slot at generate time.
+    const manual = r.hunter_slot ?? 0
+    const detected = parseFieldName(r.field_name).slot
+    const effective = manual > 0 ? manual : detected
     out.push({
       doc_id: r.doc_id,
       doc_label: r.docs.label,
       field_name: r.field_name,
       user_label: r.user_label && r.user_label.trim() ? r.user_label : r.field_name,
       hunter_slot: r.hunter_slot ?? 0,
+      effective_slot: effective,
     })
   }
   return out

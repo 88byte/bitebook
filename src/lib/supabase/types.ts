@@ -517,6 +517,41 @@ export type Database = {
           },
         ]
       }
+      harvest_log_user_inputs: {
+        Row: {
+          created_at: string
+          id: string
+          log_id: string
+          mapping_field_name: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          log_id: string
+          mapping_field_name: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          log_id?: string
+          mapping_field_name?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_log_user_inputs_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "harvest_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       harvest_logs: {
         Row: {
           created_at: string
