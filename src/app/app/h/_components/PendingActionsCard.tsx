@@ -48,40 +48,49 @@ export default function PendingActionsCard({
     ...actions.map((a) => ({ kind: 'doc' as const, data: a })),
   ]
 
+  // v27.6.3.3 item 2 — was a full-width bb-tile bb-form-section card
+  // ("massive card... whole length of the page" per Flavio). Now an
+  // inline section without card chrome, capped via .bb-pending-card
+  // max-width (44rem at >=1280px) so it doesn't span the whole page.
+  // Header is a single line with copper alert + label + helper inline;
+  // rows keep the existing tappable shell.
   return (
     <section
-      className="bb-tile bb-form-section"
+      className="bb-pending-card"
       aria-labelledby="bb-pending-actions"
-      style={{
-        borderColor: 'var(--color-copper)',
-        borderWidth: 1,
-        borderStyle: 'solid',
-      }}
     >
-      <div className="bb-tile-body">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          marginBottom: '0.5rem',
+        }}
+      >
         <h2
           id="bb-pending-actions"
           className="bb-form-section-head"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}
         >
-          <AlertCircle size={18} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
+          <AlertCircle size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
           Pending actions
         </h2>
-        <p className="bb-form-help" style={{ marginTop: '-0.3rem', marginBottom: '0.5rem' }}>
+        <span className="bb-form-help" style={{ margin: 0 }}>
           Open the trip to take care of each one.
-        </p>
-        <div className="flex flex-col gap-2">
-          {items.map((item) =>
-            item.kind === 'wallet' ? (
-              <PendingWalletRow
-                key={`w-${item.data.trip_id}-${item.data.kind}`}
-                item={item.data}
-              />
-            ) : (
-              <PendingActionRow key={`a-${item.data.id}`} action={item.data} />
-            )
-          )}
-        </div>
+        </span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {items.map((item) =>
+          item.kind === 'wallet' ? (
+            <PendingWalletRow
+              key={`w-${item.data.trip_id}-${item.data.kind}`}
+              item={item.data}
+            />
+          ) : (
+            <PendingActionRow key={`a-${item.data.id}`} action={item.data} />
+          )
+        )}
       </div>
     </section>
   )

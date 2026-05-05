@@ -2159,6 +2159,33 @@ body {
   .bb-pending-card { max-width: 44rem; }
 }
 
+/* v27.6.3.3 item 2 — Hunter dashboard "Pending actions" widget.
+   Was a full-width bb-tile bb-form-section card with copper border.
+   Now an inline section: no card chrome, no outer border, capped
+   width via the .bb-pending-card rule above so it doesn't span the
+   whole page on desktop. The individual rows (RowShell) keep their
+   bb-tile look so each pending item still reads as tappable. */
+.bb-pending-card {
+  display: block;
+}
+
+/* v27.6.3.3 item 3 — wallet Active + Expired sit side-by-side on
+   desktop. Mobile keeps the existing single-col stack. Mirrors the
+   .bb-dash-pair pattern used on the dashboard. */
+.bb-wallet-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+@media (min-width: 64rem) {
+  .bb-wallet-status-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+  }
+}
+
 /* v27.3.3.1 — Hunters page 2-column layout. Right rail narrowed
    further to 16rem (was 18rem). Invite aside compacted (smaller
    header, tighter padding, smaller submit) so it doesn't dominate
@@ -3746,11 +3773,16 @@ body {
 
 /* ── v27.0a.9: dashboard mockup rebuild — hero, quick actions, stat cards ── */
 
-/* Dark-on-image hero banner used on /app and /app/h dashboards */
+/* Dark-on-image hero banner used on /app and /app/h dashboards.
+   v27.6.3.3 item 6 — height was clamp(220px, 32vw, 280px) which
+   capped at 280 even on wide displays. Source banners are 4:1
+   (2508×627). At 1480+ widths a 280-tall banner reads as 5:1+ →
+   strong horizontal pinch / "stretched" look. New clamp scales
+   gracefully: ~240 at 1024, ~330 at 1480, ~400 at 1800, ~440 cap. */
 .bb-dash-hero {
   position: relative;
   width: 100%;
-  height: clamp(220px, 32vw, 280px);
+  height: clamp(220px, 22vw, 440px);
   border-radius: 14px;
   overflow: hidden;
   isolation: isolate;

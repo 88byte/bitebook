@@ -47,7 +47,10 @@ export default async function HunterDashboardPage() {
       {/* v27.6.3 — explicit bgImage + objectPosition='top' brings the
           hunter dashboard banner in line with /app (guide dashboard).
           Was inheriting the DashboardHero default which pre-v27.6.3
-          pointed at the legacy root-path /bb-dashboard-hero.png. */}
+          pointed at the legacy root-path /bb-dashboard-hero.png.
+          v27.6.3.3 — showShield={false} drops the antler shield that
+          was still appearing on the hunter dashboard banner (guide
+          side dropped it in v27.3.6 item 4). */}
       <DashboardHero
         eyebrow="Welcome"
         title={profile.display_name}
@@ -58,6 +61,7 @@ export default async function HunterDashboardPage() {
         }
         bgImage="/banners/dashboard-hero.png"
         objectPosition="top"
+        showShield={false}
       />
 
       {showBanner && (
@@ -87,62 +91,69 @@ export default async function HunterDashboardPage() {
         <StatIconedCard icon={Users} value={stats.guides} label="Guides" />
       </div>
 
-      <section className="mt-5">
-        <div className="bb-dash-section-head">
-          <span className="bb-dash-section-title">Upcoming trips</span>
-          {upcoming.length > 0 && (
-            <Link href="/app/h/trips" className="bb-text-action bb-text-action-copper">
-              View all
-            </Link>
+      {/* v27.6.3.3 item 1 — Upcoming + Recent now sit side-by-side at
+          >=1280px via .bb-dash-pair, mirroring guide /app dashboard.
+          Mobile keeps the existing single-column stack. Real desktop
+          dashboards put the two trip lists in parallel rails so the
+          page reads as a status board, not a long scroll. */}
+      <div className="bb-dash-pair mt-5">
+        <section>
+          <div className="bb-dash-section-head">
+            <span className="bb-dash-section-title">Upcoming trips</span>
+            {upcoming.length > 0 && (
+              <Link href="/app/h/trips" className="bb-text-action bb-text-action-copper">
+                View all
+              </Link>
+            )}
+          </div>
+          {upcoming.length === 0 ? (
+            <div className="bb-empty">
+              <div className="bb-empty-title">No upcoming trips</div>
+              <p className="bb-empty-sub">
+                Your guide will add you to a trip when they are ready. You will get an email when they do.
+              </p>
+            </div>
+          ) : (
+            <div role="list" className="flex flex-col gap-3">
+              {upcoming.map((t) => (
+                <div role="listitem" key={t.id}>
+                  <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-        {upcoming.length === 0 ? (
-          <div className="bb-empty">
-            <div className="bb-empty-title">No upcoming trips</div>
-            <p className="bb-empty-sub">
-              Your guide will add you to a trip when they are ready. You will get an email when they do.
-            </p>
-          </div>
-        ) : (
-          <div role="list" className="flex flex-col gap-3">
-            {upcoming.map((t) => (
-              <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
 
-      <section className="mt-5">
-        <div className="bb-dash-section-head">
-          <span className="bb-dash-section-title">Recent trips</span>
-          {recent.length > 0 && (
-            <Link
-              href="/app/h/trips?status=completed"
-              className="bb-text-action bb-text-action-copper"
-            >
-              View all
-            </Link>
+        <section className="bb-col-divider">
+          <div className="bb-dash-section-head">
+            <span className="bb-dash-section-title">Recent trips</span>
+            {recent.length > 0 && (
+              <Link
+                href="/app/h/trips?status=completed"
+                className="bb-text-action bb-text-action-copper"
+              >
+                View all
+              </Link>
+            )}
+          </div>
+          {recent.length === 0 ? (
+            <div className="bb-empty">
+              <div className="bb-empty-title">No wrapped trips yet</div>
+              <p className="bb-empty-sub">
+                Once your guide wraps a hunt, it will show up here so you can leave a review.
+              </p>
+            </div>
+          ) : (
+            <div role="list" className="flex flex-col gap-3">
+              {recent.map((t) => (
+                <div role="listitem" key={t.id}>
+                  <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-        {recent.length === 0 ? (
-          <div className="bb-empty">
-            <div className="bb-empty-title">No wrapped trips yet</div>
-            <p className="bb-empty-sub">
-              Once your guide wraps a hunt, it will show up here so you can leave a review.
-            </p>
-          </div>
-        ) : (
-          <div role="list" className="flex flex-col gap-3">
-            {recent.map((t) => (
-              <div role="listitem" key={t.id}>
-                <HunterTripRow trip={t} hunters={t.hunters} rating={t.rating} pendingCount={pendingByTripId.get(t.id) ?? 0} />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      </div>
     </main>
   )
 }

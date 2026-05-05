@@ -13,12 +13,16 @@ function guideLabel(g: HunterGuideConnection): string {
   return g.business_name ?? g.display_name
 }
 
-// v27.0a.12: hunter's My Guides list. Search input only renders when 5+
-// connections (low-volume noise threshold). Cards use the shared
+// v27.0a.12: hunter's My Guides list. Cards use the shared
 // NetworkPersonCard so the visual matches the Hunters page.
+//
+// v27.6.3.3 item 4 — search input is now ALWAYS visible (was gated
+// behind guides.length >= 5). Flavio: "guides page is missing a
+// search bar like in guides." Matches /app/hunters guide-side which
+// shows search regardless of count. Empty-state copy still handles
+// zero-guide case correctly.
 export default function MyGuidesList({ guides }: { guides: HunterGuideConnection[] }) {
   const [query, setQuery] = useState('')
-  const showSearch = guides.length >= 5
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -32,19 +36,17 @@ export default function MyGuidesList({ guides }: { guides: HunterGuideConnection
 
   return (
     <div>
-      {showSearch && (
-        <label className="bb-field" style={{ marginBottom: '1rem' }}>
-          <span className="bb-field-icon"><Search size={18} aria-hidden="true" /></span>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or business"
-            className="bb-input bb-input-iconed"
-            aria-label="Search your guides"
-          />
-        </label>
-      )}
+      <label className="bb-field" style={{ marginBottom: '1rem' }}>
+        <span className="bb-field-icon"><Search size={18} aria-hidden="true" /></span>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name or business"
+          className="bb-input bb-input-iconed"
+          aria-label="Search your guides"
+        />
+      </label>
 
       {filtered.length === 0 ? (
         <div className="bb-empty">

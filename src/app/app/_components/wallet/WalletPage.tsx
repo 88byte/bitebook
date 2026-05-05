@@ -145,29 +145,33 @@ export default function WalletPage({
       {/* v27.3.3: divider after top CTA. */}
       <div className="bb-page-divider mt-4" aria-hidden="true" />
 
-      {/* Stats grid — paper cards, one per visible type, copper border on
-          active. Each card has a small copper-filled circle with a white
-          per-type icon, big count, uppercase label. Tap selects type. This
-          is the SOLE type selector — pill chips were removed in v27.0a.6
-          since they duplicated this control. */}
-      <div className="bb-wallet-stats mt-3" role="tablist" aria-label="Wallet category counts">
+      {/* v27.6.3.3 item 3 — type filter chips. Was big paper-card
+          buttons with 1.6rem count + label (.bb-wallet-stat-card)
+          which Flavio called "large card" + "big and wide". Now a
+          .bb-chip-row of compact pill chips matching /app/trips
+          status filters. Active state = copper background (matches
+          .bb-chip.is-active). Counts render inline next to the
+          label. The bb-wallet-stats CSS classes are now orphaned
+          but harmless; cleanup deferred. */}
+      <div className="bb-chip-row mt-3" role="tablist" aria-label="Wallet category">
         {[...tabs, ...(moreOpen ? secondaryTabs : [])].map((t) => {
           const isActive = activeTab === t
           const TypeIcon = TAB_ICONS[t]
           return (
             <button
-              key={`stat-${t}`}
+              key={`tab-${t}`}
               type="button"
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveTab(t)}
-              className={`bb-wallet-stat-card ${isActive ? 'is-active' : ''}`}
+              className={`bb-chip ${isActive ? 'is-active' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              <span className="bb-wallet-stat-icon" aria-hidden="true">
-                <TypeIcon size={14} strokeWidth={2.2} />
+              <TypeIcon size={12} strokeWidth={2.2} aria-hidden="true" />
+              {TYPE_LABEL[t]}
+              <span style={{ opacity: 0.65, marginLeft: 4, fontWeight: 500 }}>
+                ({countFor(t)})
               </span>
-              <span className="bb-wallet-stat-count">{countFor(t)}</span>
-              <span className="bb-wallet-stat-label">{TYPE_LABEL[t]}</span>
             </button>
           )
         })}
@@ -211,25 +215,11 @@ export default function WalletPage({
         </div>
       )}
 
-      {/* ACTIVE section */}
-      <WalletStatusSection
-        title="Active"
-        count={buckets.active.length}
-        items={buckets.active}
-        basePath={basePath}
-        type={activeTab}
-        emptyIcon={Icon}
-        emptyTitle={`No active ${TYPE_LABEL[activeTab].toLowerCase()}`}
-        emptySub="When you add one, it'll show up here."
-        holderName={holderName}
-      />
-
-      {/* DONE — only render for tags. v27.1.5.3: rebadged from "Tagged
-          out" so a finished tag reads with the same vocabulary as a
-          completed trip — both surface as "Done" everywhere they
-          render. The underlying bucket key (tagged_out) stays for code
-          clarity since it describes the data attribute (tagged_out_at
-          set), not the user-facing label. */}
+      {/* v27.6.3.3 item 3 — Active + Expired now sit side-by-side at
+          desktop via .bb-wallet-status-grid. On tag tab the Done
+          bucket (tagged_out) renders inline above the grid since
+          it's tag-specific and readers expect it next to Active.
+          Mobile keeps single-col stack. */}
       {activeTab === 'tag' && buckets.tagged_out.length > 0 && (
         <WalletStatusSection
           title="Done"
@@ -244,18 +234,31 @@ export default function WalletPage({
         />
       )}
 
-      {/* EXPIRED section */}
-      <WalletStatusSection
-        title="Expired"
-        count={buckets.expired.length}
-        items={buckets.expired}
-        basePath={basePath}
-        type={activeTab}
-        emptyIcon={CalendarCheck}
-        emptyTitle={`No expired ${TYPE_LABEL[activeTab].toLowerCase()}`}
-        emptySub="You're all caught up."
-        holderName={holderName}
-      />
+      <div className="bb-wallet-status-grid">
+        <WalletStatusSection
+          title="Active"
+          count={buckets.active.length}
+          items={buckets.active}
+          basePath={basePath}
+          type={activeTab}
+          emptyIcon={Icon}
+          emptyTitle={`No active ${TYPE_LABEL[activeTab].toLowerCase()}`}
+          emptySub="When you add one, it'll show up here."
+          holderName={holderName}
+        />
+
+        <WalletStatusSection
+          title="Expired"
+          count={buckets.expired.length}
+          items={buckets.expired}
+          basePath={basePath}
+          type={activeTab}
+          emptyIcon={CalendarCheck}
+          emptyTitle={`No expired ${TYPE_LABEL[activeTab].toLowerCase()}`}
+          emptySub="You're all caught up."
+          holderName={holderName}
+        />
+      </div>
 
       {/* Archived — small text link to view archived (deferred full surface) */}
       {buckets.archived.length > 0 && (

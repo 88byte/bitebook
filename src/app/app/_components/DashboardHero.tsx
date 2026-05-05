@@ -54,7 +54,14 @@ export default function DashboardHero({
         alt=""
         fill
         priority
-        sizes="(max-width: 1024px) 100vw, 64rem"
+        // v27.6.3.3 item 6 — sizes was capped at 64rem (1024px) which
+        // told Next.js to fetch a low-res srcset entry even on 1920+
+        // displays where bb-app-main expands to 1480/1800/2000/2200
+        // (v27.5.0.4). At those widths the picked srcset stretched
+        // from ~1024px to ~2000px, producing the "banner images look
+        // stretched out" effect Flavio reported. Match the actual
+        // bb-app-main caps so the right srcset entry is used.
+        sizes="(min-width: 160rem) 2200px, (min-width: 120rem) 2000px, (min-width: 96rem) 1800px, (min-width: 80rem) 1320px, (min-width: 64rem) 1180px, 100vw"
         className="bb-dash-hero-img"
         style={objectPosition ? { objectPosition } : undefined}
       />
