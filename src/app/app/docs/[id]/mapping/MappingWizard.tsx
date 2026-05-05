@@ -706,9 +706,39 @@ export default function MappingWizard({
   // compact row "→ <source>" hint. Falls back to "Skipped" / "AI
   // suggestion" / static literal display. Kept short so 50+ field
   // forms stay scannable on mobile.
+  //
+  // v27.3.10.9 — paired-aware. For slot 2..N rows whose primary
+  // dropdown is locked to the slot-1 species-correct mirror (same
+  // condition the expanded FieldRow uses), the compact summary
+  // resolves the label from the MIRROR path, not from the local
+  // `selection[fieldName]` state. The local state can be stale from
+  // older saves with the buggy base-only mirror — without this fix,
+  // the collapsed row showed the wrong species's source while the
+  // expanded view showed the right one.
   function shortSourceLabel(fieldName: string): string {
     const status = statusForField(fieldName)
     if (status === 'skipped') return 'Skipped'
+
+    // Paired-aware mirror lookup for slot 2..N rows.
+    const parsed = parseFieldNameInline(fieldName)
+    const effSlot = (slotOverrides[fieldName] ?? 0) > 0
+      ? (slotOverrides[fieldName] ?? 0)
+      : parsed.slot
+    const isOverride = overrideFlags[fieldName] === true
+    if (effSlot >= 2 && !isOverride) {
+      let mirrored: string | undefined
+      if (slot1Anchors.pairedBases.has(parsed.base)) {
+        const speciesIdx = ((parsed.slot - 1) % 2) + 1
+        mirrored = slot1Anchors.byBaseSpecies.get(`${parsed.base}|${speciesIdx}`)
+      } else {
+        mirrored = slot1Anchors.byBase.get(parsed.base)
+      }
+      if (mirrored) {
+        const found = DATA_SOURCES.find((s) => s.value === mirrored)
+        return found?.label ?? mirrored
+      }
+    }
+
     const sel = selection[fieldName] ?? ''
     if (isStaticText(sel)) {
       const v = staticTextValue(sel)
