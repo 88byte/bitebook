@@ -2255,8 +2255,25 @@ body {
 @media (min-width: 80rem) {
   .bb-app-main { max-width: 1320px; padding-left: 2.5rem; padding-right: 2.5rem; }
 }
+/* v27.5.0.4.1 — Flavio: "for desktop we are only utlizing 2/3 of the
+   screen for some reason." Root cause: at >=1536 the cap was 1480px
+   while the 1fr content column on a 2560px display is ~2320px, leaving
+   ~840px dead on the right. Bumped caps so content tracks viewport
+   width on wide screens. Internal components (cards / forms / text
+   blocks) keep their own max-widths so line-length and card shape
+   stay sensible — only the page-level container expands.
+
+     1536 (96rem):  1480 → 1800
+     1920 (120rem): new   → 2000
+     2560 (160rem): new   → 2200 */
 @media (min-width: 96rem) {
-  .bb-app-main { max-width: 1480px; padding-left: 3rem; padding-right: 3rem; }
+  .bb-app-main { max-width: 1800px; padding-left: 3rem; padding-right: 3rem; }
+}
+@media (min-width: 120rem) {
+  .bb-app-main { max-width: 2000px; padding-left: 3.5rem; padding-right: 3.5rem; }
+}
+@media (min-width: 160rem) {
+  .bb-app-main { max-width: 2200px; padding-left: 4rem; padding-right: 4rem; }
 }
 
 .bb-sidebar-brand {
