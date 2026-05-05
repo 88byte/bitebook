@@ -189,29 +189,31 @@ export default function MappingWizard({
   // that expands inline to the existing FieldRow editor on tap. The goal
   // is to keep 50+ field forms (DFW 992b ext) scannable without
   // sacrificing any of the existing edit affordances.
-  // v27.3.10.4: inverted from expandedFields → collapsedFields. Default
-  // empty Set = ALL field rows render expanded (full FieldRow editor
-  // visible). Tap the chevron on a row to collapse it back to the
-  // compact summary once you're done with it. Flavio: "let the user
-  // see the condensed version and they can collapse each one to work
-  // one at a time versus all fields collapsed and its hard to know
-  // where to start."
-  const [collapsedFields, setCollapsedFields] = useState<Set<string>>(new Set())
+  // v27.3.10.5 item 3: REVERT 10.4 default-expanded. Flavio's actual
+  // ask was "collapsed sections so the user can see just the title of
+  // each section, then expand one at a time." Two state flips:
+  //   1. expandedSlots (default empty = ALL sections collapsed). Click
+  //      a section header to expand its rows.
+  //   2. expandedFields (default empty = rows render in compact summary
+  //      form). Click a row to expand its full editor.
+  // The flow: collapsed sections → click header → see compact rows →
+  // click row → expand editor. One section, one row at a time.
+  const [expandedSlots, setExpandedSlots] = useState<Set<number>>(new Set())
+  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState<string>('')
   type FilterMode = 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
-  const [collapsedSlots, setCollapsedSlots] = useState<Set<number>>(new Set())
 
-  function toggleFieldCollapsed(fieldName: string) {
-    setCollapsedFields((prev) => {
+  function toggleFieldExpanded(fieldName: string) {
+    setExpandedFields((prev) => {
       const next = new Set(prev)
       if (next.has(fieldName)) next.delete(fieldName)
       else next.add(fieldName)
       return next
     })
   }
-  function toggleSlotCollapsed(slot: number) {
-    setCollapsedSlots((prev) => {
+  function toggleSlotExpanded(slot: number) {
+    setExpandedSlots((prev) => {
       const next = new Set(prev)
       if (next.has(slot)) next.delete(slot)
       else next.add(slot)
@@ -933,122 +935,206 @@ export default function MappingWizard({
         </div>
       )}
 
-      {stage === 'review' && (
-        <StepCard
-          stepNumber={3}
-          title="Review your mappings"
-          tone="ink"
-        >
-          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-            Look for the <strong>✨ AI</strong> badge on each row &mdash; that&rsquo;s a
-            suggestion. Edit anything wrong, then tap{' '}
-            <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
-            Anything left on &ldquo;Skip&rdquo; stays blank in the final PDF.
-            {fields.length > 0 && (
-              <>
-                {' '}
-                <span style={{ color: 'var(--color-ink-soft)' }}>
-                  ({fields.length} total box{fields.length === 1 ? '' : 'es'} across{' '}
-                  {sections.length} section{sections.length === 1 ? '' : 's'}.)
-                </span>
-              </>
-            )}
-          </p>
-          <div style={{ marginTop: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="bb-btn-secondary"
-              onClick={handleSuggestMappings}
-              disabled={pending || aiSuggesting}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              Re-run AI mapping
-            </button>
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
-              Optional &mdash; only if you want fresh suggestions.
-            </span>
-          </div>
-          {aiResultMsg && (
-            <p
-              className="bb-form-help"
-              role="status"
+      {/* v27.3.10.5 item 5: once the doc has been marked complete at
+          least once (currentStatus === 'complete'), Step 3 + Step 4
+          collapse to a single compact button row. The full
+          instructional StepCards add no value on a re-visit — the
+          guide already knows what these buttons do. */}
+      {(() => {
+        const mappingPreviouslyCompleted = currentStatus === 'complete'
+
+        if (mappingPreviouslyCompleted) {
+          return (
+            <div
+              className="bb-tile"
               style={{
-                margin: '0.6rem 0 0',
-                color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+                padding: '0.7rem 1rem',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: '0.5rem',
               }}
             >
-              {aiResultMsg}
-            </p>
-          )}
-        </StepCard>
-      )}
+              <button
+                type="button"
+                className="bb-cta-sm"
+                onClick={() => save(true)}
+                disabled={pending}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <CheckCircle2 size={14} aria-hidden="true" />
+                {completedAt !== null
+                  ? 'Saved + marked complete'
+                  : pending
+                  ? 'Working…'
+                  : 'Mark mapping complete'}
+              </button>
+              <button
+                type="button"
+                className="bb-btn-secondary"
+                onClick={() => save(false)}
+                disabled={pending}
+              >
+                {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+              </button>
+              <button
+                type="button"
+                className="bb-btn-secondary"
+                onClick={handleSuggestMappings}
+                disabled={pending || aiSuggesting}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Sparkles size={14} aria-hidden="true" />
+                Re-run AI
+              </button>
+              <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                Status: <strong>{currentStatus}</strong>
+              </span>
+              {savedAt !== null && mirroredCount > 0 && (
+                <p
+                  className="bb-form-help"
+                  style={{ flexBasis: '100%', margin: '0.3rem 0 0', color: 'var(--color-copper)' }}
+                >
+                  Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
+                </p>
+              )}
+              {aiResultMsg && (
+                <p
+                  className="bb-form-help"
+                  role="status"
+                  style={{
+                    flexBasis: '100%',
+                    margin: '0.3rem 0 0',
+                    color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+                  }}
+                >
+                  {aiResultMsg}
+                </p>
+              )}
+            </div>
+          )
+        }
 
-      {/* v27.3.7 item 8 — Step 4 promoted to TOP of the wizard so the
-          "I'm done" CTA is in reach without scrolling past dozens of
-          field rows. The duplicate Step 4 footer was removed. Button
-          stretches to width:100% with a desktop max cap so it stays a
-          comfortable tap target on mobile + isn't a runway on widescreen. */}
-      <StepCard
-        stepNumber={4}
-        title="Done? Mark this mapping complete"
-        tone="copper"
-      >
-        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
-          Once you&rsquo;re happy with each row, tap below. The auto-fill engine will use
-          these mappings on every report you generate. You can come back to edit anytime.
-        </p>
-        <div
-          style={{
-            marginTop: '0.75rem',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.5rem',
-            alignItems: 'stretch',
-          }}
-        >
-          <button
-            type="button"
-            className="bb-cta"
-            onClick={() => save(true)}
-            disabled={pending}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem',
-              width: '100%',
-              maxWidth: '24rem',
-            }}
-          >
-            <CheckCircle2 size={16} aria-hidden="true" />
-            {completedAt !== null
-              ? 'Saved + marked complete'
-              : pending
-              ? 'Working…'
-              : 'Mark mapping complete'}
-          </button>
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => save(false)}
-            disabled={pending}
-          >
-            {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
-          </button>
-          <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-            Status: <strong>{currentStatus}</strong>
-          </span>
-        </div>
-        {savedAt !== null && mirroredCount > 0 && (
-          <p
-            className="bb-form-help"
-            style={{ margin: '0.6rem 0 0', color: 'var(--color-copper)' }}
-          >
-            Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
-          </p>
-        )}
-      </StepCard>
+        // First-time mapping flow: full StepCards 3 + 4.
+        return (
+          <>
+            {stage === 'review' && (
+              <StepCard
+                stepNumber={3}
+                title="Review your mappings"
+                tone="ink"
+              >
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+                  Look for the <strong>✨ AI</strong> badge on each row &mdash; that&rsquo;s a
+                  suggestion. Edit anything wrong, then tap{' '}
+                  <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
+                  Anything left on &ldquo;Skip&rdquo; stays blank in the final PDF.
+                  {fields.length > 0 && (
+                    <>
+                      {' '}
+                      <span style={{ color: 'var(--color-ink-soft)' }}>
+                        ({fields.length} total box{fields.length === 1 ? '' : 'es'} across{' '}
+                        {sections.length} section{sections.length === 1 ? '' : 's'}.)
+                      </span>
+                    </>
+                  )}
+                </p>
+                <div style={{ marginTop: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="bb-btn-secondary"
+                    onClick={handleSuggestMappings}
+                    disabled={pending || aiSuggesting}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Sparkles size={14} aria-hidden="true" />
+                    Re-run AI mapping
+                  </button>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-ink-soft)' }}>
+                    Optional &mdash; only if you want fresh suggestions.
+                  </span>
+                </div>
+                {aiResultMsg && (
+                  <p
+                    className="bb-form-help"
+                    role="status"
+                    style={{
+                      margin: '0.6rem 0 0',
+                      color: aiNeedsSetup ? '#8C3C2A' : 'var(--color-ink-soft)',
+                    }}
+                  >
+                    {aiResultMsg}
+                  </p>
+                )}
+              </StepCard>
+            )}
+
+            {/* v27.3.7 item 8 — Step 4 promoted to TOP of the wizard
+                so the "I'm done" CTA is in reach without scrolling past
+                dozens of field rows. */}
+            <StepCard
+              stepNumber={4}
+              title="Done? Mark this mapping complete"
+              tone="copper"
+            >
+              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
+                Once you&rsquo;re happy with each row, tap below. The auto-fill engine will use
+                these mappings on every report you generate. You can come back to edit anytime.
+              </p>
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                  alignItems: 'stretch',
+                }}
+              >
+                <button
+                  type="button"
+                  className="bb-cta"
+                  onClick={() => save(true)}
+                  disabled={pending}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    width: '100%',
+                    maxWidth: '24rem',
+                  }}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  {completedAt !== null
+                    ? 'Saved + marked complete'
+                    : pending
+                    ? 'Working…'
+                    : 'Mark mapping complete'}
+                </button>
+                <button
+                  type="button"
+                  className="bb-btn-secondary"
+                  onClick={() => save(false)}
+                  disabled={pending}
+                >
+                  {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+                </button>
+                <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                  Status: <strong>{currentStatus}</strong>
+                </span>
+              </div>
+              {savedAt !== null && mirroredCount > 0 && (
+                <p
+                  className="bb-form-help"
+                  style={{ margin: '0.6rem 0 0', color: 'var(--color-copper)' }}
+                >
+                  Updated {mirroredCount} mirrored field{mirroredCount === 1 ? '' : 's'} across slots.
+                </p>
+              )}
+            </StepCard>
+          </>
+        )
+      })()}
 
       {/* Anchor target so the success-step CTA can scroll the user
           straight to the first field card. */}
@@ -1122,7 +1208,9 @@ export default function MappingWizard({
       {sections.map(({ slot, members }) => {
         const visible = members.filter(passesFilter)
         if (visible.length === 0) return null
-        const isCollapsed = collapsedSlots.has(slot)
+        // v27.3.10.5 item 3: default collapsed; expandedSlots tracks
+        // sections the guide has explicitly opened.
+        const isCollapsed = !expandedSlots.has(slot)
         // Per-section status summary: count of mapped + needs-review +
         // skipped + log-time across the section's full member list (not
         // filtered) so the header reads consistently regardless of
@@ -1141,7 +1229,7 @@ export default function MappingWizard({
             <button
               type="button"
               className="bb-mapping-section-head"
-              onClick={() => toggleSlotCollapsed(slot)}
+              onClick={() => toggleSlotExpanded(slot)}
               aria-expanded={!isCollapsed}
               aria-controls={`section-${slot}-body`}
             >
@@ -1167,11 +1255,10 @@ export default function MappingWizard({
             {!isCollapsed && (
               <div id={`section-${slot}-body`}>
                 {visible.map((f) => {
-                  // v27.3.10.4: default expanded; collapsedFields tracks
-                  // the rows the guide has explicitly tapped to collapse
-                  // away once they're satisfied with the mapping.
-                  const isCollapsed = collapsedFields.has(f.name)
-                  if (!isCollapsed) {
+                  // v27.3.10.5 item 3: default compact; expandedFields
+                  // tracks rows the guide has explicitly tapped to open.
+                  const isExpanded = expandedFields.has(f.name)
+                  if (isExpanded) {
                     return (
                       <div
                         key={f.name}
@@ -1181,7 +1268,7 @@ export default function MappingWizard({
                           type="button"
                           className="bb-mapping-row-compact"
                           style={{ padding: '0 0 0.4rem', borderBottom: 'none', minHeight: 0 }}
-                          onClick={() => toggleFieldCollapsed(f.name)}
+                          onClick={() => toggleFieldExpanded(f.name)}
                           aria-expanded={true}
                           title="Collapse this row"
                         >
@@ -1204,7 +1291,7 @@ export default function MappingWizard({
                       key={f.name}
                       type="button"
                       className="bb-mapping-row-compact"
-                      onClick={() => toggleFieldCollapsed(f.name)}
+                      onClick={() => toggleFieldExpanded(f.name)}
                       aria-expanded={false}
                       title="Expand this row to edit"
                     >

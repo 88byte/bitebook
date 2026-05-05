@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  AlertCircle,
   Archive,
   ArchiveRestore,
   BookOpen,
@@ -15,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
+import MappingStatusBadge from '../_components/MappingStatusBadge'
 import { bulkArchiveDocsAction, bulkDeleteDocsAction, bulkRestoreDocsAction } from '../_lib/docs-actions'
 import type { DocSummary } from '../_lib/docs-queries'
 import { relativeOrDate } from '../_lib/format'
@@ -396,7 +396,7 @@ function SelectableDocRow({
             </span>
           </div>
         </div>
-        <MappingBadge status={doc.mapping_status} archived={isArchived} />
+        <MappingStatusBadge status={doc.mapping_status} archived={isArchived} />
       </Link>
     </div>
   )
@@ -425,59 +425,7 @@ function TemplateBadge() {
   )
 }
 
-function MappingBadge({ status, archived }: { status: string; archived: boolean }) {
-  if (archived) {
-    return (
-      <span
-        style={{
-          flexShrink: 0,
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          padding: '0.2rem 0.5rem',
-          borderRadius: 999,
-          background: 'var(--color-ink-tint)',
-          color: 'var(--color-ink-soft)',
-        }}
-      >
-        Archived
-      </span>
-    )
-  }
-  if (status === 'not_applicable') return null
-  if (status === 'complete') {
-    return (
-      <span
-        style={{
-          flexShrink: 0,
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          padding: '0.2rem 0.5rem',
-          borderRadius: 999,
-          background: 'rgba(168, 92, 50, 0.12)',
-          color: 'var(--color-copper)',
-        }}
-      >
-        Mapped
-      </span>
-    )
-  }
-  return (
-    <span
-      style={{
-        flexShrink: 0,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        padding: '0.2rem 0.5rem',
-        borderRadius: 999,
-        background: 'rgba(168, 92, 50, 0.12)',
-        color: 'var(--color-copper)',
-      }}
-    >
-      <AlertCircle size={11} aria-hidden="true" />
-      {status === 'partial' ? 'Partial' : 'Needs mapping'}
-    </span>
-  )
-}
+// v27.3.10.5 item 2: inline MappingBadge replaced by shared
+// MappingStatusBadge component in src/app/app/_components/. Same
+// component now drives both the library row badge and the
+// "Field mapping" heading badge on the doc detail page.

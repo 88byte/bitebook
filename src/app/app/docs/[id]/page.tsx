@@ -7,6 +7,7 @@ import { relativeOrDate } from '../../_lib/format'
 import EditDocForm from './EditDocForm'
 import DocFilePreview from './DocFilePreview'
 import DocActionsBar from './DocActionsBar'
+import MappingStatusBadge from '../../_components/MappingStatusBadge'
 
 const ADMIN_EMAIL = 'flaviod022@gmail.com'
 
@@ -217,66 +218,24 @@ export default async function DocDetailPage({
         </section>
       )}
 
-      {/* v27.1.1.0.3d.2.5: log-kind reorder — Field Mapping is the next
-          obvious action so it leads. Then editable details, then the
-          file preview at the bottom. Waiver + resource keep the prior
-          File-first layout. */}
+      {/* v27.3.10.5 item 1: Field mapping section + signature
+          placement CTA were moved INSIDE EditDocForm so doc metadata
+          (Kind / Label / State) and Field mapping setup live in one
+          unified window — no longer two adjacent sections that read
+          as separate concerns. The mapping section sits under State
+          (optional) with a thin divider, and surfaces the colored
+          status badge (red Unmapped / amber Partial / green Mapped)
+          directly next to the heading.
+
+          Layout split by kind:
+          - log:    EditDocForm (with mapping inside) → File preview
+          - waiver: File preview → EditDocForm (with mapping inside)
+          - resource: File preview → EditDocForm (no mapping section,
+            since mapping_status === 'not_applicable' for resources). */}
       {doc.kind === 'log' ? (
         <>
-          {/* v27.3.10 item 3: Field mapping section is no longer
-              wrapped in a bb-tile card. Renders flush on the page
-              surface so the mapping table below sits directly on
-              the page rather than inside a window-in-a-window. */}
-          <section className="mt-4">
-            <div>
-              <h2 className="bb-form-section-head">Field mapping</h2>
-              <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-                {viewerOwnsDoc
-                  ? 'Match each PDF box to a Bite Book data source so the auto-fill engine knows what to write into your reports. AI can pre-fill suggestions you review — this is the next step.'
-                  : 'See how this template maps PDF boxes to Bite Book data sources. The mapping is owned by the template author.'}
-              </p>
-              <div
-                style={{
-                  marginTop: '0.6rem',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                }}
-              >
-                <Link
-                  href={`/app/docs/${doc.id}/mapping`}
-                  className="bb-cta-sm"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                  {viewerOwnsDoc
-                    ? doc.mapping_status === 'unmapped'
-                      ? 'Set up mapping'
-                      : 'Edit mapping'
-                    : 'View mapping'}
-                </Link>
-                {/* v27.3.8.1 item 4: signature-placement CTA lives
-                    next to Edit mapping. Renamed from "Place
-                    signatures" -> "Set signature locations" for
-                    clarity. */}
-                {viewerOwnsDoc && !isArchived && (
-                  <Link
-                    href={`/app/docs/${doc.id}/sign-placement`}
-                    className="bb-btn-secondary"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                  >
-                    Set signature locations
-                  </Link>
-                )}
-                <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
-                  Status: <strong>{doc.mapping_status}</strong>
-                </span>
-              </div>
-            </div>
-          </section>
-
           {viewerOwnsDoc && (
-            <section className="mt-3">
+            <section className="mt-4">
               <EditDocForm
                 docId={doc.id}
                 initial={{
@@ -284,6 +243,19 @@ export default async function DocDetailPage({
                   label: doc.label,
                   state: doc.state,
                 }}
+                mappingStatus={doc.mapping_status}
+                isArchived={isArchived}
+                showSetSignatureButton={true}
+                viewerOwnsDoc={viewerOwnsDoc}
+              />
+            </section>
+          )}
+          {!viewerOwnsDoc && (
+            <section className="mt-4">
+              <ReadOnlyMappingSection
+                docId={doc.id}
+                mappingStatus={doc.mapping_status}
+                isArchived={isArchived}
               />
             </section>
           )}
@@ -298,52 +270,6 @@ export default async function DocDetailPage({
             <DocFilePreview filePath={doc.file_path} fileMime={doc.file_mime} />
           </section>
 
-          {doc.kind === 'waiver' && (
-            // v27.3.10 item 3: same wrapper-strip as the log kind.
-            <section className="mt-3">
-              <div>
-                <h2 className="bb-form-section-head">Field mapping</h2>
-                <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-                  {viewerOwnsDoc
-                    ? 'Map text fields here; signature placement ships next (v27.1.2).'
-                    : 'See how this template maps text fields.'}
-                </p>
-                <div
-                  style={{
-                    marginTop: '0.6rem',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                  }}
-                >
-                  <Link
-                    href={`/app/docs/${doc.id}/mapping`}
-                    className="bb-cta-sm"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                  >
-                    {viewerOwnsDoc
-                      ? doc.mapping_status === 'unmapped'
-                        ? 'Set up mapping'
-                        : 'Edit mapping'
-                      : 'View mapping'}
-                  </Link>
-                  {/* v27.3.8.1 item 4: same pattern as the log
-                      kind — sig placement next to Edit mapping. */}
-                  {viewerOwnsDoc && !isArchived && (
-                    <Link
-                      href={`/app/docs/${doc.id}/sign-placement`}
-                      className="bb-btn-secondary"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                    >
-                      Set signature locations
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
           {viewerOwnsDoc && (
             <section className="mt-3">
               <EditDocForm
@@ -353,11 +279,80 @@ export default async function DocDetailPage({
                   label: doc.label,
                   state: doc.state,
                 }}
+                mappingStatus={doc.kind === 'waiver' ? doc.mapping_status : undefined}
+                isArchived={isArchived}
+                showSetSignatureButton={doc.kind === 'waiver'}
+                viewerOwnsDoc={viewerOwnsDoc}
+              />
+            </section>
+          )}
+          {!viewerOwnsDoc && doc.kind === 'waiver' && (
+            <section className="mt-3">
+              <ReadOnlyMappingSection
+                docId={doc.id}
+                mappingStatus={doc.mapping_status}
+                isArchived={isArchived}
               />
             </section>
           )}
         </>
       )}
     </main>
+  )
+}
+
+// v27.3.10.5 item 1: read-only Field mapping section for template
+// viewers (non-owners). Same visual structure as the EditDocForm
+// version (heading + status badge + View mapping CTA) but doesn't
+// nest inside an editable form tile — non-owners aren't editing
+// anything.
+function ReadOnlyMappingSection({
+  docId,
+  mappingStatus,
+  isArchived,
+}: {
+  docId: string
+  mappingStatus: string
+  isArchived: boolean
+}) {
+  return (
+    <section className="bb-tile bb-form-section bb-form-narrow">
+      <div className="bb-tile-body">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+            marginBottom: '0.4rem',
+          }}
+        >
+          <h2 className="bb-form-section-head" style={{ marginTop: 0, marginBottom: 0 }}>
+            Field mapping
+          </h2>
+          <MappingStatusBadge status={mappingStatus} archived={isArchived} />
+        </div>
+        <p className="bb-form-help" style={{ margin: 0 }}>
+          See how this template maps PDF boxes to Bite Book data sources. The mapping is owned by the template author.
+        </p>
+        <div
+          style={{
+            marginTop: '0.6rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '0.6rem',
+          }}
+        >
+          <Link
+            href={`/app/docs/${docId}/mapping`}
+            className="bb-cta-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            View mapping
+          </Link>
+        </div>
+      </div>
+    </section>
   )
 }

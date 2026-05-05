@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { US_STATES } from '@/lib/us-states'
@@ -7,6 +8,7 @@ import {
   updateDocAction,
   type DocKind,
 } from '../../_lib/docs-actions'
+import MappingStatusBadge from '../../_components/MappingStatusBadge'
 
 // v27.1.1.0.3d.2.6: action buttons (Save / Archive / Restore / Delete)
 // were promoted to a top-of-page DocActionsBar. The Save button there
@@ -24,9 +26,22 @@ const KIND_OPTIONS: { value: DocKind; label: string }[] = [
 export default function EditDocForm({
   docId,
   initial,
+  // v27.3.10.5 item 1: Field mapping configuration block lives inside
+  // the same window as the doc metadata fields, immediately under the
+  // State (optional) row. Pass these props to surface the section.
+  // Resource docs (mapping not applicable) get null/undefined and
+  // no section renders.
+  mappingStatus,
+  isArchived = false,
+  showSetSignatureButton = false,
+  viewerOwnsDoc = true,
 }: {
   docId: string
   initial: { kind: DocKind; label: string; state: string | null }
+  mappingStatus?: string
+  isArchived?: boolean
+  showSetSignatureButton?: boolean
+  viewerOwnsDoc?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -122,6 +137,71 @@ export default function EditDocForm({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* v27.3.10.5 item 1: Field mapping configuration block,
+              promoted into this same tile so doc metadata + mapping
+              setup live in one window. Renders for log + waiver kinds
+              only (resource docs don't have a mapping). The block sits
+              under State (optional) with a subtle divider above. */}
+          {showState && mappingStatus && (
+            <div
+              style={{
+                marginTop: '1rem',
+                paddingTop: '1rem',
+                borderTop: '1px solid var(--color-card-divider)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                  marginBottom: '0.4rem',
+                }}
+              >
+                <h2 className="bb-form-section-head" style={{ marginTop: 0, marginBottom: 0 }}>
+                  Field mapping
+                </h2>
+                <MappingStatusBadge status={mappingStatus} archived={isArchived} />
+              </div>
+              <p className="bb-form-help" style={{ margin: 0 }}>
+                {viewerOwnsDoc
+                  ? 'Match each PDF box to a Bite Book data source so the auto-fill engine knows what to write into your reports. AI can pre-fill suggestions you review.'
+                  : 'See how this template maps PDF boxes to Bite Book data sources. The mapping is owned by the template author.'}
+              </p>
+              <div
+                style={{
+                  marginTop: '0.6rem',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                }}
+              >
+                <Link
+                  href={`/app/docs/${docId}/mapping`}
+                  className="bb-cta-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {viewerOwnsDoc
+                    ? mappingStatus === 'unmapped'
+                      ? 'Set up mapping'
+                      : 'Edit mapping'
+                    : 'View mapping'}
+                </Link>
+                {showSetSignatureButton && viewerOwnsDoc && !isArchived && (
+                  <Link
+                    href={`/app/docs/${docId}/sign-placement`}
+                    className="bb-btn-secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    Set signature locations
+                  </Link>
+                )}
+              </div>
             </div>
           )}
         </div>

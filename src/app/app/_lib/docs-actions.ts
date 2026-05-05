@@ -972,13 +972,21 @@ export async function saveDocMappingsAction(
   // field whose effective slot is 2..N AND whose base name matches AND
   // whose is_override is false, override the path with the slot-1 path.
   // is_override=true preserves the user's explicit choice for that slot.
+  // v27.3.10.5 item 4: also mirror the fallback_path. Previous logic
+  // only mirrored `path`, so when a guide added a fallback to a Hunter
+  // 1 field (e.g. "TAG / REPORT CARD") they had to repeat it on every
+  // mirrored Hunter 2..N row by hand. Now slot1FallbackByBase carries
+  // the same base→fallback map and a parallel mirror loop applies it,
+  // bumping mirroredCount whenever either changes.
   const slot1ByBase = new Map<string, string>()
+  const slot1FallbackByBase = new Map<string, string | null>()
   for (const [fieldName, s] of staged) {
     if (!s.path) continue
     const parsed = parseFieldName(fieldName)
     const effSlot = s.hunterSlot > 0 ? s.hunterSlot : parsed.slot
     if (effSlot === 1) {
       slot1ByBase.set(parsed.base, s.path)
+      slot1FallbackByBase.set(parsed.base, s.fallbackPath ?? null)
     }
   }
   let mirroredCount = 0
@@ -989,10 +997,23 @@ export async function saveDocMappingsAction(
     if (effSlot < 2) continue
     const mirror = slot1ByBase.get(parsed.base)
     if (!mirror) continue
+    let changed = false
     if (s.path !== mirror) {
       s.path = mirror
-      mirroredCount += 1
+      changed = true
     }
+    // v27.3.10.5 item 4: mirror fallback alongside primary path. Use
+    // `has(base)` to distinguish "Hunter 1 has no fallback (null)" from
+    // "no Hunter 1 entry at all" — the former should propagate (clears
+    // any stale slot 2..N fallback to match), the latter is a no-op.
+    if (slot1FallbackByBase.has(parsed.base)) {
+      const mirrorFb = slot1FallbackByBase.get(parsed.base) ?? null
+      if ((s.fallbackPath ?? null) !== mirrorFb) {
+        s.fallbackPath = mirrorFb
+        changed = true
+      }
+    }
+    if (changed) mirroredCount += 1
   }
 
   // Now translate staged → upsert/delete.
