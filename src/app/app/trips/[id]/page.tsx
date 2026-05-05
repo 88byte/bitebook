@@ -120,15 +120,18 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         All trips
       </Link>
 
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="bb-page-eyebrow">{trip.kind === 'fishing' ? 'Fishing trip' : 'Hunting trip'}</p>
-          <h1 className="bb-page-title">{trip.title}</h1>
-          <p className="bb-page-sub">View and manage trip details. Changes save as you type.</p>
-        </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+      {/* v27.5.0.2 — status pill flush next to the title (Flavio: "the
+          icons in the view and manage trip details... should be placed
+          to the right of the trip title, right now its just hanging off
+          to the right far away"). Title + pill share a flex row so the
+          pill sits immediately after the title; subtitle drops below. */}
+      <header>
+        <p className="bb-page-eyebrow">{trip.kind === 'fishing' ? 'Fishing trip' : 'Hunting trip'}</p>
+        <div className="flex items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
+          <h1 className="bb-page-title" style={{ margin: 0 }}>{trip.title}</h1>
           <StatusPill status={trip.status} />
         </div>
+        <p className="bb-page-sub">View and manage trip details. Changes save as you type.</p>
       </header>
 
       {/* v27.3.3.1 — action row reordered per Flavio:
@@ -167,7 +170,12 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
           >
             <Activity size={14} aria-hidden="true" />
-            {harvestLogSummary.exists ? 'View hunt logs' : 'Generate hunt logs'}
+            {/* v27.5.0.2: drop the conditional Generate/View label.
+                Flavio: the button wasn't generating anything, just
+                navigating — the label flip was confusing. Single label,
+                "Hunt logs", lets the editor page own the create-on-
+                first-visit + Generate flows. */}
+            Hunt logs
           </Link>
           {/* v27.5.0 — warden share. Hide on canceled trips (no log can
               exist) and on planned trips with no logs yet (auto-gen on
@@ -192,37 +200,15 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
       {/* v27.3.3.1: divider below action row, before content. */}
       <div className="bb-page-divider mt-3" aria-hidden="true" />
 
-      {/* v27.3.8.1 item 1 — single combined panel for hunters. Replaces
-          the prior split between (a) read-only status panel here and
-          (b) Hunters accordion inside TripDetailEditor that owned add/
-          remove. One section: status pills + a Manage hunters toggle
-          that reveals HuntersMultiSelect inline and auto-saves.
-          v27.3.8.2 bug 1 — Map -> plain object for the wallet links
-          prop so the RSC payload serializes cleanly through the
-          revalidate-after-action round-trip. */}
-      {(() => {
-        const walletLinksByHunterObj: WalletLinksByHunter = {}
-        for (const [hunterId, links] of walletLinksByHunter.entries()) {
-          walletLinksByHunterObj[hunterId] = links.map((l) => ({
-            id: l.id,
-            type: l.type,
-            identifier: l.identifier,
-            species: l.species,
-          }))
-        }
-        return (
-          <HuntersOnTripPanel
-            tripId={trip.id}
-            participants={participants as ParticipantRow[]}
-            walletLinksByHunter={walletLinksByHunterObj}
-            candidates={candidates}
-            initialSelectedIds={initialSelectedIds}
-            speciesTargeted={trip.species_targeted}
-            canManage={isOpen}
-          />
-        )
-      })()}
-
+      {/* v27.5.0.2 — move HuntersOnTripPanel BELOW the TripDetailEditor
+          (which ends with the Notes section). Order is now:
+            Trip detail editor (Overview / Location / Hunt details / Notes)
+            ↓
+            HUNTERS ON THIS TRIP panel
+            ↓
+            Trip docs card
+          per Flavio: panel was sitting above the trip details and
+          notes, pushing the form down. */}
       <div className="mt-4">
         <TripDetailEditor
           tripId={trip.id}
@@ -243,6 +229,41 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           initialSelectedIds={initialSelectedIds}
           speciesOptions={speciesOptions}
         />
+
+        {/* v27.3.8.1 item 1 — single combined panel for hunters. Replaces
+            the prior split between (a) read-only status panel here and
+            (b) Hunters accordion inside TripDetailEditor that owned add/
+            remove. One section: status pills + a Manage hunters toggle
+            that reveals HuntersMultiSelect inline and auto-saves.
+            v27.3.8.2 bug 1 — Map -> plain object for the wallet links
+            prop so the RSC payload serializes cleanly through the
+            revalidate-after-action round-trip.
+            v27.5.0.2 — moved here from above the editor (was pushing
+            trip details + notes down). Now reads: editor → hunters →
+            docs. */}
+        {(() => {
+          const walletLinksByHunterObj: WalletLinksByHunter = {}
+          for (const [hunterId, links] of walletLinksByHunter.entries()) {
+            walletLinksByHunterObj[hunterId] = links.map((l) => ({
+              id: l.id,
+              type: l.type,
+              identifier: l.identifier,
+              species: l.species,
+            }))
+          }
+          return (
+            <HuntersOnTripPanel
+              tripId={trip.id}
+              participants={participants as ParticipantRow[]}
+              walletLinksByHunter={walletLinksByHunterObj}
+              candidates={candidates}
+              initialSelectedIds={initialSelectedIds}
+              speciesTargeted={trip.species_targeted}
+              canManage={isOpen}
+            />
+          )
+        })()}
+
         {/* v27.1.3.0.4: drop the now-redundant inner bb-form-narrow on
             the docs card — outer wrapper handles the centering. */}
         <TripDocsCard

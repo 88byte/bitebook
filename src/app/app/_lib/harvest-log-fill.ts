@@ -907,28 +907,14 @@ export async function generateFilledHarvestLogPDFsAction(
       pass_index: ow.pass_index,
       pass_total: ow.pass_total,
     }
-  } else if (passes === 1) {
-    // v27.5.0.1: auto-collapse. Look for an existing single-pass row
-    // for this (trip, source_doc) and overwrite it instead of inserting
-    // a parallel row. Multi-pass first-gen still inserts fresh.
-    const { data: existing } = await sb
-      .from('trip_generated_logs')
-      .select('id, trip_id, file_path, pass_index, pass_total')
-      .eq('trip_id', log.trip_id)
-      .eq('source_doc_id', docId)
-      .eq('pass_total', 1)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (existing) {
-      overwriteTarget = {
-        id: existing.id,
-        file_path: existing.file_path,
-        pass_index: existing.pass_index,
-        pass_total: existing.pass_total,
-      }
-    }
   }
+  // v27.5.0.2: REVERTED v27.5.0.1's auto-collapse (Generate→overwrite
+  // when an existing row matched (trip, source_doc, single-pass)).
+  // Multi-day workflows need each Generate to produce a fresh row so
+  // the guide has a daily record. Top-of-tile Generate now always
+  // inserts a new row, matching pre-v27.5.0.1 behavior.
+  // Re-generate (per-row, explicit overwriteId) still hits the in-place
+  // overwrite + auto-sign path above.
 
   // v27.5.0.1: when we're going to overwrite (regen path — explicit or
   // auto-collapsed), require the guide's saved default signature so we
@@ -1203,12 +1189,20 @@ export async function generateFilledHarvestLogPDFsAction(
         // would carry fresh file_path + stale signed_file_path and
         // warden share would render the stale signed copy.
         //
+        // v27.5.0.2: pass `filledBytes` directly to the sign action so
+        // it skips the storage download. Without this, sign was hitting
+        // a read-after-write race against the upsert we just made and
+        // signing the OLD bytes — the loop Flavio hit ("regen still
+        // pulling last generated before the signature"). In-memory
+        // bytes are authoritative.
+        //
         // We pre-flight-checked defaultSignatureDataUrl above, so it's
         // guaranteed non-null when overwriteTarget is set.
         if (defaultSignatureDataUrl) {
           const signRes = await signHarvestLogPdfAction(
             overwriteTarget.id,
-            defaultSignatureDataUrl
+            defaultSignatureDataUrl,
+            filledBytes
           )
           if ('error' in signRes) {
             console.warn('[harvestLog.fill:autoSign]', {

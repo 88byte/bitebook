@@ -61,9 +61,16 @@ function decodeSignaturePngDataUrl(dataUrl: string): Uint8Array {
   return Uint8Array.from(Buffer.from(m[1], 'base64'))
 }
 
+// v27.5.0.2: optional preLoadedBytes parameter. When the caller (e.g.
+// the fill engine that just generated fresh bytes) passes the bytes
+// directly, the sign step skips the storage download. This eliminates
+// any read-after-write race where storage upsert hasn't propagated yet
+// and sign reads stale bytes — the exact loop Flavio hit. Manual sign
+// UI omits this param and behaves as before (download from file_path).
 export async function signHarvestLogPdfAction(
   generatedLogId: string,
-  signatureDataUrl: string
+  signatureDataUrl: string,
+  preLoadedBytes?: Uint8Array
 ): Promise<SignHarvestLogResult> {
   const { profile, user } = await requireGuide()
   const gate = await assertWriteAllowed(profile.id, profile.role)
@@ -97,15 +104,26 @@ export async function signHarvestLogPdfAction(
     return { error: 'Only the trip owner can sign this report.' }
   }
 
-  // 2. Download the existing generated PDF.
-  const { data: blob, error: dlErr } = await sb.storage
-    .from('bb-private')
-    .download(row.file_path)
-  if (dlErr || !blob) {
-    console.warn('[sign:download]', { path: row.file_path, message: dlErr?.message })
-    return { error: dlErr?.message || 'Could not load the generated PDF.' }
+  // 2. Bytes to sign. v27.5.0.2: when the caller passed preLoadedBytes
+  // (fill engine just regenerated, has fresh in-memory bytes), use them
+  // directly. Skipping the storage download eliminates the read-after-
+  // write race where a just-uploaded file_path object hasn't propagated
+  // yet — the bug Flavio hit ("regen still pulling last generated
+  // before the signature"). Manual sign UI omits the param and
+  // downloads as before.
+  let baseBytes: Uint8Array
+  if (preLoadedBytes && preLoadedBytes.length > 0) {
+    baseBytes = preLoadedBytes
+  } else {
+    const { data: blob, error: dlErr } = await sb.storage
+      .from('bb-private')
+      .download(row.file_path)
+    if (dlErr || !blob) {
+      console.warn('[sign:download]', { path: row.file_path, message: dlErr?.message })
+      return { error: dlErr?.message || 'Could not load the generated PDF.' }
+    }
+    baseBytes = new Uint8Array(await blob.arrayBuffer())
   }
-  const baseBytes = new Uint8Array(await blob.arrayBuffer())
 
   // 3. Pull doc_field_mappings rows for the source doc — used by both
   // signature_date.now text fills and the shared placement resolver.

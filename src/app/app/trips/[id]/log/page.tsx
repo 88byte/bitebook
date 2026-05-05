@@ -95,8 +95,12 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         <p className="bb-page-eyebrow">Hunt report</p>
         <h1 className="bb-page-title">{trip.title}</h1>
         <p className="bb-page-sub">
-          One entry per hunter on the trip. Edit qty + species, toggle &ldquo;Include in
-          report&rdquo;, then generate filled state forms.
+          {/* v27.5.0.2 — Flavio: "remove the part... 'One entry per hunter on
+              the trip. Edit qty + species...' instead have that sentence
+              say something how use the fields below to input details for
+              your trip log and choose your template to generate below." */}
+          Use the fields below to input details for your trip log, then pick
+          a template and generate the filled state form.
         </p>
       </header>
       <HarvestLogEditor

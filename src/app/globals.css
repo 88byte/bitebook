@@ -1675,7 +1675,11 @@ body {
    mobile and desktop. (Replaces the v27.3.3.2 right-side rightSlot
    pattern per Flavio.) */
 .bb-dash-hero-below-sub {
-  margin-top: 0.85rem;
+  /* v27.5.0.2: was 0.85rem — Flavio reported the rightSlot buttons
+     (Create trip / Add card / etc.) sat too close to the subtitle
+     line. Bumped to 1.4rem for proper breathing room from the
+     subtitle. */
+  margin-top: 1.4rem;
 }
 
 /* v27.3.4.1 — banner inline invite. Lives under the hero subtitle

@@ -1416,13 +1416,14 @@ function GeneratePdfsSection({
   const activeDoc = sortedDocs.find((d) => d.id === docId) ?? sortedDocs[0]
 
   return (
-    <section className="bb-tile" style={{ borderColor: 'var(--color-ink-tint)' }}>
-      <div className="bb-tile-body">
-        {/* v27.3.7 — restructured Generate card per Flavio's flow:
-            instructional copy → name input → log template dropdown →
-            "Generate Filled Out Log" button. Section heading dropped
-            so the helper copy reads as the header itself. */}
-        <p className="bb-form-help" style={{ margin: 0 }}>
+    <section style={{ marginTop: '1rem', maxWidth: '36rem' }}>
+      {/* v27.5.0.2 — Flavio: "reduce the window size... that whole window
+          and input fields are massive. it also doesnt need to be in a
+          window at all." Stripped the bb-tile/bb-tile-body card chrome,
+          tightened spacing, capped width at 36rem so inputs don't sprawl
+          on desktop. v27.3.7's instructional copy stays as the header. */}
+      <div>
+        <p className="bb-form-help" style={{ margin: 0, fontSize: '0.85rem' }}>
           Generate a filled state harvest log for this trip. Hunters
           with &ldquo;Include in report&rdquo; unchecked are skipped.
         </p>
