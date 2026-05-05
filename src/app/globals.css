@@ -1677,9 +1677,11 @@ body {
 .bb-dash-hero-below-sub {
   /* v27.5.0.2: was 0.85rem — Flavio reported the rightSlot buttons
      (Create trip / Add card / etc.) sat too close to the subtitle
-     line. Bumped to 1.4rem for proper breathing room from the
-     subtitle. */
-  margin-top: 1.4rem;
+     line. Bumped to 1.4rem for proper breathing room.
+     v27.5.0.3: Flavio retested — "i dont see that the buttons on
+     banners were lowered much. lower just a little more." Bumped
+     to 2.0rem. */
+  margin-top: 2.0rem;
 }
 
 /* v27.3.4.1 — banner inline invite. Lives under the hero subtitle

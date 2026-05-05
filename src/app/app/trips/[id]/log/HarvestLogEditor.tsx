@@ -156,6 +156,11 @@ export default function HarvestLogEditor({
   }, [log.trip_purpose])
   const [purposes, setPurposes] = useState<Set<string>>(initialPurposes)
   const [logStatus, setLogStatus] = useFadingSavedStatus()
+  // v27.5.0.3: Log title lifted from GeneratePdfsSection into the
+  // parent so it can render in Trip-level details (above Hunt date).
+  // Empty string → engine falls through to its auto-generated
+  // `{trip.title} — {doc.label}` pattern.
+  const [reportName, setReportName] = useState<string>('')
 
 
   const slotByEntryId = useMemo(() => {
@@ -204,6 +209,8 @@ export default function HarvestLogEditor({
           mappedDocs={mappedDocs}
           tripState={tripState}
           guideId={guideId}
+          reportName={reportName}
+          setReportName={setReportName}
         />
 
         {/* v27.3.7 item 9 — divider directly beneath the Generate block
@@ -241,6 +248,30 @@ export default function HarvestLogEditor({
                 column too narrow for `<input type="date">`'s intrinsic
                 picker chrome on iOS Safari. Stacking is the only clean
                 fix that preserves the 3-col pill grid in column 2. */}
+            {/* v27.5.0.3 — Log title moved up from the Generate
+                section per Flavio. Sits above Hunt date in Trip-level
+                details. Optional behaviorally (empty → engine auto-
+                generates `{trip.title} — {doc.label}`) but no UI text
+                hints at that — guides type a title or leave blank. */}
+            <div className="bb-form-row" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
+              <label className="bb-form-label" htmlFor="report_name">Log title</label>
+              <input
+                id="report_name"
+                type="text"
+                className="bb-input"
+                value={reportName}
+                onChange={(e) => setReportName(e.target.value)}
+                maxLength={120}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
             <div className="bb-log-trip-grid" style={{ marginTop: '0.6rem' }}>
               <div className="bb-form-row" style={{ marginBottom: 0, minWidth: 0 }}>
                 <label className="bb-form-label" htmlFor="log_date">Hunt date</label>
@@ -309,6 +340,23 @@ export default function HarvestLogEditor({
             </p>
           </div>
         </section>
+
+        {/* v27.5.0.3 — quiet inline note explaining the include/exclude
+            behavior. Lives in-flow right before the hunter list so the
+            guide sees it when they're deciding which hunters belong on
+            the report. Replaces the v27.5.0.2 paragraph at the top of
+            the Generate section, which was too far from the relevant
+            decision point. */}
+        <p
+          className="bb-form-help"
+          style={{
+            margin: 0,
+            fontSize: '0.85rem',
+            color: 'var(--color-ink-soft)',
+          }}
+        >
+          Hunters with &ldquo;include in report&rdquo; unchecked are excluded from this report.
+        </p>
 
         {/* Entries */}
         <section className="flex flex-col gap-3">
@@ -1252,11 +1300,18 @@ function GeneratePdfsSection({
   mappedDocs,
   tripState,
   guideId,
+  reportName,
+  setReportName,
 }: {
   logId: string
   mappedDocs: MappedLogDoc[]
   tripState: string | null
   guideId: string
+  // v27.5.0.3: Log title lifted to parent so the input can live in
+  // Trip-level details. The Generate section consumes the value but
+  // no longer owns the input.
+  reportName: string
+  setReportName: (s: string) => void
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -1304,9 +1359,10 @@ function GeneratePdfsSection({
   // Default-pick the first doc in the visible/sorted list. Auto-select
   // sticks when sortedDocs reduces to length 1.
   const [docId, setDocId] = useState<string>(sortedDocs[0]?.id ?? '')
-  // v27.1.4.0.1: optional Report name. Empty → fall through to the
-  // engine's auto-generated `{trip.title} — {doc.label}` pattern.
-  const [reportName, setReportName] = useState<string>('')
+  // v27.5.0.3: reportName lifted to parent (Trip-level details). The
+  // input lives there; this section just consumes the value when
+  // generating. v27.1.4.0.1: empty → engine auto-generates
+  // `{trip.title} — {doc.label}`.
   // If the visible list changes (e.g. tripState arrives async), keep
   // the selected doc valid.
   useEffect(() => {
@@ -1423,10 +1479,11 @@ function GeneratePdfsSection({
           tightened spacing, capped width at 36rem so inputs don't sprawl
           on desktop. v27.3.7's instructional copy stays as the header. */}
       <div>
-        <p className="bb-form-help" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Generate a filled state harvest log for this trip. Hunters
-          with &ldquo;Include in report&rdquo; unchecked are skipped.
-        </p>
+        {/* v27.5.0.3 — Flavio: drop the helper paragraph ("Generate a
+            filled state harvest log... Hunters with Include in report
+            unchecked are skipped"). Button + dropdown are self-
+            explanatory; the include/exclude note now lives above the
+            hunter list. */}
 
         {/* warning banner when the trip's state has no matching
             mapped log. Falls through to showing all docs. */}
@@ -1447,29 +1504,9 @@ function GeneratePdfsSection({
           </p>
         )}
 
-        {/* Title input first (before dropdown). */}
-        <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
-          <label className="bb-form-label" htmlFor="report_name">
-            Log title <span style={{ opacity: 0.6 }}>(optional)</span>
-          </label>
-          <input
-            id="report_name"
-            type="text"
-            className="bb-input"
-            value={reportName}
-            onChange={(e) => setReportName(e.target.value)}
-            placeholder={activeDoc ? `e.g. ${activeDoc.label}` : 'e.g. Spring Black Bear log'}
-            maxLength={120}
-            style={{
-              display: 'block',
-              width: '100%',
-              maxWidth: '100%',
-              minWidth: 0,
-              boxSizing: 'border-box',
-            }}
-          />
-          <p className="bb-form-help">Leave blank to use the auto-generated name.</p>
-        </div>
+        {/* v27.5.0.3 — Log title input MOVED to Trip-level details
+            tile (above Hunt date). reportName/setReportName arrive as
+            props from the parent. */}
 
         {/* v27.3.7.1 item 1 — Log template dropdown ALWAYS rendered, even
             with a single option, so guides can switch templates. The
