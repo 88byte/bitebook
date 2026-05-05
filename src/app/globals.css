@@ -1556,7 +1556,10 @@ body {
 @media (min-width: 64rem) {
   .bb-trips-grid {
     display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    /* v27.6.1 — narrowed cards column (0.85fr → 0.65fr) so the
+       calendar gets more horizontal room. Cards stay scannable
+       since each row is single-line at this width. */
+    grid-template-columns: minmax(0, 0.65fr) minmax(0, 1.35fr);
     gap: 2rem;
     align-items: start;
   }
@@ -1755,12 +1758,14 @@ body {
 }
 .bb-cal-bar.is-cont-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .bb-cal-bar.is-cont-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-/* Status colors mirror StatusPill (.bb-pill-*) so the calendar legend
-   matches the trip card pill vocabulary. */
-.bb-cal-bar-planned   { background: #D6EBD2; color: #245A2A; }
-.bb-cal-bar-active    { background: #F1E0CC; color: #7A4A1F; }
-.bb-cal-bar-completed { background: #E5DDD0; color: #5C5247; }
-.bb-cal-bar-canceled  { background: #F2D6CE; color: #8C3C2A; }
+
+/* v27.6.1 — calendar bar colors driven by ACTIVITY, not status:
+   fishing trips read blue, hunting trips read green, canceled
+   (regardless of kind) reads red. Replaces the v27.5.0.5 status
+   palette where Done was tan and Active was copper. */
+.bb-cal-bar-hunting  { background: #D6EBD2; color: #245A2A; }
+.bb-cal-bar-fishing  { background: #D6E6F2; color: #1F4A78; }
+.bb-cal-bar-canceled { background: #F2D6CE; color: #8C3C2A; }
 
 @media (max-width: 47.999rem) {
   .bb-cal-cell { min-height: 4.5rem; padding: 0.25rem 0.3rem; }
@@ -2027,6 +2032,26 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
+/* v27.6.1 — role pill (Guide / Hunter) shown alongside the name
+   in admin tables. Defensive labeling — the page heading already
+   carries the role, but rows include it for future mixed views.
+   Outline-only treatment to keep the row visually quiet. */
+.bb-admin-role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-divider);
+  background: transparent;
+  font-family: var(--font-barlow-condensed);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bb-admin-role-pill-guide  { color: var(--color-copper); border-color: rgba(176, 108, 60, 0.5); }
+.bb-admin-role-pill-hunter { color: var(--color-forest); border-color: rgba(47, 82, 51, 0.4); }
 
 /* "Logged in as admin: …" strip under the Mission Control page
    title. Subtle so it doesn't compete with the table; visible enough

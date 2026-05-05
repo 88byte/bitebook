@@ -373,6 +373,117 @@ export const fetchAdminAccountDetail = cache(
   },
 )
 
+// v27.6.1 — Hunters list for /admin/hunters. Mirrors the Guides
+// list shape but pivots around role='hunter'. For each hunter we
+// surface:
+//   - name + email
+//   - inviting guide (display name + business name, derived from
+//     invitations.accepted_by = hunter.id row)
+//   - invite status (accepted vs pending — invitations.status)
+//   - trips count (trip_participants where hunter_id = profile.id)
+//   - joined date (profiles.created_at)
+//   - last login (auth.users.last_sign_in_at via admin client)
+//
+// Joined in JS rather than a Postgres view to keep the schema lean.
+export type AdminHunterRow = {
+  hunter_id: string
+  display_name: string
+  email: string
+  is_admin: boolean
+  joined_date: string
+  last_sign_in_at: string | null
+  // Inviting-guide context (NULL when hunter has no accepted invite —
+  // the cross-guide hunter pool).
+  inviting_guide_name: string | null
+  inviting_guide_business: string | null
+  invite_status: 'accepted' | 'pending' | 'canceled' | 'removed' | null
+  trips_count: number
+}
+
+export const fetchAdminHunters = cache(async (): Promise<AdminHunterRow[]> => {
+  const admin = createAdminClient()
+
+  const [profilesRes, invitesRes, partsRes, authRes] = await Promise.all([
+    admin
+      .from('profiles')
+      .select('id, display_name, first_name, last_name, created_at')
+      .eq('role', 'hunter')
+      .order('created_at', { ascending: false }),
+    // Pull every invite for cross-reference. We pick the most recent
+    // accepted/pending invite per hunter to surface the inviting guide.
+    admin
+      .from('invitations')
+      .select('guide_id, accepted_by, email, status, created_at'),
+    admin
+      .from('trip_participants')
+      .select('hunter_id'),
+    admin.auth.admin.listUsers({ perPage: 1000 }),
+  ])
+
+  // Build inviting-guide map. Per hunter, prefer the latest 'accepted'
+  // invite; fall back to the latest pending invite if none accepted.
+  // accepted_by is nullable on the row — only invites that have been
+  // claimed populate it, so we filter those out before bucketing.
+  const guideIdByHunter = new Map<string, { guide_id: string; status: AdminHunterRow['invite_status'] }>()
+  for (const inv of invitesRes.data ?? []) {
+    const acceptedBy = inv.accepted_by
+    if (!acceptedBy) continue
+    const existing = guideIdByHunter.get(acceptedBy)
+    if (!existing) {
+      guideIdByHunter.set(acceptedBy, { guide_id: inv.guide_id, status: inv.status as AdminHunterRow['invite_status'] })
+      continue
+    }
+    // Prefer accepted over anything else.
+    if (inv.status === 'accepted' && existing.status !== 'accepted') {
+      guideIdByHunter.set(acceptedBy, { guide_id: inv.guide_id, status: 'accepted' })
+    }
+  }
+  // Pull the guide profiles + guide_profiles.business_name for each
+  // distinct inviting guide.
+  const inviteGuideIds = Array.from(new Set(Array.from(guideIdByHunter.values()).map((v) => v.guide_id)))
+  let guideNameById = new Map<string, string>()
+  let guideBusinessById = new Map<string, string | null>()
+  if (inviteGuideIds.length > 0) {
+    const [profRes, gpRes] = await Promise.all([
+      admin.from('profiles').select('id, display_name').in('id', inviteGuideIds),
+      admin.from('guide_profiles').select('user_id, business_name').in('user_id', inviteGuideIds),
+    ])
+    guideNameById = new Map((profRes.data ?? []).map((p) => [p.id, p.display_name]))
+    guideBusinessById = new Map((gpRes.data ?? []).map((g) => [g.user_id, g.business_name ?? null]))
+  }
+
+  const tripsByHunter = new Map<string, number>()
+  for (const tp of partsRes.data ?? []) {
+    const hid = tp.hunter_id
+    if (!hid) continue
+    tripsByHunter.set(hid, (tripsByHunter.get(hid) ?? 0) + 1)
+  }
+
+  const emailById = new Map<string, string>()
+  const lastSignInById = new Map<string, string | null>()
+  for (const u of authRes.data?.users ?? []) {
+    if (u.email) emailById.set(u.id, u.email)
+    lastSignInById.set(u.id, u.last_sign_in_at ?? null)
+  }
+
+  return (profilesRes.data ?? []).map<AdminHunterRow>((p) => {
+    const inv = guideIdByHunter.get(p.id) ?? null
+    const email = emailById.get(p.id) ?? ''
+    return {
+      hunter_id: p.id,
+      display_name: p.display_name,
+      email,
+      is_admin: isAdminEmail(email),
+      joined_date: p.created_at,
+      last_sign_in_at: lastSignInById.get(p.id) ?? null,
+      inviting_guide_name: inv ? guideNameById.get(inv.guide_id) ?? null : null,
+      inviting_guide_business: inv ? guideBusinessById.get(inv.guide_id) ?? null : null,
+      invite_status: inv ? inv.status : null,
+      trips_count: tripsByHunter.get(p.id) ?? 0,
+    }
+  })
+})
+
 // v27.6.0 — revenue snapshot. Pulls every active subscription row +
 // every trial in one query, then aggregates in JS so we don't pay for
 // a server-side view. Cached by React cache() per-request.

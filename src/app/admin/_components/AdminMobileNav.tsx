@@ -2,19 +2,21 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users2, BarChart3 } from 'lucide-react'
+import { Users2, BarChart3, UserCircle2 } from 'lucide-react'
 
-// v27.6.0.1 — Mobile-only horizontal nav for /admin. The AdminSidebar
-// is desktop-only (.bb-sidebar { display: none } under 1024px) and the
-// AdminMobileHeader carries just brand + back-to-app, so on mobile
-// there was no path between Accounts and Revenue. This strip fills
-// that gap. Hidden at >=1024px via .bb-admin-mobile-nav CSS.
+// v27.6.0.1 / v27.6.1 — Mobile-only horizontal nav for /admin. The
+// AdminSidebar is desktop-only (.bb-sidebar { display: none } under
+// 1024px) and the AdminMobileHeader carries just brand + back-to-app,
+// so on mobile there was no path between live sections. This strip
+// fills that gap. Hidden at >=1024px via .bb-admin-mobile-nav CSS.
 //
-// Stubs (Discounts/Hunters/Templates/Activity) are intentionally not
-// surfaced here — mobile screen real-estate goes to live sections.
+// v27.6.1 — Hunters promoted from stub to live, "Accounts" renamed
+// to "Guides". Stubs (Discounts/Templates/Activity) intentionally
+// not surfaced here — mobile real-estate goes to live sections.
 const MOBILE_NAV = [
-  { href: '/admin',         label: 'Accounts', icon: Users2,    match: (p: string) => p === '/admin' || p.startsWith('/admin/guides') },
-  { href: '/admin/revenue', label: 'Revenue',  icon: BarChart3, match: (p: string) => p.startsWith('/admin/revenue') },
+  { href: '/admin',         label: 'Guides',  icon: Users2,      match: (p: string) => p === '/admin' || p.startsWith('/admin/guides') },
+  { href: '/admin/hunters', label: 'Hunters', icon: UserCircle2, match: (p: string) => p.startsWith('/admin/hunters') },
+  { href: '/admin/revenue', label: 'Revenue', icon: BarChart3,   match: (p: string) => p.startsWith('/admin/revenue') },
 ] as const
 
 export default function AdminMobileNav() {

@@ -3,13 +3,25 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Database } from '@/lib/supabase/types'
 
 type TripStatus = Database['public']['Enums']['trip_status']
+type TripKind = Database['public']['Tables']['trips']['Row']['kind']
 
 type CalendarTrip = {
   id: string
   title: string
   status: TripStatus
+  kind: TripKind
   starts_at: string
   ends_at: string | null
+}
+
+// v27.6.1 — color rule: activity drives color; canceled overrides.
+// Fishing → blue, hunting → green, canceled (any kind) → red.
+// Drops the v27.5.0.5 status-only treatment where Done = tan and
+// Active = copper.
+function barColorClass(t: { status: TripStatus; kind: TripKind }): string {
+  if (t.status === 'canceled') return 'bb-cal-bar-canceled'
+  if (t.kind === 'fishing') return 'bb-cal-bar-fishing'
+  return 'bb-cal-bar-hunting'
 }
 
 // v27.5.0.5 — month-grid calendar that replaces the "Recent trips" right
@@ -226,8 +238,8 @@ export default function TripsCalendar({
                       key={p.trip.id + '-' + wIdx}
                       href={`/app/trips/${p.trip.id}`}
                       className={
-                        'bb-cal-bar bb-cal-bar-' +
-                        p.trip.status +
+                        'bb-cal-bar ' +
+                        barColorClass(p.trip) +
                         (p.continuesLeft ? ' is-cont-left' : '') +
                         (p.continuesRight ? ' is-cont-right' : '')
                       }

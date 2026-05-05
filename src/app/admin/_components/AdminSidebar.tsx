@@ -3,26 +3,30 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users2, BarChart3, Tag, UserSquare, FileStack, History, ArrowLeftCircle } from 'lucide-react'
+import { Users2, BarChart3, Tag, FileStack, History, ArrowLeftCircle, UserCircle2 } from 'lucide-react'
 import SignOutButton from '../../app/_components/SignOutButton'
 
-// v27.6.0 — Mission Control sidebar. Mirrors /app/_components/Sidebar.tsx
-// markup so .bb-sidebar styles apply unchanged. Only the nav set
-// differs:
-//   Live    → Accounts, Revenue
-//   Stubs   → Discounts, Hunters, Templates, Activity (route to
-//             /admin/coming-soon?section=… so we don't 404 mid-build)
+// v27.6.0 / v27.6.1 — Mission Control sidebar. Mirrors
+// /app/_components/Sidebar.tsx markup so .bb-sidebar styles apply
+// unchanged. Nav set:
+//   Live    → Guides, Hunters, Revenue
+//   Stubs   → Discounts, Templates, Activity (route to coming-soon
+//             pages so we don't 404 mid-build)
 // "Back to app" returns Flavio to the guide-side dashboard without
 // signing him out — handy when bouncing between admin and his own
 // guide account during testing.
+//
+// v27.6.1 — "Accounts" renamed to "Guides" (the page already
+// filtered to role='guide'; the "Accounts" label was misleading).
+// Hunters promoted from stub to live with a parallel listing.
 const NAV_LIVE = [
-  { href: '/admin',         label: 'Accounts', icon: Users2,    match: (p: string) => p === '/admin' || p.startsWith('/admin/guides') },
-  { href: '/admin/revenue', label: 'Revenue',  icon: BarChart3, match: (p: string) => p.startsWith('/admin/revenue') },
+  { href: '/admin',         label: 'Guides',  icon: Users2,       match: (p: string) => p === '/admin' || p.startsWith('/admin/guides') },
+  { href: '/admin/hunters', label: 'Hunters', icon: UserCircle2,  match: (p: string) => p.startsWith('/admin/hunters') },
+  { href: '/admin/revenue', label: 'Revenue', icon: BarChart3,    match: (p: string) => p.startsWith('/admin/revenue') },
 ] as const
 
 const NAV_STUBS = [
   { href: '/admin/discounts', label: 'Discounts', icon: Tag,        match: (p: string) => p.startsWith('/admin/discounts') },
-  { href: '/admin/hunters',   label: 'Hunters',   icon: UserSquare, match: (p: string) => p.startsWith('/admin/hunters') },
   { href: '/admin/templates', label: 'Templates', icon: FileStack,  match: (p: string) => p.startsWith('/admin/templates') },
   { href: '/admin/activity',  label: 'Activity',  icon: History,    match: (p: string) => p.startsWith('/admin/activity') },
 ] as const

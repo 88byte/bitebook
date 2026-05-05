@@ -83,8 +83,8 @@ export default async function AdminGuideDetailPage({ params }: { params: Params 
                   : '—'
                 }
               />
-              <DT label="DB status" value={detail.subscription?.status ?? '—'} />
-              <DT label="Live Stripe status" value={detail.stripe_subscription?.status ?? '—'} />
+              <DT label="DB status" value={detail.subscription?.status === 'incomplete' ? 'Setup incomplete' : detail.subscription?.status ?? '—'} />
+              <DT label="Live Stripe status" value={detail.stripe_subscription?.status === 'incomplete' ? 'Setup incomplete' : detail.stripe_subscription?.status ?? '—'} />
               <DT label="Cancel at period end" value={detail.stripe_subscription?.cancel_at_period_end ? 'Yes' : 'No'} />
               <DT label="Trial ends" value={fmtDate(detail.subscription?.trial_end)} />
               <DT label="Period ends" value={detail.stripe_subscription?.current_period_end ? fmtUnix(detail.stripe_subscription.current_period_end) : fmtDate(detail.subscription?.current_period_end)} />
@@ -92,6 +92,12 @@ export default async function AdminGuideDetailPage({ params }: { params: Params 
               <DT label="Stripe customer" value={detail.subscription?.stripe_customer_id ?? '—'} />
               <DT label="Stripe subscription" value={detail.subscription?.stripe_subscription_id ?? '—'} />
             </DL>
+            {detail.subscription?.status === 'incomplete' || detail.stripe_subscription?.status === 'incomplete' ? (
+              <p className="bb-form-help" style={{ marginTop: '0.65rem' }}>
+                <strong>Setup incomplete</strong> = signup started but payment was never confirmed
+                (no card attached, abandoned checkout, etc.). The customer should restart checkout.
+              </p>
+            ) : null}
             {stripeCustomerUrl ? (
               <a
                 href={stripeCustomerUrl}

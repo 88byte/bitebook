@@ -25,12 +25,16 @@ const PLAN_LABELS: Record<AdminAccountRow['plan'], string> = {
   none:    '—',
 }
 
+// v27.6.1 — "Incomplete" relabeled to "Setup incomplete" so it's
+// self-explanatory in the table. This is the Stripe state when
+// signup started but payment was never confirmed (no PM attached,
+// abandoned checkout, etc.).
 const STATUS_LABEL: Record<NonNullable<AdminAccountRow['status']>, string> = {
   trialing:   'Trialing',
   active:     'Active',
   past_due:   'Past due',
   canceled:   'Canceled',
-  incomplete: 'Incomplete',
+  incomplete: 'Setup incomplete',
 }
 
 function formatDate(iso: string | null): string {
@@ -86,7 +90,7 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
     <main className="bb-app-main">
       <header>
         <p className="bb-page-eyebrow">Mission Control</p>
-        <h1 className="bb-page-title">Accounts</h1>
+        <h1 className="bb-page-title">Guides</h1>
         <p className="bb-page-sub">
           {all.length} {all.length === 1 ? 'guide' : 'guides'} on Bite Book.
         </p>
@@ -158,6 +162,7 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <span>{r.display_name || '—'}</span>
+                        <span className="bb-admin-role-pill bb-admin-role-pill-guide" aria-label="Guide">Guide</span>
                         {r.is_admin ? (
                           <span className="bb-admin-row-pill" aria-label="Admin">
                             <ShieldCheck size={10} aria-hidden="true" />
