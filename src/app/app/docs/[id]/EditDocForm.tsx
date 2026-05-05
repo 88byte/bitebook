@@ -140,12 +140,39 @@ export default function EditDocForm({
             </div>
           )}
 
+          {/* v27.6.2.2 — explanatory note for non-PDF waivers. Field
+              mapping + signature placement require PDF (pdf-lib +
+              AcroForm); image / DOCX / TXT waivers display as-is for
+              hunter acknowledgment. mapping_status='not_applicable'
+              is the server-side flag for those. */}
+          {kind === 'waiver' && mappingStatus === 'not_applicable' && (
+            <div
+              style={{
+                marginTop: '1rem',
+                paddingTop: '1rem',
+                borderTop: '1px solid var(--color-card-divider)',
+              }}
+            >
+              <h2 className="bb-form-section-head" style={{ marginTop: 0, marginBottom: '0.4rem' }}>
+                Field mapping
+              </h2>
+              <p className="bb-form-help" style={{ margin: 0 }}>
+                Field mapping and signature placement only run on PDF waivers.
+                This document will be displayed as-is to hunters for
+                acknowledgment. Re-upload a PDF version if you need an
+                e-signed copy.
+              </p>
+            </div>
+          )}
+
           {/* v27.3.10.5 item 1: Field mapping configuration block,
               promoted into this same tile so doc metadata + mapping
               setup live in one window. Renders for log + waiver kinds
               only (resource docs don't have a mapping). The block sits
-              under State (optional) with a subtle divider above. */}
-          {showState && mappingStatus && (
+              under State (optional) with a subtle divider above.
+              v27.6.2.2 — also skipped when mappingStatus is
+              'not_applicable' (handled by the explanatory block above). */}
+          {showState && mappingStatus && mappingStatus !== 'not_applicable' && (
             <div
               style={{
                 marginTop: '1rem',

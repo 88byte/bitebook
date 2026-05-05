@@ -8,17 +8,71 @@ import { US_STATES } from '@/lib/us-states'
 import { createDocAction } from '../../_lib/docs-actions'
 
 // v27.1.0 — upload form for the docs library. Two-step flow:
-// 1. Client uploads PDF directly to Supabase Storage at
-//    `docs/{userId}/temp-{timestamp}.pdf` (Storage RLS gates writes to
+// 1. Client uploads file directly to Supabase Storage at
+//    `docs/{userId}/temp-{timestamp}.{ext}` (Storage RLS gates writes to
 //    docs/{auth.uid()}/...).
 // 2. Server action createDocAction inserts the docs row, then renames the
-//    storage object to the canonical `docs/{userId}/{doc_id}.pdf` so the
+//    storage object to the canonical `docs/{userId}/{doc_id}.{ext}` so the
 //    layout stays clean.
 //
-// PDF-only for v27.1.0 — waivers / logs need pdf-lib later, and resources
-// are kept consistent so the inline viewer (v27.1.3) only has one path.
+// v27.6.2.2 — mime acceptance broadened by kind:
+//   - log: PDF only (fill engine + AcroForm requires PDF)
+//   - waiver: PDF, images (jpg/png/webp), DOCX, TXT. AI mapping +
+//     signature placement only run on PDF; non-PDF waivers display as-is
+//     for hunter acknowledgment (mapping_status flagged not_applicable
+//     server-side).
+//   - resource: same broad set as waiver. Resources are reference
+//     handouts — maps, photos, gear notes — and rarely PDFs.
 
 type DocKind = 'waiver' | 'log' | 'resource'
+
+// v27.6.2.2 — accepted file types per doc kind. The accept= attribute
+// surfaces extensions in the picker; the explicit mime list lets the
+// validator catch dragged-in files whose extension lies. Source of
+// truth for both client + server.
+const ACCEPT_BY_KIND: Record<DocKind, { exts: string[]; mimes: string[]; label: string }> = {
+  log: {
+    exts: ['.pdf'],
+    mimes: ['application/pdf'],
+    label: 'PDF',
+  },
+  waiver: {
+    exts: ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.docx', '.txt'],
+    mimes: [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+    ],
+    label: 'PDF, image, DOCX, or TXT',
+  },
+  resource: {
+    exts: ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.docx', '.txt'],
+    mimes: [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+    ],
+    label: 'PDF, image, DOCX, or TXT',
+  },
+}
+
+function fileExt(name: string): string {
+  const i = name.lastIndexOf('.')
+  return i === -1 ? '' : name.slice(i).toLowerCase()
+}
+
+function isAccepted(kind: DocKind, file: File): boolean {
+  const a = ACCEPT_BY_KIND[kind]
+  if (file.type && a.mimes.includes(file.type)) return true
+  // Fallback to extension when the browser didn't set a useful type.
+  return a.exts.includes(fileExt(file.name))
+}
 
 const KIND_OPTIONS: { value: DocKind; label: string; sub: string; Icon: typeof ClipboardCheck }[] = [
   {
@@ -60,8 +114,8 @@ export default function NewDocForm({ userId }: { userId: string }) {
       setFile(null)
       return
     }
-    if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) {
-      setError('PDF only — pick a .pdf file.')
+    if (!isAccepted(kind, f)) {
+      setError(`Not an accepted file type for ${kind === 'log' ? 'harvest logs' : kind === 'waiver' ? 'waivers' : 'resources'}. Pick a ${ACCEPT_BY_KIND[kind].label}.`)
       return
     }
     if (f.size > MAX_BYTES) {
@@ -69,6 +123,17 @@ export default function NewDocForm({ userId }: { userId: string }) {
       return
     }
     setFile(f)
+  }
+
+  // Re-validate the picked file when the kind toggles. Avoids a stale
+  // "PDF picked, kind switched to log" mismatch where the file no longer
+  // satisfies the kind's accept set.
+  function onKindChange(next: DocKind) {
+    setKind(next)
+    if (file && !isAccepted(next, file)) {
+      setFile(null)
+      setError(`Selected file isn't accepted for ${next === 'log' ? 'harvest logs' : next === 'waiver' ? 'waivers' : 'resources'}. Pick a new file.`)
+    }
   }
 
   async function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
@@ -79,20 +144,25 @@ export default function NewDocForm({ userId }: { userId: string }) {
       return
     }
     if (!file) {
-      setError('Pick a PDF to upload.')
+      setError(`Pick a ${ACCEPT_BY_KIND[kind].label} to upload.`)
       return
     }
 
     setUploading(true)
     let tempPath: string
+    // v27.6.2.2 — temp path uses the file's actual extension so the
+    // canonical rename in createDocAction yields the right ext on the
+    // final storage path.
+    const ext = fileExt(file.name) || '.pdf'
+    const fileMime = file.type || 'application/pdf'
     try {
       const supabase = createClient()
       const ts = Date.now()
-      tempPath = `docs/${userId}/temp-${ts}.pdf`
+      tempPath = `docs/${userId}/temp-${ts}${ext}`
       const { error: upErr } = await supabase.storage
         .from('bb-private')
         .upload(tempPath, file, {
-          contentType: 'application/pdf',
+          contentType: fileMime,
           upsert: false,
         })
       if (upErr) throw upErr
@@ -110,7 +180,7 @@ export default function NewDocForm({ userId }: { userId: string }) {
       fd.set('label', label.trim())
       if (state) fd.set('state', state)
       fd.set('temp_path', tempPath)
-      fd.set('file_mime', 'application/pdf')
+      fd.set('file_mime', fileMime)
       const res = await createDocAction(fd)
       if ('error' in res) {
         setError(res.error)
@@ -122,6 +192,7 @@ export default function NewDocForm({ userId }: { userId: string }) {
   }
 
   const showState = kind === 'log' || kind === 'waiver'
+  const acceptAttr = [...ACCEPT_BY_KIND[kind].mimes, ...ACCEPT_BY_KIND[kind].exts].join(',')
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4 mt-4 bb-form-narrow">
@@ -148,7 +219,7 @@ export default function NewDocForm({ userId }: { userId: string }) {
                   name="kind"
                   value={value}
                   checked={kind === value}
-                  onChange={() => setKind(value)}
+                  onChange={() => onKindChange(value)}
                   style={{ marginTop: '0.25rem' }}
                 />
                 <span style={{ display: 'flex', gap: '0.6rem', flex: 1, minWidth: 0 }}>
@@ -210,7 +281,14 @@ export default function NewDocForm({ userId }: { userId: string }) {
       {/* File */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">PDF</h2>
+          <h2 className="bb-form-section-head">File</h2>
+          {/* v27.6.2.2 — kind-aware helper copy. Logs stay PDF-only;
+              waivers + resources accept a broader set so non-fillable
+              reference material doesn't get blocked at upload. */}
+          <p className="bb-form-help" style={{ marginBottom: '0.5rem' }}>
+            Accepted: <strong>{ACCEPT_BY_KIND[kind].label}</strong>. 25MB max.
+            {kind === 'waiver' && ' AI mapping + signature placement only run on PDF — non-PDF waivers display as-is for hunter acknowledgment.'}
+          </p>
           {file ? (
             <div
               className="bb-tile"
@@ -255,11 +333,11 @@ export default function NewDocForm({ userId }: { userId: string }) {
               }}
             >
               <UploadCloud size={28} aria-hidden="true" />
-              <span style={{ fontWeight: 600 }}>Pick a PDF</span>
+              <span style={{ fontWeight: 600 }}>Pick a file</span>
               <span style={{ fontSize: '0.85rem' }}>Or drop one here. 25MB max.</span>
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept={acceptAttr}
                 onChange={onFileChosen}
                 style={{ display: 'none' }}
               />

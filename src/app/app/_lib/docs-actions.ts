@@ -178,6 +178,21 @@ export async function createDocAction(fd: FormData): Promise<DocActionResult> {
 
   // Insert with the temp path; we'll rename below to the canonical
   // `docs/{guide_id}/{doc_id}.{ext}` once we know the doc_id.
+  //
+  // v27.6.2.2 — mapping_status semantics:
+  //   - log: always 'unmapped' (logs are PDF-only; client picker
+  //     enforces, so no non-PDF branch needed).
+  //   - waiver PDF: 'unmapped' (AI mapping + signature placement
+  //     wizards apply).
+  //   - waiver non-PDF: 'not_applicable' (image/DOCX/TXT can't be
+  //     mapped or signed via pdf-lib; the doc displays as-is for
+  //     hunter acknowledgment).
+  //   - resource: 'not_applicable' (no mapping ever).
+  const isPdfMime = fileMime === 'application/pdf'
+  const mapping_status =
+    kind === 'log' ? 'unmapped'
+    : kind === 'waiver' ? (isPdfMime ? 'unmapped' : 'not_applicable')
+    : 'not_applicable'
   const insert: DocInsert = {
     guide_id: profile.id,
     kind,
@@ -185,7 +200,7 @@ export async function createDocAction(fd: FormData): Promise<DocActionResult> {
     state: state ?? null,
     file_path: tempPath,
     file_mime: fileMime,
-    mapping_status: kind === 'resource' ? 'not_applicable' : 'unmapped',
+    mapping_status,
   }
   const { data: inserted, error: insErr } = await sb
     .from('docs')
