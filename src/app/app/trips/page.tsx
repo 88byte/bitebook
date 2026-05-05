@@ -133,8 +133,10 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
         }
       />
 
-      {/* v27.3.3: divider after top CTAs, before content/tabs. */}
-      <div className="bb-page-divider mt-4" aria-hidden="true" />
+      {/* v27.5.0.4 — bb-page-divider removed. The tabs nav directly
+          below carries its own borderBottom (1px solid card-divider),
+          so stacking both produced two horizontal lines under the
+          banner. The tab nav line alone is enough separation. */}
 
       {/* v27.1.4: top-level tabs — Trips vs Templates. Mirrors the docs
           library tab pattern (copper underline on active, URL-driven). */}

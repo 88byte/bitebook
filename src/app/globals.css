@@ -1684,6 +1684,18 @@ body {
   margin-top: 2.0rem;
 }
 
+/* v27.5.0.4 — /app/hunters invite form variant. The inline invite
+   form sits below the subtitle in the same .bb-dash-hero-below-sub
+   slot, but Flavio wants it tighter on mobile so it's more
+   accessible at the top of the page (the form input is the primary
+   action there, not a secondary CTA). Mobile-only override; desktop
+   keeps the 2.0rem rule for consistency with other banners. */
+@media (max-width: 47.99rem) {
+  .bb-dash-hero-below-sub:has(.bb-hero-invite) {
+    margin-top: 0.85rem;
+  }
+}
+
 /* v27.3.4.1 — banner inline invite. Lives under the hero subtitle
    (was right-side aside in v27.3.3.x). Title row 1 + email input +
    Send on row 2. Capped at 22rem so the form doesn't span the full
@@ -3207,7 +3219,14 @@ body {
   padding: 1rem 1.1rem;
 }
 
-.bb-dash-hero-text { min-width: 0; max-width: 70%; }
+/* v27.5.0.4: max-width 70% was leftover from when the shield sat on
+   the right inside .bb-dash-hero-inner. After v27.3.4.1 moved the
+   rightSlot below the subtitle (.bb-dash-hero-below-sub) and most
+   pages set showShield={false}, the 70% cap left the right 30% of
+   every banner empty on widescreens — Flavio: "banners are narrower
+   than the wide app shell." 100% lets title + subtitle + CTAs span
+   the full banner width that .bb-app-main allots. */
+.bb-dash-hero-text { min-width: 0; max-width: 100%; flex: 1 1 auto; }
 
 .bb-dash-hero-eyebrow {
   font-family: var(--font-barlow-condensed);
@@ -4409,6 +4428,90 @@ body {
   min-width: 0;
   box-sizing: border-box;
   display: block;
+}
+
+/* v27.5.0.4 — Trip detail 2-col on desktop. Mobile preserves the
+   current single-column DOM order (editor → hunters → docs).
+   Desktop puts editor + docs in the left column and the hunters
+   panel as a spanning right column. */
+.bb-trip-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  grid-template-areas:
+    "editor"
+    "hunters"
+    "docs";
+}
+.bb-trip-detail-grid-editor  { grid-area: editor; min-width: 0; }
+.bb-trip-detail-grid-hunters { grid-area: hunters; min-width: 0; }
+.bb-trip-detail-grid-docs    { grid-area: docs; min-width: 0; }
+@media (min-width: 64rem) {
+  .bb-trip-detail-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+    grid-template-areas:
+      "editor hunters"
+      "docs   hunters";
+  }
+}
+
+/* v27.5.0.4 — Hunt report 2-col on desktop. Mobile preserves the
+   current order: Generate at top → divider → Trip-level → note →
+   Entries → Logs at bottom. Desktop reflows to LEFT col [Trip-level
+   → Generate → Logs] and RIGHT col [note → Entries]. The divider
+   is hidden on desktop (column gap provides separation). */
+.bb-log-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  grid-template-areas:
+    "generate"
+    "divider"
+    "tripdetails"
+    "note"
+    "entries"
+    "logs";
+}
+.bb-log-grid-generate    { grid-area: generate; min-width: 0; }
+.bb-log-grid-divider     { grid-area: divider; min-width: 0; }
+.bb-log-grid-tripdetails { grid-area: tripdetails; min-width: 0; }
+.bb-log-grid-note        { grid-area: note; min-width: 0; }
+.bb-log-grid-entries     { grid-area: entries; min-width: 0; }
+.bb-log-grid-logs        { grid-area: logs; min-width: 0; }
+@media (min-width: 64rem) {
+  .bb-log-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+    grid-template-areas:
+      "tripdetails note"
+      "generate    entries"
+      "logs        entries";
+  }
+  .bb-log-grid-divider { display: none; }
+}
+
+/* v27.5.0.4 — belt-and-suspenders for any input inside a tile body
+   on the hunt-log editor (and elsewhere). Date inputs on iOS Safari
+   sometimes still ship a UA-injected min-width past the column.
+   Universal rule with max-width:100% + box-sizing keeps them inside
+   their container regardless. Mobile-only so we don't disturb desktop
+   widths where these caps aren't needed. */
+@media (max-width: 47.99rem) {
+  .bb-tile-body input,
+  .bb-tile-body select,
+  .bb-tile-body textarea {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .bb-log-trip-grid,
+  .bb-log-trip-grid > * {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 /* v27.1.1.0.3e.4: Sticky bulk-action bar on /app/docs library. Appears

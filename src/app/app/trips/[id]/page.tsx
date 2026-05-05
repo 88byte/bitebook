@@ -200,79 +200,73 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
       {/* v27.3.3.1: divider below action row, before content. */}
       <div className="bb-page-divider mt-3" aria-hidden="true" />
 
-      {/* v27.5.0.2 — move HuntersOnTripPanel BELOW the TripDetailEditor
-          (which ends with the Notes section). Order is now:
-            Trip detail editor (Overview / Location / Hunt details / Notes)
-            ↓
-            HUNTERS ON THIS TRIP panel
-            ↓
-            Trip docs card
-          per Flavio: panel was sitting above the trip details and
-          notes, pushing the form down. */}
-      <div className="mt-4">
-        <TripDetailEditor
-          tripId={trip.id}
-          initial={{
-            title: trip.title,
-            kind: trip.kind,
-            starts_at: trip.starts_at,
-            ends_at: trip.ends_at,
-            city: trip.city,
-            state: trip.state,
-            zone: trip.zone,
-            county: trip.county,
-            species_targeted: trip.species_targeted,
-            method: trip.method,
-            notes: trip.notes,
-          }}
-          candidates={candidates}
-          initialSelectedIds={initialSelectedIds}
-          speciesOptions={speciesOptions}
-        />
+      {/* v27.5.0.4 — desktop 2-col layout. LEFT col: TripDetailEditor
+          (overview / location / hunt details / notes) + TripDocsCard.
+          RIGHT col: HuntersOnTripPanel. Mobile single-col preserves
+          the v27.5.0.2 order (editor → hunters → docs) via the grid-
+          template-areas in .bb-trip-detail-grid. */}
+      <div className="bb-trip-detail-grid mt-4">
+        <div className="bb-trip-detail-grid-editor">
+          <TripDetailEditor
+            tripId={trip.id}
+            initial={{
+              title: trip.title,
+              kind: trip.kind,
+              starts_at: trip.starts_at,
+              ends_at: trip.ends_at,
+              city: trip.city,
+              state: trip.state,
+              zone: trip.zone,
+              county: trip.county,
+              species_targeted: trip.species_targeted,
+              method: trip.method,
+              notes: trip.notes,
+            }}
+            candidates={candidates}
+            initialSelectedIds={initialSelectedIds}
+            speciesOptions={speciesOptions}
+          />
+        </div>
 
-        {/* v27.3.8.1 item 1 — single combined panel for hunters. Replaces
-            the prior split between (a) read-only status panel here and
-            (b) Hunters accordion inside TripDetailEditor that owned add/
-            remove. One section: status pills + a Manage hunters toggle
-            that reveals HuntersMultiSelect inline and auto-saves.
-            v27.3.8.2 bug 1 — Map -> plain object for the wallet links
-            prop so the RSC payload serializes cleanly through the
-            revalidate-after-action round-trip.
-            v27.5.0.2 — moved here from above the editor (was pushing
-            trip details + notes down). Now reads: editor → hunters →
-            docs. */}
-        {(() => {
-          const walletLinksByHunterObj: WalletLinksByHunter = {}
-          for (const [hunterId, links] of walletLinksByHunter.entries()) {
-            walletLinksByHunterObj[hunterId] = links.map((l) => ({
-              id: l.id,
-              type: l.type,
-              identifier: l.identifier,
-              species: l.species,
-            }))
-          }
-          return (
-            <HuntersOnTripPanel
-              tripId={trip.id}
-              participants={participants as ParticipantRow[]}
-              walletLinksByHunter={walletLinksByHunterObj}
-              candidates={candidates}
-              initialSelectedIds={initialSelectedIds}
-              speciesTargeted={trip.species_targeted}
-              canManage={isOpen}
-            />
-          )
-        })()}
+        {/* v27.3.8.1 item 1 — single combined panel for hunters.
+            v27.5.0.4 — wrapped in grid-area="hunters" so it spans
+            both rows on desktop, full-width on mobile. */}
+        <div className="bb-trip-detail-grid-hunters">
+          {(() => {
+            const walletLinksByHunterObj: WalletLinksByHunter = {}
+            for (const [hunterId, links] of walletLinksByHunter.entries()) {
+              walletLinksByHunterObj[hunterId] = links.map((l) => ({
+                id: l.id,
+                type: l.type,
+                identifier: l.identifier,
+                species: l.species,
+              }))
+            }
+            return (
+              <HuntersOnTripPanel
+                tripId={trip.id}
+                participants={participants as ParticipantRow[]}
+                walletLinksByHunter={walletLinksByHunterObj}
+                candidates={candidates}
+                initialSelectedIds={initialSelectedIds}
+                speciesTargeted={trip.species_targeted}
+                canManage={isOpen}
+              />
+            )
+          })()}
+        </div>
 
         {/* v27.1.3.0.4: drop the now-redundant inner bb-form-narrow on
             the docs card — outer wrapper handles the centering. */}
-        <TripDocsCard
-          tripId={trip.id}
-          tripDocs={tripDocs}
-          attachable={attachableDocs}
-          participants={docParticipants}
-          defaultSignatureDataUrl={defaultSignatureDataUrl}
-        />
+        <div className="bb-trip-detail-grid-docs">
+          <TripDocsCard
+            tripId={trip.id}
+            tripDocs={tripDocs}
+            attachable={attachableDocs}
+            participants={docParticipants}
+            defaultSignatureDataUrl={defaultSignatureDataUrl}
+          />
+        </div>
       </div>
       </div>
     </main>

@@ -199,30 +199,36 @@ export default function HarvestLogEditor({
 
   return (
     <>
-      <div className="flex flex-col gap-4 mt-4">
-        {/* v27.3.7.1 item 2 — Generate stays at TOP. The Logs list moved
-            to the BOTTOM of the page (was top in v27.3.7) per Flavio's
-            screenshot — the nested-card visual + top-position cluttered
-            the entry editing flow. */}
-        <GeneratePdfsSection
-          logId={log.id}
-          mappedDocs={mappedDocs}
-          tripState={tripState}
-          guideId={guideId}
-          reportName={reportName}
-          setReportName={setReportName}
-        />
+      {/* v27.5.0.4 — desktop 2-col grid via .bb-log-grid. LEFT col gets
+          [Trip-level → Generate → Logs]; RIGHT col gets [note → Entries].
+          Mobile preserves the v27.3.7 single-col order via
+          grid-template-areas: Generate at top, then divider, then
+          Trip-level details, note, Entries, Logs at bottom. The divider
+          is hidden on desktop (column gap takes over). */}
+      <div className="bb-log-grid mt-4">
+        <div className="bb-log-grid-generate">
+          {/* v27.3.7.1 item 2 — Generate stays at TOP on mobile. */}
+          <GeneratePdfsSection
+            logId={log.id}
+            mappedDocs={mappedDocs}
+            tripState={tripState}
+            guideId={guideId}
+            reportName={reportName}
+            setReportName={setReportName}
+          />
+        </div>
 
         {/* v27.3.7 item 9 — divider directly beneath the Generate block
-            so the "fill out details below" content reads as a separate
-            phase from the generation tools. */}
-        <div className="bb-page-divider" aria-hidden="true" />
+            on mobile only (.bb-log-grid hides it on desktop). */}
+        <div className="bb-log-grid-divider bb-page-divider" aria-hidden="true" />
 
         {/* Trip-level fields — auto-save on blur (date) / change (purpose).
             v27.1.1.0.3e.4 layout: 2-col grid (date | purpose), purpose
             laid out as 3-col pill grid. Helper text moves to a card-level
-            footer outside both columns. */}
-        <section className="bb-tile bb-form-section">
+            footer outside both columns.
+            v27.5.0.4: wrapped in .bb-log-grid-tripdetails for the
+            desktop 2-col reflow. */}
+        <section className="bb-log-grid-tripdetails bb-tile bb-form-section">
           <div className="bb-tile-body">
             <div
               style={{
@@ -342,13 +348,11 @@ export default function HarvestLogEditor({
         </section>
 
         {/* v27.5.0.3 — quiet inline note explaining the include/exclude
-            behavior. Lives in-flow right before the hunter list so the
-            guide sees it when they're deciding which hunters belong on
-            the report. Replaces the v27.5.0.2 paragraph at the top of
-            the Generate section, which was too far from the relevant
-            decision point. */}
+            behavior. v27.5.0.4: wrapped in .bb-log-grid-note for the
+            desktop 2-col reflow (sits at the top of the right column
+            on desktop, just above the entries). */}
         <p
-          className="bb-form-help"
+          className="bb-log-grid-note bb-form-help"
           style={{
             margin: 0,
             fontSize: '0.85rem',
@@ -358,8 +362,9 @@ export default function HarvestLogEditor({
           Hunters with &ldquo;include in report&rdquo; unchecked are excluded from this report.
         </p>
 
-        {/* Entries */}
-        <section className="flex flex-col gap-3">
+        {/* Entries — v27.5.0.4 grid-area="entries" so it spans
+            multiple rows on desktop (right column). */}
+        <section className="bb-log-grid-entries flex flex-col gap-3">
           {log.entries.length === 0 ? (
             <div className="bb-tile">
               <div className="bb-tile-body" style={{ padding: '1rem' }}>
@@ -386,8 +391,13 @@ export default function HarvestLogEditor({
             top). Outer bb-tile wrapper stripped so the inner rows
             (themselves bb-tile cards) don't render as cards-inside-a
             -card. Heading + intro stay; rows render flat against the
-            page surface like the entries list above. */}
-        <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} defaultSignatureDataUrl={defaultSignatureDataUrl} />
+            page surface like the entries list above.
+            v27.5.0.4: wrapped in .bb-log-grid-logs for the desktop
+            2-col reflow (sits at the bottom of the LEFT column on
+            desktop, end of mobile single-col). */}
+        <div className="bb-log-grid-logs">
+          <GeneratedReportsTile generatedLogs={generatedLogs} logId={log.id} defaultSignatureDataUrl={defaultSignatureDataUrl} />
+        </div>
 
         {/* v27.3.7 — Danger zone (delete report) removed per Flavio:
             "every hunt gets this hunt report." Reports auto-exist
@@ -1908,34 +1918,41 @@ function GeneratedReportRow({
           </p>
         )}
       </div>
+      {/* v27.5.0.4 — Flavio: "buttons and signed pill on their own rows.
+          Currently they crowd." Pill MOVED out of .bb-genrow-actions and
+          rendered here as a top-row sibling next to the filename. Top
+          row reads: [icon] [name] [pill]; the actions cluster below
+          stays on its own row on mobile (existing flex-basis:100%) and
+          now only contains action buttons, so no more crowding. */}
+      {isSigned && (
+        <span
+          aria-label={`Signed ${new Date(row.signed_at!).toLocaleDateString()}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            padding: '0.2rem 0.5rem',
+            borderRadius: 999,
+            background: '#DDEEDD',
+            color: '#2E5E2E',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          <Signature size={12} aria-hidden="true" />
+          Signed {new Date(row.signed_at!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        </span>
+      )}
       <div className="bb-genrow-actions">
-        {/* v27.2.0.1: Signed-on pill rendered before the action tiles
-            when the report has been signed.
-            v27.3.7 item 1: action cluster pulled onto its own row on
+        {/* v27.3.7 item 1: action cluster pulled onto its own row on
             mobile (<640px) via .bb-genrow-actions so 4-5 icon tiles
-            don't crowd the filename + meta on narrow viewports. */}
-        {isSigned && (
-          <span
-            aria-label={`Signed ${new Date(row.signed_at!).toLocaleDateString()}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              padding: '0.2rem 0.5rem',
-              borderRadius: 999,
-              background: '#DDEEDD',
-              color: '#2E5E2E',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Signature size={12} aria-hidden="true" />
-            Signed {new Date(row.signed_at!).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </span>
-        )}
+            don't crowd the filename + meta on narrow viewports.
+            v27.5.0.4: signed pill moved up next to the filename — see
+            the comment above. This cluster now holds only buttons. */}
         {displayUrl ? (
           <>
             <a
