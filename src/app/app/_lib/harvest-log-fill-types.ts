@@ -122,3 +122,54 @@ export function detectImplicitSlot1(fieldNames: string[]): Set<string> {
   }
   return out
 }
+
+// v27.3.10.8 — shared paired-row-group detection.
+//
+// Some state forms (CDFW 992b ext, similar) lay out N hunters × 2 species
+// per hunter as a single 1..2N field run, e.g. "Tag Report Card 1..10",
+// "SPECIES TAKEN, _2..10", "NUMBER KEPT, _2..10". The convention is:
+//   sequence index 1, 2 → Hunter 1 / species 1, species 2
+//   sequence index 3, 4 → Hunter 2 / species 1, species 2
+//   sequence index 5, 6 → Hunter 3 / species 1, species 2
+//   ...
+//   formula: hunter_slot = ceil(seq/2),  species_index = ((seq-1) mod 2) + 1
+//
+// This helper returns the Set of base names that match the pattern. Used
+// by suggestMappingsAction's applyPairedFieldHeuristic AND by
+// saveDocMappingsAction's mirror loop AND by the wizard UI's
+// computeSlot1ByBase. All three need the same detection so the AI's
+// per-species mapping isn't accidentally collapsed back to a single
+// slot-1 path during mirror (the v27.3.10.x bug Flavio kept hitting).
+//
+// Gate: base matches PAIRED_BASE_REGEX, at least 4 entries with parsed
+// slot > 0, max parsed slot >= 4 AND even.
+export const PAIRED_BASE_REGEX = /\b(tag|report|species|kept|released)\b/i
+
+export function detectPairedBases(fieldNames: string[]): Set<string> {
+  const byBase = new Map<string, number[]>()
+  for (const raw of fieldNames) {
+    const parsed = parseFieldName(raw)
+    if (parsed.slot === 0 || !parsed.base) continue
+    const arr = byBase.get(parsed.base) ?? []
+    arr.push(parsed.slot)
+    byBase.set(parsed.base, arr)
+  }
+  const out = new Set<string>()
+  for (const [base, slots] of byBase) {
+    if (!PAIRED_BASE_REGEX.test(base)) continue
+    if (slots.length < 4) continue
+    slots.sort((a, b) => a - b)
+    const maxSlot = slots[slots.length - 1]
+    if (maxSlot < 4 || maxSlot % 2 !== 0) continue
+    out.add(base)
+  }
+  return out
+}
+
+// v27.3.10.8 — for a paired-base field, the species index is derived
+// from the field's PARSED slot (the regex-detected sequence number),
+// NOT the AI-/heuristic-rewritten hunter_slot. This keeps the species
+// split stable regardless of any later mirror passes.
+export function pairedSpeciesIndex(parsedSlot: number): 1 | 2 {
+  return ((parsedSlot - 1) % 2) + 1 === 1 ? 1 : 2
+}

@@ -326,7 +326,11 @@ export default function MappingWizard({
   // partially-mapped doc when transient fetch state made existingByField
   // briefly empty, sending the wizard into a Step 2 → Step 1 loop on
   // revisit even though the 82 saved rows existed in the DB.
+  // v27.3.10.8 item 1: AI auto-poll only fires for log kinds. Waivers
+  // get manual mapping only — no AI Step 1/2/3 onboarding, no
+  // background polling.
   const initialIsEmpty =
+    docKind === 'log' &&
     Object.keys(existingByField).length === 0 &&
     Object.keys(existingAiSuggestedByField).length === 0 &&
     currentStatus === 'unmapped'
@@ -668,7 +672,7 @@ export default function MappingWizard({
   // future re-use, but no longer drive the render. computeSlot1ByBase
   // stays — renderFieldRow still consults it for the mirror dropdown
   // affordance on slot >= 2 fields.
-  const slot1ByBase = computeSlot1ByBase(fields, selection, slotOverrides)
+  const slot1Anchors = computeSlot1ByBase(fields, selection, slotOverrides)
 
   // v27.3.10.3: per-field effective slot. Manual override > 0 wins,
   // else regex auto-detect via parseFieldNameInline. Slot 0 = trip-level.
@@ -785,7 +789,21 @@ export default function MappingWizard({
     const effSlot = (slotOverrides[f.name] ?? 0) > 0
       ? (slotOverrides[f.name] ?? 0)
       : parsed.slot
-    const mirrorPath = effSlot >= 2 ? slot1ByBase.get(parsed.base) ?? null : null
+    // v27.3.10.8 item 2 — paired-aware mirror path lookup. For paired
+    // bases (e.g. "Tag Report Card 1..10" CDFW pattern), key by
+    // (base, species_idx) so Hunter 2..N species 1 inherits from
+    // Hunter 1 species 1 — NOT the last-iteration slot-1 entry which
+    // collapsed across species_idx and overwrote Hunter 2..N's
+    // alternating species mappings.
+    let mirrorPath: string | null = null
+    if (effSlot >= 2) {
+      if (slot1Anchors.pairedBases.has(parsed.base)) {
+        const speciesIdx = ((parsed.slot - 1) % 2) + 1
+        mirrorPath = slot1Anchors.byBaseSpecies.get(`${parsed.base}|${speciesIdx}`) ?? null
+      } else {
+        mirrorPath = slot1Anchors.byBase.get(parsed.base) ?? null
+      }
+    }
     // v27.1.1.0.3d.2.8: surface "Use AI suggestion" link when guide has
     // edited away from AI's original recommendation.
     const aiOriginalPath = existingAiSuggestedPathByField[f.name] ?? null
@@ -829,8 +847,12 @@ export default function MappingWizard({
           guide always knows the next action. Stages: 'start' (welcome
           + Start AI mapping), 'working' (spinner, no CTA), 'success'
           (Review N AI suggestions, scrolls to fields), 'review'
-          (re-run path with small auto-suggest button). */}
-      {stage === 'start' && (
+          (re-run path with small auto-suggest button).
+          v27.3.10.8 item 1: Steps 1, 2, 3 + Re-run AI surfaces are
+          gated to log kinds. Waivers go straight to manual mapping —
+          no AI flow at all. The signature-placement wizard is the
+          waiver-side automation, separate from this flow. */}
+      {docKind === 'log' && stage === 'start' && (
         <StepCard
           stepNumber={1}
           title="Start by letting AI map your form"
@@ -866,7 +888,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {stage === 'working' && (
+      {docKind === 'log' && stage === 'working' && (
         <StepCard
           stepNumber={2}
           title={aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
@@ -900,7 +922,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {stage === 'success' && (
+      {docKind === 'log' && stage === 'success' && (
         <div
           className="bb-tile"
           style={{
@@ -975,16 +997,18 @@ export default function MappingWizard({
                   ? 'Working…'
                   : 'Mapping Complete'}
               </button>
-              <button
-                type="button"
-                className="bb-btn-secondary"
-                onClick={handleSuggestMappings}
-                disabled={pending || aiSuggesting}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-              >
-                <Sparkles size={14} aria-hidden="true" />
-                Re-run AI
-              </button>
+              {docKind === 'log' && (
+                <button
+                  type="button"
+                  className="bb-btn-secondary"
+                  onClick={handleSuggestMappings}
+                  disabled={pending || aiSuggesting}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Sparkles size={14} aria-hidden="true" />
+                  Re-run AI
+                </button>
+              )}
               <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
                 Status: <strong>{currentStatus}</strong>
               </span>
@@ -1014,9 +1038,11 @@ export default function MappingWizard({
         }
 
         // First-time mapping flow: full StepCards 3 + 4.
+        // v27.3.10.8 item 1: Step 3 (Review your mappings + Re-run AI)
+        // is log-only. Waivers skip it.
         return (
           <>
-            {stage === 'review' && (
+            {docKind === 'log' && stage === 'review' && (
               <StepCard
                 stepNumber={3}
                 title="Review your mappings"
@@ -1193,6 +1219,7 @@ export default function MappingWizard({
         filterCounts={filterCounts}
         onRerunAi={handleSuggestMappings}
         rerunDisabled={pending || aiSuggesting}
+        showRerunAi={docKind === 'log'}
       />
 
       {sections.map(({ slot, members }) => {
@@ -1576,15 +1603,27 @@ function parseFieldNameInline(name: string): { slot: number; base: string } {
   return { slot: 0, base: name }
 }
 
-// Walk current wizard state to derive slot-1 paths keyed by base. Used by
-// the FieldRow render to surface "Mirrored from Hunter 1" tags + the
-// inherited dropdown value live, before save round-trips.
+// v27.3.10.8 item 2 — paired-row-aware slot-1 lookup.
+//
+// Walk current wizard state to derive slot-1 paths. For non-paired bases,
+// keyed by base only (returned in `byBase`). For paired bases, keyed by
+// `${base}|${species_idx}` (returned in `byBaseSpecies`) so Hunter 2..N
+// species 1 mirrors from Hunter 1 species 1 and Hunter 2..N species 2
+// mirrors from Hunter 1 species 2 — NOT both collapsed to the
+// last-iteration slot-1 entry (the recurring v27.3.10.x bug).
+//
+// Used by renderFieldRow to surface the "Mirrored from Hunter 1"
+// affordance + the inherited dropdown value live, before save
+// round-trips.
 function computeSlot1ByBase(
   fields: DocPdfField[] | null,
   selection: Record<string, string>,
   slotOverrides: Record<string, number>
-): Map<string, string> {
-  const out = new Map<string, string>()
+): { byBase: Map<string, string>; byBaseSpecies: Map<string, string>; pairedBases: Set<string> } {
+  const byBase = new Map<string, string>()
+  const byBaseSpecies = new Map<string, string>()
+  const fieldNames = (fields ?? []).map((f) => f.name)
+  const pairedBases = detectPairedBasesInline(fieldNames)
   for (const f of fields ?? []) {
     const sel = selection[f.name]
     if (!sel) continue
@@ -1597,9 +1636,39 @@ function computeSlot1ByBase(
     }
     const parsed = parseFieldNameInline(f.name)
     const effSlot = (slotOverrides[f.name] ?? 0) > 0 ? slotOverrides[f.name] : parsed.slot
-    if (effSlot === 1) {
-      out.set(parsed.base, sel)
+    if (effSlot !== 1) continue
+    if (pairedBases.has(parsed.base)) {
+      const speciesIdx = ((parsed.slot - 1) % 2) + 1
+      byBaseSpecies.set(`${parsed.base}|${speciesIdx}`, sel)
+    } else {
+      byBase.set(parsed.base, sel)
     }
+  }
+  return { byBase, byBaseSpecies, pairedBases }
+}
+
+// v27.3.10.8 — inlined paired-base detection (mirrors detectPairedBases
+// in harvest-log-fill-types.ts; the wizard is a 'use client' module
+// that already keeps a parseFieldNameInline copy of parseFieldName
+// rather than importing it, so the same pattern applies here).
+const PAIRED_BASE_REGEX_INLINE = /\b(tag|report|species|kept|released)\b/i
+function detectPairedBasesInline(fieldNames: string[]): Set<string> {
+  const byBase = new Map<string, number[]>()
+  for (const raw of fieldNames) {
+    const parsed = parseFieldNameInline(raw)
+    if (parsed.slot === 0 || !parsed.base) continue
+    const arr = byBase.get(parsed.base) ?? []
+    arr.push(parsed.slot)
+    byBase.set(parsed.base, arr)
+  }
+  const out = new Set<string>()
+  for (const [base, slots] of byBase) {
+    if (!PAIRED_BASE_REGEX_INLINE.test(base)) continue
+    if (slots.length < 4) continue
+    slots.sort((a, b) => a - b)
+    const maxSlot = slots[slots.length - 1]
+    if (maxSlot < 4 || maxSlot % 2 !== 0) continue
+    out.add(base)
   }
   return out
 }
@@ -1691,6 +1760,7 @@ function MappingToolbar({
   filterCounts,
   onRerunAi,
   rerunDisabled,
+  showRerunAi,
 }: {
   searchQuery: string
   onSearchChange: (v: string) => void
@@ -1699,6 +1769,8 @@ function MappingToolbar({
   filterCounts: { all: number; mapped: number; 'needs-review': number; skipped: number; 'log-time': number }
   onRerunAi: () => void
   rerunDisabled: boolean
+  // v27.3.10.8 item 1: false on waivers (no AI flow at all).
+  showRerunAi: boolean
 }) {
   const chips: Array<{
     key: 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
@@ -1724,16 +1796,18 @@ function MappingToolbar({
             aria-label="Search PDF field names"
           />
         </div>
-        <button
-          type="button"
-          className="bb-mapping-rerun"
-          onClick={onRerunAi}
-          disabled={rerunDisabled}
-          title="Re-run AI mapping suggestions"
-        >
-          <Sparkles size={13} aria-hidden="true" />
-          Re-run AI
-        </button>
+        {showRerunAi && (
+          <button
+            type="button"
+            className="bb-mapping-rerun"
+            onClick={onRerunAi}
+            disabled={rerunDisabled}
+            title="Re-run AI mapping suggestions"
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            Re-run AI
+          </button>
+        )}
       </div>
       <div className="bb-mapping-filters" aria-label="Filter fields by status">
         {chips.map((c) => (

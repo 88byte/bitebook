@@ -28,7 +28,13 @@ import {
   DATA_SOURCES,
   type DataSourceOption,
 } from './doc-data-sources'
-import { parseFieldName, detectImplicitSlot1 } from './harvest-log-fill-types'
+import {
+  parseFieldName,
+  detectImplicitSlot1,
+  detectPairedBases,
+  PAIRED_BASE_REGEX,
+  pairedSpeciesIndex,
+} from './harvest-log-fill-types'
 import Anthropic from '@anthropic-ai/sdk'
 
 // v27.3.10 item 9: paired-row heuristic. State forms (CDFW 992b ext,
@@ -51,7 +57,11 @@ type PairedSuggestion = {
   user_label: string | null
 }
 
-const PAIRED_BASE_REGEX = /\b(tag|report|species|kept|released)\b/i
+// v27.3.10.8 — PAIRED_BASE_REGEX moved to harvest-log-fill-types.ts so it
+// can be shared with saveDocMappingsAction's mirror loop AND the wizard
+// UI's computeSlot1ByBase. All three need the same detection so the
+// per-species split survives mirror passes. Re-exported here for the
+// existing call site; new code should import from harvest-log-fill-types.
 
 function applyPairedFieldHeuristic(accepted: PairedSuggestion[]): void {
   const groups = new Map<string, Array<{ idx: number; slot: number }>>()
@@ -972,46 +982,86 @@ export async function saveDocMappingsAction(
   // field whose effective slot is 2..N AND whose base name matches AND
   // whose is_override is false, override the path with the slot-1 path.
   // is_override=true preserves the user's explicit choice for that slot.
-  // v27.3.10.5 item 4: also mirror the fallback_path. Previous logic
-  // only mirrored `path`, so when a guide added a fallback to a Hunter
-  // 1 field (e.g. "TAG / REPORT CARD") they had to repeat it on every
-  // mirrored Hunter 2..N row by hand. Now slot1FallbackByBase carries
-  // the same base→fallback map and a parallel mirror loop applies it,
-  // bumping mirroredCount whenever either changes.
+  //
+  // v27.3.10.5 item 4: also mirror fallback_path.
+  //
+  // v27.3.10.8 item 2: PAIRED-AWARE mirror. Recurring bug — for paired
+  // groups (CDFW 992b ext "Tag Report Card 1..10"), every base-keyed
+  // mirror collapsed both Hunter 1 species 1 ("Tag Report Card 1" →
+  // species[1].tag_id) and Hunter 1 species 2 ("Tag Report Card 2" →
+  // species[2].tag_id) under the SAME base ("Tag Report Card"), so
+  // whichever entry processed last won and slot 2..N's correctly-split
+  // species_idx paths got clobbered to that single value. Net effect:
+  // Hunter 2..5 all mapped to species[1] OR species[2] uniformly,
+  // never the alternating odd/even split the AI heuristic produced.
+  //
+  // Fix: detect paired bases (shared helper detectPairedBases). For
+  // those bases, key slot-1 anchors by `${base}|${species_idx}` where
+  // species_idx is derived from the FIELD'S parsed regex slot
+  // (((parsedSlot-1)%2)+1). Slot 2..N fields in a paired group lookup
+  // by the same composite key, so Hunter 2 species 1 mirrors from
+  // Hunter 1 species 1, and Hunter 2 species 2 mirrors from Hunter 1
+  // species 2. Non-paired bases keep the simple base-only mirror.
+  const stagedFieldNames = Array.from(staged.keys())
+  const pairedBases = detectPairedBases(stagedFieldNames)
+
   const slot1ByBase = new Map<string, string>()
+  const slot1ByBaseSpecies = new Map<string, string>()
   const slot1FallbackByBase = new Map<string, string | null>()
+  const slot1FallbackByBaseSpecies = new Map<string, string | null>()
+
   for (const [fieldName, s] of staged) {
     if (!s.path) continue
     const parsed = parseFieldName(fieldName)
     const effSlot = s.hunterSlot > 0 ? s.hunterSlot : parsed.slot
-    if (effSlot === 1) {
+    if (effSlot !== 1) continue
+    if (pairedBases.has(parsed.base)) {
+      const speciesIdx = pairedSpeciesIndex(parsed.slot)
+      const key = `${parsed.base}|${speciesIdx}`
+      slot1ByBaseSpecies.set(key, s.path)
+      slot1FallbackByBaseSpecies.set(key, s.fallbackPath ?? null)
+    } else {
       slot1ByBase.set(parsed.base, s.path)
       slot1FallbackByBase.set(parsed.base, s.fallbackPath ?? null)
     }
   }
+
   let mirroredCount = 0
   for (const [fieldName, s] of staged) {
     if (s.isOverride) continue
     const parsed = parseFieldName(fieldName)
     const effSlot = s.hunterSlot > 0 ? s.hunterSlot : parsed.slot
     if (effSlot < 2) continue
-    const mirror = slot1ByBase.get(parsed.base)
+
+    let mirror: string | undefined
+    let mirrorFb: string | null | undefined
+    let hasFb = false
+    if (pairedBases.has(parsed.base)) {
+      const speciesIdx = pairedSpeciesIndex(parsed.slot)
+      const key = `${parsed.base}|${speciesIdx}`
+      mirror = slot1ByBaseSpecies.get(key)
+      if (slot1FallbackByBaseSpecies.has(key)) {
+        mirrorFb = slot1FallbackByBaseSpecies.get(key) ?? null
+        hasFb = true
+      }
+    } else {
+      mirror = slot1ByBase.get(parsed.base)
+      if (slot1FallbackByBase.has(parsed.base)) {
+        mirrorFb = slot1FallbackByBase.get(parsed.base) ?? null
+        hasFb = true
+      }
+    }
     if (!mirror) continue
+
     let changed = false
     if (s.path !== mirror) {
       s.path = mirror
       changed = true
     }
-    // v27.3.10.5 item 4: mirror fallback alongside primary path. Use
-    // `has(base)` to distinguish "Hunter 1 has no fallback (null)" from
-    // "no Hunter 1 entry at all" — the former should propagate (clears
-    // any stale slot 2..N fallback to match), the latter is a no-op.
-    if (slot1FallbackByBase.has(parsed.base)) {
-      const mirrorFb = slot1FallbackByBase.get(parsed.base) ?? null
-      if ((s.fallbackPath ?? null) !== mirrorFb) {
-        s.fallbackPath = mirrorFb
-        changed = true
-      }
+    // v27.3.10.5 item 4: mirror fallback alongside primary path.
+    if (hasFb && (s.fallbackPath ?? null) !== mirrorFb) {
+      s.fallbackPath = mirrorFb ?? null
+      changed = true
     }
     if (changed) mirroredCount += 1
   }
@@ -1185,18 +1235,16 @@ export async function suggestMappingsAction(
     .eq('guide_id', profile.id)
     .maybeSingle()
   if (!doc) return { error: 'Doc not found.' }
-  // v27.3.10.7 — opened AI suggestions to waivers too. Pre-v27.2.0
-  // waivers had no mapping flow at all, so the action was scoped to
-  // logs only. v27.2.0 added waiver mapping (with signature
-  // placement) and routed it through this same wizard, but this
-  // gate was never lifted — every "Re-run AI mapping" tap on a
-  // waiver returned `'AI suggestions are only available for log
-  // docs right now.'` Flavio's California Guide Trip Log was
-  // uploaded as kind=waiver and got blocked. Both extractDocFields
-  // (line 759) and saveDocMappings (line 903) already accept both
-  // kinds; this is the only remaining gate.
-  if (doc.kind !== 'log' && doc.kind !== 'waiver') {
-    return { error: 'AI suggestions are only available for log and waiver docs.' }
+  // v27.3.10.8 item 1 — back to log-only. v27.3.10.7 opened AI to
+  // waivers, but Flavio decided waivers should be manual mapping
+  // (signature placement is the heavy automation for waivers, not
+  // field mapping). Resources never had a mapping flow. The wizard
+  // also hides the AI Step 1/2/3 onboarding when docKind !== 'log',
+  // so this gate is the server-side belt to the client-side
+  // suspenders — direct callers (e.g. from a future API) still
+  // get the same error.
+  if (doc.kind !== 'log') {
+    return { error: 'AI suggestions are only available for log docs.' }
   }
 
   // Reuse extractDocFieldsAction's discovery (downloads + parses the PDF
