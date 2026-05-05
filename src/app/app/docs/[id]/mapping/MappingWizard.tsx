@@ -672,7 +672,7 @@ export default function MappingWizard({
   // future re-use, but no longer drive the render. computeSlot1ByBase
   // stays — renderFieldRow still consults it for the mirror dropdown
   // affordance on slot >= 2 fields.
-  const slot1Anchors = computeSlot1ByBase(fields, selection, slotOverrides)
+  const slot1Anchors = computeSlot1ByBase(fields, selection, fallbacks, slotOverrides)
 
   // v27.3.10.3: per-field effective slot. Manual override > 0 wins,
   // else regex auto-detect via parseFieldNameInline. Slot 0 = trip-level.
@@ -795,13 +795,22 @@ export default function MappingWizard({
     // Hunter 1 species 1 — NOT the last-iteration slot-1 entry which
     // collapsed across species_idx and overwrote Hunter 2..N's
     // alternating species mappings.
+    // v27.3.10.9 — extended to fallback path. Same paired-aware
+    // lookup, separate slot-1 anchor maps for fallback. Without this,
+    // the wizard's FallbackSourceEditor displayed whatever stale
+    // value was in `fallbacks[fieldName]` for slot 2..N rows
+    // regardless of what the paired slot-1 fallback actually was.
     let mirrorPath: string | null = null
+    let mirrorFallbackPath: string | null = null
     if (effSlot >= 2) {
       if (slot1Anchors.pairedBases.has(parsed.base)) {
         const speciesIdx = ((parsed.slot - 1) % 2) + 1
-        mirrorPath = slot1Anchors.byBaseSpecies.get(`${parsed.base}|${speciesIdx}`) ?? null
+        const key = `${parsed.base}|${speciesIdx}`
+        mirrorPath = slot1Anchors.byBaseSpecies.get(key) ?? null
+        mirrorFallbackPath = slot1Anchors.byBaseSpeciesFallback.get(key) ?? null
       } else {
         mirrorPath = slot1Anchors.byBase.get(parsed.base) ?? null
+        mirrorFallbackPath = slot1Anchors.byBaseFallback.get(parsed.base) ?? null
       }
     }
     // v27.1.1.0.3d.2.8: surface "Use AI suggestion" link when guide has
@@ -827,6 +836,7 @@ export default function MappingWizard({
         isAiSuggested={aiSuggestedFlags[f.name] === true}
         aiOriginalPath={aiDiffers ? aiOriginalPath : null}
         mirrorPath={mirrorPath}
+        mirrorFallbackPath={mirrorFallbackPath}
         advanced={advancedMode}
         onChange={handleDropdownChange}
         onFallbackChange={handleFallbackChange}
@@ -1615,13 +1625,29 @@ function parseFieldNameInline(name: string): { slot: number; base: string } {
 // Used by renderFieldRow to surface the "Mirrored from Hunter 1"
 // affordance + the inherited dropdown value live, before save
 // round-trips.
+//
+// v27.3.10.9 — also build fallback slot-1 anchors. The save action's
+// mirror loop is paired-aware for fallback (v27.3.10.8 item 4), but
+// the WIZARD UI was only paired-aware for the primary path —
+// FallbackSourceEditor read `fallbacks[fieldName]` directly with no
+// mirror, so on slot 2..N rows the user saw whatever stale value
+// happened to be in DB instead of the paired-correct slot-1 fallback.
 function computeSlot1ByBase(
   fields: DocPdfField[] | null,
   selection: Record<string, string>,
+  fallbacks: Record<string, string>,
   slotOverrides: Record<string, number>
-): { byBase: Map<string, string>; byBaseSpecies: Map<string, string>; pairedBases: Set<string> } {
+): {
+  byBase: Map<string, string>
+  byBaseSpecies: Map<string, string>
+  byBaseFallback: Map<string, string>
+  byBaseSpeciesFallback: Map<string, string>
+  pairedBases: Set<string>
+} {
   const byBase = new Map<string, string>()
   const byBaseSpecies = new Map<string, string>()
+  const byBaseFallback = new Map<string, string>()
+  const byBaseSpeciesFallback = new Map<string, string>()
   const fieldNames = (fields ?? []).map((f) => f.name)
   const pairedBases = detectPairedBasesInline(fieldNames)
   for (const f of fields ?? []) {
@@ -1637,14 +1663,18 @@ function computeSlot1ByBase(
     const parsed = parseFieldNameInline(f.name)
     const effSlot = (slotOverrides[f.name] ?? 0) > 0 ? slotOverrides[f.name] : parsed.slot
     if (effSlot !== 1) continue
+    const fb = fallbacks[f.name] ?? ''
     if (pairedBases.has(parsed.base)) {
       const speciesIdx = ((parsed.slot - 1) % 2) + 1
-      byBaseSpecies.set(`${parsed.base}|${speciesIdx}`, sel)
+      const key = `${parsed.base}|${speciesIdx}`
+      byBaseSpecies.set(key, sel)
+      if (fb) byBaseSpeciesFallback.set(key, fb)
     } else {
       byBase.set(parsed.base, sel)
+      if (fb) byBaseFallback.set(parsed.base, fb)
     }
   }
-  return { byBase, byBaseSpecies, pairedBases }
+  return { byBase, byBaseSpecies, byBaseFallback, byBaseSpeciesFallback, pairedBases }
 }
 
 // v27.3.10.8 — inlined paired-base detection (mirrors detectPairedBases
@@ -1859,6 +1889,7 @@ function FieldRow({
   isAiSuggested,
   aiOriginalPath,
   mirrorPath,
+  mirrorFallbackPath,
   advanced,
   onChange,
   onFallbackChange,
@@ -1882,6 +1913,11 @@ function FieldRow({
   isAiSuggested: boolean
   aiOriginalPath: string | null
   mirrorPath: string | null
+  // v27.3.10.9 — paired-aware fallback mirror. Same shape as
+  // mirrorPath but for the optional fallback path. When non-null on a
+  // slot 2..N row, the FallbackSourceEditor renders disabled with
+  // this value so the UI matches the primary's mirror behavior.
+  mirrorFallbackPath: string | null
   onChange: (fieldName: string, value: string) => void
   onFallbackChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
@@ -2219,7 +2255,12 @@ function FieldRow({
           v27.1.5.4: hidden behind advanced mode unless a fallback is
           already saved (in which case we always render the editor —
           can't silently strand existing data). */}
-      {(advanced || !!fallbackValue) && (
+      {/* v27.3.10.9 — also surface the editor when a paired-aware
+          fallback mirror exists for slot 2..N rows. Without this the
+          fallback editor stayed collapsed for slot 2..N rows whose
+          local `fallbackValue` was empty, hiding the inherited
+          slot-1 fallback even though save would mirror it correctly. */}
+      {(advanced || !!fallbackValue || (!!mirrorFallbackPath && slot >= 2 && !isOverride)) && (
         <FallbackSourceEditor
           fieldName={field.name}
           fallbackValue={fallbackValue}
@@ -2227,6 +2268,8 @@ function FieldRow({
           grouped={grouped}
           primaryDropdownValue={dropdownValue}
           onChange={onFallbackChange}
+          mirrorFallbackPath={mirrorFallbackPath}
+          isMirrored={!isOverride && slot >= 2 && mirrorFallbackPath !== null}
         />
       )}
     </div>
@@ -2251,6 +2294,8 @@ function FallbackSourceEditor({
   grouped,
   primaryDropdownValue,
   onChange,
+  mirrorFallbackPath,
+  isMirrored,
 }: {
   fieldName: string
   fallbackValue: string
@@ -2258,8 +2303,16 @@ function FallbackSourceEditor({
   grouped: Record<string, DataSourceOption[]>
   primaryDropdownValue: string
   onChange: (fieldName: string, value: string) => void
+  // v27.3.10.9 — paired-aware fallback mirror props. When isMirrored
+  // is true, the dropdown locks to mirrorFallbackPath the same way
+  // the primary dropdown locks to mirrorPath on slot 2..N rows. The
+  // local fallback state is ignored for display; on save the action's
+  // mirror loop overwrites the saved value with the slot-1 anchor.
+  mirrorFallbackPath?: string | null
+  isMirrored?: boolean
 }) {
-  const expanded = !!fallbackValue
+  const showMirrored = isMirrored === true && mirrorFallbackPath
+  const expanded = !!fallbackValue || !!showMirrored
   if (!expanded) {
     return (
       <button
@@ -2300,30 +2353,33 @@ function FallbackSourceEditor({
         >
           If primary source is empty, fill with this instead
         </label>
-        <button
-          type="button"
-          onClick={() => onChange(fieldName, '')}
-          className="bb-text-action"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.2rem',
-            fontSize: '0.78rem',
-            color: 'var(--color-ink-soft)',
-            background: 'transparent',
-            border: 'none',
-            padding: '0.1rem 0',
-            cursor: 'pointer',
-          }}
-        >
-          Remove
-        </button>
+        {!showMirrored && (
+          <button
+            type="button"
+            onClick={() => onChange(fieldName, '')}
+            className="bb-text-action"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.2rem',
+              fontSize: '0.78rem',
+              color: 'var(--color-ink-soft)',
+              background: 'transparent',
+              border: 'none',
+              padding: '0.1rem 0',
+              cursor: 'pointer',
+            }}
+          >
+            Remove
+          </button>
+        )}
       </div>
       <select
         id={`fb-${fieldName}`}
         className="bb-input"
-        value={fallbackValue}
+        value={showMirrored ? (mirrorFallbackPath as string) : fallbackValue}
         onChange={(e) => onChange(fieldName, e.target.value)}
+        disabled={!!showMirrored}
       >
         <option value="">— None —</option>
         {CATEGORY_ORDER.map((cat) =>
