@@ -44,6 +44,10 @@ export default async function HunterDashboardPage() {
 
   return (
     <main className="bb-app-main">
+      {/* v27.6.3 — explicit bgImage + objectPosition='top' brings the
+          hunter dashboard banner in line with /app (guide dashboard).
+          Was inheriting the DashboardHero default which pre-v27.6.3
+          pointed at the legacy root-path /bb-dashboard-hero.png. */}
       <DashboardHero
         eyebrow="Welcome"
         title={profile.display_name}
@@ -52,6 +56,8 @@ export default async function HunterDashboardPage() {
             ? 'You have no upcoming trips.'
             : `You have ${upcomingCount} upcoming trip${upcomingCount === 1 ? '' : 's'}.`
         }
+        bgImage="/banners/dashboard-hero.png"
+        objectPosition="top"
       />
 
       {showBanner && (

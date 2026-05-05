@@ -16,7 +16,11 @@ export default function DashboardHero({
   eyebrow,
   title,
   subtitle,
-  bgImage = '/bb-dashboard-hero.png',
+  // v27.6.3 — default updated from /bb-dashboard-hero.png (root-path
+  // legacy) to /banners/dashboard-hero.png (the v27.5.0.4.x banner set).
+  // Belt-and-suspenders so any caller without an explicit bgImage gets
+  // the new image instead of a 404 on the legacy path.
+  bgImage = '/banners/dashboard-hero.png',
   eyebrowColor = 'light',
   showShield = true,
   objectPosition,

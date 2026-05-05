@@ -74,13 +74,18 @@ export default async function HunterTripsListPage({
 
   return (
     <main className="bb-app-main">
+      {/* v27.6.3 — banner parity with /app/trips (guide side):
+          /bb-trips-hero.png (legacy root path) → /banners/trips-hero.png
+          + objectPosition="top". The hunter trips list now reads as a
+          first-class page rather than a stale-asset one. */}
       <DashboardHero
         eyebrow="Your trips"
         title="My trips"
         subtitle={heroSub}
-        bgImage="/bb-trips-hero.png"
+        bgImage="/banners/trips-hero.png"
         eyebrowColor="copper"
         showShield={false}
+        objectPosition="top"
       />
 
       <div className="bb-chip-row mt-4" role="tablist" aria-label="Filter by status">

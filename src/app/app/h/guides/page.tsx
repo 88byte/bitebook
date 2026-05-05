@@ -15,14 +15,18 @@ export default async function HunterGuidesPage() {
 
   return (
     <main className="bb-app-main">
+      {/* v27.6.3 — banner parity with /app/hunters (guide side):
+          /bb-network-hero.png (legacy) → /banners/hunter-hero.png +
+          objectPosition="top" (replaces the v27.0a.16 "center 28%" anchor
+          which was tuned for the OLD asset). */}
       <DashboardHero
         eyebrow="Your network"
         title="Guides"
         subtitle="Guides you're connected with on past or upcoming trips."
-        bgImage="/bb-network-hero.png"
+        bgImage="/banners/hunter-hero.png"
         eyebrowColor="copper"
         showShield={false}
-        objectPosition="center 28%"
+        objectPosition="top"
       />
 
       <div className="bb-net-section-head">
