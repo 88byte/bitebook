@@ -1185,8 +1185,18 @@ export async function suggestMappingsAction(
     .eq('guide_id', profile.id)
     .maybeSingle()
   if (!doc) return { error: 'Doc not found.' }
-  if (doc.kind !== 'log') {
-    return { error: 'AI suggestions are only available for log docs right now.' }
+  // v27.3.10.7 — opened AI suggestions to waivers too. Pre-v27.2.0
+  // waivers had no mapping flow at all, so the action was scoped to
+  // logs only. v27.2.0 added waiver mapping (with signature
+  // placement) and routed it through this same wizard, but this
+  // gate was never lifted — every "Re-run AI mapping" tap on a
+  // waiver returned `'AI suggestions are only available for log
+  // docs right now.'` Flavio's California Guide Trip Log was
+  // uploaded as kind=waiver and got blocked. Both extractDocFields
+  // (line 759) and saveDocMappings (line 903) already accept both
+  // kinds; this is the only remaining gate.
+  if (doc.kind !== 'log' && doc.kind !== 'waiver') {
+    return { error: 'AI suggestions are only available for log and waiver docs.' }
   }
 
   // Reuse extractDocFieldsAction's discovery (downloads + parses the PDF

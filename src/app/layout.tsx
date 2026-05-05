@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.3.10.6-fix-ai-catalog-sentinel-strip-drop-save-draft-hide-step4-during-ai-rename-cta'
+const BUILD_TAG = 'v27.3.10.7-open-ai-suggestions-to-waivers-not-just-logs'
 
 const barlow = Barlow({
   variable: '--font-barlow',
