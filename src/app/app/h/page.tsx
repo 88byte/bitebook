@@ -70,25 +70,24 @@ export default async function HunterDashboardPage() {
         </div>
       )}
 
-      {/* v27.1.5.2: Pending actions promoted to slot 2 (right under the
-          hero, ahead of stats + Upcoming). License/tag link prompts and
-          trip-doc actions are the most time-sensitive thing for a hunter
-          to see — they shouldn't be buried between Upcoming and Recent.
-          Renders only when there's at least one pending item; otherwise
-          the stats row becomes the first content tile after the hero. */}
-      {(pendingActions.length > 0 || pendingWalletLinks.length > 0) && (
-        <div className="mt-4">
-          <PendingActionsCard
-            actions={pendingActions}
-            walletLinks={pendingWalletLinks}
-          />
-        </div>
-      )}
-
       <div className="bb-stat-row mt-4">
         <StatIconedCard icon={Calendar} value={stats.trips} label="Trips you've been on" />
         <StatIconedCard icon={Trophy} value={stats.harvests} label="Harvests" />
         <StatIconedCard icon={Users} value={stats.guides} label="Guides" />
+      </div>
+
+      {/* v27.6.3.4 item 5 — Pending actions moved BELOW the stat
+          row per Flavio: "also move pending actions under trips you
+          been on row." (The "Trips you've been on" stat lives in
+          the row above.) v27.6.3.4 item 4 — widget now ALWAYS
+          renders regardless of count. The card itself owns the
+          empty state ("You're all clear.") so the dashboard always
+          shows status, never a missing tile. */}
+      <div className="mt-4">
+        <PendingActionsCard
+          actions={pendingActions}
+          walletLinks={pendingWalletLinks}
+        />
       </div>
 
       {/* v27.6.3.3 item 1 — Upcoming + Recent now sit side-by-side at

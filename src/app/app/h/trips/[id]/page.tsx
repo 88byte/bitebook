@@ -137,14 +137,17 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
         </div>
       </header>
 
-      {/* v27.6.3.1 — 2-col layout matching /app/trips/[id]:
-          LEFT TOP: Action needed + Guide + Dates + Location + Hunt
-          details + Notes + Your harvests + Review.
-          LEFT BOTTOM: Trip docs.
-          RIGHT (spans both rows): Other hunters on this trip.
-          Mobile collapses to single column via the bb-trip-detail-grid
-          grid-template-areas. */}
-      <div className="bb-trip-detail-grid mt-4">
+      {/* v27.6.3.1 — 2-col layout matching /app/trips/[id].
+          v27.6.3.4 item 3 — hunter side flips docs to the RIGHT
+          column under Hunters via the --hunter-side modifier:
+          LEFT (spans both rows): Editor — Action needed + Guide +
+            Dates + Location + Hunt details + Notes + Harvests +
+            Review.
+          RIGHT TOP: Hunters on this trip.
+          RIGHT BOTTOM: Trip docs.
+          Mobile collapses to single column (editor → hunters →
+          docs) via the bb-trip-detail-grid grid-template-areas. */}
+      <div className="bb-trip-detail-grid bb-trip-detail-grid--hunter-side mt-4">
         <div className="bb-trip-detail-grid-editor flex flex-col gap-4">
         {/* v27.0b.6 (B): Action-needed card. Renders only on planned/active
             trips when the hunter still has unfulfilled actions (license +

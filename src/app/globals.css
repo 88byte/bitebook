@@ -2159,19 +2159,37 @@ body {
   .bb-pending-card { max-width: 44rem; }
 }
 
-/* v27.6.3.3 item 2 — Hunter dashboard "Pending actions" widget.
-   Was a full-width bb-tile bb-form-section card with copper border.
-   Now an inline section: no card chrome, no outer border, capped
-   width via the .bb-pending-card rule above so it doesn't span the
-   whole page on desktop. The individual rows (RowShell) keep their
-   bb-tile look so each pending item still reads as tappable. */
+/* v27.6.3.4 item 4 — Hunter dashboard "Pending actions" widget.
+   Reread of Flavio's v27.6.3.3 feedback: he wanted it kept in
+   widget/card form (boxed), with a title and a list of rows
+   inside; an empty-state ("you're all clear") replaces the list
+   when nothing is pending. v27.6.3.3 had stripped the card chrome
+   off entirely — that overshot the ask. The component now wears
+   .bb-tile bb-form-section again, and this rule just caps the
+   widget width so it doesn't span the whole page on desktop. */
 .bb-pending-card {
   display: block;
+  max-width: 100%;
+}
+@media (min-width: 80rem) {
+  .bb-pending-card {
+    max-width: 44rem;
+  }
 }
 
 /* v27.6.3.3 item 3 — wallet Active + Expired sit side-by-side on
    desktop. Mobile keeps the existing single-col stack. Mirrors the
-   .bb-dash-pair pattern used on the dashboard. */
+   .bb-dash-pair pattern used on the dashboard.
+   v27.6.3.4 item 2 — Flavio: "the wallet cards are too small now
+   they need to be a bit bigger in size and also they are small to
+   where the edgest are getting cut off." Cause: nested grids —
+   .bb-wallet-status-grid 2-col × .bb-wallet-stack 3-col @80rem ×
+   4-col @120rem produced 6-8 cards across with each cell ~150px
+   wide; cards were squashed to ~95px tall (aspect-ratio 1.6:1) and
+   text + watermark overflowed inside the rounded corners (the
+   "edges getting cut off" effect). Padding added to the grid so
+   card box-shadows have breathing room and don't bleed past the
+   container right edge. */
 .bb-wallet-status-grid {
   display: flex;
   flex-direction: column;
@@ -2183,6 +2201,29 @@ body {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1.5rem;
     align-items: start;
+    /* Keep card shadows from kissing the container edge. */
+    padding: 0 0.25rem;
+  }
+}
+
+/* v27.6.3.4 item 2 — when a .bb-wallet-stack is rendered INSIDE a
+   .bb-wallet-status-grid section (Active / Expired side-by-side
+   layout), force the inner stack to 1 column at every breakpoint so
+   cards retain readable size. Without this override, the inner
+   .bb-wallet-stack still tries 2-col / 3-col / 4-col and shrinks
+   each card to a sliver. Each card now takes the full half-column
+   width (~590px on 1280px viewport / ~880px on 1920px viewport) and
+   max-height bumps to 280 so the 1.6:1 aspect-ratio expresses
+   properly. Cap card max-width at 32rem inside the grid so a single-
+   card column doesn't blow up to 880px wide on ultrawide. */
+@media (min-width: 64rem) {
+  .bb-wallet-status-grid .bb-wallet-stack {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.75rem;
+  }
+  .bb-wallet-status-grid .bb-wallet-stack .bb-wallet-card {
+    max-width: 32rem;
+    max-height: 280px;
   }
 }
 
@@ -3774,15 +3815,19 @@ body {
 /* ── v27.0a.9: dashboard mockup rebuild — hero, quick actions, stat cards ── */
 
 /* Dark-on-image hero banner used on /app and /app/h dashboards.
-   v27.6.3.3 item 6 — height was clamp(220px, 32vw, 280px) which
-   capped at 280 even on wide displays. Source banners are 4:1
-   (2508×627). At 1480+ widths a 280-tall banner reads as 5:1+ →
-   strong horizontal pinch / "stretched" look. New clamp scales
-   gracefully: ~240 at 1024, ~330 at 1480, ~400 at 1800, ~440 cap. */
+   v27.6.3.4 item 1 — height restored to the v27.5.0.4.x clamp
+   (220px / 32vw / 280px). The v27.6.3.3 attempt to fix Flavio's
+   "stretched out" complaint by enlarging the container backfired:
+   Flavio's testing — "you changed the banner size, thats not what
+   i had asked you to do. i just asked for them to stop looking so
+   stretched out but we need them to stay the size they were."
+   The actual stretching fix is the Image `sizes` attribute in
+   DashboardHero.tsx (forces the right srcset entry on wide
+   displays); container height stays at the original size. */
 .bb-dash-hero {
   position: relative;
   width: 100%;
-  height: clamp(220px, 22vw, 440px);
+  height: clamp(220px, 32vw, 280px);
   border-radius: 14px;
   overflow: hidden;
   isolation: isolate;
@@ -5079,6 +5124,28 @@ body {
     grid-template-areas:
       "editor hunters"
       "docs   hunters";
+  }
+}
+
+/* v27.6.3.4 item 3 — hunter-side variant. Flavio: "for hunter in
+   the view trip page move the trip doc to live on the right column
+   under hunters." Default (guide) layout has docs in the left
+   column under the editor; hunter side flips so docs sit under the
+   hunters panel in the right column. Editor spans both rows in the
+   left column; hunters then docs stack in the right. Mobile order
+   (single column) is editor → hunters → docs to match the desktop
+   visual rhythm. */
+.bb-trip-detail-grid--hunter-side {
+  grid-template-areas:
+    "editor"
+    "hunters"
+    "docs";
+}
+@media (min-width: 64rem) {
+  .bb-trip-detail-grid--hunter-side {
+    grid-template-areas:
+      "editor hunters"
+      "editor docs";
   }
 }
 
