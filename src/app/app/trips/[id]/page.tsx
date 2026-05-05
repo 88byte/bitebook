@@ -18,6 +18,7 @@ import {
   fetchAttachableDocsForGuide,
 } from '../../_lib/trip-doc-queries'
 import { loadGuideDefaultSignatureDataUrl } from '../../_lib/guide-default-signature'
+import { tripHasAnyGeneratedLog } from '../../_lib/warden-share'
 import StatusPill from '../../_components/StatusPill'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
@@ -47,7 +48,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl] = await Promise.all([
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
@@ -61,6 +62,12 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
     // v27.4.0 — pre-fetch guide's default signature for Sign-as-guide
     // modal pre-fill on waiver docs.
     loadGuideDefaultSignatureDataUrl(profile.id),
+    // v27.5.0 — has any trip_generated_logs row been produced yet?
+    // Drives whether to show the "Share with warden" button. Auto-
+    // generation on warden-page entry handles the can-generate-now case,
+    // but we hide the button on canceled trips and on planned-with-no-
+    // logs to keep the action row honest about what's actually shareable.
+    tripHasAnyGeneratedLog(trip.id),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -162,16 +169,23 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             <Activity size={14} aria-hidden="true" />
             {harvestLogSummary.exists ? 'View hunt logs' : 'Generate hunt logs'}
           </Link>
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            disabled
-            title="Warden share ships later in Sprint 2"
-            aria-label="Share with warden (coming soon)"
-          >
-            <Share2 size={14} aria-hidden="true" />
-            Share with warden
-          </button>
+          {/* v27.5.0 — warden share. Hide on canceled trips (no log can
+              exist) and on planned trips with no logs yet (auto-gen on
+              warden open won't have any harvests to fill). Active +
+              completed always show; planned-with-existing-logs (rare,
+              but happens when a guide pre-fills a draft) shows. */}
+          {trip.status !== 'canceled' &&
+            (trip.status === 'active' || trip.status === 'completed' || hasGeneratedLog) && (
+              <Link
+                href={`/app/trips/${trip.id}/warden`}
+                className="bb-btn-secondary"
+                aria-label="Share with warden"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Share2 size={14} aria-hidden="true" />
+                Share with warden
+              </Link>
+            )}
         </div>
       </div>
 

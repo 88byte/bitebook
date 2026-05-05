@@ -7,6 +7,7 @@ import {
   Users,
   Calendar,
   Trophy,
+  PenLine,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { requireGuide } from './_lib/auth'
@@ -15,6 +16,7 @@ import {
   fetchDashboardStats,
   fetchUpcomingTrips,
 } from './_lib/queries'
+import { createClient } from '@/lib/supabase/server'
 import TripRow from './_components/TripRow'
 import DashboardHero from './_components/DashboardHero'
 
@@ -32,14 +34,26 @@ import DashboardHero from './_components/DashboardHero'
 export default async function DashboardPage() {
   const { profile, guide } = await requireGuide()
 
-  const [recent, stats, upcoming] = await Promise.all([
+  // v27.5.0 — pull default_signature_path inline so the warden-share
+  // setup banner only renders when the guide hasn't saved one yet.
+  // Cheap single-row read; doesn't justify extending requireGuide().
+  const sb = await createClient()
+  const sigQuery = sb
+    .from('guide_profiles')
+    .select('default_signature_path')
+    .eq('user_id', profile.id)
+    .maybeSingle()
+
+  const [recent, stats, upcoming, sigRow] = await Promise.all([
     fetchRecentTrips(profile.id),
     fetchDashboardStats(profile.id),
     fetchUpcomingTrips(profile.id, 5),
+    sigQuery,
   ])
 
   const greetingName = guide?.business_name?.trim() || profile.display_name
   const upcomingCount = upcoming.length
+  const needsSignature = !sigRow.data?.default_signature_path
 
   return (
     <main className="bb-app-main">
@@ -55,6 +69,54 @@ export default async function DashboardPage() {
         }
         showShield={false}
       />
+
+      {/* v27.5.0 — warden share signature banner. Shown to existing
+          guides whose default_signature_path is null (i.e. they
+          onboarded BEFORE v27.5.0's Step 4). Once they save a
+          signature in Settings, this disappears on next render. New
+          onboards never see it (the wizard collects it). */}
+      {needsSignature && (
+        <Link
+          href="/app/settings?tab=profile#signature"
+          className="bb-tile mt-4"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.85rem 1rem',
+            textDecoration: 'none',
+            background: 'rgba(168, 92, 50, 0.08)',
+            borderColor: 'rgba(168, 92, 50, 0.25)',
+            color: 'var(--color-ink)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 36,
+              height: 36,
+              borderRadius: 999,
+              background: 'rgba(168, 92, 50, 0.18)',
+              color: 'var(--color-copper)',
+            }}
+          >
+            <PenLine size={16} />
+          </span>
+          <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <strong style={{ display: 'block', fontSize: '0.95rem' }}>
+              Save your signature for warden sharing
+            </strong>
+            <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+              We&rsquo;ll auto-sign your hunt logs whenever you tap Share with warden.
+            </span>
+          </span>
+          <ArrowRight size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--color-copper)' }} />
+        </Link>
+      )}
 
       {/* v27.3.3: divider after hero, before content. */}
       <div className="bb-page-divider mt-4" aria-hidden="true" />

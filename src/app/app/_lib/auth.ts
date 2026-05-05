@@ -90,7 +90,10 @@ export async function requireGuideForOnboarding() {
       .from('guide_profiles')
       // v27.1.5.2.1: also pull default_log_doc_id so Step 3 can mark
       // the guide's previous selection as the active radio.
-      .select('business_name, state, license_number, guide_license_expires_at, onboarded_at, default_log_doc_id')
+      // v27.5.0: pull default_signature_path so Step 4 can detect
+      // whether the guide has already saved a signature and show the
+      // Continue affordance once they have.
+      .select('business_name, state, license_number, guide_license_expires_at, onboarded_at, default_log_doc_id, default_signature_path')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])

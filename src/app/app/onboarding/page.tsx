@@ -7,9 +7,11 @@ import {
   ArrowRight,
   ArrowLeft,
   AlertCircle,
+  PenLine,
 } from 'lucide-react'
 import { requireGuideForOnboarding } from '../_lib/auth'
 import { fetchBiteBookTemplates } from '../_lib/docs-queries'
+import { loadGuideDefaultSignatureDataUrl } from '../_lib/guide-default-signature'
 import { US_STATES } from '@/lib/us-states'
 import {
   saveBusinessBasicsAction,
@@ -17,17 +19,21 @@ import {
   saveDefaultLogDocAction,
   finishOnboardingAction,
 } from './actions'
+import SignatureDefaultsForm from '../settings/SignatureDefaultsForm'
 
 // v27.1.5.1 — guide first-time onboarding wizard.
+// v27.5.0 — added Step 4 (Save signature) so warden share's auto-sign
+// always has something to use. Old Step 4 (Done) shifts to Step 5.
 //
-// 4-step setup that runs once per guide. Triggered by requireGuide() when
+// 5-step setup that runs once per guide. Triggered by requireGuide() when
 // guide_profiles.onboarded_at IS NULL: any /app load bounces here until
-// step 4 stamps onboarded_at = now() and falls back through.
+// step 5 stamps onboarded_at = now() and falls back through.
 //
 //   Step 1 — Business basics      (required)
 //   Step 2 — Guide license        (skippable)
 //   Step 3 — State log doc        (skippable — links to /app/docs)
-//   Step 4 — Done                 (CTA stamps onboarded_at)
+//   Step 4 — Save signature       (required for warden share)
+//   Step 5 — Done                 (CTA stamps onboarded_at)
 //
 // Existing guides with business_name set were backfilled with
 // onboarded_at = created_at by the v27.1.5.1 migration, so they never
@@ -78,6 +84,13 @@ export default async function GuideOnboardingPage({
   // template list is small and RLS-cached. Other steps don't read it.
   const templates = stepNum === 3 ? await fetchBiteBookTemplates(profile.id) : []
 
+  // v27.5.0 — Step 4 signature pad needs the existing default (if any) so
+  // the pad pre-fills, plus a flag for whether the guide already saved
+  // one (drives the Continue button visibility).
+  const initialSignatureDataUrl =
+    stepNum === 4 ? await loadGuideDefaultSignatureDataUrl(profile.id) : null
+  const hasSavedSignature = !!guide?.default_signature_path
+
   return (
     <main className="bb-app-main">
       <div className="bb-form-narrow flex flex-col gap-4">
@@ -89,7 +102,7 @@ export default async function GuideOnboardingPage({
           </p>
         </header>
 
-        <ProgressBar current={stepNum} total={4} />
+        <ProgressBar current={stepNum} total={5} />
 
         {bannerError && (
           <div
@@ -137,17 +150,24 @@ export default async function GuideOnboardingPage({
             currentDefaultDocId={guide?.default_log_doc_id ?? null}
           />
         )}
-        {stepNum === 4 && <Step4Done />}
+        {stepNum === 4 && (
+          <Step4Signature
+            initialDataURL={initialSignatureDataUrl}
+            hasSaved={hasSavedSignature}
+          />
+        )}
+        {stepNum === 5 && <Step5Done />}
       </div>
     </main>
   )
 }
 
-function clampStep(raw: string | undefined): 1 | 2 | 3 | 4 {
+function clampStep(raw: string | undefined): 1 | 2 | 3 | 4 | 5 {
   const n = Number(raw)
   if (n === 2) return 2
   if (n === 3) return 3
   if (n === 4) return 4
+  if (n === 5) return 5
   return 1
 }
 
@@ -470,7 +490,7 @@ function Step3StateLog({
           <FooterRow
             backToStep={2}
             skipToStep={4}
-            skipLabel="Skip and finish"
+            skipLabel="Skip for now"
             primary={<CtaSubmit label="Save default" inline />}
           />
         </form>
@@ -479,14 +499,93 @@ function Step3StateLog({
   )
 }
 
-// ── Step 4 ────────────────────────────────────────────────────────────────
+// ── Step 4 — Save signature (v27.5.0) ─────────────────────────────────────
+//
+// Required step. The signature is what auto-signs hunt logs for warden
+// share, so every onboarded guide leaves the wizard with one in hand.
+// SignatureDefaultsForm calls saveDefaultSignatureAction (in
+// settings/actions.ts) directly + router.refresh()'s on save; we re-render
+// here, see hasSaved=true, and unhide the Continue button to advance to
+// step 5. There's no skip path.
 
-function Step4Done() {
+function Step4Signature({
+  initialDataURL,
+  hasSaved,
+}: {
+  initialDataURL: string | null
+  hasSaved: boolean
+}) {
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step4">
       <div className="bb-tile-body flex flex-col gap-3">
         <h2
           id="ob-step4"
+          className="bb-form-section-head"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <PenLine size={18} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
+          Save your signature
+        </h2>
+        <p className="bb-form-help" style={{ marginTop: '-0.3rem' }}>
+          We use this to auto-sign your hunt logs when you share with a warden in the field.
+          You can re-draw it anytime from Settings.
+        </p>
+        <SignatureDefaultsForm initialDataURL={initialDataURL} hasSaved={hasSaved} />
+        <FooterRow
+          backToStep={3}
+          primary={
+            hasSaved ? (
+              <Link
+                href="/app/onboarding?step=5"
+                className="bb-cta"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  width: 'auto',
+                  paddingLeft: '1.25rem',
+                  paddingRight: '1.25rem',
+                }}
+              >
+                <span>Continue</span>
+                <ArrowRight size={14} aria-hidden="true" />
+              </Link>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="bb-cta"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  width: 'auto',
+                  paddingLeft: '1.25rem',
+                  paddingRight: '1.25rem',
+                  opacity: 0.5,
+                  cursor: 'not-allowed',
+                }}
+              >
+                <span>Continue</span>
+                <ArrowRight size={14} aria-hidden="true" />
+              </span>
+            )
+          }
+        />
+      </div>
+    </section>
+  )
+}
+
+// ── Step 5 — Done ─────────────────────────────────────────────────────────
+
+function Step5Done() {
+  return (
+    <section className="bb-tile bb-form-section" aria-labelledby="ob-step5">
+      <div className="bb-tile-body flex flex-col gap-3">
+        <h2
+          id="ob-step5"
           className="bb-form-section-head"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
         >
@@ -499,7 +598,7 @@ function Step4Done() {
         </p>
         <form action={finishOnboardingAction}>
           <FooterRow
-            backToStep={3}
+            backToStep={4}
             primary={<CtaSubmit label="Take me to my dashboard" inline />}
           />
         </form>
@@ -558,7 +657,7 @@ function FieldError({ message }: { message: string | null }) {
   )
 }
 
-function BackLink({ toStep }: { toStep: 1 | 2 | 3 }) {
+function BackLink({ toStep }: { toStep: 1 | 2 | 3 | 4 }) {
   return (
     <Link
       href={`/app/onboarding?step=${toStep}`}
@@ -591,7 +690,7 @@ function BackLink({ toStep }: { toStep: 1 | 2 | 3 }) {
 // copper text + transparent bg) so the footer hierarchy reads as
 // tertiary (Back text link) → secondary (Skip ghost button) → primary
 // (Continue filled CTA).
-function SkipLink({ next, label = 'Skip for now' }: { next: 2 | 3 | 4; label?: string }) {
+function SkipLink({ next, label = 'Skip for now' }: { next: 2 | 3 | 4 | 5; label?: string }) {
   return (
     <Link
       href={`/app/onboarding?step=${next}`}
@@ -627,8 +726,8 @@ function FooterRow({
   skipLabel,
   primary,
 }: {
-  backToStep?: 1 | 2 | 3
-  skipToStep?: 2 | 3 | 4
+  backToStep?: 1 | 2 | 3 | 4
+  skipToStep?: 2 | 3 | 4 | 5
   skipLabel?: string
   primary: React.ReactNode
 }) {
