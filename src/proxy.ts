@@ -62,6 +62,30 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(url, supabaseResponse)
   }
 
+  // v27.6.0 — /admin (Mission Control) edge gate. Belt-and-suspenders
+  // alongside requireAdmin() in each page/action. Sends signed-out
+  // users to /login with ?next=, and redirects signed-in non-admins
+  // to /app rather than 404'ing at the edge — they shouldn't even
+  // know /admin exists. The role check uses the cheap email match
+  // here because pulling profile.role would mean a Supabase round
+  // trip on every request.
+  if (pathname.startsWith('/admin')) {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.search = ''
+      url.searchParams.set('next', pathname)
+      return redirectWithCookies(url, supabaseResponse)
+    }
+    const isAdminByEmail = (user.email ?? '').toLowerCase() === 'flaviod022@gmail.com'
+    if (!isAdminByEmail) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/app'
+      url.search = ''
+      return redirectWithCookies(url, supabaseResponse)
+    }
+  }
+
   // Already-signed-in users hitting /login or /signup — bounce them to the app
   // (or wherever ?next= points). Two important loop-breakers:
   //   1. If the URL carries ?error=, a downstream gate (e.g. requireGuide)

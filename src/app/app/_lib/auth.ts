@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 // Resolves the signed-in user *and* their guide profile in one shot. Used by
@@ -135,6 +135,44 @@ export async function requireHunter() {
   if (!profile) redirect('/?error=no_profile')
   if (profile.role === 'guide') redirect('/app')
   if (profile.role !== 'hunter') redirect('/?error=hunter_only')
+
+  return { supabase, user, profile }
+}
+
+// v27.6.0 — Mission Control admin gate. Two-layer matching: a
+// profile.role of 'admin' is the canonical signal, and a hardcoded
+// email match against ADMIN_EMAIL is belt-and-suspenders so a stale
+// profile read or a manual role flip can never lock Flavio out of
+// the admin module.
+//
+// Non-admins land on a 404 via notFound() so we don't leak the
+// route's existence — the proxy middleware does the same on the
+// edge as a redundant gate.
+//
+// requireAdmin is read-only — it doesn't redirect on missing
+// onboarding, billing, etc. The admin module is its own world.
+const ADMIN_EMAIL = 'flaviod022@gmail.com'
+
+export async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login?next=/admin')
+
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('id, display_name, role, first_name, last_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileErr) {
+    console.warn('[requireAdmin] profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
+    notFound()
+  }
+  if (!profile) notFound()
+
+  const isAdminByRole = profile.role === 'admin'
+  const isAdminByEmail = (user.email ?? '').toLowerCase() === ADMIN_EMAIL
+  if (!isAdminByRole && !isAdminByEmail) notFound()
 
   return { supabase, user, profile }
 }

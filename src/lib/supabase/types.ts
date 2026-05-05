@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_actions: {
+        Row: {
+          action_type: string
+          admin_id: string
+          created_at: string
+          id: string
+          payload: Json
+          target_guide_id: string | null
+        }
+        Insert: {
+          action_type: string
+          admin_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          target_guide_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          admin_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          target_guide_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_actions_target_guide_id_fkey"
+            columns: ["target_guide_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_audit_logs: {
         Row: {
           action: string
@@ -834,6 +876,7 @@ export type Database = {
           billing_interval:
             | Database["public"]["Enums"]["subscription_interval"]
             | null
+          comp_until: string | null
           created_at: string
           current_period_end: string | null
           guide_id: string
@@ -848,6 +891,7 @@ export type Database = {
           billing_interval?:
             | Database["public"]["Enums"]["subscription_interval"]
             | null
+          comp_until?: string | null
           created_at?: string
           current_period_end?: string | null
           guide_id: string
@@ -862,6 +906,7 @@ export type Database = {
           billing_interval?:
             | Database["public"]["Enums"]["subscription_interval"]
             | null
+          comp_until?: string | null
           created_at?: string
           current_period_end?: string | null
           guide_id?: string

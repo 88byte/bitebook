@@ -30,12 +30,13 @@ export type SubscriptionState = {
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
   current_period_end: string | null
   trial_end: string | null
+  comp_until?: string | null
 }
 
 export type TierResult = {
   tier: GuideTier
   /** Reason short-code surfaced in error messages. */
-  reason: 'no_row' | 'incomplete' | 'past_due' | 'canceled' | 'ok'
+  reason: 'no_row' | 'incomplete' | 'past_due' | 'canceled' | 'ok' | 'comp'
   /** Subscription row used to compute the tier (null when no row). */
   subscription: SubscriptionState | null
 }
@@ -63,7 +64,7 @@ export const getGuideTier = cache(async (userId: string): Promise<TierResult> =>
   const admin = createAdminClient()
   const { data: row } = await admin
     .from('outfitter_subscriptions')
-    .select('status, current_period_end, trial_end')
+    .select('status, current_period_end, trial_end, comp_until')
     .eq('guide_id', userId)
     .maybeSingle<SubscriptionState>()
 
@@ -74,6 +75,21 @@ export const getGuideTier = cache(async (userId: string): Promise<TierResult> =>
     // message in this state.
     return { tier: 'locked', reason: 'no_row', subscription: null }
   }
+
+  // v27.6.0 — Comp accounts. comp_until = a date in the future means
+  // the admin has marked this guide free-until-X. Treat as full tier
+  // regardless of Stripe status; the comp window is the source of
+  // truth. Once comp_until <= today, fall through to the normal
+  // status-based tier resolution. Date comparison is YYYY-MM-DD vs
+  // today's YYYY-MM-DD so timezone drift can't accidentally expire a
+  // comp at midnight UTC.
+  if (row.comp_until) {
+    const today = new Date().toISOString().slice(0, 10)
+    if (row.comp_until >= today) {
+      return { tier: 'full', reason: 'comp', subscription: row }
+    }
+  }
+
   const { tier, reason } = tierFromStatus(row.status)
   return { tier, reason, subscription: row }
 })
