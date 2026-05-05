@@ -7,7 +7,7 @@ import { markStepDone } from '../_lib/onboarding'
 import { US_STATES } from '@/lib/us-states'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, ensureBitebookGuidePrices } from '@/lib/stripe'
 
 const SPECIALTY_OPTIONS = new Set([
   'Big game',
@@ -499,5 +499,242 @@ export async function replacePaymentMethodAction(
   } catch (e) {
     console.warn('[settings.replacePaymentMethodAction]', { message: (e as Error).message })
     return { error: 'Could not save the new card. Try again.' }
+  }
+}
+
+// ── v27.4.2 — Plan switch + cancel/reactivate (native) ───────────────────
+//
+// All three actions resolve the active subscription_item from the
+// stored stripe_subscription_id so we never have to track item IDs in
+// our DB. Webhook flow is unchanged — Stripe fires
+// customer.subscription.updated on every change and the existing
+// handler reconciles outfitter_subscriptions in the same shape as
+// before. revalidatePath('/app/settings') refreshes the BillingPanel
+// after each action.
+
+type PlanInterval = 'month' | 'year'
+
+async function loadActiveSubscriptionItem(
+  guideId: string,
+): Promise<
+  | { ok: true; subscriptionId: string; itemId: string; currentPriceId: string; currentInterval: PlanInterval; customerId: string }
+  | { error: string }
+> {
+  const admin = createAdminClient()
+  const { data: row } = await admin
+    .from('outfitter_subscriptions')
+    .select('stripe_subscription_id, stripe_customer_id')
+    .eq('guide_id', guideId)
+    .maybeSingle()
+  if (!row?.stripe_subscription_id || !row.stripe_customer_id) {
+    return { error: 'We can\'t find your subscription. Email support@lastbite.pro.' }
+  }
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  try {
+    const sub = await stripe.subscriptions.retrieve(row.stripe_subscription_id)
+    const item = sub.items.data[0]
+    if (!item) return { error: 'Subscription has no plan attached. Contact support.' }
+    const priceId = item.price?.id
+    const interval = item.price?.recurring?.interval === 'year' ? 'year' : 'month'
+    if (!priceId) return { error: 'Could not read your current plan. Try again.' }
+    return {
+      ok: true,
+      subscriptionId: sub.id,
+      itemId: item.id,
+      currentPriceId: priceId,
+      currentInterval: interval as PlanInterval,
+      customerId: row.stripe_customer_id,
+    }
+  } catch (e) {
+    console.warn('[settings.loadActiveSubscriptionItem]', { message: (e as Error).message })
+    return { error: 'Could not load your subscription. Try again.' }
+  }
+}
+
+export type PlanSwitchPreview = {
+  ok: true
+  current_interval: PlanInterval
+  target_interval: PlanInterval
+  // Net amount due immediately, in the smallest currency unit.
+  // POSITIVE = guide pays today. NEGATIVE = credit applied to future
+  // invoices (Stripe doesn't refund cards on plan switches by default).
+  amount_due_cents: number
+  currency: string
+  next_period_end_unix: number | null
+}
+
+export type PlanSwitchPreviewResult =
+  | PlanSwitchPreview
+  | { error: string }
+
+// Stripe SDK 2026-04-22.dahlia exposes `invoices.createPreview` as the
+// successor to the deprecated `retrieveUpcoming`. The shape of the
+// request body and response are identical except for the method name
+// and the `subscription_details` nesting. We use ad-hoc typing for
+// the request body since the SDK's types haven't fully migrated.
+//
+// `subscription_proration_date` is intentionally omitted so Stripe
+// uses "now" as the proration boundary, matching the actual switch.
+type CreatePreviewBody = {
+  customer: string
+  subscription: string
+  subscription_details: {
+    items: Array<{ id: string; price: string }>
+    proration_behavior: 'create_prorations'
+  }
+}
+
+export async function previewPlanSwitchAction(
+  targetInterval: PlanInterval,
+): Promise<PlanSwitchPreviewResult> {
+  const { user } = await requireGuide()
+  if (targetInterval !== 'month' && targetInterval !== 'year') {
+    return { error: 'Pick monthly or annual.' }
+  }
+  const ctx = await loadActiveSubscriptionItem(user.id)
+  if ('error' in ctx) return ctx
+  if (ctx.currentInterval === targetInterval) {
+    return { error: 'You\'re already on that plan.' }
+  }
+
+  let stripe, prices
+  try {
+    stripe = getStripe()
+    prices = await ensureBitebookGuidePrices()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  const targetPriceId = targetInterval === 'month' ? prices.monthly : prices.annual
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stripeAny = stripe as any
+    const body: CreatePreviewBody = {
+      customer: ctx.customerId,
+      subscription: ctx.subscriptionId,
+      subscription_details: {
+        items: [{ id: ctx.itemId, price: targetPriceId }],
+        proration_behavior: 'create_prorations',
+      },
+    }
+    const preview = stripeAny.invoices?.createPreview
+      ? await stripeAny.invoices.createPreview(body)
+      : // Fallback to the older endpoint if the SDK build doesn't
+        // expose createPreview yet — same call shape minus the
+        // subscription_details nesting.
+        await stripeAny.invoices.retrieveUpcoming({
+          customer: ctx.customerId,
+          subscription: ctx.subscriptionId,
+          subscription_items: [{ id: ctx.itemId, price: targetPriceId }],
+          subscription_proration_behavior: 'create_prorations',
+        })
+    return {
+      ok: true,
+      current_interval: ctx.currentInterval,
+      target_interval: targetInterval,
+      amount_due_cents: typeof preview.amount_due === 'number' ? preview.amount_due : 0,
+      currency: typeof preview.currency === 'string' ? preview.currency : 'usd',
+      next_period_end_unix:
+        typeof preview.period_end === 'number'
+          ? preview.period_end
+          : typeof preview.lines?.data?.[0]?.period?.end === 'number'
+            ? preview.lines.data[0].period.end
+            : null,
+    }
+  } catch (e) {
+    console.warn('[settings.previewPlanSwitchAction]', { message: (e as Error).message })
+    return { error: 'Could not preview the plan switch. Try again.' }
+  }
+}
+
+export type PlanSwitchResult = { ok: true } | { error: string }
+
+export async function confirmPlanSwitchAction(
+  targetInterval: PlanInterval,
+): Promise<PlanSwitchResult> {
+  const { user } = await requireGuide()
+  if (targetInterval !== 'month' && targetInterval !== 'year') {
+    return { error: 'Pick monthly or annual.' }
+  }
+  const ctx = await loadActiveSubscriptionItem(user.id)
+  if ('error' in ctx) return ctx
+  if (ctx.currentInterval === targetInterval) {
+    return { error: 'You\'re already on that plan.' }
+  }
+
+  let stripe, prices
+  try {
+    stripe = getStripe()
+    prices = await ensureBitebookGuidePrices()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  const targetPriceId = targetInterval === 'month' ? prices.monthly : prices.annual
+
+  try {
+    await stripe.subscriptions.update(ctx.subscriptionId, {
+      items: [{ id: ctx.itemId, price: targetPriceId }],
+      proration_behavior: 'create_prorations',
+    })
+    revalidatePath('/app/settings')
+    return { ok: true }
+  } catch (e) {
+    console.warn('[settings.confirmPlanSwitchAction]', { message: (e as Error).message })
+    return { error: 'Could not switch plan. Try again.' }
+  }
+}
+
+// ── Cancel + reactivate ─────────────────────────────────────────────────
+
+export type CancelResult = { ok: true } | { error: string }
+
+export async function cancelSubscriptionAction(): Promise<CancelResult> {
+  const { user } = await requireGuide()
+  const ctx = await loadActiveSubscriptionItem(user.id)
+  if ('error' in ctx) return ctx
+
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  try {
+    await stripe.subscriptions.update(ctx.subscriptionId, {
+      cancel_at_period_end: true,
+    })
+    revalidatePath('/app/settings')
+    return { ok: true }
+  } catch (e) {
+    console.warn('[settings.cancelSubscriptionAction]', { message: (e as Error).message })
+    return { error: 'Could not cancel. Try again.' }
+  }
+}
+
+export async function reactivateSubscriptionAction(): Promise<CancelResult> {
+  const { user } = await requireGuide()
+  const ctx = await loadActiveSubscriptionItem(user.id)
+  if ('error' in ctx) return ctx
+
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+  try {
+    await stripe.subscriptions.update(ctx.subscriptionId, {
+      cancel_at_period_end: false,
+    })
+    revalidatePath('/app/settings')
+    return { ok: true }
+  } catch (e) {
+    console.warn('[settings.reactivateSubscriptionAction]', { message: (e as Error).message })
+    return { error: 'Could not reactivate. Try again.' }
   }
 }

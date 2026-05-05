@@ -13,15 +13,16 @@
 // portal action stays in actions.ts as the fallback.
 
 import Link from 'next/link'
-import { AlertCircle, CreditCard, Sparkles } from 'lucide-react'
+import { AlertCircle, Sparkles } from 'lucide-react'
 import {
   loadGuideBillingDetail,
   loadGuideInvoices,
   type BillingDetail,
 } from '../_lib/billing-queries'
-import { createBillingPortalAction } from './actions'
 import PaymentMethodCard from './PaymentMethodCard'
 import InvoicesList from './InvoicesList'
+import PlanSwitcher from './PlanSwitcher'
+import CancelControls from './CancelControls'
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -233,7 +234,10 @@ export default async function BillingPanel({
           </p>
         )}
 
-        {/* Canceled callout */}
+        {/* Canceled callout — fully canceled (period_end has elapsed,
+            subscription is in canceled state). cancel_at_period_end
+            still-active is rendered by CancelControls below as a
+            paper-tint informational banner with a Reactivate CTA. */}
         {isCanceled && (
           <p
             className="bb-form-help"
@@ -246,16 +250,15 @@ export default async function BillingPanel({
               color: 'var(--color-ink-muted)',
             }}
           >
-            Your subscription is canceled. You&rsquo;ll keep access until the date above. Reactivation
-            ships in v27.4.2 — for now, contact{' '}
+            Your subscription is canceled. To resume, restart signup or contact{' '}
             <a
               href="mailto:support@lastbite.pro"
               className="bb-text-action bb-text-action-copper"
               style={{ display: 'inline', padding: 0 }}
             >
               support@lastbite.pro
-            </a>{' '}
-            to resume.
+            </a>
+            .
           </p>
         )}
 
@@ -279,38 +282,28 @@ export default async function BillingPanel({
             {/* v27.4.1 — native card update via Stripe Elements. */}
             <PaymentMethodCard paymentMethod={detail.default_payment_method} />
 
+            {/* v27.4.2 — in-app plan switcher with proration preview.
+                Hidden when the subscription is already canceling-but-
+                still-active (PlanSwitcher returns null) — guide must
+                Reactivate first to switch. */}
+            <PlanSwitcher
+              currentInterval={detail.billing_interval}
+              cancelAtPeriodEnd={detail.cancel_at_period_end}
+            />
+
+            {/* v27.4.2 — cancel / reactivate. Only renders for active
+                or trialing subs (the canceled state above already
+                short-circuits to the Restart Signup affordance). The
+                "Canceling" pill in the status header above + the
+                informational banner inside CancelControls together
+                handle the cancel_at_period_end visual flip. */}
+            <CancelControls
+              cancelAtPeriodEnd={detail.cancel_at_period_end}
+              currentPeriodEndIso={detail.current_period_end}
+            />
+
             {/* v27.4.1 — invoice list with Stripe-hosted PDF links. */}
             <InvoicesList invoices={invoices} />
-
-            {/* v27.4.1 — fallback CTA for billing actions still living in
-                the Stripe portal (cancel, switch plan). Removed in v27.4.2
-                once those flows ship in-app. Rendered as a small text link
-                so it doesn't dominate the panel. */}
-            <div style={{ marginTop: '1.25rem' }}>
-              <form action={createBillingPortalAction}>
-                <button
-                  type="submit"
-                  className="bb-text-action bb-text-action-copper"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    fontSize: '0.85rem',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <CreditCard size={13} aria-hidden="true" />
-                  More billing actions (cancel, switch plan) →
-                </button>
-              </form>
-              <p className="bb-form-help" style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--color-ink-soft)' }}>
-                Switch plan and cancel ship in-app in v27.4.2. Until then we open
-                Stripe&rsquo;s billing portal for those actions.
-              </p>
-            </div>
           </>
         )}
       </div>
