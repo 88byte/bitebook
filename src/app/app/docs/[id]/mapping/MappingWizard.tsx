@@ -937,10 +937,16 @@ export default function MappingWizard({
 
       {/* v27.3.10.5 item 5: once the doc has been marked complete at
           least once (currentStatus === 'complete'), Step 3 + Step 4
-          collapse to a single compact button row. The full
-          instructional StepCards add no value on a re-visit — the
-          guide already knows what these buttons do. */}
-      {(() => {
+          collapse to a single compact button row.
+          v27.3.10.6 item 1: hide Step 4 / the compact button row while
+          Step 2 is running (stage === 'working'). Prevents accidental
+          "Mapping Complete" taps before the AI returns its mappings.
+          v27.3.10.6 item 1: also drop the "Save draft" button — guides
+          weren't using it; the auto-save inside the editor is the
+          implicit save.
+          v27.3.10.6 item 2: CTA copy "Mark mapping complete" →
+          "Mapping Complete" (one word shorter, simpler). */}
+      {stage !== 'working' && (() => {
         const mappingPreviouslyCompleted = currentStatus === 'complete'
 
         if (mappingPreviouslyCompleted) {
@@ -964,18 +970,10 @@ export default function MappingWizard({
               >
                 <CheckCircle2 size={14} aria-hidden="true" />
                 {completedAt !== null
-                  ? 'Saved + marked complete'
+                  ? 'Saved + complete'
                   : pending
                   ? 'Working…'
-                  : 'Mark mapping complete'}
-              </button>
-              <button
-                type="button"
-                className="bb-btn-secondary"
-                onClick={() => save(false)}
-                disabled={pending}
-              >
-                {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+                  : 'Mapping Complete'}
               </button>
               <button
                 type="button"
@@ -1027,7 +1025,7 @@ export default function MappingWizard({
                 <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-ink-soft)' }}>
                   Look for the <strong>✨ AI</strong> badge on each row &mdash; that&rsquo;s a
                   suggestion. Edit anything wrong, then tap{' '}
-                  <strong>Mark mapping complete</strong> at the bottom when you&rsquo;re done.
+                  <strong>Mapping Complete</strong> at the bottom when you&rsquo;re done.
                   Anything left on &ldquo;Skip&rdquo; stays blank in the final PDF.
                   {fields.length > 0 && (
                     <>
@@ -1106,18 +1104,10 @@ export default function MappingWizard({
                 >
                   <CheckCircle2 size={16} aria-hidden="true" />
                   {completedAt !== null
-                    ? 'Saved + marked complete'
+                    ? 'Saved + complete'
                     : pending
                     ? 'Working…'
-                    : 'Mark mapping complete'}
-                </button>
-                <button
-                  type="button"
-                  className="bb-btn-secondary"
-                  onClick={() => save(false)}
-                  disabled={pending}
-                >
-                  {savedAt !== null && completedAt === null ? 'Saved' : pending ? 'Saving…' : 'Save draft'}
+                    : 'Mapping Complete'}
                 </button>
                 <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
                   Status: <strong>{currentStatus}</strong>

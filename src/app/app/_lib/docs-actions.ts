@@ -1217,18 +1217,48 @@ export async function suggestMappingsAction(
     console.warn('[docs.suggestMappingsAction:pdf-download]', { msg })
   }
 
-  // Build a compact catalog payload for the LLM. Drop verbose fields and
-  // the static-text/static-date sentinels — the LLM should map to a real
-  // path or 'skip'. Sentinels are guide-only intents.
-  const catalogForLLM = DATA_SOURCES.filter((s) => s.category !== 'special').map(
-    (s: DataSourceOption) => ({
+  // Build a compact catalog payload for the LLM.
+  //
+  // v27.3.10.6 item 3 — CRITICAL FIX. Previous filter was
+  // `s.category !== 'special'`, which silently stripped FOUR valid
+  // AI-pickable sentinels (all sit in `category: 'special'`):
+  //   - user_input.log_time   (last-resort "filled at log entry")
+  //   - signature_date.now    (date-of-signature placeholder)
+  //   - e_signature.hunter    (hunter signature widget)
+  //   - e_signature.guide     (guide signature widget)
+  // Plus static:checked / static:unchecked (legit boolean choices).
+  //
+  // The system prompt INSTRUCTS the AI to use these paths. The AI
+  // returns them. Then validation `validPaths.has(s.path)` rejects
+  // every one because they're not in the LLM-visible catalog. Net
+  // effect since these sentinels were introduced (signature_date.now
+  // in v27.1.5.4.1, e_signature.* in v27.2.0.x, user_input.log_time
+  // in v27.3.9): every sentinel suggestion lands in `rejected++`,
+  // increasingly common on real state forms → zero AI mappings ever
+  // get inserted on docs whose AI suggestions skew sentinel-heavy.
+  //
+  // The filter's actual job is to hide the GUIDE-ONLY picker
+  // sentinels (the bare prefixes like static_text:, static_date:,
+  // and SKIP_VALUE 'skip') from the AI — the AI uses the literal
+  // string 'skip' to opt out, and would never legitimately pick a
+  // bare prefix because they require a guide-typed literal payload.
+  // Replace the category filter with an explicit allow-list of paths
+  // to exclude.
+  const PREFIX_SENTINELS_FOR_GUIDE_ONLY = new Set<string>([
+    STATIC_TEXT_PREFIX,
+    STATIC_DATE_PREFIX,
+    STATIC_DATE_RANGE_PREFIX,
+    SKIP_VALUE,
+  ])
+  const catalogForLLM = DATA_SOURCES
+    .filter((s) => !PREFIX_SENTINELS_FOR_GUIDE_ONLY.has(s.value))
+    .map((s: DataSourceOption) => ({
       path: s.value,
       label: s.label,
       valueType: s.valueType,
       perRow: s.perRow === true,
       category: s.category,
-    })
-  )
+    }))
 
   // Pre-compute slot hints from the deterministic regex + implicit-1
   // detection. Pass to the LLM as a starting point so it doesn't have to
