@@ -155,7 +155,17 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.guide_id}>
-                    <td>{r.display_name || '—'}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span>{r.display_name || '—'}</span>
+                        {r.is_admin ? (
+                          <span className="bb-admin-row-pill" aria-label="Admin">
+                            <ShieldCheck size={10} aria-hidden="true" />
+                            Admin
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="bb-admin-cell-email">{r.email || '—'}</td>
                     <td>{r.business_name || '—'}</td>
                     <td>{PLAN_LABELS[r.plan]}</td>

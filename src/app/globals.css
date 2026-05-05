@@ -2011,6 +2011,23 @@ body {
 }
 .bb-app-header-admin-pill:hover { filter: brightness(1.1); }
 
+/* v27.6.0.2 — small inline pill rendered next to the name in the
+   admin accounts table for rows whose email is in ADMIN_EMAILS. */
+.bb-admin-row-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* "Logged in as admin: …" strip under the Mission Control page
    title. Subtle so it doesn't compete with the table; visible enough
    to confirm the role. */

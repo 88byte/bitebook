@@ -1,5 +1,5 @@
 import { headers } from 'next/headers'
-import { requireUser } from './_lib/auth'
+import { requireUser, isAdminEmail } from './_lib/auth'
 import { getGuideTier } from './_lib/billing-tier'
 import AppHeader from './_components/AppHeader'
 import HunterAppHeader from './_components/HunterAppHeader'
@@ -30,7 +30,7 @@ import LockedInterstitial from './_components/LockedInterstitial'
 // Hunters are never tier-gated here. Their access depends on the
 // inviting guide's tier, enforced separately in accept-invite/route.ts.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile } = await requireUser()
+  const { user, profile } = await requireUser()
   const isHunter = profile.role === 'hunter'
 
   let bannerReason: 'past_due' | 'canceled' | 'no_row' | null = null
@@ -56,10 +56,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
-  // v27.6.0.1 — surface "ADMIN" pill in the sidebar foot for admins
-  // so Flavio sees that the account is recognized as such. Pass-through
-  // for hunters/guides (renders nothing).
-  const isAdmin = profile.role === 'admin'
+  // v27.6.0.1 / v27.6.0.2 — admin determination is email-based, not
+  // role-based. Role-based admin assignment broke /app access in
+  // v27.6.0 because requireGuide() rejects role !== 'guide'. Now
+  // a guide can also be admin without losing app access; the
+  // ADMIN pill + Mission Control link surface for any signed-in
+  // user whose email is in the ADMIN_EMAILS list.
+  const isAdmin = isAdminEmail(user.email ?? null)
 
   return (
     <div className="bb-app-bg bb-app-shell">

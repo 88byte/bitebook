@@ -139,40 +139,51 @@ export async function requireHunter() {
   return { supabase, user, profile }
 }
 
-// v27.6.0 — Mission Control admin gate. Two-layer matching: a
-// profile.role of 'admin' is the canonical signal, and a hardcoded
-// email match against ADMIN_EMAIL is belt-and-suspenders so a stale
-// profile read or a manual role flip can never lock Flavio out of
-// the admin module.
+// v27.6.0 / v27.6.0.2 — Mission Control admin gate. Email-match ONLY.
 //
-// Non-admins land on a 404 via notFound() so we don't leak the
+// Originally we tried profile.role === 'admin' as the canonical
+// signal, with email-match as belt-and-suspenders. That approach
+// broke /app access for the admin: requireGuide() rejects role
+// !== 'guide' on every guide page, so flipping Flavio to role=admin
+// silently locked him out of his own dashboard. The role flip is
+// reverted in migration v27_6_0_2_revert_admin_role_flip.sql, and
+// admin determination is now SOLELY email-match. This means the
+// admin can also be a guide (or hunter, in theory) without losing
+// app access — the two states are independent.
+//
+// The list is hardcoded today because there's exactly one admin.
+// When we need more admins, switch to an `admin_emails` table or a
+// boolean column on profiles — but the gate stays email-keyed so
+// we never repeat the requireGuide vs role=admin collision.
+//
+// Non-admins land on 404 via notFound() so we don't leak the
 // route's existence — the proxy middleware does the same on the
 // edge as a redundant gate.
-//
-// requireAdmin is read-only — it doesn't redirect on missing
-// onboarding, billing, etc. The admin module is its own world.
-const ADMIN_EMAIL = 'flaviod022@gmail.com'
+export const ADMIN_EMAILS: ReadonlyArray<string> = [
+  'flaviod022@gmail.com',
+]
+
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false
+  return ADMIN_EMAILS.includes(email.toLowerCase())
+}
 
 export async function requireAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/admin')
 
-  const { data: profile, error: profileErr } = await supabase
+  if (!isAdminEmail(user.email)) notFound()
+
+  // Profile read is best-effort — the admin gate already passed via
+  // email match. We surface display_name + role for the page UI but
+  // don't gate on them.
+  const { data: profile } = await supabase
     .from('profiles')
     .select('id, display_name, role, first_name, last_name')
     .eq('id', user.id)
     .maybeSingle()
-
-  if (profileErr) {
-    console.warn('[requireAdmin] profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
-    notFound()
-  }
   if (!profile) notFound()
-
-  const isAdminByRole = profile.role === 'admin'
-  const isAdminByEmail = (user.email ?? '').toLowerCase() === ADMIN_EMAIL
-  if (!isAdminByRole && !isAdminByEmail) notFound()
 
   return { supabase, user, profile }
 }

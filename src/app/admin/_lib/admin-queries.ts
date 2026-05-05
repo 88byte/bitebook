@@ -13,6 +13,7 @@ import { cache } from 'react'
 import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getStripe } from '@/lib/stripe'
+import { isAdminEmail } from '../../app/_lib/auth'
 import type { Database } from '@/lib/supabase/types'
 
 export type SubscriptionRow = {
@@ -33,12 +34,18 @@ export type PlanLabel = 'monthly' | 'annual' | 'comp' | 'none'
 // the same rules as billing-tier.ts (we can't share the helper directly
 // because the helper is keyed on user_id and we want the bulk read in
 // one DB query rather than N+1).
+//
+// v27.6.0.2 — `is_admin` flagged via email-match against ADMIN_EMAILS
+// (auth.ts). Lets the table render an ADMIN pill on Flavio's row
+// without requiring a profile.role flip (which broke /app access in
+// v27.6.0).
 export type AdminAccountRow = {
   guide_id: string
   display_name: string
   first_name: string
   last_name: string
   email: string
+  is_admin: boolean
   business_name: string | null
   phone: string | null
   signup_date: string
@@ -158,12 +165,14 @@ export const fetchAdminAccounts = cache(async (): Promise<AdminAccountRow[]> => 
       billing_interval: sub?.billing_interval ?? null,
       comp_until: sub?.comp_until ?? null,
     }
+    const email = emailById.get(p.id) ?? ''
     return {
       guide_id: p.id,
       display_name: p.display_name,
       first_name: p.first_name ?? '',
       last_name: p.last_name ?? '',
-      email: emailById.get(p.id) ?? '',
+      email,
+      is_admin: isAdminEmail(email),
       business_name: businessByGuide.get(p.id) ?? null,
       phone: p.phone ?? null,
       signup_date: p.created_at,
