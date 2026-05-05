@@ -120,6 +120,8 @@ export default function WalletItemForm({
   userId,
   initial,
   speciesOptions = [],
+  formId,
+  hideInlineActions = false,
 }: {
   basePath: '/app/h/wallet' | '/app/wallet'
   userId: string
@@ -128,6 +130,16 @@ export default function WalletItemForm({
    * Filtered locally by the kind toggle. Empty array = no autocomplete
    * (falls back to plain free-text input via SpeciesField). */
   speciesOptions?: SpeciesOption[]
+  /** v27.6.3.5 item 5: optional id on the <form> so a submit button
+   * outside the form can target it via form="...". Used by the
+   * /app/wallet/new + /app/h/wallet/new pages which render the
+   * submit in the page header (mirrors /app/trips/new). */
+  formId?: string
+  /** v27.6.3.5 item 5: hide the bottom Submit + Cancel row when
+   * the page is rendering its own top-action row. Edit-only
+   * buttons (Archive / Mark tagged out / Restore / Delete) stay
+   * visible so they remain reachable on /[id]/edit. */
+  hideInlineActions?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -222,7 +234,7 @@ export default function WalletItemForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form id={formId} onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* PHOTO — emphasized above Basics for stamps + permits where the
           photo nudge is strongest (warden visibility); for other types
           the field appears at the bottom (see below). */}
@@ -937,9 +949,16 @@ export default function WalletItemForm({
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 
       <div className="flex flex-wrap gap-2 pt-1">
-        <button type="submit" disabled={pending} className="bb-cta">
-          {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
-        </button>
+        {/* v27.6.3.5 item 5: when the parent renders the submit in
+            the page header (matches /app/trips/new pattern), hide
+            the inline Submit + Cancel here. Edit-only buttons
+            (Archive / Mark tagged out / Restore / Delete) stay
+            visible so they remain reachable on /[id]/edit. */}
+        {!hideInlineActions && (
+          <button type="submit" disabled={pending} className="bb-cta">
+            {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
+          </button>
+        )}
         {/* v27.0b.1: tag-only manual flip. */}
         {initial.id && isTagType && !isArchived && !isTaggedOut && (
           <button
@@ -999,14 +1018,16 @@ export default function WalletItemForm({
             </button>
           </>
         )}
-        <button
-          type="button"
-          className="bb-btn-secondary"
-          onClick={() => router.push(`${basePath}?type=${type}`)}
-          disabled={pending}
-        >
-          Cancel
-        </button>
+        {!hideInlineActions && (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => router.push(`${basePath}?type=${type}`)}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+        )}
       </div>
 
       {/* v27.0b.1: confirm modal for manual tag-out / mark-active */}

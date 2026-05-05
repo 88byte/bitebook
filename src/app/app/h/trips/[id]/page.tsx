@@ -139,14 +139,13 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
 
       {/* v27.6.3.1 — 2-col layout matching /app/trips/[id].
           v27.6.3.4 item 3 — hunter side flips docs to the RIGHT
-          column under Hunters via the --hunter-side modifier:
-          LEFT (spans both rows): Editor — Action needed + Guide +
-            Dates + Location + Hunt details + Notes + Harvests +
-            Review.
-          RIGHT TOP: Hunters on this trip.
-          RIGHT BOTTOM: Trip docs.
-          Mobile collapses to single column (editor → hunters →
-          docs) via the bb-trip-detail-grid grid-template-areas. */}
+          column under Hunters via the --hunter-side modifier.
+          v27.6.3.5 item 2 — single right-rail container
+          (.bb-trip-detail-grid-side) holds hunters + docs in a
+          flex column so internal spacing collapses to ~1rem
+          instead of the old 2-row grid's editor-driven dead
+          space. Mobile collapses to a single column (editor →
+          side rail). */}
       <div className="bb-trip-detail-grid bb-trip-detail-grid--hunter-side mt-4">
         <div className="bb-trip-detail-grid-editor flex flex-col gap-4">
         {/* v27.0b.6 (B): Action-needed card. Renders only on planned/active
@@ -253,19 +252,13 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
         )}
         </div>{/* /editor */}
 
-        {/* TRIP DOCS — v27.6.3.1: moved into the docs slot of the 2-col
-            grid (matches /app/trips/[id] .bb-trip-detail-grid-docs).
-            HunterTripDocsSection returns null when no docs are visible,
-            so the docs cell collapses cleanly when empty. */}
-        <div className="bb-trip-detail-grid-docs">
-          <HunterTripDocsSection docs={tripDocs} />
-        </div>
-
-        {/* HUNTERS — v27.6.3.1: right column, spans both rows on
-            desktop. Lists all hunters on the trip including the
-            current hunter with a "(you)" marker. Mirrors guide
-            /app/trips/[id] HuntersOnTripPanel placement. */}
-        <div className="bb-trip-detail-grid-hunters">
+        {/* RIGHT SIDE RAIL — v27.6.3.5 item 2: hunters then docs
+            stacked in a single flex column so the gap between
+            them collapses to .bb-trip-detail-grid-side's flex
+            gap (~1rem). HunterTripDocsSection returns null when
+            no docs are visible — when docs is null, the rail
+            renders just hunters with no orphaned spacing. */}
+        <div className="bb-trip-detail-grid-side">
           <section className="bb-tile bb-form-section" aria-labelledby="td-hunters">
             <div className="bb-tile-body">
               <SectionHead id="td-hunters" icon={Users} label="Hunters on this trip" />
@@ -309,7 +302,9 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
               )}
             </div>
           </section>
-        </div>{/* /hunters */}
+
+          <HunterTripDocsSection docs={tripDocs} />
+        </div>{/* /side rail */}
       </div>
     </main>
   )

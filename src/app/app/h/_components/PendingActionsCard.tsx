@@ -38,15 +38,16 @@ export default function PendingActionsCard({
   actions: HunterPendingAction[]
   walletLinks: HunterPendingWalletLink[]
 }) {
-  // v27.6.3.4 item 4 — Flavio reread of item 2: "you still left
-  // pending actions cards as a window. i said i wanted them listed
-  // out but in a window/card form. pending actions should be its
-  // own widget on there with a title and if no pendings then show
-  // as none or cleared or good job and if they have then it should
-  // list it." So: keep the widget/card chrome (bb-tile bb-form-
-  // section), always render (no early return), show empty-state
-  // copy when nothing is pending. Capped width via .bb-pending-card
-  // so it stays widget-shaped and doesn't span the full page.
+  // v27.6.3.5 item 1 — Flavio reread of v27.6.3.4 item 4: "Hunter
+  // dashboard - pending actions and the actions themselves should
+  // not be in a window or card form. they should be on the page
+  // itself well formatted and then a divider underneath that
+  // section." So: drop the bb-tile bb-form-section card chrome
+  // entirely. Render the heading + list flush on the page. The
+  // .bb-page-divider underneath is rendered by the parent
+  // (/app/h/page.tsx) so the section reads as a discrete block
+  // separated from Upcoming/Recent. Always renders so the empty
+  // state ("you're all clear") still surfaces.
 
   // Merge into one list. Wallet links surface first (license / tag block
   // a hunter from being legal in the field — that's the higher-stakes
@@ -58,64 +59,59 @@ export default function PendingActionsCard({
   const isEmpty = items.length === 0
 
   return (
-    <section
-      className="bb-pending-card bb-tile bb-form-section"
-      aria-labelledby="bb-pending-actions"
-    >
-      <div className="bb-tile-body">
-        <h2
-          id="bb-pending-actions"
-          className="bb-form-section-head"
+    <section className="bb-pending-card" aria-labelledby="bb-pending-actions">
+      <h2
+        id="bb-pending-actions"
+        className="bb-form-section-head"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          margin: 0,
+          marginBottom: '0.6rem',
+        }}
+      >
+        <AlertCircle size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
+        Pending actions
+      </h2>
+
+      {isEmpty ? (
+        <div
           style={{
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
-            margin: 0,
-            marginBottom: '0.6rem',
+            gap: '0.55rem',
+            padding: '0.25rem 0',
           }}
         >
-          <AlertCircle size={16} aria-hidden="true" style={{ color: 'var(--color-copper)' }} />
-          Pending actions
-        </h2>
-
-        {isEmpty ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.55rem',
-              padding: '0.5rem 0.1rem',
-            }}
-          >
-            <CheckCircle2
-              size={18}
-              aria-hidden="true"
-              style={{ color: '#6A9859', flexShrink: 0 }}
-            />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>
-                You&rsquo;re all clear.
-              </div>
-              <div className="bb-form-help" style={{ margin: 0 }}>
-                Nothing pending right now &mdash; nice work.
-              </div>
+          <CheckCircle2
+            size={18}
+            aria-hidden="true"
+            style={{ color: '#6A9859', flexShrink: 0 }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>
+              You&rsquo;re all clear.
+            </div>
+            <div className="bb-form-help" style={{ margin: 0 }}>
+              Nothing pending right now &mdash; nice work.
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {items.map((item) =>
-              item.kind === 'wallet' ? (
-                <PendingWalletRow
-                  key={`w-${item.data.trip_id}-${item.data.kind}`}
-                  item={item.data}
-                />
-              ) : (
-                <PendingActionRow key={`a-${item.data.id}`} action={item.data} />
-              )
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {items.map((item) =>
+            item.kind === 'wallet' ? (
+              <PendingWalletRow
+                key={`w-${item.data.trip_id}-${item.data.kind}`}
+                item={item.data}
+              />
+            ) : (
+              <PendingActionRow key={`a-${item.data.id}`} action={item.data} />
+            )
+          )}
+        </div>
+      )}
     </section>
   )
 }

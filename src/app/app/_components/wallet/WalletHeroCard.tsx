@@ -118,6 +118,10 @@ export default function WalletHeroCard({
   const skin = skinFor(item.type, item.status)
   const isGuideLic = item.type === 'guide_license'
   const tagFamily = isTagFamily(item.type)
+  // v27.6.3.5 item 4 — license-only modifier so the title (license
+  // number) + state line nudge down and right to land on the
+  // license skin's intended ID/state band. Other types unaffected.
+  const isLicense = item.type === 'license'
 
   // v27.0b.7: guide_license skins have the eyebrow ("Guide License")
   // baked into the artwork. Suppress the React-rendered eyebrow on that
@@ -134,6 +138,7 @@ export default function WalletHeroCard({
     'bb-wallet-card',
     isTaggedOut ? 'bb-wallet-card--used' : '',
     tagFamily ? 'bb-wallet-card--tag-family' : '',
+    isLicense ? 'bb-wallet-card--license' : '',
     isGuideLic ? 'bb-wallet-card--guide-license' : '',
     className ?? '',
   ].filter(Boolean).join(' ')

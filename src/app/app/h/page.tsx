@@ -77,18 +77,16 @@ export default async function HunterDashboardPage() {
       </div>
 
       {/* v27.6.3.4 item 5 — Pending actions moved BELOW the stat
-          row per Flavio: "also move pending actions under trips you
-          been on row." (The "Trips you've been on" stat lives in
-          the row above.) v27.6.3.4 item 4 — widget now ALWAYS
-          renders regardless of count. The card itself owns the
-          empty state ("You're all clear.") so the dashboard always
-          shows status, never a missing tile. */}
+          row per Flavio. v27.6.3.5 item 1 — card chrome stripped,
+          renders flush on the page; .bb-page-divider underneath
+          separates it from the Upcoming + Recent rail. */}
       <div className="mt-4">
         <PendingActionsCard
           actions={pendingActions}
           walletLinks={pendingWalletLinks}
         />
       </div>
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
 
       {/* v27.6.3.3 item 1 — Upcoming + Recent now sit side-by-side at
           >=1280px via .bb-dash-pair, mirroring guide /app dashboard.
