@@ -1540,7 +1540,13 @@ body {
 
 /* v27.3.3.3 — /app/trips 2-col layout. Both columns equal width so
    the Recent rail mirrors the main list visually instead of looking
-   like a narrow sidebar. Mobile stacks single-col. */
+   like a narrow sidebar. Mobile stacks single-col.
+   v27.5.0.5 — right column now hosts the monthly calendar (replacing
+   the old Recent trips rail). The calendar wants more horizontal
+   room than the cards list, so desktop columns shifted to a
+   right-heavy ratio (cards 0.85fr / calendar 1.15fr). On mobile the
+   page renders ONLY the active view (Cards or Calendar) via the
+   .bb-cal-only-cards / .bb-cal-only-calendar visibility helpers. */
 .bb-trips-grid {
   display: flex;
   flex-direction: column;
@@ -1550,7 +1556,7 @@ body {
 @media (min-width: 64rem) {
   .bb-trips-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
     gap: 2rem;
     align-items: start;
   }
@@ -1563,6 +1569,202 @@ body {
     position: sticky;
     top: 1.5rem;
   }
+}
+
+/* v27.5.0.5 — Cards | Calendar mobile tab toggle. Tabs visible
+   <1024px; hidden on desktop where both columns render side-by-side. */
+.bb-cal-view-tabs { display: flex; gap: 0.5rem; margin-top: 1rem; }
+@media (min-width: 64rem) { .bb-cal-view-tabs { display: none; } }
+
+/* Mobile-only single-view rendering. Default both visible.
+   When a view tab is active, hide the other on mobile only. */
+@media (max-width: 63.999rem) {
+  .bb-trips-grid.is-view-cards .bb-trips-grid-aside { display: none; }
+  .bb-trips-grid.is-view-calendar > section:first-child { display: none; }
+  /* When the calendar fills the screen on mobile, drop the divider
+     line + indent that the desktop right-rail uses. */
+  .bb-trips-grid.is-view-calendar .bb-col-divider {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
+/* v27.5.0.5 — Monthly calendar (TripsCalendar.tsx) */
+.bb-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.bb-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.bb-cal-head-month {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+  color: var(--color-ink);
+  text-transform: uppercase;
+}
+.bb-cal-head-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.bb-cal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--color-card-divider);
+  background: transparent;
+  color: var(--color-ink-muted);
+  text-decoration: none;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.bb-cal-nav-btn:hover {
+  border-color: rgba(176, 108, 60, 0.4);
+  color: var(--color-ink);
+}
+.bb-cal-today-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-card-divider);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.bb-cal-today-btn:hover {
+  border-color: rgba(176, 108, 60, 0.4);
+  color: var(--color-ink);
+}
+.bb-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.bb-cal-weekday {
+  font-family: var(--font-barlow-condensed);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-soft);
+  text-align: center;
+  padding: 0.25rem 0;
+}
+.bb-cal-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-card-divider);
+}
+.bb-cal-week {
+  position: relative;
+  background: var(--color-paper);
+}
+.bb-cal-week-cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--color-card-divider);
+}
+.bb-cal-cell {
+  position: relative;
+  background: var(--color-paper);
+  min-height: 5.75rem;
+  padding: 0.35rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.bb-cal-cell.is-out {
+  background: rgba(0, 0, 0, 0.015);
+}
+.bb-cal-cell.is-out .bb-cal-cell-num {
+  color: var(--color-ink-soft);
+  opacity: 0.5;
+}
+.bb-cal-cell-num {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+  line-height: 1.1;
+}
+.bb-cal-cell.is-today .bb-cal-cell-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+.bb-cal-cell-more {
+  position: absolute;
+  bottom: 0.25rem;
+  left: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+.bb-cal-week-bars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.bb-cal-bar {
+  position: absolute;
+  height: 1.15rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  pointer-events: auto;
+  overflow: hidden;
+  z-index: 1;
+}
+.bb-cal-bar-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bb-cal-bar.is-cont-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.bb-cal-bar.is-cont-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* Status colors mirror StatusPill (.bb-pill-*) so the calendar legend
+   matches the trip card pill vocabulary. */
+.bb-cal-bar-planned   { background: #D6EBD2; color: #245A2A; }
+.bb-cal-bar-active    { background: #F1E0CC; color: #7A4A1F; }
+.bb-cal-bar-completed { background: #E5DDD0; color: #5C5247; }
+.bb-cal-bar-canceled  { background: #F2D6CE; color: #8C3C2A; }
+
+@media (max-width: 47.999rem) {
+  .bb-cal-cell { min-height: 4.5rem; padding: 0.25rem 0.3rem; }
+  .bb-cal-bar { height: 1rem; font-size: 0.68rem; padding: 0 0.3rem; }
 }
 
 /* v27.3.3 — vertical column divider for any 2-col layout. Mobile:

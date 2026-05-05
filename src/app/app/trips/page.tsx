@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { Plus, Archive, Bookmark } from 'lucide-react'
+import { Plus, Archive, Bookmark, CalendarDays, LayoutList } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
-import { fetchTripsPage, fetchRecentTrips } from '../_lib/queries'
+import { fetchTripsPage, fetchTripsInRange } from '../_lib/queries'
 import { fetchGuideTripTemplates } from '../_lib/trip-template-queries'
 import TripRow from '../_components/TripRow'
 import DashboardHero from '../_components/DashboardHero'
 import TripTemplatesList from './TripTemplatesList'
+import TripsCalendar from './TripsCalendar'
 import type { Database } from '@/lib/supabase/types'
 import { TRIP_FILTER_LABEL } from '@/lib/labels'
 
@@ -36,6 +37,10 @@ type SearchParams = Promise<{
   page?: string
   tab?: string
   archived?: string
+  // v27.5.0.5 — calendar nav: ?ym=YYYY-MM (default current month)
+  // v27.5.0.5 — mobile view toggle: ?view=cards|calendar (default cards on mobile, both on desktop)
+  ym?: string
+  view?: string
 }>
 
 export default async function TripsListPage({ searchParams }: { searchParams: SearchParams }) {
@@ -52,30 +57,45 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
   const to = from + PAGE_SIZE - 1
   const includeArchived = params.archived === '1'
 
-  // Fetch both side-by-side so the tab counts in the header are accurate.
-  // Templates list uses includeArchived semantics — when toggle is on, the
-  // list shows ARCHIVED ONLY (matches docs-library archive-filter semantics).
-  const [{ rows, total }, templates, allTemplates, recentRaw] = await Promise.all([
+  // v27.5.0.5 — calendar month nav. ?ym=YYYY-MM, default current month.
+  // Strict parse — invalid values fall back to today.
+  const ymRaw = params.ym ?? ''
+  const ymMatch = /^(\d{4})-(\d{2})$/.exec(ymRaw)
+  const today = new Date()
+  const calYear = ymMatch ? Number(ymMatch[1]) : today.getFullYear()
+  const calMonth = ymMatch ? Number(ymMatch[2]) - 1 : today.getMonth()
+  // Visible grid range: 6 weeks starting Sunday on/before the 1st.
+  const calGridStart = new Date(calYear, calMonth, 1)
+  calGridStart.setDate(calGridStart.getDate() - calGridStart.getDay())
+  calGridStart.setHours(0, 0, 0, 0)
+  const calGridEnd = new Date(calGridStart)
+  calGridEnd.setDate(calGridEnd.getDate() + 41)
+  calGridEnd.setHours(23, 59, 59, 999)
+
+  // v27.5.0.5 — mobile view toggle: ?view=calendar shows the calendar
+  // full-screen on mobile; default ?view=cards. Desktop ignores this
+  // and renders both columns side-by-side via CSS.
+  const mobileView: 'cards' | 'calendar' = params.view === 'calendar' ? 'calendar' : 'cards'
+
+  // Fetch all four in parallel. Templates list uses includeArchived
+  // semantics — when toggle is on, the list shows ARCHIVED ONLY.
+  const [{ rows, total }, templates, allTemplates, calendarTrips] = await Promise.all([
     fetchTripsPage(profile.id, { status, from, to }),
     fetchGuideTripTemplates(profile.id, { includeArchived }),
     // active-only count for the tab header — independent of the archive
     // toggle so the tab label stays stable as the guide flips it.
     fetchGuideTripTemplates(profile.id, { includeArchived: false }),
-    // v27.3.2.1: recent wrapped trips for the desktop right-rail aside.
-    fetchRecentTrips(profile.id),
+    // v27.5.0.5 — trips overlapping the visible calendar month range,
+    // status-filtered the same way the cards list is.
+    fetchTripsInRange(profile.id, calGridStart.toISOString(), calGridEnd.toISOString(), status),
   ])
 
-  // v27.3.3 — Recent rail dedupe. Strip out any trips already visible
-  // in the main filtered list so a single trip never appears in both
-  // columns at once. (e.g. when the chip is "Done", recent wrapped
-  // trips are obviously the same rows.)
-  const visibleIds = new Set(rows.map((r) => r.id))
-  const recentForAside = recentRaw.filter((r) => !visibleIds.has(r.id))
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function chipHref(key: TripStatus | 'all') {
     const sp = new URLSearchParams()
     if (key !== 'all') sp.set('status', key)
+    if (mobileView === 'calendar') sp.set('view', 'calendar')
     return `/app/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
@@ -83,6 +103,16 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
     const sp = new URLSearchParams()
     if (status !== 'all') sp.set('status', status)
     if (p !== 1) sp.set('page', String(p))
+    return `/app/trips${sp.toString() ? `?${sp}` : ''}`
+  }
+
+  // v27.5.0.5 — mobile view toggle. Preserves status + ym so the
+  // calendar's current month survives the tab switch.
+  function viewHref(target: 'cards' | 'calendar'): string {
+    const sp = new URLSearchParams()
+    if (status !== 'all') sp.set('status', status)
+    if (target === 'calendar') sp.set('view', 'calendar')
+    if (params.ym) sp.set('ym', params.ym)
     return `/app/trips${sp.toString() ? `?${sp}` : ''}`
   }
 
@@ -205,15 +235,42 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
             ))}
           </div>
 
-          {/* v27.3.2.1: 2-col layout on desktop. Left = chip-filtered
-              trips list (primary). Right (>=1024px) = sticky aside with
-              "Recent trips" — most recent wrapped trips for quick access.
-              Mobile stacks single-col. Mirrors /app dashboard pattern. */}
-          <div className="bb-trips-grid mt-4">
+          {/* v27.5.0.5 — mobile-only Cards | Calendar tab toggle. On
+              desktop both columns render side-by-side (the .bb-cal-view-tabs
+              CSS hides this row at >=1024px). Status + ym are preserved
+              across the switch. */}
+          <div className="bb-cal-view-tabs" role="tablist" aria-label="Trips view">
+            <Link
+              href={viewHref('cards')}
+              role="tab"
+              aria-selected={mobileView === 'cards'}
+              className={`bb-chip ${mobileView === 'cards' ? 'is-active' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <LayoutList size={14} aria-hidden="true" />
+              Cards
+            </Link>
+            <Link
+              href={viewHref('calendar')}
+              role="tab"
+              aria-selected={mobileView === 'calendar'}
+              className={`bb-chip ${mobileView === 'calendar' ? 'is-active' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <CalendarDays size={14} aria-hidden="true" />
+              Calendar
+            </Link>
+          </div>
+
+          {/* v27.5.0.5: 2-col layout on desktop. Left = chip-filtered
+              trips list (primary). Right = monthly calendar (replaces
+              the old Recent trips aside). Mobile stacks single-col and
+              renders only the active view via .is-view-* class. */}
+          <div className={`bb-trips-grid mt-4 is-view-${mobileView}`}>
             <section>
               {/* v27.3.5: matching section head on the left column to
-                  pair with "Recent trips" on the right. Reads as a
-                  proper 2-col layout. */}
+                  pair with the right column. Reads as a proper 2-col
+                  layout. */}
               <div className="bb-net-section-head">
                 <span className="bb-net-section-icon" aria-hidden="true">
                   <Bookmark size={14} />
@@ -264,34 +321,20 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
               )}
             </section>
 
-            {/* v27.3.3.1: Recent column ALWAYS renders (was gated on
-                recentForAside.length>0 — that hid the column when the
-                main filter already showed every recent trip). Empty
-                state replaces the list when dedupe leaves nothing. */}
+            {/* v27.5.0.5 — Monthly calendar replaces the v27.3.2.1
+                "Recent trips" aside. Server-rendered with trips
+                overlapping the visible month range (status-filtered
+                via the same chip as the cards list). Multi-day trips
+                render as bars spanning the days they cover, clipped
+                at week boundaries. */}
             <aside className="bb-trips-grid-aside bb-col-divider">
-              <div className="bb-net-section-head">
-                <span className="bb-net-section-icon" aria-hidden="true">
-                  <Bookmark size={14} />
-                </span>
-                <span className="bb-net-section-title">Recent trips</span>
-              </div>
-              {recentForAside.length === 0 ? (
-                <p className="bb-form-help" style={{ marginTop: '0.5rem' }}>
-                  Nothing extra — your recent trips are already visible in the list.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {recentForAside.slice(0, 5).map((t) => (
-                    <TripRow
-                      key={t.id}
-                      trip={t}
-                      hunters={t.hunters}
-                      rating={t.rating}
-                      reviewCount={t.reviewCount}
-                    />
-                  ))}
-                </div>
-              )}
+              <TripsCalendar
+                trips={calendarTrips}
+                year={calYear}
+                month={calMonth}
+                status={status}
+                view={mobileView}
+              />
             </aside>
           </div>
         </>

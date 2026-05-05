@@ -449,6 +449,46 @@ export async function fetchTripsPage(
   return { rows, total: count ?? 0 }
 }
 
+// v27.5.0.5 — calendar query. Returns trips that OVERLAP the date range
+// [fromIso, toIso] (inclusive on both ends), filtered by status the same
+// way the chip filter on /app/trips does. Overlap rule: the trip's
+// start <= range end AND its end (or start, if no ends_at) >= range start.
+//
+// We deliberately don't paginate here — a typical guide has fewer than
+// ~50 trips in a single visible month range, and the calendar needs
+// every overlapping trip to render bars correctly.
+//
+// Status semantics match fetchTripsPage:
+//   'all' → planned + active (the OPEN trips view)
+//   anything else → just that status
+export async function fetchTripsInRange(
+  guideId: string,
+  fromIso: string,
+  toIso: string,
+  status: TripStatus | 'all'
+): Promise<TripRowWithCounts[]> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('trips')
+    .select(`${TRIP_ROW_COLS},
+             trip_participants(count)`)
+    .eq('guide_id', guideId)
+    .lte('starts_at', toIso)
+    .or(`ends_at.gte.${fromIso},and(ends_at.is.null,starts_at.gte.${fromIso})`)
+    .order('starts_at', { ascending: true })
+  if (status === 'all') {
+    query = query.in('status', ['planned', 'active'])
+  } else {
+    query = query.eq('status', status)
+  }
+  const { data, error } = await query
+  if (error) {
+    console.warn('[queries.fetchTripsInRange]', { guideId, code: error.code, message: error.message })
+    return []
+  }
+  return (data ?? []).map(shapeTripWithCounts)
+}
+
 export type DashboardStats = {
   tripsThisYear: number
   huntersServed: number
