@@ -33,6 +33,12 @@ import {
 } from './doc-data-sources'
 import { parseFieldName } from './harvest-log-fill-types'
 import type { FilledPdfArtifact, GenerateFilledLogResult } from './harvest-log-fill-types'
+// v27.5.0.1: regen ALWAYS auto-signs using the guide's saved default
+// signature so a previously-signed log doesn't go stale when trip data
+// changes. The fill action calls signHarvestLogPdfAction inline after
+// it finishes overwriting the unsigned bytes.
+import { loadGuideDefaultSignatureDataUrl } from './guide-default-signature'
+import { signHarvestLogPdfAction } from './harvest-log-sign'
 
 // ── Source resolution ─────────────────────────────────────────────────
 
@@ -872,6 +878,12 @@ export async function generateFilledHarvestLogPDFsAction(
   // its file_path. Reject overwrite when the new generation would split
   // into multiple passes — a single PDF can't be re-generated as a
   // multi-pass overflow without leaving stale companion rows behind.
+  //
+  // v27.5.0.1: auto-collapse plain "Generate" into in-place regen when
+  // a row already exists for (trip_id, source_doc_id, single-pass) so
+  // the guide can't accidentally pollute the trip with parallel rows.
+  // If new gen is multi-pass we skip auto-collapse (existing fresh
+  // multi-pass insert behavior). The cleanOverwriteId path is unchanged.
   type OverwriteTarget = { id: string; file_path: string; pass_index: number; pass_total: number }
   let overwriteTarget: OverwriteTarget | null = null
   if (cleanOverwriteId) {
@@ -894,6 +906,42 @@ export async function generateFilledHarvestLogPDFsAction(
       file_path: ow.file_path,
       pass_index: ow.pass_index,
       pass_total: ow.pass_total,
+    }
+  } else if (passes === 1) {
+    // v27.5.0.1: auto-collapse. Look for an existing single-pass row
+    // for this (trip, source_doc) and overwrite it instead of inserting
+    // a parallel row. Multi-pass first-gen still inserts fresh.
+    const { data: existing } = await sb
+      .from('trip_generated_logs')
+      .select('id, trip_id, file_path, pass_index, pass_total')
+      .eq('trip_id', log.trip_id)
+      .eq('source_doc_id', docId)
+      .eq('pass_total', 1)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existing) {
+      overwriteTarget = {
+        id: existing.id,
+        file_path: existing.file_path,
+        pass_index: existing.pass_index,
+        pass_total: existing.pass_total,
+      }
+    }
+  }
+
+  // v27.5.0.1: when we're going to overwrite (regen path — explicit or
+  // auto-collapsed), require the guide's saved default signature so we
+  // can auto-sign immediately after the bytes land. Onboarding now
+  // requires this; legacy guides who skipped it get a clear redirect.
+  let defaultSignatureDataUrl: string | null = null
+  if (overwriteTarget) {
+    defaultSignatureDataUrl = await loadGuideDefaultSignatureDataUrl(profile.id)
+    if (!defaultSignatureDataUrl) {
+      return {
+        error:
+          "Save your signature in Settings → Profile before re-generating. We use it to auto-sign every regen so warden share is always current.",
+      }
     }
   }
 
@@ -1148,6 +1196,33 @@ export async function generateFilledHarvestLogPDFsAction(
         })
       } else {
         genRowId = overwriteTarget.id
+        // v27.5.0.1: regen ALWAYS auto-signs. Once the fresh unsigned
+        // bytes are uploaded + the row is updated, immediately apply
+        // the guide's saved default signature so signed_file_path /
+        // signed_at point at the new content. Without this the row
+        // would carry fresh file_path + stale signed_file_path and
+        // warden share would render the stale signed copy.
+        //
+        // We pre-flight-checked defaultSignatureDataUrl above, so it's
+        // guaranteed non-null when overwriteTarget is set.
+        if (defaultSignatureDataUrl) {
+          const signRes = await signHarvestLogPdfAction(
+            overwriteTarget.id,
+            defaultSignatureDataUrl
+          )
+          if ('error' in signRes) {
+            console.warn('[harvestLog.fill:autoSign]', {
+              rowId: overwriteTarget.id,
+              error: signRes.error,
+            })
+            // Non-fatal: row is still updated with fresh unsigned
+            // bytes; warden share will retry on next entry. Surface
+            // as a warning so the UI can show a soft notice.
+            warnings.push(
+              `Could not auto-sign the regenerated PDF: ${signRes.error}. Open the report to sign manually.`
+            )
+          }
+        }
       }
     } else {
       const { data: genRow, error: genErr } = await sb
