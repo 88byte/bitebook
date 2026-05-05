@@ -1,30 +1,34 @@
-// v27.6.4 — full offline rewrite. Flavio reported on his phone PWA
-// in airplane mode: "Safari can't open the page. The error was:
-// FetchEvent.respondWith received an error: Returned response is null."
-// Three bugs in the prior handler each produced an undefined / rejected
-// Response:
-//   1. Navigation .catch resolved `cached ?? caches.match(request)` —
-//      when both missed, respondWith got undefined.
-//   2. Static-asset cache-first nested fetch().then(...) had no .catch;
-//      a network failure rejected the chain unwrapped to respondWith.
-//   3. Generic fallback `fetch.catch(() => caches.match(request))` also
-//      resolved to undefined when both legs missed.
-// New strategy: every respondWith is fed by a helper that ALWAYS resolves
-// to a real Response — falling through to a pre-cached /offline.html, and
-// finally to a synthetic 503 if even that's missing. This guarantees the
-// PWA never crashes the SW boundary, regardless of cache state.
+// v27.6.4.2 — two-cache split. v27.6.4.1 had a single CACHE_NAME that
+// bumped per release, with the activate handler nuking any cache name
+// that didn't match. That meant EVERY release wiped the user's cached
+// navigations. Flavio testing on his phone PWA: tapped offline-page
+// "Open dashboard" and looped right back to offline.html — because his
+// post-update cache had only the precache list (offline.html + a few
+// icons), no app pages.
 //
-// Cache name still bumps per release so installed PWAs nuke stale shells
-// on activate. Offline mode is now a real, audited path — not just the
-// shell-cache side-effect it accidentally was.
+// Fix:
+//   bitebook-shell-vXX  — versioned shell cache. Holds the precache
+//                         list + content-hashed Next.js bundles +
+//                         static images. NUKED on activate when the
+//                         version doesn't match. This is the cache-
+//                         busting story that the old single CACHE_NAME
+//                         was trying to do.
+//   bitebook-runtime    — UNVERSIONED runtime cache. Holds navigation
+//                         HTML and dynamic data the user actually
+//                         visited. Persists across releases so the
+//                         user's offline app shell survives every
+//                         deploy. Never nuked by the activate handler.
+//
+// Net effect: user visits /app/h once while online → cached forever
+// in bitebook-runtime. Subsequent releases bump SHELL_CACHE (fresh
+// CSS/JS) but leave runtime alone (offline app keeps working).
 
-const CACHE_NAME = 'bitebook-v27.6.4.1'
+const SHELL_CACHE = 'bitebook-shell-v27.6.4.2'
+const RUNTIME_CACHE = 'bitebook-runtime'
 
-// Pre-cache list. /offline.html is the universal fallback for navigation
-// requests; the others are static shell assets that never change between
-// deploys (or are content-hashed by Next at /_next/static/…). Putting
-// them in cache at install means first-paint while offline still has
-// fonts + icons.
+// Pre-cache list. /offline.html is the universal fallback for failed
+// navigations. The rest are static shell assets that never change
+// per-deploy or are content-hashed by Next.
 const PRECACHE_URLS = [
   '/offline.html',
   '/manifest.webmanifest',
@@ -35,9 +39,9 @@ const PRECACHE_URLS = [
 ]
 
 // Synthetic last-resort responses. Used only when even the pre-cached
-// /offline.html is missing (e.g. install completed online but cache was
-// evicted). Returning a real Response object keeps respondWith from
-// rejecting and triggering Safari's "Returned response is null" error.
+// /offline.html is missing. Returning a real Response object keeps
+// respondWith from rejecting and triggering Safari's "Returned
+// response is null" error.
 function syntheticOfflineHTML() {
   return new Response(
     '<!doctype html><meta charset="utf-8"><title>Offline</title>'
@@ -59,10 +63,10 @@ function syntheticOfflineGeneric() {
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      // Use individual put()s wrapped in a no-throw block so a single
-      // missing asset doesn't fail the entire install. addAll() is
-      // all-or-nothing; we want best-effort precache here.
+    caches.open(SHELL_CACHE).then((cache) =>
+      // Best-effort precache: a single missing asset doesn't fail the
+      // entire install. addAll() is all-or-nothing; we want each
+      // resource attempt isolated.
       Promise.all(
         PRECACHE_URLS.map((url) =>
           fetch(url, { cache: 'reload' })
@@ -82,21 +86,57 @@ self.addEventListener('message', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  )
-  self.clients.claim()
+  // v27.6.4.2 migration — the prior SW used a single CACHE_NAME
+  // (e.g. bitebook-v27.6.4.1) that bumped per release; activating
+  // a new SW nuked all old caches, destroying the user's cached
+  // navigations. To migrate gracefully we (a) copy navigation /
+  // dynamic entries from any old bitebook-* cache into the new
+  // RUNTIME_CACHE, then (b) delete the old caches. The current
+  // SHELL_CACHE and RUNTIME_CACHE are explicitly preserved.
+  event.waitUntil((async () => {
+    const keys = await caches.keys()
+    const runtime = await caches.open(RUNTIME_CACHE)
+
+    for (const key of keys) {
+      if (key === SHELL_CACHE || key === RUNTIME_CACHE) continue
+      if (!key.startsWith('bitebook-')) continue
+
+      try {
+        const oldCache = await caches.open(key)
+        const oldRequests = await oldCache.keys()
+        for (const req of oldRequests) {
+          let url
+          try { url = new URL(req.url) } catch { continue }
+          // Skip pure shell assets — the new SHELL_CACHE will
+          // re-fetch its own copies. We only want to preserve
+          // navigation HTML and dynamic data.
+          if (
+            url.pathname.startsWith('/_next/static/') ||
+            /\.(?:png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot|ico)$/i.test(url.pathname) ||
+            url.pathname === '/manifest.webmanifest' ||
+            url.pathname === '/offline.html'
+          ) continue
+          try {
+            const res = await oldCache.match(req)
+            if (res) await runtime.put(req, res.clone())
+          } catch {}
+        }
+      } catch {}
+
+      try { await caches.delete(key) } catch {}
+    }
+
+    await self.clients.claim()
+  })())
 })
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-// Fire-and-forget cache write. Clones the response synchronously BEFORE
-// any await so the original body isn't consumed by the time the user's
-// page reads it. Filters to same-origin successful GETs — opaque /
-// redirected / error / mutation responses must not be cached.
-function cachePut(request, response) {
+// Fire-and-forget cache write. Clones the response synchronously
+// BEFORE any await so the original body isn't consumed by the time
+// the page reads it. Filters to same-origin successful GETs — opaque
+// / redirected / error / mutation responses must not be cached.
+function cachePutInto(cacheName, request, response) {
   if (request.method !== 'GET') return
   if (!response || !response.ok || response.type !== 'basic') return
   if (response.status !== 200) return
@@ -107,21 +147,24 @@ function cachePut(request, response) {
     return
   }
   caches
-    .open(CACHE_NAME)
+    .open(cacheName)
     .then((cache) => cache.put(request, clone))
     .catch(() => {})
 }
 
 // Navigation requests (HTML pages). Network-first so the freshest UI
-// wins online. Offline path waterfalls: this exact URL → '/' → pre-
-// cached /offline.html → synthetic. Every leg is awaited so the final
-// returned value is always a real Response.
+// wins online; offline path waterfalls: this exact URL → '/' → pre-
+// cached /offline.html → synthetic. Stores into RUNTIME_CACHE so the
+// page survives release cache-name bumps.
 async function handleNavigation(request) {
   try {
     const networkRes = await fetch(request)
-    cachePut(request, networkRes)
+    cachePutInto(RUNTIME_CACHE, request, networkRes)
     return networkRes
   } catch {
+    // caches.match without a cacheName argument searches across all
+    // open caches (shell + runtime). That's exactly what we want: a
+    // page might live in either.
     const exact = await caches.match(request)
     if (exact) return exact
     const home = await caches.match('/')
@@ -133,28 +176,27 @@ async function handleNavigation(request) {
 }
 
 // Static-asset cache-first (Next.js content-hashed bundles, fonts,
-// icons, etc.). Cache hit is always safe because the URL itself
-// changes when the asset changes. Falls through to a synthetic 504
-// rather than rejecting the response.
+// icons, etc.). Stored in SHELL_CACHE because they're version-tied —
+// when the deploy bumps and old hashed bundles are no longer
+// referenced, nuking the old shell cache reclaims their disk space.
 async function handleCacheFirst(request) {
   const cached = await caches.match(request)
   if (cached) return cached
   try {
     const networkRes = await fetch(request)
-    cachePut(request, networkRes)
+    cachePutInto(SHELL_CACHE, request, networkRes)
     return networkRes
   } catch {
     return syntheticOfflineGeneric()
   }
 }
 
-// Network-first for everything else (dynamic JSON, /_next/data,
-// images that aren't pre-cached). Tries network, falls back to any
-// cached copy, then synthetic. Never rejects.
+// Network-first for everything else (dynamic JSON, /_next/data, etc).
+// Stored in RUNTIME_CACHE so partial app data survives across releases.
 async function handleNetworkFirst(request) {
   try {
     const networkRes = await fetch(request)
-    cachePut(request, networkRes)
+    cachePutInto(RUNTIME_CACHE, request, networkRes)
     return networkRes
   } catch {
     const cached = await caches.match(request)
@@ -172,9 +214,7 @@ self.addEventListener('fetch', (event) => {
   // Hands-off list — these MUST hit the network or fail naturally.
   // SW interception of API/auth/analytics traffic causes more bugs
   // than it solves: cookie handling, CORS preflights, and streaming
-  // responses all break in subtle ways. The browser's native
-  // network-error UI is a better experience for these than a
-  // synthetic offline page.
+  // responses all break in subtle ways.
   if (
     url.hostname.includes('supabase') ||
     url.hostname.includes('stripe') ||
@@ -214,9 +254,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(handleNetworkFirst(request))
 })
 
-// Background Sync for offline outbox. Same shape as before — when
-// the browser fires a sync event, broadcast to all open clients so
-// the React layer can flush its queued writes.
+// Background Sync for offline outbox.
 self.addEventListener('sync', (event) => {
   if (event.tag === 'outbox-sync') {
     event.waitUntil(self.clients.matchAll().then((clients) => {

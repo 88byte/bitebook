@@ -15,9 +15,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: 2rem 1.5rem;
     text-align: center;
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: rgba(176, 108, 60, 0.25);
   }
   .card { max-width: 26rem; width: 100%; }
   .eyebrow {
@@ -30,7 +31,7 @@
   }
   h1 { font-size: 1.75rem; margin: 0 0 0.75rem; line-height: 1.1; }
   p {
-    margin: 0 0 1.25rem;
+    margin: 0 0 1rem;
     color: rgba(244, 239, 229, 0.85);
     line-height: 1.5;
   }
@@ -39,34 +40,36 @@
     flex-direction: column;
     gap: 0.6rem;
     align-items: stretch;
+    margin-top: 1.5rem;
   }
-  button {
+  .btn {
     border: none;
-    padding: 0.75rem 1.5rem;
+    padding: 0.85rem 1.25rem;
     border-radius: 0.5rem;
     font-weight: 700;
     font-size: 1rem;
-    cursor: pointer;
-    min-height: 48px;
+    min-height: 50px;
     width: 100%;
     font-family: inherit;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
   }
-  .btn-primary {
-    background: #B06C3C;
-    color: #FFFFFF;
-  }
-  .btn-primary:hover { background: #C07845; }
+  .btn-primary { background: #B06C3C; color: #FFFFFF; }
   .btn-primary:active { background: #8C5530; }
   .btn-secondary {
     background: transparent;
     color: #F4EFE5;
     border: 1px solid rgba(244, 239, 229, 0.3);
   }
-  .btn-secondary:hover { background: rgba(244, 239, 229, 0.06); }
   .btn-secondary:active { background: rgba(244, 239, 229, 0.12); }
+  /* Form-submit "reload" button — same look as a real <button>. */
+  .reload-form { margin: 0; padding: 0; }
   .hint {
-    margin-top: 1.25rem;
-    font-size: 0.8rem;
+    margin-top: 1.5rem;
+    font-size: 0.78rem;
     color: rgba(244, 239, 229, 0.5);
     line-height: 1.5;
   }
@@ -76,65 +79,43 @@
   <div class="card">
     <p class="eyebrow">Bite Book</p>
     <h1>You&rsquo;re offline</h1>
-    <p>Trips and wallet items you&rsquo;ve already opened are still available. Tap a button below to keep going.</p>
+    <p>Tap a saved page below to keep working. We&rsquo;ll reload automatically when you reconnect.</p>
+    <!--
+      v27.6.4.2 — Flavio testing (after v27.6.4.1): "I'm seeing the
+      new buttons but I can't progress from this screen. It won't let
+      me continue using the pwa." Diagnosis: <button type="button">
+      with addEventListener click handlers has no native fallback —
+      if the inline <script> doesn't execute on the served offline
+      page (iOS standalone PWA quirk with cached responses, or any
+      future CSP tightening), tapping the button does literally
+      nothing.
+      Fix: replace JS-driven buttons with native anchors and a form-
+      submit reload. iOS PWA standalone respects same-origin <a href>
+      navigations and form submits unconditionally — they don't need
+      JS to function. The SW intercepts the resulting navigation,
+      serves cached HTML if available, falls back to this same page
+      otherwise. Each link is independently functional.
+      Hunter and guide both get a dashboard button — one will be
+      cached for any signed-in user. The links themselves are
+      idempotent: tapping a non-cached one just re-renders this page
+      so the user can try a different option.
+    -->
     <div class="actions">
-      <button id="back" type="button" class="btn-primary">Go back</button>
-      <button id="home" type="button" class="btn-secondary">Open dashboard</button>
-      <button id="retry" type="button" class="btn-secondary">Retry this page</button>
+      <a href="/app/h" class="btn btn-primary">Open hunter dashboard</a>
+      <a href="/app" class="btn btn-secondary">Open guide dashboard</a>
+      <form action="" method="get" class="reload-form">
+        <button type="submit" class="btn btn-secondary">Reload this page</button>
+      </form>
     </div>
-    <p class="hint">When you reconnect, this page will reload automatically.</p>
+    <p class="hint">If a button doesn&rsquo;t take you anywhere, that page hasn&rsquo;t been saved yet. Reconnect once and Bite Book will save it for next time.</p>
   </div>
 <script>
-// v27.6.4.1 — Flavio testing: iOS standalone PWA has no browser
-// chrome (no back button, no swipe-back), so the user was trapped on
-// the offline page. Real buttons replace the hint-text promise.
-//
-// "Go back" — history.back() if there's a prior entry, else the
-// dashboard. iOS history.length lies a little (forward stack
-// included) so the >1 check is a heuristic, not a guarantee — but
-// the dashboard button below is always a no-fail escape.
-//
-// "Open dashboard" — hard navigation to /app/h. SW will intercept;
-// if /app/h is cached (from any prior online visit), it renders. If
-// not, the user lands back here — but at least they tried something
-// new instead of looping on the same failed deep link.
-//
-// "Retry this page" — location.reload() against the original
-// failed URL. Useful when the network just came back.
-//
-// online listener — when the device reconnects while the user is
-// sitting on this page, auto-reload so they're not stuck looking at
-// "you're offline" with a working network.
-(function () {
-  var backBtn = document.getElementById('back');
-  var homeBtn = document.getElementById('home');
-  var retryBtn = document.getElementById('retry');
-
-  function goBack() {
-    if (window.history.length > 1) {
-      window.history.back();
-      // If the previous entry is also an offline page (multi-step
-      // failed nav), the user will land back here. They can try
-      // again or take the dashboard escape.
-    } else {
-      window.location.href = '/app/h';
-    }
-  }
-
-  if (backBtn) backBtn.addEventListener('click', goBack);
-  if (homeBtn) homeBtn.addEventListener('click', function () {
-    window.location.href = '/app/h';
-  });
-  if (retryBtn) retryBtn.addEventListener('click', function () {
-    window.location.reload();
-  });
-
-  // Auto-recover when connectivity returns. The SW will serve the
-  // freshest version on reload.
-  window.addEventListener('online', function () {
-    window.location.reload();
-  });
-})();
+// Optional auto-reload on connectivity. If this fails (CSP, parser
+// quirk, anything), the page still works — every primary action is
+// a native <a> or <form>. This is purely a nice-to-have.
+try {
+  window.addEventListener('online', function () { location.reload(); });
+} catch (e) {}
 </script>
 </body>
 </html>
