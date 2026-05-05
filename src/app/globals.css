@@ -1968,6 +1968,101 @@ body {
   font-size: 0.85rem;
 }
 
+/* v27.6.0.1 — ADMIN pill in the guide sidebar foot. Forest tint to
+   read distinctly from the copper/ink palette without competing with
+   the SignOut button below it. Tappable: links to /admin. */
+.bb-admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  align-self: flex-start;
+  margin-bottom: 0.35rem;
+}
+.bb-admin-pill:hover { filter: brightness(1.1); }
+
+/* In-header variant for the mobile AppHeader (dark band). Same shape
+   as .bb-admin-pill but lighter type and tucked between AppNav and
+   the hamburger menu. */
+.bb-app-header-admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-forest);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  margin-right: 0.25rem;
+}
+.bb-app-header-admin-pill:hover { filter: brightness(1.1); }
+
+/* "Logged in as admin: …" strip under the Mission Control page
+   title. Subtle so it doesn't compete with the table; visible enough
+   to confirm the role. */
+.bb-admin-loggedin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+  background: var(--color-paper);
+}
+.bb-admin-loggedin svg { color: var(--color-forest); }
+
+/* Mobile-only horizontal Accounts | Revenue strip. The desktop
+   .bb-sidebar is hidden under 1024px, so without this admins on
+   mobile have no path between live sections. */
+.bb-admin-mobile-nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem 0;
+}
+@media (min-width: 64rem) {
+  .bb-admin-mobile-nav { display: none; }
+}
+.bb-admin-mobile-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-divider);
+  background: var(--color-paper);
+  color: var(--color-ink-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.bb-admin-mobile-nav-link:hover {
+  border-color: rgba(176, 108, 60, 0.4);
+  color: var(--color-ink);
+}
+.bb-admin-mobile-nav-link.is-active {
+  background: var(--color-copper);
+  border-color: var(--color-copper);
+  color: #FFFFFF;
+}
+
 /* v27.3.3 — vertical column divider for any 2-col layout. Mobile:
    no divider (single-col). Desktop: 1px line on the LEFT of the
    right-rail column, with matching padding-left so content doesn't

@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy, ShieldCheck } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 
 // Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS.
@@ -19,7 +19,10 @@ const NAV = [
   { href: '/app/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
 ] as const
 
-export default function Sidebar() {
+// v27.6.0.1 — `isAdmin` drives the ADMIN pill + Mission Control link
+// at the bottom of the sidebar. The /app/layout server component
+// pulls profile.role from requireUser() and passes it down.
+export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname() ?? ''
   return (
     <aside className="bb-sidebar" aria-label="Primary navigation">
@@ -54,6 +57,12 @@ export default function Sidebar() {
       </nav>
 
       <div className="bb-sidebar-foot">
+        {isAdmin ? (
+          <Link href="/admin" className="bb-admin-pill" aria-label="Open Mission Control">
+            <ShieldCheck size={12} aria-hidden="true" />
+            <span>Admin</span>
+          </Link>
+        ) : null}
         <SignOutButton />
       </div>
     </aside>

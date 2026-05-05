@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { ShieldCheck } from 'lucide-react'
 import { fetchAdminAccounts } from './_lib/admin-queries'
 import type { AdminAccountRow } from './_lib/admin-queries'
+import { requireAdmin } from '../app/_lib/auth'
 
 // v27.6.0 — Mission Control / Accounts (the index).
 //
@@ -45,6 +47,11 @@ function tierPillClass(tier: AdminAccountRow['tier']): string {
 }
 
 export default async function AdminAccountsPage({ searchParams }: { searchParams: SearchParams }) {
+  // v27.6.0.1 — pull the admin's own email for the "Logged in as"
+  // strip below the page title. Admin accounts are filtered out of
+  // the table itself; this is the only place admins see themselves
+  // in Mission Control.
+  const { user } = await requireAdmin()
   const params = await searchParams
   const q = (params.q ?? '').trim().toLowerCase()
   const tierParam = TIER_CHIPS.find((c) => c.key === params.tier)?.key ?? 'all'
@@ -81,8 +88,12 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
         <p className="bb-page-eyebrow">Mission Control</p>
         <h1 className="bb-page-title">Accounts</h1>
         <p className="bb-page-sub">
-          {all.length} {all.length === 1 ? 'account' : 'accounts'} on Bite Book.
+          {all.length} {all.length === 1 ? 'guide' : 'guides'} on Bite Book.
         </p>
+        <div className="bb-admin-loggedin" aria-label="Signed in as admin">
+          <ShieldCheck size={12} aria-hidden="true" />
+          <span>Logged in as admin: {user.email}</span>
+        </div>
       </header>
 
       <form

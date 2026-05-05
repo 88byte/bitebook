@@ -91,10 +91,10 @@ function planFor(row: {
 }
 
 // v27.6.0 — accounts list. Single query per data source, joined in JS
-// so we don't have to maintain a Postgres view. Three sources:
-//   1. profiles WHERE role IN ('guide','admin') — admin too because
-//      Flavio's own role was just flipped to 'admin' and we still
-//      want to see his row in the list.
+// so we don't have to maintain a Postgres view. Sources:
+//   1. profiles WHERE role = 'guide' — admins manage themselves via
+//      Settings; they don't belong in the guide-management table
+//      (v27.6.0.1).
 //   2. outfitter_subscriptions — keyed by guide_id (1:1).
 //   3. invitations COUNT WHERE status='accepted' — hunters per guide.
 //   4. auth.users — to surface email next to display_name.
@@ -105,7 +105,7 @@ export const fetchAdminAccounts = cache(async (): Promise<AdminAccountRow[]> => 
     admin
       .from('profiles')
       .select('id, display_name, first_name, last_name, phone, role, created_at')
-      .in('role', ['guide', 'admin'])
+      .eq('role', 'guide')
       .order('created_at', { ascending: false }),
     admin
       .from('outfitter_subscriptions')

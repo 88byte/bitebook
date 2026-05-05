@@ -56,12 +56,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
+  // v27.6.0.1 — surface "ADMIN" pill in the sidebar foot for admins
+  // so Flavio sees that the account is recognized as such. Pass-through
+  // for hunters/guides (renders nothing).
+  const isAdmin = profile.role === 'admin'
+
   return (
     <div className="bb-app-bg bb-app-shell">
-      {isHunter ? <HunterSidebar /> : <Sidebar />}
+      {isHunter ? <HunterSidebar /> : <Sidebar isAdmin={isAdmin} />}
       <div className="bb-app-content">
         <div className="bb-app-mobile-header">
-          {isHunter ? <HunterAppHeader /> : <AppHeader />}
+          {isHunter ? <HunterAppHeader /> : <AppHeader isAdmin={isAdmin} />}
         </div>
         {bannerReason && <BillingTierBanner reason={bannerReason} />}
         {lockedReason ? <LockedInterstitial reason={lockedReason} /> : children}

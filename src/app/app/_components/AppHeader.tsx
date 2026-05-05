@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { ShieldCheck } from 'lucide-react'
 import AppNav from './AppNav'
 import SignOutButton from './SignOutButton'
 import MobileNavMenu from './MobileNavMenu'
@@ -24,7 +25,13 @@ const GUIDE_DRAWER_ITEMS = [
 // Top bar shared across every /app screen. Active-state lives in the
 // client-only <AppNav/> via usePathname(), which lets this component stay a
 // Server Component so the rendered HTML is the same across reloads.
-export default function AppHeader() {
+//
+// v27.6.0.1 — `isAdmin` renders a small Mission Control link inline
+// next to the brand mark on the mobile header (only visible <1024px
+// since this component is hidden on desktop). Gives admins on
+// mobile a one-tap entry into /admin without going through the
+// drawer.
+export default function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <header className="bb-app-header">
       <div className="bb-app-header-inner">
@@ -48,6 +55,13 @@ export default function AppHeader() {
         </Link>
 
         <AppNav />
+
+        {isAdmin ? (
+          <Link href="/admin" className="bb-app-header-admin-pill" aria-label="Open Mission Control">
+            <ShieldCheck size={12} aria-hidden="true" />
+            <span>Admin</span>
+          </Link>
+        ) : null}
 
         <MobileNavMenu items={GUIDE_DRAWER_ITEMS}>
           <SignOutButton />
