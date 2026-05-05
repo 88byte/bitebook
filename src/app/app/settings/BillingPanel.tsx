@@ -1,42 +1,27 @@
-// v27.4.0 — Billing tab body. Server component.
+// v27.4.1 — native in-app billing UI. Replaces the v27.4.0 Stripe
+// Customer Portal redirect with:
+//   - Status header (status pill + plan + renewal/trial line +
+//     "Canceling on …" hint when cancel_at_period_end is true)
+//   - PaymentMethodCard (live card brand + last 4 + Replace via
+//     Stripe Elements SetupIntent flow)
+//   - InvoicesList (last 10 invoices, Stripe-hosted PDF links)
+//   - Conditional callouts for past_due / canceled / incomplete
 //
-// Reads outfitter_subscriptions for the current guide, renders a
-// status header (status pill + plan + renewal/trial date), and a
-// single "Manage payment & subscription" CTA that posts to the
-// `createBillingPortalAction` server action which redirects to the
-// Stripe-hosted Customer Portal. Stripe handles change-card, change-
-// plan (between bitebook_guide_monthly_v2 / annual_v2), cancel,
-// reactivate, and invoice history. On portal exit, Stripe returns
-// the user to /app/settings?tab=billing.
-//
-// Edge cases drive the rendered copy:
-//   - No outfitter_subscriptions row OR no stripe_customer_id →
-//     contact-support fallback.
-//   - status='past_due' → red "Payment failed" callout above the CTA.
-//   - status='canceled' → "Reactivate subscription" CTA copy + a
-//     read-only-account banner cue.
-//   - status='trialing' → trial end date shown; CTA copy unchanged
-//     (portal accepts adding a payment method during trial).
-//   - status='incomplete' / 'incomplete_expired' → "Restart signup"
-//     pointing back to /signup since the portal can't recover an
-//     incomplete subscription cleanly.
-//
-// All copy normalized to the v27.3.10.5 status-pill colors used
-// elsewhere (green / amber / red / gray).
+// Plan switch + cancel/reactivate ship in v27.4.2 — until then a
+// small "More billing actions" affordance still routes to the
+// Stripe Customer Portal so guides aren't blocked. v27.4.0's
+// portal action stays in actions.ts as the fallback.
 
 import Link from 'next/link'
 import { AlertCircle, CreditCard, Sparkles } from 'lucide-react'
-import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  loadGuideBillingDetail,
+  loadGuideInvoices,
+  type BillingDetail,
+} from '../_lib/billing-queries'
 import { createBillingPortalAction } from './actions'
-
-type Sub = {
-  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
-  billing_interval: 'month' | 'year' | null
-  current_period_end: string | null
-  trial_end: string | null
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
-}
+import PaymentMethodCard from './PaymentMethodCard'
+import InvoicesList from './InvoicesList'
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -49,7 +34,7 @@ function fmtDate(iso: string | null): string {
   })
 }
 
-function statusPillStyle(status: Sub['status']): React.CSSProperties {
+function statusPillStyle(status: BillingDetail['status'], cancelAtPeriodEnd: boolean): React.CSSProperties {
   const base: React.CSSProperties = {
     flexShrink: 0,
     fontSize: '0.7rem',
@@ -59,6 +44,13 @@ function statusPillStyle(status: Sub['status']): React.CSSProperties {
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
     whiteSpace: 'nowrap',
+  }
+  // A subscription that's still 'active' but pending cancellation
+  // reads differently from a healthy active one — show the canceling
+  // pill in the same gray as canceled so the visual cue matches the
+  // intent.
+  if (cancelAtPeriodEnd && (status === 'active' || status === 'trialing')) {
+    return { ...base, background: 'var(--color-card-divider)', color: 'var(--color-ink-muted)' }
   }
   if (status === 'active') {
     return { ...base, background: 'rgba(63, 107, 58, 0.14)', color: '#2F5A2A' }
@@ -72,11 +64,11 @@ function statusPillStyle(status: Sub['status']): React.CSSProperties {
   if (status === 'canceled') {
     return { ...base, background: 'var(--color-card-divider)', color: 'var(--color-ink-muted)' }
   }
-  // incomplete
   return { ...base, background: 'rgba(163, 61, 61, 0.14)', color: '#A33D3D' }
 }
 
-function statusLabel(status: Sub['status']): string {
+function statusLabel(status: BillingDetail['status'], cancelAtPeriodEnd: boolean): string {
+  if (cancelAtPeriodEnd && (status === 'active' || status === 'trialing')) return 'Canceling'
   if (status === 'active') return 'Active'
   if (status === 'trialing') return 'Trial'
   if (status === 'past_due') return 'Past due'
@@ -84,7 +76,7 @@ function statusLabel(status: Sub['status']): string {
   return 'Incomplete'
 }
 
-function planLabel(interval: Sub['billing_interval']): string {
+function planLabel(interval: BillingDetail['billing_interval']): string {
   if (interval === 'month') return 'Monthly · $9'
   if (interval === 'year') return 'Annual · $90'
   return 'Plan unknown'
@@ -113,17 +105,16 @@ export default async function BillingPanel({
   guideId: string
   billingError?: string | null
 }) {
-  // Use admin client to mirror the webhook + portal action — the
-  // outfitter_subscriptions row is the canonical source of truth and
-  // its RLS isn't gated on the same auth context as user reads.
-  const admin = createAdminClient()
-  const { data: sub } = await admin
-    .from('outfitter_subscriptions')
-    .select('status, billing_interval, current_period_end, trial_end, stripe_customer_id, stripe_subscription_id')
-    .eq('guide_id', guideId)
-    .maybeSingle<Sub>()
+  // Pull both reads in parallel — billing detail (sub row + live PM)
+  // and invoices (live Stripe call). Failures inside each helper are
+  // swallowed and return empty / null, so the panel renders even if
+  // Stripe is degraded.
+  const [detail, invoices] = await Promise.all([
+    loadGuideBillingDetail(guideId),
+    loadGuideInvoices(guideId, 10),
+  ])
 
-  if (!sub || !sub.stripe_customer_id) {
+  if (!detail) {
     return (
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
@@ -160,33 +151,24 @@ export default async function BillingPanel({
     )
   }
 
-  const isIncomplete = sub.status === 'incomplete'
-  const isCanceled = sub.status === 'canceled'
-  const isPastDue = sub.status === 'past_due'
-  const isTrialing = sub.status === 'trialing'
+  const isIncomplete = detail.status === 'incomplete'
+  const isCanceled = detail.status === 'canceled'
+  const isPastDue = detail.status === 'past_due'
+  const isTrialing = detail.status === 'trialing'
 
   const renewalLine = isTrialing
-    ? `Trial ends ${fmtDate(sub.trial_end)}`
+    ? `Trial ends ${fmtDate(detail.trial_end)}`
     : isCanceled
-      ? `Access ends ${fmtDate(sub.current_period_end)}`
-      : `Renews ${fmtDate(sub.current_period_end)}`
-
-  const ctaLabel = isCanceled
-    ? 'Reactivate subscription'
-    : isPastDue
-      ? 'Update payment method'
-      : isTrialing
-        ? 'Add payment method'
-        : 'Manage payment & subscription'
+      ? `Access ends ${fmtDate(detail.current_period_end)}`
+      : detail.cancel_at_period_end
+        ? `Canceling on ${fmtDate(detail.current_period_end)}`
+        : `Renews ${fmtDate(detail.current_period_end)}`
 
   return (
     <section className="bb-tile bb-form-section">
       <div className="bb-tile-body">
         <h2 className="bb-form-section-head" style={{ marginTop: 0 }}>Billing</h2>
 
-        {/* v27.4.0 — error banner from ?billing_error= query param.
-            Set by createBillingPortalAction when the portal session
-            create fails. */}
         {billingErrorMessage(billingError) && (
           <p
             className="bb-form-help"
@@ -217,9 +199,15 @@ export default async function BillingPanel({
             marginTop: '0.4rem',
           }}
         >
-          <span style={statusPillStyle(sub.status)}>{statusLabel(sub.status)}</span>
-          <strong style={{ color: 'var(--color-ink)' }}>{planLabel(sub.billing_interval)}</strong>
-          <span style={{ color: 'var(--color-ink-soft)', fontSize: '0.9rem' }}>· {renewalLine}</span>
+          <span style={statusPillStyle(detail.status, detail.cancel_at_period_end)}>
+            {statusLabel(detail.status, detail.cancel_at_period_end)}
+          </span>
+          <strong style={{ color: 'var(--color-ink)' }}>
+            {planLabel(detail.billing_interval)}
+          </strong>
+          <span style={{ color: 'var(--color-ink-soft)', fontSize: '0.9rem' }}>
+            · {renewalLine}
+          </span>
         </div>
 
         {/* Past-due callout */}
@@ -258,12 +246,20 @@ export default async function BillingPanel({
               color: 'var(--color-ink-muted)',
             }}
           >
-            Your subscription is canceled. You&rsquo;ll keep access until the date above. Reactivate
-            anytime to resume.
+            Your subscription is canceled. You&rsquo;ll keep access until the date above. Reactivation
+            ships in v27.4.2 — for now, contact{' '}
+            <a
+              href="mailto:support@lastbite.pro"
+              className="bb-text-action bb-text-action-copper"
+              style={{ display: 'inline', padding: 0 }}
+            >
+              support@lastbite.pro
+            </a>{' '}
+            to resume.
           </p>
         )}
 
-        {/* Incomplete-expired path: portal can't recover, send to signup. */}
+        {/* Incomplete-expired path */}
         {isIncomplete ? (
           <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             <Link
@@ -279,30 +275,43 @@ export default async function BillingPanel({
             </p>
           </div>
         ) : (
-          <form action={createBillingPortalAction} style={{ marginTop: '1rem' }}>
-            <button
-              type="submit"
-              className="bb-cta"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                width: '100%',
-                maxWidth: '24rem',
-              }}
-            >
-              <CreditCard size={16} aria-hidden="true" />
-              {ctaLabel}
-            </button>
-            <p
-              className="bb-form-help"
-              style={{ marginTop: '0.5rem', color: 'var(--color-ink-soft)' }}
-            >
-              You&rsquo;ll be redirected to Stripe&rsquo;s secure billing portal to change your card,
-              switch plans, view invoices, or cancel.
-            </p>
-          </form>
+          <>
+            {/* v27.4.1 — native card update via Stripe Elements. */}
+            <PaymentMethodCard paymentMethod={detail.default_payment_method} />
+
+            {/* v27.4.1 — invoice list with Stripe-hosted PDF links. */}
+            <InvoicesList invoices={invoices} />
+
+            {/* v27.4.1 — fallback CTA for billing actions still living in
+                the Stripe portal (cancel, switch plan). Removed in v27.4.2
+                once those flows ship in-app. Rendered as a small text link
+                so it doesn't dominate the panel. */}
+            <div style={{ marginTop: '1.25rem' }}>
+              <form action={createBillingPortalAction}>
+                <button
+                  type="submit"
+                  className="bb-text-action bb-text-action-copper"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    fontSize: '0.85rem',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <CreditCard size={13} aria-hidden="true" />
+                  More billing actions (cancel, switch plan) →
+                </button>
+              </form>
+              <p className="bb-form-help" style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--color-ink-soft)' }}>
+                Switch plan and cancel ship in-app in v27.4.2. Until then we open
+                Stripe&rsquo;s billing portal for those actions.
+              </p>
+            </div>
+          </>
         )}
       </div>
     </section>

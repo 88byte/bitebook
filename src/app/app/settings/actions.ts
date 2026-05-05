@@ -352,3 +352,152 @@ export async function createBillingPortalAction(_formData?: FormData): Promise<v
     redirect(`${origin}/app/settings?tab=billing&billing_error=portal_failed`)
   }
 }
+
+// ── v27.4.1 — Native billing UI: card update via Stripe Elements ──────────
+//
+// Two-step flow keeps card data Stripe-direct:
+//   1. createSetupIntentAction — server creates a SetupIntent for the
+//      guide's customer, returns the client secret. Client mounts
+//      Stripe Elements with the secret and confirms via stripe.js
+//      (card data never touches our servers; Stripe returns a
+//      PaymentMethod id).
+//   2. replacePaymentMethodAction(paymentMethodId) — server attaches
+//      the PaymentMethod to the customer, sets it as the customer's
+//      invoice_settings.default_payment_method AND the subscription's
+//      default_payment_method, then detaches the old PM (best-effort).
+//
+// outfitter_subscriptions doesn't track PM details — the source of
+// truth lives Stripe-side and the BillingPanel re-reads on each
+// render. Card update doesn't need a webhook handler; the existing
+// customer.subscription.updated webhook still fires and our row
+// stays in sync if anything else changes alongside.
+
+export type CreateSetupIntentResult =
+  | { ok: true; client_secret: string; customer_id: string }
+  | { error: string }
+
+export async function createSetupIntentAction(): Promise<CreateSetupIntentResult> {
+  const { user } = await requireGuide()
+
+  const admin = createAdminClient()
+  const { data: sub } = await admin
+    .from('outfitter_subscriptions')
+    .select('stripe_customer_id')
+    .eq('guide_id', user.id)
+    .maybeSingle()
+  if (!sub?.stripe_customer_id) {
+    return {
+      error: 'We can\'t find your billing account. Email support@lastbite.pro and we\'ll fix it.',
+    }
+  }
+
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+
+  try {
+    const intent = await stripe.setupIntents.create({
+      customer: sub.stripe_customer_id,
+      payment_method_types: ['card'],
+      // Off-session usage so future renewals can charge without a
+      // re-auth challenge. Stripe will still 3DS-verify the initial
+      // setup if the issuer requires it.
+      usage: 'off_session',
+      metadata: { supabase_user_id: user.id },
+    })
+    if (!intent.client_secret) {
+      return { error: 'Stripe did not return a setup secret. Try again.' }
+    }
+    return {
+      ok: true,
+      client_secret: intent.client_secret,
+      customer_id: sub.stripe_customer_id,
+    }
+  } catch (e) {
+    console.warn('[settings.createSetupIntentAction]', { message: (e as Error).message })
+    return { error: 'Could not start the card update. Try again.' }
+  }
+}
+
+export type ReplacePaymentMethodResult = { ok: true } | { error: string }
+
+export async function replacePaymentMethodAction(
+  paymentMethodId: string,
+): Promise<ReplacePaymentMethodResult> {
+  const { user } = await requireGuide()
+
+  if (!paymentMethodId || !paymentMethodId.startsWith('pm_')) {
+    return { error: 'Invalid payment method.' }
+  }
+
+  const admin = createAdminClient()
+  const { data: sub } = await admin
+    .from('outfitter_subscriptions')
+    .select('stripe_customer_id, stripe_subscription_id')
+    .eq('guide_id', user.id)
+    .maybeSingle()
+  if (!sub?.stripe_customer_id) {
+    return { error: 'We can\'t find your billing account. Email support@lastbite.pro.' }
+  }
+
+  let stripe
+  try {
+    stripe = getStripe()
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+
+  try {
+    // 1. Attach the new PM to the customer (idempotent if already attached).
+    await stripe.paymentMethods.attach(paymentMethodId, { customer: sub.stripe_customer_id })
+
+    // 2. Set as customer-level default — drives invoice billing on
+    //    new subscriptions and is the fallback when subscription-level
+    //    default isn't set.
+    await stripe.customers.update(sub.stripe_customer_id, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    })
+
+    // 3. Set as subscription-level default — guarantees the active
+    //    subscription's next invoice charges this PM. Also pull the
+    //    previous default so we can detach it (cleanup).
+    let previousPmId: string | null = null
+    if (sub.stripe_subscription_id) {
+      try {
+        const existing = await stripe.subscriptions.retrieve(sub.stripe_subscription_id)
+        const pm = existing.default_payment_method
+        if (pm && typeof pm === 'object' && 'id' in pm) {
+          previousPmId = (pm as { id: string }).id
+        } else if (typeof pm === 'string') {
+          previousPmId = pm
+        }
+      } catch {
+        // Non-fatal; we'll still update.
+      }
+      await stripe.subscriptions.update(sub.stripe_subscription_id, {
+        default_payment_method: paymentMethodId,
+      })
+    }
+
+    // 4. Best-effort detach old PM. Don't fail the action if this errors —
+    //    the new PM is already in place.
+    if (previousPmId && previousPmId !== paymentMethodId) {
+      try {
+        await stripe.paymentMethods.detach(previousPmId)
+      } catch (e) {
+        console.warn('[settings.replacePaymentMethodAction:detach]', {
+          message: (e as Error).message,
+        })
+      }
+    }
+
+    revalidatePath('/app/settings')
+    return { ok: true }
+  } catch (e) {
+    console.warn('[settings.replacePaymentMethodAction]', { message: (e as Error).message })
+    return { error: 'Could not save the new card. Try again.' }
+  }
+}
