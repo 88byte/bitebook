@@ -8,6 +8,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireGuide, requireUser } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import { createClient } from '@/lib/supabase/server'
 
 export type ActionResult = { ok: true } | { error: string }
@@ -50,6 +51,8 @@ export async function attachDocToTripAction(
   hunterVisible: boolean
 ): Promise<ActionResult & { id?: string }> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!tripId || !docId) return { error: 'Missing trip or doc id.' }
 
   const sb = await createClient()
@@ -98,6 +101,8 @@ export async function attachDocToTripAction(
 
 export async function detachDocFromTripAction(tripDocId: string): Promise<ActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!tripDocId) return { error: 'Missing trip-doc id.' }
 
   const sb = await createClient()
@@ -126,6 +131,8 @@ export async function setTripDocVisibilityAction(
   hunterVisible: boolean
 ): Promise<ActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!tripDocId) return { error: 'Missing trip-doc id.' }
 
   const sb = await createClient()
@@ -156,6 +163,8 @@ export async function assignHunterActionAction(
   required: boolean
 ): Promise<ActionResult & { id?: string }> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!tripDocId || !hunterId) return { error: 'Missing trip-doc or hunter id.' }
   if (!isActionType(actionType)) return { error: 'Invalid action type.' }
 
@@ -216,6 +225,8 @@ export async function assignHunterActionAction(
 
 export async function unassignHunterActionAction(actionId: string): Promise<ActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!actionId) return { error: 'Missing action id.' }
 
   const sb = await createClient()
@@ -252,7 +263,9 @@ export async function completeHunterActionAction(
   actionId: string,
   completedData?: Record<string, unknown> | null
 ): Promise<ActionResult> {
-  const { user } = await requireUser()
+  const { user, profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!actionId) return { error: 'Missing action id.' }
 
   const sb = await createClient()

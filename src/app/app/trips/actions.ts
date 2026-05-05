@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from '../_lib/auth'
+import { assertWriteAllowed } from '../_lib/billing-tier'
 import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
 import { ensureHarvestLog } from '../_lib/harvest-log-queries'
 import { markStepDone } from '../_lib/onboarding'
@@ -17,6 +18,10 @@ type Kind = Database['public']['Enums']['harvest_kind']
 // .eq('guide_id', guideId) as defense-in-depth.
 export async function createTripAction(formData: FormData) {
   const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) {
+    redirect('/app/settings?tab=billing&billing_error=read_only')
+  }
 
   const title = String(formData.get('title') ?? '').trim()
   const kind = (String(formData.get('kind') ?? 'hunting').trim() as Kind)
@@ -96,6 +101,10 @@ export async function createTripAction(formData: FormData) {
 
 export async function closeTripAction(formData: FormData) {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) {
+    redirect('/app/settings?tab=billing&billing_error=read_only')
+  }
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) throw new Error('Missing trip id.')
 

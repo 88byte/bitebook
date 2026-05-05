@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { requireGuide } from '../_lib/auth'
+import { assertWriteAllowed } from '../_lib/billing-tier'
 import { markStepDone } from '../_lib/onboarding'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -77,6 +78,8 @@ async function findExistingAuthUser(emailLower: string): Promise<AdminUser | nul
 // pointing at /login. This avoids forcing the hunter to re-register.
 export async function inviteHunterAction(formData: FormData): Promise<InviteActionResult> {
   const { user, profile, guide } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
 
@@ -240,6 +243,8 @@ export type CancelInviteResult = { ok: true } | { error: string }
 // reject the token (anything not 'pending' is treated as unusable).
 export async function cancelInviteAction(formData: FormData): Promise<CancelInviteResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const inviteId = String(formData.get('invite_id') ?? '').trim()
   if (!inviteId) return { error: 'Missing invite id.' }
@@ -300,6 +305,8 @@ export type RemoveHunterResult = { ok: true } | { error: string }
 // create a fresh invitations row.
 export async function removeHunterAction(formData: FormData): Promise<RemoveHunterResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const inviteId = String(formData.get('invite_id') ?? '').trim()
   if (!inviteId) return { error: 'Missing invite id.' }
@@ -358,6 +365,8 @@ export type ResendInviteResult =
 // also reflects the cooldown locally for instant feedback.
 export async function resendInviteAction(formData: FormData): Promise<ResendInviteResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const inviteId = String(formData.get('invite_id') ?? '').trim()
   if (!inviteId) return { error: 'Missing invite id.' }

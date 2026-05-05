@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getGuideTier } from '@/app/app/_lib/billing-tier'
 
 // v27.1.5.0 — onboarding consolidation. The accept-invite route now also
 // captures address + license + (optional) tag in the same submit.
@@ -96,6 +97,25 @@ export async function POST(request: Request) {
   if (new Date(invite.expires_at) < new Date()) {
     await admin.from('invitations').update({ status: 'expired' }).eq('id', invite.id)
     return NextResponse.json({ error: 'Invite expired.' }, { status: 410 })
+  }
+
+  // v27.4.3 — block accept-invite when the inviting guide's subscription
+  // has lapsed. The invite link can be days/weeks old; the guide may
+  // have canceled or fallen into past_due since they sent it. A hunter
+  // who creates a Bite Book account for a guide that's no longer active
+  // would land on an empty dashboard with no clear path forward, so we
+  // refuse the signup and tell them to reach out to the guide. We
+  // tolerate the inviting guide being read_only OR locked; the only
+  // tier that lets accept proceed is 'full'.
+  const guideTier = await getGuideTier(invite.guide_id)
+  if (guideTier.tier !== 'full') {
+    return NextResponse.json(
+      {
+        error:
+          "This invite is from a guide whose Bite Book account is no longer active. Please reach out to your guide directly — once they restart their subscription, they can resend the invite.",
+      },
+      { status: 410 },
+    )
   }
 
   // Create the auth user with the chosen password, email pre-confirmed.

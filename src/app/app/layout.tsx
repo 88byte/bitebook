@@ -1,8 +1,12 @@
+import { headers } from 'next/headers'
 import { requireUser } from './_lib/auth'
+import { getGuideTier } from './_lib/billing-tier'
 import AppHeader from './_components/AppHeader'
 import HunterAppHeader from './_components/HunterAppHeader'
 import Sidebar from './_components/Sidebar'
 import HunterSidebar from './_components/HunterSidebar'
+import BillingTierBanner from './_components/BillingTierBanner'
+import LockedInterstitial from './_components/LockedInterstitial'
 
 // Shared shell for /app/* routes.
 //
@@ -12,15 +16,45 @@ import HunterSidebar from './_components/HunterSidebar'
 // layouts, so hunters saw BOTH shells stacked. We now read the role here and
 // pick the correct shell once. /app/h/layout.tsx is a pass-through.
 //
-// Auth gate at the page level still runs (each page calls
-// requireGuide / requireHunter) which enforces the route's role and handles
-// the loop-safe redirect targets. requireUser here just yields the profile
-// so we know which shell to render; if the user is unauthed it redirects to
-// /login?next=/app (the page-level gate then refines next on its own redirect
-// chain if needed).
+// v27.4.3: subscription-tier gating. For guides we pull getGuideTier() (DB
+// read deduped via React cache so action-level callers don't re-query)
+// and:
+//   - read_only (past_due / canceled) → render BillingTierBanner above
+//     children. Children still render so existing trips/reports stay
+//     viewable; the action-level gate blocks writes.
+//   - locked (incomplete / no_row) → swap children for LockedInterstitial
+//     UNLESS we're inside /app/settings (so they can fix billing) or
+//     /app/support (so they can email us). The path comes via the
+//     x-bb-pathname header set by proxy.ts.
+//
+// Hunters are never tier-gated here. Their access depends on the
+// inviting guide's tier, enforced separately in accept-invite/route.ts.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await requireUser()
   const isHunter = profile.role === 'hunter'
+
+  let bannerReason: 'past_due' | 'canceled' | 'no_row' | null = null
+  let lockedReason: 'incomplete' | 'no_row' | null = null
+
+  if (!isHunter) {
+    const tier = await getGuideTier(profile.id)
+    if (tier.tier === 'read_only') {
+      bannerReason = tier.reason === 'past_due' || tier.reason === 'canceled'
+        ? tier.reason
+        : null
+    } else if (tier.tier === 'locked') {
+      const h = await headers()
+      const pathname = h.get('x-bb-pathname') ?? ''
+      const isEscapeHatch =
+        pathname.startsWith('/app/settings') ||
+        pathname.startsWith('/app/support')
+      if (!isEscapeHatch) {
+        lockedReason = tier.reason === 'incomplete' || tier.reason === 'no_row'
+          ? tier.reason
+          : 'incomplete'
+      }
+    }
+  }
 
   return (
     <div className="bb-app-bg bb-app-shell">
@@ -29,7 +63,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="bb-app-mobile-header">
           {isHunter ? <HunterAppHeader /> : <AppHeader />}
         </div>
-        {children}
+        {bannerReason && <BillingTierBanner reason={bannerReason} />}
+        {lockedReason ? <LockedInterstitial reason={lockedReason} /> : children}
       </div>
     </div>
   )

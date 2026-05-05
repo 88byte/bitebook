@@ -21,6 +21,7 @@ import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField, type PDFImage } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import { resolvePlacements, computeDrawPosition, type MappingRow } from './signature-placement'
 
 export type SignWaiverResult =
@@ -47,6 +48,8 @@ export async function signWaiverAction(
   signatureDataUrl: string
 ): Promise<SignWaiverResult> {
   const { user, profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!tripDocActionId) return { error: 'Missing action id.' }
   if (!signatureDataUrl) return { error: 'Missing signature.' }
   if (signatureDataUrl.length > 2_000_000) {
@@ -253,6 +256,8 @@ export async function signWaiverAsGuideAction(
   signatureDataUrl: string
 ): Promise<SignWaiverResult> {
   const { user, profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!tripDocId) return { error: 'Missing trip-doc id.' }
   if (!signatureDataUrl) return { error: 'Missing signature.' }
   if (signatureDataUrl.length > 2_000_000) {

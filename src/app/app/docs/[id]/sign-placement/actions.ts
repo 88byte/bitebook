@@ -24,6 +24,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from '../../../_lib/auth'
+import { assertWriteAllowed } from '../../../_lib/billing-tier'
 
 type SignerRole = 'hunter' | 'guide'
 
@@ -45,6 +46,8 @@ export async function savePlacementsAction(
   placements: WizardPlacement[]
 ): Promise<SavePlacementsResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
 
   const sb = await createClient()

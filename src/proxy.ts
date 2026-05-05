@@ -24,6 +24,11 @@ function redirectWithCookies(url: URL, supabaseResponse: NextResponse) {
 }
 
 export async function proxy(request: NextRequest) {
+  // v27.4.3 — forward the pathname into the request so /app/layout.tsx
+  // can read it via headers() and apply tier gating without re-parsing.
+  // Set on the request before constructing supabaseResponse so RSC reads
+  // pick it up.
+  request.headers.set('x-bb-pathname', request.nextUrl.pathname)
   let supabaseResponse = NextResponse.next({ request })
   const remember = request.cookies.get(REMEMBER_COOKIE)?.value === '1'
 

@@ -8,6 +8,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { isValidMethod } from '@/lib/methods'
@@ -28,6 +29,8 @@ export async function saveTripAsTemplateAction(
   label: string
 ): Promise<SaveTripAsTemplateResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const trimmed = (label ?? '').trim()
   if (!tripId) return { error: 'Missing trip id.' }
   if (!trimmed) return { error: 'Template name is required.' }
@@ -108,6 +111,10 @@ export async function saveTripAsTemplateAction(
 // caller. Linked docs auto-attach to the new trip via trip_docs.
 export async function createTripFromTemplateAction(formData: FormData) {
   const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) {
+    redirect('/app/settings?tab=billing&billing_error=read_only')
+  }
   const templateId = String(formData.get('template_id') ?? '').trim()
   const title = String(formData.get('title') ?? '').trim()
   const startsAt = String(formData.get('starts_at') ?? '').trim()
@@ -253,6 +260,8 @@ export type UpdateTripTemplateResult = { ok: true } | { error: string }
 
 export async function updateTripTemplateAction(formData: FormData): Promise<UpdateTripTemplateResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const templateId = String(formData.get('template_id') ?? '').trim()
   if (!templateId) return { error: 'Missing template id.' }
 
@@ -297,6 +306,8 @@ export async function updateTripTemplateAction(formData: FormData): Promise<Upda
 
 export async function archiveTripTemplateAction(templateId: string): Promise<UpdateTripTemplateResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!templateId) return { error: 'Missing template id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -312,6 +323,8 @@ export async function archiveTripTemplateAction(templateId: string): Promise<Upd
 
 export async function unarchiveTripTemplateAction(templateId: string): Promise<UpdateTripTemplateResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!templateId) return { error: 'Missing template id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -327,6 +340,8 @@ export async function unarchiveTripTemplateAction(templateId: string): Promise<U
 
 export async function deleteTripTemplateAction(templateId: string): Promise<UpdateTripTemplateResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!templateId) return { error: 'Missing template id.' }
   const sb = await createClient()
   const { error } = await sb

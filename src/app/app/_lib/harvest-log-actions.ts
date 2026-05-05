@@ -16,6 +16,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireGuide } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import { createClient } from '@/lib/supabase/server'
 import { ensureHarvestLog } from './harvest-log-queries'
 import type { TablesUpdate } from '@/lib/supabase/types'
@@ -43,6 +44,8 @@ export async function generateHarvestLogAction(
   tripId: string
 ): Promise<HarvestLogActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const res = await ensureHarvestLog(tripId, profile.id)
   if ('error' in res) return res
 
@@ -57,7 +60,9 @@ export async function generateHarvestLogAction(
 export async function updateHarvestLogAction(
   formData: FormData
 ): Promise<{ ok: true } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const logId = String(formData.get('log_id') ?? '').trim()
   if (!logId) return { error: 'Missing log id.' }
 
@@ -96,7 +101,9 @@ export async function updateHarvestLogAction(
 export async function updateHarvestLogEntryAction(
   formData: FormData
 ): Promise<{ ok: true } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const entryId = String(formData.get('entry_id') ?? '').trim()
   if (!entryId) return { error: 'Missing entry id.' }
@@ -166,6 +173,8 @@ export async function deleteHarvestLogAction(
   logId: string
 ): Promise<DeleteHarvestLogResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!logId) return { error: 'Missing log id.' }
 
   const sb = await createClient()
@@ -207,7 +216,9 @@ export async function deleteHarvestLogAndRedirectAction(
 export async function addEntrySpeciesAction(
   entryId: string
 ): Promise<{ ok: true; id: string } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!entryId) return { error: 'Missing entry id.' }
   const sb = await createClient()
 
@@ -259,7 +270,9 @@ export async function addEntrySpeciesAction(
 export async function createEntrySpeciesAction(
   formData: FormData
 ): Promise<{ ok: true; id: string } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const entryId = String(formData.get('entry_id') ?? '').trim()
   if (!entryId) return { error: 'Missing entry id.' }
 
@@ -321,7 +334,9 @@ export async function createEntrySpeciesAction(
 export async function updateEntrySpeciesAction(
   formData: FormData
 ): Promise<{ ok: true } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const speciesId = String(formData.get('species_id') ?? '').trim()
   if (!speciesId) return { error: 'Missing species row id.' }
 
@@ -376,7 +391,9 @@ export async function setEntryUserInputAction(
   mappingFieldName: string,
   value: string
 ): Promise<{ ok: true } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const id = String(entryId ?? '').trim()
   const field = String(mappingFieldName ?? '').trim()
   if (!id) return { error: 'Missing entry id.' }
@@ -405,7 +422,9 @@ export async function setEntryUserInputAction(
 export async function removeEntrySpeciesAction(
   speciesId: string
 ): Promise<{ ok: true } | { error: string }> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!speciesId) return { error: 'Missing species row id.' }
   const sb = await createClient()
   const { error } = await sb.from('harvest_log_entry_species').delete().eq('id', speciesId)

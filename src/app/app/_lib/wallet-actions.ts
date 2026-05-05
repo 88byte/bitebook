@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
 
 type WalletItemType = Database['public']['Enums']['wallet_item_type']
@@ -151,6 +152,8 @@ function revalidateAfterWalletChange(role: 'guide' | 'hunter' | 'admin' | string
 
 export async function addWalletItemAction(formData: FormData): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   const get = readForm(formData)
   const parsed = parseRequired(get)
   if (!parsed.ok) return { error: parsed.error }
@@ -208,6 +211,8 @@ export async function addWalletItemAction(formData: FormData): Promise<WalletAct
 
 export async function updateWalletItemAction(formData: FormData): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   const itemId = String(formData.get('item_id') ?? '').trim()
   if (!itemId) return { error: 'Missing item id.' }
 
@@ -282,6 +287,8 @@ export async function updateWalletItemAction(formData: FormData): Promise<Wallet
 
 export async function archiveWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -299,6 +306,8 @@ export async function archiveWalletItemAction(itemId: string): Promise<WalletAct
 
 export async function restoreWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -320,6 +329,8 @@ export async function restoreWalletItemAction(itemId: string): Promise<WalletAct
 // next render. Only valid for items of type 'tag'.
 export async function tagOutWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
   // Verify item exists, is owned, and is a tag.
@@ -358,6 +369,8 @@ export async function tagOutWalletItemAction(itemId: string): Promise<WalletActi
 // Updated to scan harvest_log_entries.tag_wallet_item_id instead.
 export async function untagWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
   // Block if a harvest_log_entry currently consumes this tag.
@@ -390,6 +403,8 @@ export async function untagWalletItemAction(itemId: string): Promise<WalletActio
 
 export async function bulkArchiveExpiredAction(type: WalletItemType): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!ALL_TYPES.includes(type)) return { error: 'Invalid type.' }
   const today = new Date().toISOString().slice(0, 10)
   const sb = await createClient()
@@ -410,6 +425,8 @@ export async function bulkArchiveExpiredAction(type: WalletItemType): Promise<Wa
 
 export async function deleteWalletItemAction(itemId: string): Promise<WalletActionResult> {
   const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!itemId) return { error: 'Missing item id.' }
   const sb = await createClient()
   // v27.0a policy: only allow hard delete on archived rows. Active rows go

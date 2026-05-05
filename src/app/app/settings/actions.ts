@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireGuide } from '../_lib/auth'
+import { assertWriteAllowed } from '../_lib/billing-tier'
 import { markStepDone } from '../_lib/onboarding'
 import { US_STATES } from '@/lib/us-states'
 import { createClient } from '@/lib/supabase/server'
@@ -31,7 +32,9 @@ export type EmailChangeResult =
 // Server action for /app/settings. RLS gates write to the row owned by
 // auth.uid(); .eq('user_id', user.id) is defense-in-depth.
 export async function updateGuideProfileAction(formData: FormData): Promise<SettingsActionResult> {
-  const { user } = await requireGuide()
+  const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   // Identity (profiles.*)
   const first_name = String(formData.get('first_name') ?? '').trim().slice(0, 80)
@@ -171,7 +174,9 @@ export async function updateGuideProfileAction(formData: FormData): Promise<Sett
 // emails a confirmation link to the NEW address. Until the user clicks that
 // link the existing email keeps working.
 export async function requestEmailChangeAction(formData: FormData): Promise<EmailChangeResult> {
-  await requireGuide()
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const newEmail = String(formData.get('new_email') ?? '').trim().toLowerCase()
   const confirmEmail = String(formData.get('confirm_email') ?? '').trim().toLowerCase()
@@ -213,7 +218,9 @@ function signaturePathFor(userId: string): string {
 }
 
 export async function saveDefaultSignatureAction(dataUrl: string): Promise<SignatureDefaultResult> {
-  const { user } = await requireGuide()
+  const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
     return { error: 'Signature image must be a PNG data URL.' }
   }
@@ -255,7 +262,9 @@ export async function saveDefaultSignatureAction(dataUrl: string): Promise<Signa
 }
 
 export async function clearDefaultSignatureAction(): Promise<SettingsActionResult> {
-  const { user } = await requireGuide()
+  const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const supabase = await createClient()
   const path = signaturePathFor(user.id)
   // Best-effort delete — RLS already gates by auth.uid(), no user_id

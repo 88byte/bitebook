@@ -33,6 +33,7 @@ import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import {
   resolvePlacements,
   computeDrawPosition,
@@ -65,6 +66,8 @@ export async function signHarvestLogPdfAction(
   signatureDataUrl: string
 ): Promise<SignHarvestLogResult> {
   const { profile, user } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
   if (!generatedLogId) return { error: 'Missing generated log id.' }
   if (!signatureDataUrl) return { error: 'Missing signature.' }
   if (signatureDataUrl.length > 2_000_000) {

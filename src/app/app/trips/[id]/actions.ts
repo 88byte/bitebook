@@ -7,6 +7,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireGuide } from '../../_lib/auth'
+import { assertWriteAllowed } from '../../_lib/billing-tier'
 import {
   insertTripParticipants,
   syncTripParticipants,
@@ -33,6 +34,8 @@ export async function syncTripParticipantsAction(
   hunterIds: string[]
 ): Promise<{ ok: true } | { error: string }> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!tripId) return { error: 'Missing trip id.' }
 
   const sb = await createClient()
@@ -70,6 +73,8 @@ export async function addTripParticipantsAction(
   formData: FormData
 ): Promise<AddParticipantsResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const tripId = String(formData.get('trip_id') ?? '').trim()
   const hunterIds = formData
@@ -123,6 +128,8 @@ export type UpdateTripResult = { ok: true } | { error: string }
 
 export async function updateTripAction(formData: FormData): Promise<UpdateTripResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
 
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) return { error: 'Missing trip id.' }
@@ -188,6 +195,8 @@ export type ReopenTripResult = { ok: true } | { error: string }
 
 export async function reopenTripAction(formData: FormData): Promise<ReopenTripResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) return { error: 'Missing trip id.' }
 
@@ -207,6 +216,8 @@ export type CancelTripResult = { ok: true } | { error: string }
 
 export async function cancelTripAction(formData: FormData): Promise<CancelTripResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) return { error: 'Missing trip id.' }
 
@@ -235,6 +246,8 @@ export type WrapUpTripResult = { ok: true } | { error: string }
 
 export async function wrapUpTripAction(formData: FormData): Promise<WrapUpTripResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const tripId = String(formData.get('trip_id') ?? '').trim()
   if (!tripId) return { error: 'Missing trip id.' }
 

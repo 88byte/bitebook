@@ -16,6 +16,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireGuide } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import { createClient } from '@/lib/supabase/server'
 import { PDFDocument, PDFTextField, PDFCheckBox, PDFRadioGroup, PDFDropdown } from 'pdf-lib'
 import {
@@ -408,6 +409,8 @@ export async function generateFilledHarvestLogPDFsAction(
   acknowledgeBlanks?: boolean
 ): Promise<GenerateFilledLogResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!logId || !docId) return { error: 'Missing log or doc id.' }
   // v27.1.4.0.1: optional guide-supplied report name. Empty/undefined →
   // fall through to the auto-generated `{trip.title} — {doc.label}`
@@ -1224,6 +1227,8 @@ export async function renameTripGeneratedLogAction(
   newName: string
 ): Promise<{ ok: true } | { error: string }> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!generatedLogId) return { error: 'Missing generated log id.' }
   const trimmed = (newName ?? '').trim()
   if (!trimmed) return { error: 'Report name cannot be empty.' }
@@ -1261,6 +1266,8 @@ export async function deleteTripGeneratedLogAction(
   generatedLogId: string
 ): Promise<{ ok: true } | { error: string }> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!generatedLogId) return { error: 'Missing generated log id.' }
 
   const sb = await createClient()

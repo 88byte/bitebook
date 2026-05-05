@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireGuide } from './auth'
+import { assertWriteAllowed } from './billing-tier'
 import type { Database, TablesInsert, TablesUpdate } from '@/lib/supabase/types'
 import {
   PDFDocument,
@@ -155,6 +156,8 @@ function readForm(fd: FormData) {
 // stays clean (`docs/{guide_id}/{doc_id}.pdf`).
 export async function createDocAction(fd: FormData): Promise<DocActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const get = readForm(fd)
 
   const kindRaw = get('kind')
@@ -238,6 +241,8 @@ export async function createDocAction(fd: FormData): Promise<DocActionResult> {
 
 export async function updateDocAction(fd: FormData): Promise<DocActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const get = readForm(fd)
 
   const docId = get('doc_id')
@@ -289,6 +294,8 @@ export async function updateDocAction(fd: FormData): Promise<DocActionResult> {
 
 export async function archiveDocAction(docId: string): Promise<DocActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -307,6 +314,8 @@ export async function archiveDocAction(docId: string): Promise<DocActionResult> 
 
 export async function restoreDocAction(docId: string): Promise<DocActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
   const sb = await createClient()
   const { error } = await sb
@@ -329,6 +338,8 @@ export async function restoreDocAction(docId: string): Promise<DocActionResult> 
 
 export async function deleteDocAction(docId: string): Promise<DocActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
 
   const sb = await createClient()
@@ -423,6 +434,8 @@ export type ReplaceDocResult =
 
 export async function replaceDocPdfAction(fd: FormData): Promise<ReplaceDocResult> {
   const { profile, user } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const get = readForm(fd)
 
   const docId = get('doc_id')
@@ -531,6 +544,8 @@ export type BulkDocsActionResult =
 
 export async function bulkArchiveDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
   if (ids.length === 0) return { error: 'No docs selected.' }
 
@@ -554,6 +569,8 @@ export async function bulkArchiveDocsAction(docIds: string[]): Promise<BulkDocsA
 // rows are archived the bar swaps Archive → Restore.
 export async function bulkRestoreDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
   if (ids.length === 0) return { error: 'No docs selected.' }
 
@@ -574,6 +591,8 @@ export async function bulkRestoreDocsAction(docIds: string[]): Promise<BulkDocsA
 
 export async function bulkDeleteDocsAction(docIds: string[]): Promise<BulkDocsActionResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   const ids = (docIds ?? []).filter((s) => typeof s === 'string' && s.length > 0)
   if (ids.length === 0) return { error: 'No docs selected.' }
 
@@ -693,6 +712,8 @@ export async function setDocTemplateFlagAction(
   makeTemplate: boolean
 ): Promise<DocActionResult> {
   const { user, profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
 
   if ((user.email ?? '').toLowerCase() !== TEMPLATE_ADMIN_EMAIL) {
@@ -899,6 +920,8 @@ export async function saveDocMappingsAction(
   mappings: MappingInput[]
 ): Promise<SaveMappingsResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
   if (!Array.isArray(mappings)) return { error: 'Bad mappings payload.' }
 
@@ -1165,6 +1188,8 @@ export async function markMappingCompleteAction(
   complete: boolean
 ): Promise<MarkMappingResult> {
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
 
   const sb = await createClient()
@@ -1225,6 +1250,8 @@ export async function suggestMappingsAction(
     }
   }
   const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
   if (!docId) return { error: 'Missing doc id.' }
 
   const sb = await createClient()
