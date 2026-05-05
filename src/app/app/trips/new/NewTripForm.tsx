@@ -110,29 +110,22 @@ export default function NewTripForm({
           the FormData. */}
       {templateId && <input type="hidden" name="template_id" value={templateId} />}
 
-      {/* BASICS */}
+      {/* TRIP OVERVIEW — v27.6.2: matches /app/trips/[id]
+          TripDetailEditor's layout. Activity (compact segmented) at
+          the top, Trip name, then Start/End dates 2-col. Replaces
+          the prior split Basics + Dates sections so Create-trip
+          reads as a stripped-down trip detail. */}
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Basics</h2>
-          <div className="bb-form-row">
-            <label className="bb-form-label" htmlFor="title">Trip name</label>
-            <label className="bb-field">
-              <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
-              <input
-                id="title"
-                name="title"
-                type="text"
-                required
-                placeholder="Spring black bear · Reyes party"
-                className="bb-input bb-input-iconed"
-                autoComplete="off"
-              />
-            </label>
-          </div>
+          <h2 className="bb-form-section-head">Trip overview</h2>
 
-          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+          <div className="bb-form-row" style={{ marginTop: '0.6rem' }}>
             <span className="bb-form-label">Activity</span>
-            <div className="bb-segmented" role="radiogroup" aria-label="Activity">
+            <div
+              className="bb-segmented bb-segmented-compact"
+              role="radiogroup"
+              aria-label="Activity"
+            >
               <label>
                 <input
                   type="radio"
@@ -155,20 +148,30 @@ export default function NewTripForm({
               </label>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* DATES */}
-      <section className="bb-tile bb-form-section">
-        <div className="bb-tile-body">
-          <h2 className="bb-form-section-head">Dates</h2>
-          <div className="bb-form-grid-2">
-            <div className="bb-form-row">
-              <span className="bb-form-label">Start</span>
+          <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+            <label className="bb-form-label" htmlFor="title">Trip name</label>
+            <label className="bb-field">
+              <span className="bb-field-icon"><FileText size={18} aria-hidden="true" /></span>
+              <input
+                id="title"
+                name="title"
+                type="text"
+                required
+                placeholder="Spring black bear · Reyes party"
+                className="bb-input bb-input-iconed"
+                autoComplete="off"
+              />
+            </label>
+          </div>
+
+          <div className="bb-form-grid-2" style={{ marginTop: '0.75rem' }}>
+            <div className="bb-form-row" style={{ marginBottom: 0 }}>
+              <span className="bb-form-label">Start date</span>
               <DateTimeField name="starts_at" required ariaLabel="Start date and time" />
             </div>
-            <div className="bb-form-row">
-              <span className="bb-form-label">End <span style={{ opacity: 0.6 }}>(optional)</span></span>
+            <div className="bb-form-row" style={{ marginBottom: 0 }}>
+              <span className="bb-form-label">End date <span style={{ opacity: 0.6 }}>(optional)</span></span>
               <DateTimeField name="ends_at" ariaLabel="End date and time" />
             </div>
           </div>

@@ -276,7 +276,7 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
                   <Bookmark size={14} />
                 </span>
                 <span className="bb-net-section-title">
-                  {status === 'all' ? 'Active trips' : (STATUSES.find((s) => s.key === status)?.label ?? 'Trips')}
+                  {status === 'all' ? 'All trips' : (STATUSES.find((s) => s.key === status)?.label ?? 'Trips')}
                 </span>
               </div>
               {rows.length === 0 ? (

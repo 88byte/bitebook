@@ -429,14 +429,14 @@ export async function fetchTripsPage(
     .eq('guide_id', guideId)
     .order('starts_at', { ascending: false })
     .range(opts.from, opts.to)
-  // v27.3.3.2: 'all' filter now excludes WRAPPED + CANCELED trips.
-  // Wrapped/done trips live in the Recent column on /app/trips; the
-  // main column with chip='all' is the OPEN trips view (planned +
-  // active). Pass status='completed' or 'canceled' explicitly via
-  // chip to surface those.
-  if (opts.status === 'all') {
-    query = query.in('status', ['planned', 'active'])
-  } else {
+  // v27.3.3.2 (rolled back v27.6.2): "all" used to mean planned +
+  // active only because wrapped trips lived in a Recent rail. v27.5.0.5
+  // replaced that rail with a calendar, and "all" reading as "open
+  // trips" was confusing — Flavio: "in trips page, 'all' pill is only
+  // showing active. It should show all." So now "all" is literally
+  // every status. Specific chips (Planned / Active / Done / Canceled)
+  // still narrow to one status.
+  if (opts.status !== 'all') {
     query = query.eq('status', opts.status)
   }
   const { data, count, error } = await query
@@ -476,9 +476,9 @@ export async function fetchTripsInRange(
     .lte('starts_at', toIso)
     .or(`ends_at.gte.${fromIso},and(ends_at.is.null,starts_at.gte.${fromIso})`)
     .order('starts_at', { ascending: true })
-  if (status === 'all') {
-    query = query.in('status', ['planned', 'active'])
-  } else {
+  // v27.6.2: 'all' = every status (matches the cards list filter).
+  // Chip-narrowed views fall through to the single-status branch.
+  if (status !== 'all') {
     query = query.eq('status', status)
   }
   const { data, error } = await query

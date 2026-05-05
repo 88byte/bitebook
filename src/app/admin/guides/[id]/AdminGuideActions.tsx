@@ -8,6 +8,19 @@ type SubStatus = Database['public']['Enums']['subscription_status']
 
 const STATUS_OPTIONS: SubStatus[] = ['trialing', 'active', 'past_due', 'canceled', 'incomplete']
 
+// v27.6.2 — per-status helper copy. Each describes the visible
+// effect on the guide's /app experience when that status is set
+// via this DB-only test override. Stripe state stays unchanged
+// regardless — useful for sanity-checking the v27.4.3 banners +
+// LockedInterstitial without touching billing.
+const STATUS_HELPER: Record<SubStatus, string> = {
+  trialing:   'Test mode: shows the guide as on trial. /app loads normally; banner reads "Trial — N days left" if trial_end is set.',
+  active:     'Test mode: shows the guide as an active subscriber with full app access. No banners.',
+  past_due:   'Test mode: triggers the read-only banner ("Subscription past due"). All write actions (creating trips, hunters, harvests) are blocked.',
+  canceled:   'Test mode: triggers the canceled banner ("Subscription ended"). Write actions blocked, account read-only.',
+  incomplete: 'Test mode: triggers the locked interstitial. Used for accounts that started signup but never confirmed payment — guide can only reach /app/settings or /app/support.',
+}
+
 // v27.6.0 — Action panel on /admin/guides/[id].
 //
 // Three live actions:
@@ -99,20 +112,27 @@ export default function AdminGuideActions({
           <strong>Flip subscription status</strong>
           <span className="bb-form-help">Test override — Stripe state unchanged.</span>
         </div>
-        <div className="bb-admin-action-control">
-          <select
-            value={pickedStatus}
-            onChange={(e) => setPickedStatus(e.target.value as SubStatus)}
-            className="bb-input"
-            disabled={pending}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <button type="button" onClick={runFlip} disabled={pending || pickedStatus === currentStatus} className="bb-btn-secondary">
-            Apply
-          </button>
+        <div className="bb-admin-action-control" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <select
+              value={pickedStatus}
+              onChange={(e) => setPickedStatus(e.target.value as SubStatus)}
+              className="bb-input"
+              disabled={pending}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s === 'incomplete' ? 'incomplete (setup incomplete)' : s}</option>
+              ))}
+            </select>
+            <button type="button" onClick={runFlip} disabled={pending || pickedStatus === currentStatus} className="bb-btn-secondary">
+              Apply
+            </button>
+          </div>
+          {/* v27.6.2 — explain what the picked status DOES so the
+              admin doesn't have to remember the gating matrix. */}
+          <p className="bb-form-help" style={{ marginTop: '0.5rem', maxWidth: '36rem' }}>
+            {STATUS_HELPER[pickedStatus]}
+          </p>
         </div>
       </div>
 
@@ -148,30 +168,43 @@ export default function AdminGuideActions({
       <div className="bb-admin-action-row">
         <div className="bb-admin-action-label">
           <strong>Force reactivate subscription</strong>
+          {/* v27.6.2 — fuller explainer. Use case: a guide canceled
+              and now wants to come back without going through
+              checkout again. We charge the card on file at the
+              last-known interval immediately. */}
           <span className="bb-form-help">
             {hasStripeCustomer
-              ? 'Creates a new Stripe subscription on the existing customer at the last-known interval. Requires a payment method on file.'
-              : 'No Stripe customer on file — send the guide through checkout instead.'}
+              ? 'Creates a fresh Stripe subscription on this customer’s existing payment method, billed immediately at the last-known interval (monthly or annual). Use when a guide canceled and wants to come back without going through checkout again.'
+              : 'No Stripe customer on file. The guide needs to go through /signup checkout — there’s no card to charge.'}
           </span>
         </div>
-        <div className="bb-admin-action-control">
+        <div className="bb-admin-action-control" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
           {!reactivateConfirm ? (
-            <button
-              type="button"
-              onClick={() => setReactivateConfirm(true)}
-              disabled={pending || !hasStripeCustomer}
-              className="bb-btn-secondary"
-            >
-              Reactivate
-            </button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setReactivateConfirm(true)}
+                disabled={pending || !hasStripeCustomer}
+                className="bb-btn-secondary"
+              >
+                Reactivate
+              </button>
+            </div>
           ) : (
             <>
-              <button type="button" onClick={runReactivate} disabled={pending} className="bb-cta-sm">
-                Confirm reactivate
-              </button>
-              <button type="button" onClick={() => setReactivateConfirm(false)} disabled={pending} className="bb-btn-secondary">
-                Cancel
-              </button>
+              <p className="bb-form-help" style={{ marginBottom: '0.5rem', maxWidth: '36rem' }}>
+                <strong>Confirm:</strong> this will create a new active subscription
+                billed immediately on the card on file. The guide will receive a
+                Stripe receipt via email. Continue?
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button type="button" onClick={runReactivate} disabled={pending} className="bb-cta-sm">
+                  Confirm reactivate
+                </button>
+                <button type="button" onClick={() => setReactivateConfirm(false)} disabled={pending} className="bb-btn-secondary">
+                  Cancel
+                </button>
+              </div>
             </>
           )}
         </div>

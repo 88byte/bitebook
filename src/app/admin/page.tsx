@@ -152,7 +152,7 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
                   <th>Status</th>
                   <th>Trial / next renew</th>
                   <th>Signed up</th>
-                  <th>Hunters</th>
+                  <th style={{ textAlign: 'center' }}>Hunters</th>
                   <th></th>
                 </tr>
               </thead>
@@ -178,7 +178,7 @@ export default async function AdminAccountsPage({ searchParams }: { searchParams
                     <td>{r.status ? STATUS_LABEL[r.status] : '—'}</td>
                     <td>{formatDate(r.trial_end ?? r.current_period_end)}</td>
                     <td>{formatDate(r.signup_date)}</td>
-                    <td style={{ textAlign: 'right' }}>{r.hunters_count}</td>
+                    <td style={{ textAlign: 'center' }}>{r.hunters_count}</td>
                     <td>
                       <Link href={`/admin/guides/${r.guide_id}`} className="bb-cta-sm">Manage</Link>
                     </td>
