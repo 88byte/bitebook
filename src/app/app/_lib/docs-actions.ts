@@ -67,12 +67,22 @@ function applyPairedFieldHeuristic(accepted: PairedSuggestion[]): void {
     if (!PAIRED_BASE_REGEX.test(base)) continue
     items.sort((a, b) => a.slot - b.slot)
     const maxSlot = items[items.length - 1]?.slot ?? 0
-    // A truly paired run has N entries where N is the max slot AND
-    // N is even AND N >= 4 (smallest meaningful pair-run). 1-per-
-    // hunter sets hit this filter only with N>=4; 2-species pairs
-    // start at N=4 (Hunter 1 + Hunter 2 × 2 species each).
+    // A truly paired run has max slot N where N is even AND N >= 4
+    // (smallest meaningful pair-run). 1-per-hunter sets only match
+    // when N >= 4; 2-species pairs start at N=4 (Hunter 1 + Hunter 2
+    // × 2 species each).
     if (maxSlot < 4 || maxSlot % 2 !== 0) continue
-    if (items.length !== maxSlot) continue
+    // v27.3.10.4 — loosened from `items.length !== maxSlot` (strict)
+    // to `items.length < 4` (minimum). Flavio reported Hunter 2+
+    // species fields on his DFW form were AI-mapped to species[3..N]
+    // instead of species[1] / species[2] under the per-hunter rule.
+    // Root cause: when the AI marks any one paired field as `skip`
+    // (e.g. an empty optional column on the example data), items.length
+    // dropped below maxSlot and the strict gate skipped the heuristic
+    // entirely. The formula is purely positional — slot N → hunter
+    // ceil(N/2), species ((N-1)%2)+1 — so it's safe to apply to a
+    // partial set; missing slots just don't get rewritten.
+    if (items.length < 4) continue
     for (const it of items) {
       const seq = it.slot
       const hunterSlot = Math.ceil(seq / 2)

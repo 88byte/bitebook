@@ -1900,7 +1900,9 @@ body {
   padding: 0.55rem 0.8rem 0.55rem 2.1rem;
   border: 1px solid var(--color-card-divider);
   border-radius: 8px;
-  background: var(--color-paper);
+  /* v27.3.10.4 — pure white per Flavio so the input pops against the
+     paper-tinted toolbar background. */
+  background: #ffffff;
   color: var(--color-ink);
   font-size: 0.9rem;
   box-sizing: border-box;

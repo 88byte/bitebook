@@ -189,14 +189,21 @@ export default function MappingWizard({
   // that expands inline to the existing FieldRow editor on tap. The goal
   // is to keep 50+ field forms (DFW 992b ext) scannable without
   // sacrificing any of the existing edit affordances.
-  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
+  // v27.3.10.4: inverted from expandedFields → collapsedFields. Default
+  // empty Set = ALL field rows render expanded (full FieldRow editor
+  // visible). Tap the chevron on a row to collapse it back to the
+  // compact summary once you're done with it. Flavio: "let the user
+  // see the condensed version and they can collapse each one to work
+  // one at a time versus all fields collapsed and its hard to know
+  // where to start."
+  const [collapsedFields, setCollapsedFields] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState<string>('')
   type FilterMode = 'all' | 'mapped' | 'needs-review' | 'skipped' | 'log-time'
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [collapsedSlots, setCollapsedSlots] = useState<Set<number>>(new Set())
 
-  function toggleFieldExpanded(fieldName: string) {
-    setExpandedFields((prev) => {
+  function toggleFieldCollapsed(fieldName: string) {
+    setCollapsedFields((prev) => {
       const next = new Set(prev)
       if (next.has(fieldName)) next.delete(fieldName)
       else next.add(fieldName)
@@ -1160,8 +1167,11 @@ export default function MappingWizard({
             {!isCollapsed && (
               <div id={`section-${slot}-body`}>
                 {visible.map((f) => {
-                  const isExpanded = expandedFields.has(f.name)
-                  if (isExpanded) {
+                  // v27.3.10.4: default expanded; collapsedFields tracks
+                  // the rows the guide has explicitly tapped to collapse
+                  // away once they're satisfied with the mapping.
+                  const isCollapsed = collapsedFields.has(f.name)
+                  if (!isCollapsed) {
                     return (
                       <div
                         key={f.name}
@@ -1171,8 +1181,9 @@ export default function MappingWizard({
                           type="button"
                           className="bb-mapping-row-compact"
                           style={{ padding: '0 0 0.4rem', borderBottom: 'none', minHeight: 0 }}
-                          onClick={() => toggleFieldExpanded(f.name)}
+                          onClick={() => toggleFieldCollapsed(f.name)}
                           aria-expanded={true}
+                          title="Collapse this row"
                         >
                           <StatusPill status={statusForField(f.name)} />
                           <div className="bb-mapping-row-compact-name">
@@ -1193,8 +1204,9 @@ export default function MappingWizard({
                       key={f.name}
                       type="button"
                       className="bb-mapping-row-compact"
-                      onClick={() => toggleFieldExpanded(f.name)}
+                      onClick={() => toggleFieldCollapsed(f.name)}
                       aria-expanded={false}
+                      title="Expand this row to edit"
                     >
                       <StatusPill status={statusForField(f.name)} />
                       <div className="bb-mapping-row-compact-name">
