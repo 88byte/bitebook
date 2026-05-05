@@ -4,6 +4,7 @@ import { ShieldCheck } from 'lucide-react'
 import AppNav from './AppNav'
 import SignOutButton from './SignOutButton'
 import MobileNavMenu from './MobileNavMenu'
+import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // v26.1: overflow nav items moved into a hamburger drawer so the bottom-tab
 // bar can hold 4 primary entries (Dashboard / Trips / Hunters / Reviews)
@@ -62,6 +63,12 @@ export default function AppHeader({ isAdmin = false }: { isAdmin?: boolean }) {
             <span>Admin</span>
           </Link>
         ) : null}
+
+        {/* v27.7.0 — small online/offline dot. Sits between AppNav and
+            the drawer hamburger so it's visible without competing for
+            primary tap targets. Defaults online during SSR so the
+            first paint isn't a misleading "offline" flash. */}
+        <ConnectivityDot />
 
         <MobileNavMenu items={GUIDE_DRAWER_ITEMS}>
           <SignOutButton />

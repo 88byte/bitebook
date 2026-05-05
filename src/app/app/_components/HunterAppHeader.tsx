@@ -3,6 +3,7 @@ import Link from 'next/link'
 import HunterAppNav from './HunterAppNav'
 import SignOutButton from './SignOutButton'
 import MobileNavMenu from './MobileNavMenu'
+import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // v26.1: hunter-side mobile drawer. Smaller surface than the guide side —
 // just Support + Sign Out — but the hamburger still lives here so the layout
@@ -42,6 +43,9 @@ export default function HunterAppHeader() {
         </Link>
 
         <HunterAppNav />
+
+        {/* v27.7.0 — connectivity dot, mirrors guide AppHeader. */}
+        <ConnectivityDot />
 
         <MobileNavMenu items={HUNTER_DRAWER_ITEMS}>
           <SignOutButton />

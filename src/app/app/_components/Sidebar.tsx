@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy, ShieldCheck } from 'lucide-react'
 import SignOutButton from './SignOutButton'
+import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS.
 // v27.0a: Wallet added between Hunters and Reviews.
@@ -63,6 +64,10 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
             <span>Admin</span>
           </Link>
         ) : null}
+        {/* v27.7.0 — small labeled dot in the sidebar foot, above Sign out.
+            Variant 'labeled' renders the dot + uppercase status text so the
+            desktop affordance is more discoverable than the inline header dot. */}
+        <ConnectivityDot variant="labeled" />
         <SignOutButton />
       </div>
     </aside>

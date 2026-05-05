@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Calendar, Wallet, Users, User, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
+import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // v25.1: hunter-side desktop sidebar. Same shell as Sidebar.tsx but a leaner nav.
 // v27.0a: Wallet added between My trips and Guides.
@@ -52,6 +53,8 @@ export default function HunterSidebar() {
       </nav>
 
       <div className="bb-sidebar-foot">
+        {/* v27.7.0 — connectivity status, mirrors guide Sidebar foot. */}
+        <ConnectivityDot variant="labeled" />
         <SignOutButton />
       </div>
     </aside>
