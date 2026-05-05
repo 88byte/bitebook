@@ -34,24 +34,41 @@
     color: rgba(244, 239, 229, 0.85);
     line-height: 1.5;
   }
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    align-items: stretch;
+  }
   button {
-    background: #B06C3C;
-    color: #FFFFFF;
     border: none;
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
     font-weight: 700;
     font-size: 1rem;
     cursor: pointer;
-    min-height: 44px;
-    min-width: 9rem;
+    min-height: 48px;
+    width: 100%;
+    font-family: inherit;
   }
-  button:hover { background: #C07845; }
-  button:active { background: #8C5530; }
+  .btn-primary {
+    background: #B06C3C;
+    color: #FFFFFF;
+  }
+  .btn-primary:hover { background: #C07845; }
+  .btn-primary:active { background: #8C5530; }
+  .btn-secondary {
+    background: transparent;
+    color: #F4EFE5;
+    border: 1px solid rgba(244, 239, 229, 0.3);
+  }
+  .btn-secondary:hover { background: rgba(244, 239, 229, 0.06); }
+  .btn-secondary:active { background: rgba(244, 239, 229, 0.12); }
   .hint {
-    margin-top: 1.5rem;
-    font-size: 0.85rem;
-    color: rgba(244, 239, 229, 0.55);
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    color: rgba(244, 239, 229, 0.5);
+    line-height: 1.5;
   }
 </style>
 </head>
@@ -59,9 +76,65 @@
   <div class="card">
     <p class="eyebrow">Bite Book</p>
     <h1>You&rsquo;re offline</h1>
-    <p>Please reconnect to continue. Trips and wallet items you&rsquo;ve already opened will still be available from this app.</p>
-    <button type="button" onclick="location.reload()">Retry</button>
-    <p class="hint">If you stay offline, the back button will return you to the last page that loaded successfully.</p>
+    <p>Trips and wallet items you&rsquo;ve already opened are still available. Tap a button below to keep going.</p>
+    <div class="actions">
+      <button id="back" type="button" class="btn-primary">Go back</button>
+      <button id="home" type="button" class="btn-secondary">Open dashboard</button>
+      <button id="retry" type="button" class="btn-secondary">Retry this page</button>
+    </div>
+    <p class="hint">When you reconnect, this page will reload automatically.</p>
   </div>
+<script>
+// v27.6.4.1 — Flavio testing: iOS standalone PWA has no browser
+// chrome (no back button, no swipe-back), so the user was trapped on
+// the offline page. Real buttons replace the hint-text promise.
+//
+// "Go back" — history.back() if there's a prior entry, else the
+// dashboard. iOS history.length lies a little (forward stack
+// included) so the >1 check is a heuristic, not a guarantee — but
+// the dashboard button below is always a no-fail escape.
+//
+// "Open dashboard" — hard navigation to /app/h. SW will intercept;
+// if /app/h is cached (from any prior online visit), it renders. If
+// not, the user lands back here — but at least they tried something
+// new instead of looping on the same failed deep link.
+//
+// "Retry this page" — location.reload() against the original
+// failed URL. Useful when the network just came back.
+//
+// online listener — when the device reconnects while the user is
+// sitting on this page, auto-reload so they're not stuck looking at
+// "you're offline" with a working network.
+(function () {
+  var backBtn = document.getElementById('back');
+  var homeBtn = document.getElementById('home');
+  var retryBtn = document.getElementById('retry');
+
+  function goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      // If the previous entry is also an offline page (multi-step
+      // failed nav), the user will land back here. They can try
+      // again or take the dashboard escape.
+    } else {
+      window.location.href = '/app/h';
+    }
+  }
+
+  if (backBtn) backBtn.addEventListener('click', goBack);
+  if (homeBtn) homeBtn.addEventListener('click', function () {
+    window.location.href = '/app/h';
+  });
+  if (retryBtn) retryBtn.addEventListener('click', function () {
+    window.location.reload();
+  });
+
+  // Auto-recover when connectivity returns. The SW will serve the
+  // freshest version on reload.
+  window.addEventListener('online', function () {
+    window.location.reload();
+  });
+})();
+</script>
 </body>
 </html>

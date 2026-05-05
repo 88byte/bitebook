@@ -18,7 +18,7 @@
 // on activate. Offline mode is now a real, audited path — not just the
 // shell-cache side-effect it accidentally was.
 
-const CACHE_NAME = 'bitebook-v27.6.4'
+const CACHE_NAME = 'bitebook-v27.6.4.1'
 
 // Pre-cache list. /offline.html is the universal fallback for navigation
 // requests; the others are static shell assets that never change between
