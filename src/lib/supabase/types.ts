@@ -651,6 +651,7 @@ export type Database = {
           last_sent_at: string
           status: Database["public"]["Enums"]["invite_status"]
           token: string
+          trip_id: string | null
         }
         Insert: {
           accepted_by?: string | null
@@ -663,6 +664,7 @@ export type Database = {
           last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string
+          trip_id?: string | null
         }
         Update: {
           accepted_by?: string | null
@@ -675,6 +677,7 @@ export type Database = {
           last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string
+          trip_id?: string | null
         }
         Relationships: [
           {

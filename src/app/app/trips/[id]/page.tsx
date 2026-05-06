@@ -250,6 +250,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
             return (
               <HuntersOnTripPanel
                 tripId={trip.id}
+                tripTitle={trip.title}
                 participants={participants as ParticipantRow[]}
                 walletLinksByHunter={walletLinksByHunterObj}
                 candidates={candidates}

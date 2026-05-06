@@ -12,8 +12,18 @@ export const metadata = { title: 'Welcome to Bite Book — set your password' }
 // and writes back to the invitations row at /api/accept-invite. Pre-
 // v27.8.2.1 every invite carried a locked email and the form rendered
 // it as readOnly.
+//
+// v27.9.1 — when the invite carries a trip_id, also surface a trip
+// preview chip above the form (date + state + species) so the hunter
+// knows what they're signing up for.
+type TripPreview = {
+  title: string
+  starts_at: string | null
+  state: string | null
+  species_targeted: string | null
+}
 type InviteState =
-  | { ok: true; email: string | null; token: string; guideName: string }
+  | { ok: true; email: string | null; token: string; guideName: string; trip: TripPreview | null }
   | { ok: false; reason: 'invalid' | 'expired' | 'used' | 'misconfigured' }
 
 async function loadInvite(token: string | undefined): Promise<InviteState> {
@@ -28,7 +38,7 @@ async function loadInvite(token: string | undefined): Promise<InviteState> {
 
   const { data: invite } = await admin
     .from('invitations')
-    .select('id, email, status, expires_at, guide_id')
+    .select('id, email, status, expires_at, guide_id, trip_id')
     .eq('token', token)
     .maybeSingle()
 
@@ -43,11 +53,34 @@ async function loadInvite(token: string | undefined): Promise<InviteState> {
     .eq('user_id', invite.guide_id)
     .maybeSingle()
 
+  // v27.9.1 — trip preview load (only when invite carries a trip_id).
+  // If the trip is canceled/completed, surface as 'expired' so the
+  // hunter sees the friendly "no longer accepting" message instead
+  // of submitting a form that will fail server-side.
+  let trip: TripPreview | null = null
+  if (invite.trip_id) {
+    const { data: tripRow } = await admin
+      .from('trips')
+      .select('title, starts_at, state, species_targeted, status')
+      .eq('id', invite.trip_id)
+      .maybeSingle()
+    if (!tripRow || tripRow.status === 'canceled' || tripRow.status === 'completed') {
+      return { ok: false, reason: 'expired' }
+    }
+    trip = {
+      title: tripRow.title,
+      starts_at: tripRow.starts_at,
+      state: tripRow.state,
+      species_targeted: tripRow.species_targeted,
+    }
+  }
+
   return {
     ok: true,
     email: invite.email, // may be null for link-mode invites
     token,
     guideName: guide?.business_name || 'your guide',
+    trip,
   }
 }
 
@@ -73,7 +106,10 @@ export default async function AcceptInvitePage({
       <section className="px-6 pb-12">
         <FormCard headerText="Set up account">
           {invite.ok ? (
-            <AcceptInviteForm token={invite.token} email={invite.email} />
+            <>
+              {invite.trip && <TripPreviewChip trip={invite.trip} />}
+              <AcceptInviteForm token={invite.token} email={invite.email} />
+            </>
           ) : (
             <ErrorBlock reason={invite.reason} />
           )}
@@ -82,6 +118,67 @@ export default async function AcceptInvitePage({
 
       <Footer />
     </main>
+  )
+}
+
+// v27.9.1 — trip preview chip above the accept form. Renders a compact
+// summary (date · state · species) so the hunter knows what they're
+// signing up for before they fill in their details. Only rendered when
+// the invitation has a non-null trip_id.
+function TripPreviewChip({ trip }: { trip: TripPreview }) {
+  const dateStr = trip.starts_at
+    ? new Date(trip.starts_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      })
+    : null
+  const parts = [dateStr, trip.state, trip.species_targeted].filter(Boolean) as string[]
+  return (
+    <div
+      style={{
+        marginBottom: '0.85rem',
+        padding: '0.7rem 0.85rem',
+        borderRadius: 10,
+        background: 'rgba(176, 108, 60, 0.10)',
+        border: '1px solid rgba(176, 108, 60, 0.32)',
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-barlow-condensed)',
+          fontWeight: 700,
+          fontSize: '0.72rem',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: 'var(--color-copper)',
+        }}
+      >
+        You&rsquo;re joining a trip
+      </p>
+      <p
+        style={{
+          margin: '0.15rem 0 0',
+          fontFamily: 'var(--font-barlow)',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          color: 'var(--color-ink)',
+        }}
+      >
+        {trip.title}
+      </p>
+      {parts.length > 0 && (
+        <p
+          style={{
+            margin: '0.1rem 0 0',
+            fontFamily: 'var(--font-barlow)',
+            fontSize: '0.82rem',
+            color: 'var(--color-ink-muted)',
+          }}
+        >
+          {parts.join(' · ')}
+        </p>
+      )}
+    </div>
   )
 }
 

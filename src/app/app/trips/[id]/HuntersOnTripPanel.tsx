@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Users } from 'lucide-react'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import { syncTripParticipantsAction } from './actions'
+import TripShareLinkButton from './TripShareLinkButton'
 
 // v27.3.8.1 item 1 — combined "Hunters on this trip" panel.
 // v27.3.8.2 bug 1 — toggle freeze fix:
@@ -37,6 +38,9 @@ export type ParticipantRow = {
 
 type Props = {
   tripId: string
+  // v27.9.1 — surfaced for the share-link helper copy and 30-day-style
+  // expiration messaging; trickles into TripShareLinkButton.
+  tripTitle: string
   participants: ParticipantRow[]
   walletLinksByHunter: WalletLinksByHunter
   candidates: HunterOption[]
@@ -55,6 +59,7 @@ function initials(name: string): string {
 
 export default function HuntersOnTripPanel({
   tripId,
+  tripTitle,
   participants,
   walletLinksByHunter,
   candidates,
@@ -293,6 +298,11 @@ export default function HuntersOnTripPanel({
                     ? 'Saved.'
                     : 'Toggling a hunter saves immediately.'}
             </p>
+
+            {/* v27.9.1 — trip-scoped share-link surface. Sits below the
+                multi-select inside the same Manage block so guides
+                hit it in the natural "add hunters" flow. */}
+            <TripShareLinkButton tripId={tripId} tripTitle={tripTitle} />
           </div>
         )}
       </div>

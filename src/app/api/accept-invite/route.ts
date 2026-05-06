@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
   const { data: invite } = await admin
     .from('invitations')
-    .select('id, email, status, expires_at, guide_id, kind')
+    .select('id, email, status, expires_at, guide_id, kind, trip_id')
     .eq('token', token)
     .maybeSingle()
 
@@ -104,6 +104,31 @@ export async function POST(request: Request) {
   if (new Date(invite.expires_at) < new Date()) {
     await admin.from('invitations').update({ status: 'expired' }).eq('id', invite.id)
     return NextResponse.json({ error: 'Invite expired.' }, { status: 410 })
+  }
+
+  // v27.9.1 — trip-scoped link gate. Re-check the trip status at
+  // accept time: a link sent days/weeks ago might point at a trip
+  // the guide has since canceled or completed. Hunters who land on
+  // a stale link get a friendly redirect-to-network message instead
+  // of joining a dead trip.
+  if (invite.trip_id) {
+    const { data: linkedTrip } = await admin
+      .from('trips')
+      .select('id, status')
+      .eq('id', invite.trip_id)
+      .maybeSingle()
+    if (!linkedTrip) {
+      return NextResponse.json(
+        { error: 'The trip linked to this invite no longer exists.' },
+        { status: 410 },
+      )
+    }
+    if (linkedTrip.status === 'canceled' || linkedTrip.status === 'completed') {
+      return NextResponse.json(
+        { error: `This trip is no longer accepting hunters. Reach out to your guide for the next one.` },
+        { status: 410 },
+      )
+    }
   }
 
   // v27.8.2.1 — resolve the email used to create the auth account.
@@ -145,6 +170,64 @@ export async function POST(request: Request) {
       if (users.length < PER_PAGE) break
     }
     if (collision) {
+      // v27.9.1 — trip-scoped link branch. If this link points at a
+      // specific trip AND the email already has a Bite Book hunter,
+      // skip new-user creation and just add them to the trip. Mirrors
+      // the v25.7 inviteHunterAction auto-accept behavior. The hunter
+      // signs in to /login; the trip is waiting on their dashboard.
+      if (invite.trip_id) {
+        // Re-find the existing user via the same admin pagination so we
+        // get a stable user_id reference.
+        let existingUserId: string | null = null
+        for (let page = 1; page <= MAX_PAGES && !existingUserId; page++) {
+          const { data: list } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE })
+          const users = list?.users ?? []
+          const match = users.find((u) => (u.email ?? '').toLowerCase() === supplied)
+          if (match) existingUserId = match.id
+          if (users.length < PER_PAGE) break
+        }
+        if (existingUserId) {
+          // Confirm role=hunter (not guide). Guides can't double-role.
+          const { data: existingProfile } = await admin
+            .from('profiles')
+            .select('role')
+            .eq('id', existingUserId)
+            .maybeSingle()
+          if (existingProfile?.role === 'guide') {
+            return NextResponse.json(
+              {
+                error:
+                  'This email is already a Bite Book guide. Guides and hunters cannot share an account.',
+              },
+              { status: 409 },
+            )
+          }
+          // Add to the trip (idempotent — duplicate (trip_id, hunter_id)
+          // returns a 23505 which we treat as already-on-trip success).
+          const { error: tpErr } = await admin
+            .from('trip_participants')
+            .insert({ trip_id: invite.trip_id, hunter_id: existingUserId })
+          if (tpErr && tpErr.code !== '23505') {
+            console.warn('[accept-invite.tripEnroll:existingHunter]', { code: tpErr.code, message: tpErr.message })
+            return NextResponse.json(
+              { error: 'Could not add you to the trip. Reach out to your guide.' },
+              { status: 500 },
+            )
+          }
+          // Write the multi-use acceptance row so the guide sees this
+          // hunter in the accepted list.
+          await admin.from('invitations').insert({
+            guide_id: invite.guide_id,
+            email: supplied,
+            accepted_by: existingUserId,
+            status: 'accepted',
+            kind: 'link',
+            trip_id: invite.trip_id,
+          })
+          return NextResponse.json({ ok: true, mode: 'existing_hunter_added_to_trip' })
+        }
+      }
+      // Network-only link OR no existing match — existing rejection.
       return NextResponse.json(
         {
           error:
@@ -333,15 +416,15 @@ export async function POST(request: Request) {
   // (one email → one accept → one row).
   if (invite.kind === 'link') {
     // Insert a fresh acceptance row tied to the template's guide.
-    // token defaults via the DB so we don't collide with the
-    // template's token; last_sent_at defaults to now() per the column
-    // default (not under our control here, but defaults exist).
+    // v27.9.1 — also carry trip_id forward so the guide's trip-detail
+    // surface can list "joined via this trip's link" cleanly.
     await admin.from('invitations').insert({
       guide_id: invite.guide_id,
       email: finalEmail,
       accepted_by: userId,
       status: 'accepted',
       kind: 'link',
+      trip_id: invite.trip_id ?? null,
     })
   } else {
     // Email mode: stamp the original row as accepted.
@@ -349,6 +432,21 @@ export async function POST(request: Request) {
       .from('invitations')
       .update({ status: 'accepted', accepted_by: userId, email: finalEmail })
       .eq('id', invite.id)
+  }
+
+  // v27.9.1 — trip-scoped invite: auto-enroll the new hunter on the
+  // linked trip. Only fires when invite.trip_id is set (network-only
+  // invites stay as-is). Idempotent on (trip_id, hunter_id) — duplicate
+  // (23505) is treated as already-on-trip success, not a hard fail.
+  if (invite.trip_id) {
+    const { error: tpErr } = await admin
+      .from('trip_participants')
+      .insert({ trip_id: invite.trip_id, hunter_id: userId })
+    if (tpErr && tpErr.code !== '23505') {
+      console.warn('[accept-invite.tripEnroll:newHunter]', { code: tpErr.code, message: tpErr.message })
+      // Soft-fail: account is created and they're in the network. The
+      // guide can still add them to the trip manually from /app/trips/[id].
+    }
   }
 
   return NextResponse.json({ ok: true })

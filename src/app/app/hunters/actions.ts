@@ -298,6 +298,70 @@ export async function generateInviteLinkAction(): Promise<GenerateLinkResult> {
   return { ok: true, invite_url: inviteUrl, invite_id: data.id }
 }
 
+// v27.9.1 — trip-scoped link variant. Generates a link bound to a
+// specific trip; hunters who accept the link auto-enroll on that
+// trip in /api/accept-invite. Expiration matches the trip's start
+// date (NOT the 30-day default for global links) — a link to a hunt
+// that already started shouldn't be discoverable.
+export type GenerateTripLinkResult =
+  | { ok: true; invite_url: string; invite_id: string }
+  | { error: string }
+
+export async function generateTripInviteLinkAction(
+  tripId: string,
+): Promise<GenerateTripLinkResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+  if (!tripId) return { error: 'Missing trip id.' }
+
+  const supabase = await createClient()
+
+  // Re-verify trip ownership + read starts_at for the expiration.
+  const { data: trip, error: tripErr } = await supabase
+    .from('trips')
+    .select('id, starts_at, status')
+    .eq('id', tripId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (tripErr || !trip) {
+    console.warn('[hunters.generateTripInviteLink:tripLookup]', {
+      code: tripErr?.code,
+      message: tripErr?.message,
+    })
+    return { error: 'Trip not found.' }
+  }
+  if (trip.status === 'canceled' || trip.status === 'completed') {
+    return { error: `Cannot share a link for a ${trip.status} trip.` }
+  }
+
+  const expiresAt = new Date(trip.starts_at)
+
+  const { data, error } = await supabase
+    .from('invitations')
+    .insert({
+      guide_id: profile.id,
+      email: null,
+      kind: 'link',
+      trip_id: trip.id,
+      expires_at: expiresAt.toISOString(),
+    })
+    .select('id, token')
+    .single()
+  if (error || !data) {
+    console.warn('[hunters.generateTripInviteLink:insert]', { code: error?.code, message: error?.message })
+    return { error: error?.message ?? 'Could not create the trip share link.' }
+  }
+
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'bitebook.lastbite.pro'
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const inviteUrl = `${proto}://${host}/accept-invite?token=${data.token}`
+
+  revalidatePath(`/app/trips/${tripId}`)
+  return { ok: true, invite_url: inviteUrl, invite_id: data.id }
+}
+
 export type CancelInviteResult = { ok: true } | { error: string }
 
 // v25.7: soft-cancels a pending invitation. Sets status='canceled' so the
