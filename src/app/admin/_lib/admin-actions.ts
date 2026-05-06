@@ -16,7 +16,7 @@
 // the calling client can render error toasts inline.
 
 import { revalidatePath } from 'next/cache'
-import { requireAdmin } from '../../app/_lib/auth'
+import { requireAdmin, isAdminEmail } from '../../app/_lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getStripe, ensureBitebookGuidePrices } from '@/lib/stripe'
 import type { Database } from '@/lib/supabase/types'
@@ -329,5 +329,136 @@ export async function forceReactivateAction(
   revalidatePath('/admin')
   revalidatePath('/admin/revenue')
   revalidatePath(`/admin/guides/${guideId}`)
+  return { ok: true }
+}
+
+// 4. v27.8.4 — Delete account permanently. Used to retest signup flows
+// without having to mint a fresh email each time.
+//
+// Sequence (every step abortable on error):
+//   a. requireAdmin() + admin self-delete guard
+//   b. Read target's auth user (email) via service-role admin client
+//   c. Block delete on admin emails (defense-in-depth — even if a non-Flavio
+//      admin email is added later, you can't delete from this UI)
+//   d. confirmEmail must match target's email (typed-to-confirm guard)
+//   e. Write admin_actions audit row first (target_guide_id SET NULL on
+//      cascade so the audit row survives the profile delete)
+//   f. Best-effort cancel + delete Stripe subscription if present
+//   g. Delete auth.users row → trigger cascades public.profiles via FK
+//      (profiles.id REFERENCES auth.users(id) ON DELETE CASCADE)
+//      Belt-and-suspenders: also delete profiles row directly.
+//
+// FK cascade map (audited; migration v27_8_4_relax_profile_fks_for_admin_delete
+// flipped 4 NO ACTION FKs to SET NULL so the cascade doesn't get blocked):
+//   • CASCADE: guide_profiles, outfitter_subscriptions, trips (and trip-
+//     scoped child tables), wallet_items, docs, invitations(guide_id),
+//     onboarding_progress, push_subscriptions, signing_keys, comp_accounts
+//     (user_id), licenses, media, packing_checklists, trip_doc_hunter_actions,
+//     trip_generated_logs, trip_reviews, trip_templates, trip_wallet_items
+//   • SET NULL (audit preserved): admin_actions.target_guide_id,
+//     admin_audit_logs.actor_id, comp_accounts.granted_by, private_feedback,
+//     trip_participants.hunter_id, harvest_log_entries.hunter_id (v27.8.4),
+//     harvest_logs.created_by (v27.8.4), invitations.accepted_by (v27.8.4),
+//     trip_docs.created_by (v27.8.4)
+//   • RESTRICT: admin_actions.admin_id (DB-level defense; we also block
+//     admin self-delete in the action)
+export async function deleteAccountAction(
+  targetUserId: string,
+  confirmEmail: string,
+): Promise<AdminActionResult> {
+  const { profile, user: callerUser } = await requireAdmin()
+
+  if (!targetUserId) return { error: 'Missing user id.' }
+  if (!confirmEmail) return { error: 'Type the email to confirm.' }
+
+  // Self-delete guard.
+  if (targetUserId === profile.id || targetUserId === callerUser.id) {
+    return { error: 'Cannot delete your own account from Mission Control.' }
+  }
+
+  const admin = createAdminClient()
+
+  // Resolve target email. auth.users is source of truth.
+  let targetEmail = ''
+  try {
+    const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(targetUserId)
+    if (authErr || !authUser?.user) {
+      console.warn('[admin-actions.deleteAccount:authLookup]', { code: authErr?.code, message: authErr?.message })
+      return { error: 'Account not found.' }
+    }
+    targetEmail = (authUser.user.email ?? '').toLowerCase()
+  } catch (e) {
+    console.warn('[admin-actions.deleteAccount:authLookup:throw]', { error: (e as Error).message })
+    return { error: 'Could not look up the account.' }
+  }
+
+  // Confirm-email match (defense in depth — UI also gates the button).
+  if (confirmEmail.trim().toLowerCase() !== targetEmail) {
+    return { error: `Confirmation email does not match — expected ${targetEmail}` }
+  }
+
+  // Block deleting other admins.
+  if (isAdminEmail(targetEmail)) {
+    return { error: 'Cannot delete an admin account from this UI. Contact engineering.' }
+  }
+
+  // Pull role (audit payload) + subscription (Stripe cleanup).
+  const { data: prof } = await admin
+    .from('profiles')
+    .select('role')
+    .eq('id', targetUserId)
+    .maybeSingle()
+  const { data: subRow } = await admin
+    .from('outfitter_subscriptions')
+    .select('stripe_subscription_id, stripe_customer_id, status')
+    .eq('guide_id', targetUserId)
+    .maybeSingle()
+
+  // Audit FIRST — persists across the profile delete because
+  // admin_actions.target_guide_id is SET NULL on cascade.
+  const auditErr = await writeAuditRow(profile.id, 'delete_account', targetUserId, {
+    target_email: targetEmail,
+    target_role: prof?.role ?? null,
+    had_stripe_subscription: !!subRow?.stripe_subscription_id,
+    had_stripe_customer: !!subRow?.stripe_customer_id,
+    deleted_at: new Date().toISOString(),
+  })
+  if (auditErr) return { error: auditErr }
+
+  // Best-effort Stripe sub cancel. Failures don't block the local
+  // delete — Flavio can clean up Stripe-side from the dashboard.
+  if (subRow?.stripe_subscription_id) {
+    try {
+      const stripe = getStripe()
+      await stripe.subscriptions.cancel(subRow.stripe_subscription_id, {
+        invoice_now: false,
+        prorate: false,
+      })
+    } catch (e) {
+      console.warn('[admin-actions.deleteAccount:stripeCancel]', { error: (e as Error).message })
+    }
+  }
+
+  // Delete the auth user (cascades public.profiles via FK; profiles
+  // cascades onward per the FK map above).
+  try {
+    const { error: delErr } = await admin.auth.admin.deleteUser(targetUserId)
+    if (delErr) {
+      console.warn('[admin-actions.deleteAccount:authDelete]', { code: delErr.code, message: delErr.message })
+      return { error: `Auth delete failed: ${delErr.message}` }
+    }
+  } catch (e) {
+    console.warn('[admin-actions.deleteAccount:authDelete:throw]', { error: (e as Error).message })
+    return { error: 'Auth delete threw — see logs.' }
+  }
+
+  // Belt-and-suspenders explicit profile delete. No-op if the
+  // auth→profile cascade already removed it.
+  await admin.from('profiles').delete().eq('id', targetUserId)
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/revenue')
+  revalidatePath('/admin/hunters')
+  revalidatePath('/admin/activity')
   return { ok: true }
 }

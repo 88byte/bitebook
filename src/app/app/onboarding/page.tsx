@@ -50,12 +50,19 @@ const FIELD_ERROR: Record<string, { field: 'first_name' | 'last_name' | 'state' 
   missing_first_name: { field: 'first_name', message: 'First name is required.' },
   missing_last_name: { field: 'last_name', message: 'Last name is required.' },
   missing_state: { field: 'state', message: 'State is required.' },
-  missing_fields: { field: 'license', message: 'Fill out every license field, or skip this step.' },
+  // v27.8.4.1 — promoted to a banner case (detail param carries the
+  // specific field) so the user sees exactly which input is blocking
+  // them instead of a generic "fill out every field" footnote that
+  // gets ignored.
 }
 const BANNER_ERROR: Record<string, string> = {
   profile_save_failed: 'Couldn’t save your name. Please try again.',
   guide_save_failed: 'Couldn’t save business basics. Please try again.',
-  save_failed: 'Couldn’t save. Please try again.',
+  // v27.8.4.1 — explicit Step 2 banner copy. The detail param appended
+  // by saveGuideLicenseAction makes this concrete (e.g. "Pick your
+  // issuing state.").
+  missing_fields: 'Fill out the license fields below to continue:',
+  save_failed: 'Couldn’t save your license. Database error:',
   finish_failed: 'Couldn’t finalize setup. Please try again.',
 }
 

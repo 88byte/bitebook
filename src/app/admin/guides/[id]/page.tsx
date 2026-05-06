@@ -125,6 +125,7 @@ export default async function AdminGuideDetailPage({ params }: { params: Params 
           </p>
           <AdminGuideActions
             guideId={detail.guide_id}
+            guideEmail={detail.email || ''}
             currentStatus={detail.subscription?.status ?? 'incomplete'}
             currentCompUntil={detail.subscription?.comp_until ?? null}
             hasStripeCustomer={!!detail.subscription?.stripe_customer_id}

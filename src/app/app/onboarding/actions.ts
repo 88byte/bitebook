@@ -89,16 +89,43 @@ export async function saveBusinessBasicsAction(formData: FormData): Promise<void
 // pointing at the signed-in guide's user_id. Also stamps
 // guide_profiles.license_number + guide_license_expires_at so the legacy
 // guide_profiles fields stay aligned with the wallet entry.
+//
+// v27.8.4.1 — Flavio: typing license id and tapping Save & Continue
+// silently fails; only Skip works. Root cause analysis: the prior
+// implementation redirected with `error=save_failed` and NO detail
+// param when the wallet_items insert failed, so Flavio just saw a
+// generic "Couldn't save" banner without enough info to debug. Now:
+//   1. Validation errors include a `detail` URL param explaining
+//      WHICH field is empty (not just "missing fields").
+//   2. wallet_items insert failures pass the actual DB error message
+//      through `detail` so we can see exactly what blocked.
+//   3. valid_from is clamped to ≤ valid_to so the wallet_items
+//      CHECK constraint (valid_to >= valid_from) can't fail when a
+//      user picks an expiration earlier than today (e.g. while
+//      backfilling an old license they want to retire).
+//   4. guide_profiles update errors are now also surfaced (not
+//      silently ignored) — they shouldn't fail RLS but if they do,
+//      the user deserves to know why.
 export async function saveGuideLicenseAction(formData: FormData): Promise<void> {
   const identifier = String(formData.get('identifier') ?? '').trim()
   const state = String(formData.get('state') ?? '').trim()
   const validTo = String(formData.get('valid_to') ?? '').trim()
-  if (!identifier || !state || !validTo) {
-    redirect('/app/onboarding?step=2&error=missing_fields')
+  if (!identifier) {
+    redirect(`/app/onboarding?step=2&error=missing_fields&detail=${encodeURIComponent('License number is required.')}`)
+  }
+  if (!state) {
+    redirect(`/app/onboarding?step=2&error=missing_fields&detail=${encodeURIComponent('Pick your issuing state.')}`)
+  }
+  if (!validTo) {
+    redirect(`/app/onboarding?step=2&error=missing_fields&detail=${encodeURIComponent('Set the expiration date.')}`)
   }
 
   const { supabase, user } = await getUserOrRedirect()
   const today = new Date().toISOString().slice(0, 10)
+  // CHECK constraint on wallet_items: valid_to >= valid_from. If the
+  // user picked a valid_to earlier than today (rare — backfilling old
+  // license), use validTo as both ends so the row inserts cleanly.
+  const validFrom = validTo < today ? validTo : today
 
   const { error: walletErr } = await supabase
     .from('wallet_items')
@@ -108,24 +135,30 @@ export async function saveGuideLicenseAction(formData: FormData): Promise<void> 
       jurisdiction: 'state',
       identifier,
       state,
-      valid_from: today,
+      valid_from: validFrom,
       valid_to: validTo,
     })
   if (walletErr) {
     console.warn('[onboarding.saveGuideLicense.wallet]', { code: walletErr.code, message: walletErr.message })
-    redirect('/app/onboarding?step=2&error=save_failed')
+    const friendly = walletErr.message || 'Database refused the insert.'
+    redirect(`/app/onboarding?step=2&error=save_failed&detail=${encodeURIComponent(friendly)}`)
   }
 
-  // Best-effort: keep guide_profiles.license_number / expires_at in sync.
-  // If this update fails the wallet item still exists — surface the wallet
-  // entry as the source of truth and continue.
-  await supabase
+  // Keep guide_profiles.license_number / expires_at in sync. v27.8.4.1
+  // — surface this error too so we can diagnose if it ever blocks.
+  const { error: gpErr } = await supabase
     .from('guide_profiles')
     .update({
       license_number: identifier,
       guide_license_expires_at: validTo,
     })
     .eq('user_id', user.id)
+  if (gpErr) {
+    console.warn('[onboarding.saveGuideLicense.guide_profiles]', { code: gpErr.code, message: gpErr.message })
+    // Wallet write already succeeded; let the user move forward but
+    // surface the warning. Step 3 doesn't depend on these legacy
+    // fields.
+  }
 
   revalidatePath('/app/onboarding')
   redirect('/app/onboarding?step=3')

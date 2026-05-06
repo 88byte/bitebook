@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { flipSubscriptionStatusAction, compAccountAction, clearCompAction, forceReactivateAction } from '../../_lib/admin-actions'
+import { useRouter } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
+import { flipSubscriptionStatusAction, compAccountAction, clearCompAction, forceReactivateAction, deleteAccountAction } from '../../_lib/admin-actions'
+import ConfirmModal from '@/app/_components/ConfirmModal'
 import type { Database } from '@/lib/supabase/types'
 
 type SubStatus = Database['public']['Enums']['subscription_status']
@@ -36,15 +39,19 @@ const STATUS_HELPER: Record<SubStatus, string> = {
 // before the underlying mutation. Errors render inline.
 export default function AdminGuideActions({
   guideId,
+  guideEmail,
   currentStatus,
   currentCompUntil,
   hasStripeCustomer,
 }: {
   guideId: string
+  // v27.8.4 — needed for the type-to-confirm delete modal.
+  guideEmail: string
   currentStatus: SubStatus
   currentCompUntil: string | null
   hasStripeCustomer: boolean
 }) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [okFlash, setOkFlash] = useState<string | null>(null)
@@ -57,6 +64,8 @@ export default function AdminGuideActions({
   })()
   const [compUntil, setCompUntil] = useState<string>(currentCompUntil ?? defaultCompUntil)
   const [reactivateConfirm, setReactivateConfirm] = useState(false)
+  // v27.8.4 — delete-account modal state.
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   function flash(msg: string) {
     setOkFlash(msg)
@@ -97,6 +106,24 @@ export default function AdminGuideActions({
       const r = await forceReactivateAction(guideId)
       if ('error' in r) setError(r.error)
       else flash('Subscription reactivated.')
+    })
+  }
+
+  // v27.8.4 — delete account. ConfirmModal handles the type-to-confirm
+  // gate (typed email must match guideEmail before Confirm enables);
+  // the server action re-checks defense-in-depth. On success we route
+  // back to the /admin index since the detail page is gone.
+  function runDelete(typedEmail: string) {
+    setError(null)
+    startTransition(async () => {
+      const r = await deleteAccountAction(guideId, typedEmail)
+      if ('error' in r) {
+        setError(r.error)
+        setDeleteOpen(false)
+        return
+      }
+      // Account is gone; the current page would 404 on refresh.
+      router.replace('/admin?deleted=1')
     })
   }
 
@@ -165,6 +192,9 @@ export default function AdminGuideActions({
         </div>
       </div>
 
+      {/* v27.8.4 — Force reactivate stays mid-panel; Danger zone (delete)
+          lives below in its own visually-separated subsection so it can't
+          be reached by an accidental Tab-to-the-bottom muscle memory. */}
       <div className="bb-admin-action-row">
         <div className="bb-admin-action-label">
           <strong>Force reactivate subscription</strong>
@@ -209,6 +239,75 @@ export default function AdminGuideActions({
           )}
         </div>
       </div>
+
+      {/* v27.8.4 — Danger zone. Subsection visually separated by a
+          horizontal rule + red-tinted heading so it doesn't blend with
+          the routine actions above. Type-to-confirm gate inside the
+          modal blocks misclicks; the action also re-validates the
+          email server-side. */}
+      <div
+        style={{
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid rgba(140, 60, 42, 0.25)',
+        }}
+      >
+        <div className="bb-admin-action-row">
+          <div className="bb-admin-action-label">
+            <strong style={{ color: '#8C3C2A' }}>Danger zone — Delete account</strong>
+            <span className="bb-form-help">
+              Permanently deletes <strong>{guideEmail}</strong> and every
+              attached row: profile, guide_profile, subscription, trips,
+              hunters they invited (relationship only — those accounts
+              survive), wallet items, docs, and the auth record. Stripe
+              subscription cancels (best-effort). Audit row preserved.
+              Cannot be undone.
+            </span>
+          </div>
+          <div className="bb-admin-action-control">
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              disabled={pending}
+              className="bb-cta-sm-destructive"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              Delete account
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmModal
+        open={deleteOpen}
+        title="Delete this account permanently?"
+        body={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p>
+              This deletes <strong>{guideEmail}</strong>&rsquo;s profile, guide
+              profile, subscription, and auth record. Their trips, harvests,
+              wallet items, and docs will be cascade-deleted. Hunters they
+              invited keep their own accounts.
+            </p>
+            <p>
+              The Stripe subscription will be canceled (best-effort).
+              An <code>admin_actions</code> audit row is written first and
+              survives the delete.
+            </p>
+            <p>
+              <strong>This cannot be undone.</strong>
+            </p>
+          </div>
+        }
+        confirmLabel="Delete forever"
+        cancelLabel="Cancel"
+        destructive
+        typeToConfirm={guideEmail}
+        onConfirm={() => runDelete(guideEmail)}
+        onCancel={() => setDeleteOpen(false)}
+        isPending={pending}
+      />
     </div>
   )
 }
