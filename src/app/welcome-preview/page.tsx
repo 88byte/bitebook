@@ -296,6 +296,66 @@ export default function WelcomePreviewPage() {
         </div>
       </section>
 
+      {/* ── PRODUCT GALLERY — three real screens (v27.8.0-preview6) ── */}
+      {/* Three art-directed product photos showing the live app. Stacks
+          on mobile, 3-up at desktop. The side glow pulls the dark page
+          surface into the rail so the photos don't feel like tiles
+          dropped on a strip. */}
+      <section
+        className="bb-mkt-gallery-wrap"
+        aria-label="Bite Book product gallery"
+      >
+        <div className="bb-mkt-container">
+          <div className="bb-mkt-gallery">
+            <figure className="bb-mkt-gallery-item">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/banners/welcome-trips.png"
+                alt="Bite Book trips dashboard showing upcoming hunts, hunter assignments, and locations"
+                className="bb-mkt-gallery-img"
+                loading="lazy"
+                width={1536}
+                height={1024}
+              />
+              <figcaption className="bb-mkt-gallery-cap">
+                <span className="bb-mkt-gallery-eyebrow">Trips</span>
+                <span className="bb-mkt-gallery-title">Every hunt, on the line.</span>
+              </figcaption>
+            </figure>
+            <figure className="bb-mkt-gallery-item">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/banners/welcome-docs.png"
+                alt="Bite Book document library showing waivers, harvest logs, and signed resources"
+                className="bb-mkt-gallery-img"
+                loading="lazy"
+                width={1536}
+                height={1024}
+              />
+              <figcaption className="bb-mkt-gallery-cap">
+                <span className="bb-mkt-gallery-eyebrow">Documents</span>
+                <span className="bb-mkt-gallery-title">Waivers signed. Logs filed.</span>
+              </figcaption>
+            </figure>
+            <figure className="bb-mkt-gallery-item">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/banners/welcome-reviews.png"
+                alt="Bite Book reviews from hunters showing star ratings and trip feedback"
+                className="bb-mkt-gallery-img"
+                loading="lazy"
+                width={1536}
+                height={1024}
+              />
+              <figcaption className="bb-mkt-gallery-cap">
+                <span className="bb-mkt-gallery-eyebrow">Reviews</span>
+                <span className="bb-mkt-gallery-title">Built on what hunters say.</span>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURES — what's actually in the app ─────────────────── */}
       <section
         className="bb-mkt-features-wrap"
@@ -1427,6 +1487,76 @@ const styles = `
   color: #FFFFFF;
   line-height: 0.95;
   letter-spacing: -0.015em;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PRODUCT GALLERY (v27.8.0-preview6) — 3 art-directed product shots
+   ════════════════════════════════════════════════════════════════
+   Sits between How it works and Features. Dark surface so the photos
+   pop; copper eyebrow + tight title under each. Stacks 1-col on mobile
+   for full impact, 3-up at desktop. */
+.bb-mkt-gallery-wrap {
+  background: var(--color-page-bg, #0B0806);
+  color: #FFFFFF;
+  padding: 4rem 1.5rem 5rem;
+  position: relative;
+}
+@media (min-width: 768px) {
+  .bb-mkt-gallery-wrap { padding: 6rem 2rem 7rem; }
+}
+.bb-mkt-gallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 768px) {
+  .bb-mkt-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; }
+}
+.bb-mkt-gallery-item {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.bb-mkt-gallery-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: #1A1410;
+  box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.5),
+              0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 240ms ease;
+}
+.bb-mkt-gallery-item:hover .bb-mkt-gallery-img {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 60px -16px rgba(176, 108, 60, 0.35),
+              0 4px 16px -4px rgba(0, 0, 0, 0.5);
+}
+.bb-mkt-gallery-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0 0.15rem;
+}
+.bb-mkt-gallery-eyebrow {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-copper);
+}
+.bb-mkt-gallery-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  letter-spacing: -0.005em;
+  color: #FFFFFF;
 }
 
 /* ════════════════════════════════════════════════════════════════

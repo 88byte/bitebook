@@ -7,8 +7,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = { title: 'Welcome to Bite Book — set your password' }
 
+// v27.8.2.1 — link-mode invites have email=NULL until acceptance. The
+// accept-invite form treats `email: null` as "ask the hunter for it"
+// and writes back to the invitations row at /api/accept-invite. Pre-
+// v27.8.2.1 every invite carried a locked email and the form rendered
+// it as readOnly.
 type InviteState =
-  | { ok: true; email: string; token: string; guideName: string }
+  | { ok: true; email: string | null; token: string; guideName: string }
   | { ok: false; reason: 'invalid' | 'expired' | 'used' | 'misconfigured' }
 
 async function loadInvite(token: string | undefined): Promise<InviteState> {
@@ -40,7 +45,7 @@ async function loadInvite(token: string | undefined): Promise<InviteState> {
 
   return {
     ok: true,
-    email: invite.email,
+    email: invite.email, // may be null for link-mode invites
     token,
     guideName: guide?.business_name || 'your guide',
   }

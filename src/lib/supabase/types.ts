@@ -643,10 +643,11 @@ export type Database = {
         Row: {
           accepted_by: string | null
           created_at: string
-          email: string
+          email: string | null
           expires_at: string
           guide_id: string
           id: string
+          kind: string
           last_sent_at: string
           status: Database["public"]["Enums"]["invite_status"]
           token: string
@@ -654,10 +655,11 @@ export type Database = {
         Insert: {
           accepted_by?: string | null
           created_at?: string
-          email: string
+          email?: string | null
           expires_at?: string
           guide_id: string
           id?: string
+          kind?: string
           last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string
@@ -665,10 +667,11 @@ export type Database = {
         Update: {
           accepted_by?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           expires_at?: string
           guide_id?: string
           id?: string
+          kind?: string
           last_sent_at?: string
           status?: Database["public"]["Enums"]["invite_status"]
           token?: string

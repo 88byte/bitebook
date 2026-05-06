@@ -47,7 +47,14 @@ function endOfYearIso(): string {
   return `${y}-12-31`
 }
 
-export default function AcceptInviteForm({ token, email }: { token: string; email: string }) {
+// v27.8.2.1 — `email` is now `string | null`. NULL means a link-mode
+// invite (no email captured at create time); the form shows a writable
+// email input and forwards that value to /api/accept-invite, which
+// writes it back to the invitations row.
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export default function AcceptInviteForm({ token, email }: { token: string; email: string | null }) {
+  const isLinkMode = email == null
   // Identity / auth
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -55,6 +62,8 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  // Hunter-supplied email (only used in link mode).
+  const [hunterEmail, setHunterEmail] = useState('')
 
   // Address
   const [street, setStreet] = useState('')
@@ -97,6 +106,11 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
     // Required: identity + password + address
     if (!firstName.trim()) return setError('Please enter your first name.')
     if (!lastName.trim()) return setError('Please enter your last name.')
+    // v27.8.2.1 — link-mode invites: the hunter supplies their own email.
+    if (isLinkMode) {
+      if (!hunterEmail.trim()) return setError('Please enter your email.')
+      if (!EMAIL_RX.test(hunterEmail.trim())) return setError('Please enter a valid email.')
+    }
     if (password.length < 8) return setError('Password must be at least 8 characters.')
     if (password !== confirm) return setError('Passwords do not match.')
     if (!street.trim() || !city.trim() || !addrState || !zip.trim()) {
@@ -127,6 +141,7 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
 
     setLoading(true)
     const displayName = `${firstName.trim()} ${lastName.trim()}`
+    const finalEmail = isLinkMode ? hunterEmail.trim().toLowerCase() : email!
 
     const res = await fetch('/api/accept-invite', {
       method: 'POST',
@@ -138,6 +153,11 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phone: phone.trim() || null,
+        // v27.8.2.1 — link-mode invites send the hunter-supplied email so
+        // the API can stamp it back onto invitations.email and use it
+        // for createUser. Email-mode invites omit this field; the API
+        // falls back to the locked invite.email.
+        email: isLinkMode ? finalEmail : undefined,
         address: {
           street: street.trim(),
           city: city.trim(),
@@ -173,7 +193,9 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
     }
 
     const supabase = createClient()
-    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    // v27.8.2.1 — sign in with the email we submitted (locked for email-
+    // mode, hunter-supplied for link-mode). `email` may be null here.
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email: finalEmail, password })
     if (signInErr) {
       setLoading(false)
       setError('Account created but sign-in failed. Try signing in from the home page.')
@@ -186,15 +208,33 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
       {/* Account */}
       <Section title="Your account" icon={<User size={16} aria-hidden="true" />}>
+        {/* v27.8.2.1 — email is readOnly when the guide locked it in
+            (email-mode invite) and writable when the invite came via
+            share-link (link-mode). The hunter is the source of truth in
+            link mode; we write their email back to invitations.email
+            and createUser uses it. */}
         <label className="bb-field">
           <span className="bb-field-icon"><Mail size={18} aria-hidden="true" /></span>
-          <input
-            type="email"
-            value={email}
-            readOnly
-            aria-label="Email address"
-            className="bb-input bb-input-iconed"
-          />
+          {isLinkMode ? (
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={hunterEmail}
+              onChange={(e) => setHunterEmail(e.target.value)}
+              placeholder="you@example.com"
+              aria-label="Email address"
+              className="bb-input bb-input-iconed"
+            />
+          ) : (
+            <input
+              type="email"
+              value={email ?? ''}
+              readOnly
+              aria-label="Email address"
+              className="bb-input bb-input-iconed"
+            />
+          )}
         </label>
         <div className="bb-form-grid-2">
           <label className="bb-field">

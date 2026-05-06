@@ -241,6 +241,47 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   return { ok: true, invite_url: inviteUrl, mode: 'new_user' }
 }
 
+// v27.8.2.1 — link-mode invite. Generates a tokenized share URL the guide
+// can copy and send through any channel (text, WhatsApp, in-person QR
+// scan, etc.) without entering an email. The `invitations` row is created
+// with kind='link' and email=NULL — the accepting hunter supplies their
+// own email at /accept-invite. Returns the canonical share URL.
+//
+// Flavio: "you can invite a hunter either by sending email or giving
+// them a link." This is the second path. The first path
+// (inviteHunterAction) is unchanged.
+export type GenerateLinkResult =
+  | { ok: true; invite_url: string; invite_id: string }
+  | { error: string }
+
+export async function generateInviteLinkAction(): Promise<GenerateLinkResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('invitations')
+    .insert({ guide_id: profile.id, email: null, kind: 'link' })
+    .select('id, token')
+    .single()
+
+  if (error || !data) {
+    console.warn('[hunters.generateInviteLinkAction]', { code: error?.code, message: error?.message })
+    return { error: error?.message ?? 'Could not create the invite link.' }
+  }
+
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'bitebook.lastbite.pro'
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const inviteUrl = `${proto}://${host}/accept-invite?token=${data.token}`
+
+  revalidatePath('/app')
+  revalidatePath('/app/hunters')
+  return { ok: true, invite_url: inviteUrl, invite_id: data.id }
+}
+
 export type CancelInviteResult = { ok: true } | { error: string }
 
 // v25.7: soft-cancels a pending invitation. Sets status='canceled' so the
@@ -397,6 +438,12 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   if (invite.status === 'revoked') return { error: 'This invite was revoked.' }
   if (invite.status === 'expired' || new Date(invite.expires_at) < new Date()) {
     return { error: 'Invite expired. Send a new one instead.' }
+  }
+  // v27.8.2.1 — link-mode invites have no recipient email; there's
+  // nothing to resend. The UI hides the Resend button on these rows,
+  // but defense-in-depth this server action.
+  if (!invite.email) {
+    return { error: 'This is a share-link invite — copy the link and share it instead.' }
   }
 
   // v25.5: 5-minute cooldown enforced server-side.

@@ -44,10 +44,16 @@ type Body = {
   firstName?: string
   lastName?: string
   phone?: string | null
+  // v27.8.2.1 — link-mode invites: hunter-supplied email. Optional;
+  // when present we use it as the createUser email AND write it back
+  // to invitations.email at acceptance.
+  email?: string
   address?: AddressBody
   license?: LicenseBody | null
   tag?: TagBody | null
 }
+
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(request: Request) {
   let body: Body
@@ -57,7 +63,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { token, password, displayName, firstName, lastName, phone, address, license, tag } = body
+  const { token, password, displayName, firstName, lastName, phone, email: bodyEmail, address, license, tag } = body
   if (!token || !password || !displayName || !firstName || !lastName) {
     return NextResponse.json({ error: 'Missing fields.' }, { status: 400 })
   }
@@ -87,7 +93,7 @@ export async function POST(request: Request) {
 
   const { data: invite } = await admin
     .from('invitations')
-    .select('id, email, status, expires_at, guide_id')
+    .select('id, email, status, expires_at, guide_id, kind')
     .eq('token', token)
     .maybeSingle()
 
@@ -98,6 +104,56 @@ export async function POST(request: Request) {
   if (new Date(invite.expires_at) < new Date()) {
     await admin.from('invitations').update({ status: 'expired' }).eq('id', invite.id)
     return NextResponse.json({ error: 'Invite expired.' }, { status: 410 })
+  }
+
+  // v27.8.2.1 — resolve the email used to create the auth account.
+  //
+  //   • Email-mode (invite.email is set): use the locked invite email.
+  //     Body-supplied email is ignored — this is defense-in-depth so a
+  //     hunter can't claim a different email on an email-mode invite.
+  //   • Link-mode (invite.email is null, invite.kind === 'link'):
+  //     require the body to supply a valid email. We also reject if any
+  //     existing auth user already has that email (to mirror the
+  //     duplicate-email guard in inviteHunterAction).
+  let finalEmail: string
+  if (invite.email) {
+    finalEmail = invite.email.toLowerCase()
+  } else {
+    const supplied = (bodyEmail ?? '').trim().toLowerCase()
+    if (!supplied || !EMAIL_RX.test(supplied)) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email to accept this invite.' },
+        { status: 400 },
+      )
+    }
+    // Duplicate-email guard. Pre-existing Bite Book accounts can't
+    // re-register through the link flow — they should just sign in. The
+    // page shows a clear "Already have an account? Sign in" link below
+    // the form, so we surface a focused error here and let them click
+    // through.
+    const MAX_PAGES = 5
+    const PER_PAGE = 1000
+    let collision = false
+    for (let page = 1; page <= MAX_PAGES && !collision; page++) {
+      const { data: list, error: listErr } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE })
+      if (listErr) {
+        console.warn('[accept-invite.listUsers]', { code: listErr.code, message: listErr.message })
+        break
+      }
+      const users = list?.users ?? []
+      collision = users.some((u) => (u.email ?? '').toLowerCase() === supplied)
+      if (users.length < PER_PAGE) break
+    }
+    if (collision) {
+      return NextResponse.json(
+        {
+          error:
+            'That email already has a Bite Book account. Sign in there instead, or use a different email to accept this invite.',
+        },
+        { status: 409 },
+      )
+    }
+    finalEmail = supplied
   }
 
   // v27.4.3 — block accept-invite when the inviting guide's subscription
@@ -120,8 +176,10 @@ export async function POST(request: Request) {
   }
 
   // Create the auth user with the chosen password, email pre-confirmed.
+  // v27.8.2.1 — uses finalEmail (locked invite.email for email-mode,
+  // hunter-supplied for link-mode).
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email: invite.email,
+    email: finalEmail,
     password,
     email_confirm: true,
     user_metadata: { display_name: displayName, invited_by: invite.guide_id },
@@ -242,10 +300,14 @@ export async function POST(request: Request) {
   // items via fetchHunterMatchingWalletItems(state) so the per-trip
   // link is a one-tap operation, not a separate flow.
 
-  // Mark invite accepted
+  // Mark invite accepted. v27.8.2.1 — for link-mode invites we also
+  // stamp the hunter-supplied email back onto the row so future audit
+  // queries (and the guide's pending/accepted views) show the actual
+  // email of record. For email-mode invites this is a no-op write of
+  // the same value.
   await admin
     .from('invitations')
-    .update({ status: 'accepted', accepted_by: userId })
+    .update({ status: 'accepted', accepted_by: userId, email: finalEmail })
     .eq('id', invite.id)
 
   return NextResponse.json({ ok: true })

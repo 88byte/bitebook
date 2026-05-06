@@ -12,13 +12,16 @@ import RemoveHunterButton from './RemoveHunterButton'
 type AcceptedRow = {
   id: string
   accepted_by: string | null
-  email: string
+  email: string | null
   created_at: string
   display_name?: string | null
 }
+// v27.8.2.1 — `email` is nullable; link-mode invites carry email=null
+// until acceptance. `kind` distinguishes 'email' vs 'link'.
 type PendingRow = {
   id: string
-  email: string
+  email: string | null
+  kind: string
   token: string
   created_at: string
   expires_at: string
@@ -48,7 +51,7 @@ export default async function HuntersPage({
 
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at, token')
+    .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at, token, kind')
     .eq('guide_id', profile.id)
     .order('created_at', { ascending: false })
 
@@ -61,6 +64,7 @@ export default async function HuntersPage({
     .map((i) => ({
       id: i.id,
       email: i.email,
+      kind: i.kind,
       token: i.token,
       created_at: i.created_at,
       expires_at: i.expires_at,
@@ -87,7 +91,7 @@ export default async function HuntersPage({
     ? accepted.filter((a) => {
         const needle = query.toLowerCase()
         return (
-          a.email.toLowerCase().includes(needle) ||
+          (a.email ?? '').toLowerCase().includes(needle) ||
           (a.display_name ?? '').toLowerCase().includes(needle)
         )
       })
@@ -176,18 +180,24 @@ export default async function HuntersPage({
           ) : (
             <div className="flex flex-col gap-3">
               {filteredAccepted.map((h) => {
-                const label = h.display_name ?? h.email
+                // v27.8.2.1 — link-mode invites land here too once
+                // accepted. We backfill invitations.email with the
+                // hunter-supplied email at acceptance time, so by the
+                // time a row is in `accepted` we always have an email.
+                // The fallback to display_name covers the legacy
+                // pre-name path.
+                const label = h.display_name ?? h.email ?? 'Hunter'
                 return (
                   <NetworkPersonCard
                     key={h.id}
                     avatarLetter={label.slice(0, 1).toUpperCase()}
                     name={label}
-                    sub={`Joined ${fmtDate(h.created_at)}${h.display_name ? ` (${h.email})` : ''}`}
+                    sub={`Joined ${fmtDate(h.created_at)}${h.display_name && h.email ? ` (${h.email})` : ''}`}
                     action={
                       <RemoveHunterButton
                         inviteId={h.id}
                         displayName={h.display_name ?? null}
-                        email={h.email}
+                        email={h.email ?? ''}
                       />
                     }
                   />
@@ -215,29 +225,40 @@ export default async function HuntersPage({
             </p>
           ) : (
             <div className="bb-detail-list">
-              {pending.map((p) => (
-                <div key={p.id} className="bb-detail-row bb-detail-row-pending">
-                  <div className="bb-avatar" aria-hidden="true">
-                    {p.email.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="bb-detail-name">{p.email}</div>
-                    <div className="bb-detail-sub">
-                      Sent {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+              {pending.map((p) => {
+                // v27.8.2.1 — link-mode invites have no email until
+                // accepted. Show "Share link invite" + a link icon
+                // avatar; resend button is hidden because there's no
+                // recipient to email yet. CopyLink + Cancel still apply.
+                const isLink = p.kind === 'link' || !p.email
+                const avatar = isLink ? '↗' : (p.email ?? '?').slice(0, 1).toUpperCase()
+                const label = isLink ? 'Share link invite' : p.email!
+                return (
+                  <div key={p.id} className="bb-detail-row bb-detail-row-pending">
+                    <div className="bb-avatar" aria-hidden="true">
+                      {avatar}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="bb-detail-name">{label}</div>
+                      <div className="bb-detail-sub">
+                        {isLink ? 'Created' : 'Sent'} {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
+                      </div>
+                    </div>
+                    <span className="bb-pill bb-pill-planned">Pending</span>
+                    <div className="bb-resend-wrap">
+                      <CopyLinkButton token={p.token} />
+                      {!isLink && p.email && (
+                        <ResendInviteButton
+                          inviteId={p.id}
+                          email={p.email}
+                          lastSentAt={p.last_sent_at}
+                        />
+                      )}
+                      <CancelInviteButton inviteId={p.id} email={p.email ?? 'this link'} />
                     </div>
                   </div>
-                  <span className="bb-pill bb-pill-planned">Pending</span>
-                  <div className="bb-resend-wrap">
-                    <CopyLinkButton token={p.token} />
-                    <ResendInviteButton
-                      inviteId={p.id}
-                      email={p.email}
-                      lastSentAt={p.last_sent_at}
-                    />
-                    <CancelInviteButton inviteId={p.id} email={p.email} />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </aside>
