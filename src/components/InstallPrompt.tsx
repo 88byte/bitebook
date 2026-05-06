@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -9,7 +10,22 @@ interface BeforeInstallPromptEvent extends Event {
 
 type IOSMode = 'safari' | 'other-browser' | null
 
+// v27.8.0 — suppress on public marketing routes. Install prompts that
+// hijack the bottom of the screen kill marketing-page scroll engagement
+// and bury the CTA. The PWA offer surfaces ONLY after a visitor has
+// chosen to engage (login / signup / authed app).
+const SUPPRESS_PREFIXES: ReadonlyArray<string> = [
+  '/welcome',
+  '/welcome-preview',
+]
+
+function isMarketingPath(p: string | null | undefined): boolean {
+  if (!p) return false
+  return SUPPRESS_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
+}
+
 export default function InstallPrompt() {
+  const pathname = usePathname()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [iosMode, setIosMode] = useState<IOSMode>(null)
   const [dismissed, setDismissed] = useState(false)
@@ -17,6 +33,7 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (sessionStorage.getItem('install-dismissed')) return
+    if (isMarketingPath(pathname)) return
 
     const ua = navigator.userAgent
     const nav = navigator as Navigator & { standalone?: boolean; maxTouchPoints?: number }
@@ -60,6 +77,9 @@ export default function InstallPrompt() {
   }
 
   if (dismissed) return null
+  // v27.8.0 — bulletproof: even if state somehow leaks across pathname
+  // changes, never render on marketing paths.
+  if (isMarketingPath(pathname)) return null
 
   // Chrome / Edge / Android — native beforeinstallprompt flow
   if (deferredPrompt) {
