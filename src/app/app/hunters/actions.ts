@@ -247,6 +247,13 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
 // with kind='link' and email=NULL — the accepting hunter supplies their
 // own email at /accept-invite. Returns the canonical share URL.
 //
+// v27.8.4.3 — link templates are now MULTI-USE: the same URL works for
+// any number of hunters until the guide cancels it or it expires. Each
+// accept creates a separate accepted row in /api/accept-invite (see
+// branch on invite.kind). To match that use case, the default 7-day
+// expiration is extended to 30 days for link-mode (group invites for a
+// hunting trip often plan weeks ahead).
+//
 // Flavio: "you can invite a hunter either by sending email or giving
 // them a link." This is the second path. The first path
 // (inviteHunterAction) is unchanged.
@@ -261,9 +268,18 @@ export async function generateInviteLinkAction(): Promise<GenerateLinkResult> {
 
   const supabase = await createClient()
 
+  // v27.8.4.3 — explicit 30-day expiration for link-mode templates.
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 30)
+
   const { data, error } = await supabase
     .from('invitations')
-    .insert({ guide_id: profile.id, email: null, kind: 'link' })
+    .insert({
+      guide_id: profile.id,
+      email: null,
+      kind: 'link',
+      expires_at: expiresAt.toISOString(),
+    })
     .select('id, token')
     .single()
 

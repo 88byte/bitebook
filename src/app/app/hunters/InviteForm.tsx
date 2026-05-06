@@ -298,7 +298,7 @@ export default function InviteForm({ compact = false }: { compact?: boolean }) {
       {mode === 'link' && (
         <div className="flex flex-col gap-3">
           <p className="bb-form-help" style={{ margin: 0 }}>
-            Generate a unique invite link you can share by text, WhatsApp, or in person. The hunter fills in their own email when they accept.
+            Generate one link and share it with as many hunters as you want — group SMS, Discord, WhatsApp. Each hunter fills their own email when they accept. Link is good for 30 days; cancel any time.
           </p>
 
           {error && (

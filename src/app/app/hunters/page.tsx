@@ -229,6 +229,10 @@ export default async function HuntersPage({
                 // accepted. Show "Share link invite" + a link icon
                 // avatar; resend button is hidden because there's no
                 // recipient to email yet. CopyLink + Cancel still apply.
+                // v27.8.4.3 — link templates are MULTI-USE: same URL
+                // works for any number of hunters until canceled or
+                // expired. Pill copy reads "Multi-use" instead of
+                // "Pending" so the guide knows they can keep sharing.
                 const isLink = p.kind === 'link' || !p.email
                 const avatar = isLink ? '↗' : (p.email ?? '?').slice(0, 1).toUpperCase()
                 const label = isLink ? 'Share link invite' : p.email!
@@ -243,7 +247,7 @@ export default async function HuntersPage({
                         {isLink ? 'Created' : 'Sent'} {fmtDate(p.created_at)} (expires {fmtDate(p.expires_at)})
                       </div>
                     </div>
-                    <span className="bb-pill bb-pill-planned">Pending</span>
+                    <span className="bb-pill bb-pill-planned">{isLink ? 'Multi-use' : 'Pending'}</span>
                     <div className="bb-resend-wrap">
                       <CopyLinkButton token={p.token} />
                       {!isLink && p.email && (

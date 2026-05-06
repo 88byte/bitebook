@@ -235,19 +235,30 @@ export async function POST(request: Request) {
   // auto-link them to any open trips the hunter is already on.
   const insertedWalletItemIds: string[] = []
 
+  // v27.8.4.3 — wallet inserts converted to upserts keyed on the
+  // existing UNIQUE index (user_id, state, type, identifier). Mirrors
+  // the v27.8.4.2 fix on saveGuideLicenseAction. Defense-in-depth: if
+  // the hunter retries the accept-invite POST (e.g. flaky network +
+  // double-tap), the second attempt updates existing rows instead of
+  // erroring on uq_wallet_identifier. New auth users would normally
+  // never collide because user_id is fresh, but the upsert keeps the
+  // accept flow uniformly idempotent across edge cases.
   if (license) {
     const { data: licRow, error: licErr } = await admin
       .from('wallet_items')
-      .insert({
-        user_id: userId,
-        type: 'license',
-        jurisdiction: 'state',
-        identifier: license.identifier!,
-        state: license.state!,
-        issue_date: license.issue_date ?? null,
-        valid_from: license.issue_date ?? new Date().toISOString().slice(0, 10),
-        valid_to: license.valid_to!,
-      })
+      .upsert(
+        {
+          user_id: userId,
+          type: 'license',
+          jurisdiction: 'state',
+          identifier: license.identifier!,
+          state: license.state!,
+          issue_date: license.issue_date ?? null,
+          valid_from: license.issue_date ?? new Date().toISOString().slice(0, 10),
+          valid_to: license.valid_to!,
+        },
+        { onConflict: 'user_id,state,type,identifier' },
+      )
       .select('id')
       .single()
     if (licErr) {
@@ -260,18 +271,21 @@ export async function POST(request: Request) {
   if (tag) {
     const { data: tagRow, error: tagErr } = await admin
       .from('wallet_items')
-      .insert({
-        user_id: userId,
-        type: 'tag',
-        jurisdiction: 'state',
-        identifier: tag.identifier!,
-        species: tag.species!,
-        state: tag.state!,
-        zone: tag.zone ?? null,
-        season_year: tag.season_year ?? null,
-        valid_from: new Date().toISOString().slice(0, 10),
-        valid_to: tag.valid_to!,
-      })
+      .upsert(
+        {
+          user_id: userId,
+          type: 'tag',
+          jurisdiction: 'state',
+          identifier: tag.identifier!,
+          species: tag.species!,
+          state: tag.state!,
+          zone: tag.zone ?? null,
+          season_year: tag.season_year ?? null,
+          valid_from: new Date().toISOString().slice(0, 10),
+          valid_to: tag.valid_to!,
+        },
+        { onConflict: 'user_id,state,type,identifier' },
+      )
       .select('id')
       .single()
     if (tagErr) {
@@ -300,15 +314,42 @@ export async function POST(request: Request) {
   // items via fetchHunterMatchingWalletItems(state) so the per-trip
   // link is a one-tap operation, not a separate flow.
 
-  // Mark invite accepted. v27.8.2.1 — for link-mode invites we also
-  // stamp the hunter-supplied email back onto the row so future audit
-  // queries (and the guide's pending/accepted views) show the actual
-  // email of record. For email-mode invites this is a no-op write of
-  // the same value.
-  await admin
-    .from('invitations')
-    .update({ status: 'accepted', accepted_by: userId, email: finalEmail })
-    .eq('id', invite.id)
+  // v27.8.4.3 — link-mode invites are MULTI-USE templates. Pre-
+  // v27.8.4.3, the first hunter to accept flipped the original row's
+  // status='accepted' and email=finalEmail, which broke the link for
+  // every subsequent hunter (the page rejects status='accepted' as
+  // "already used"). Flavio's actual mental model: drop the link in a
+  // group SMS, every hunter clicks, every hunter accepts.
+  //
+  // Fix: for kind='link', leave the original template row UNTOUCHED
+  // (stays pending until the guide cancels or it expires) and write
+  // a SEPARATE acceptance row. Each acceptance row carries the
+  // hunter's email + accepted_by so the guide's accepted-list query
+  // ('status=accepted') still surfaces every hunter who came in via
+  // the link. The template row continues to surface in the pending
+  // list until revocation/expiry.
+  //
+  // For kind='email', the existing single-use semantics are preserved
+  // (one email → one accept → one row).
+  if (invite.kind === 'link') {
+    // Insert a fresh acceptance row tied to the template's guide.
+    // token defaults via the DB so we don't collide with the
+    // template's token; last_sent_at defaults to now() per the column
+    // default (not under our control here, but defaults exist).
+    await admin.from('invitations').insert({
+      guide_id: invite.guide_id,
+      email: finalEmail,
+      accepted_by: userId,
+      status: 'accepted',
+      kind: 'link',
+    })
+  } else {
+    // Email mode: stamp the original row as accepted.
+    await admin
+      .from('invitations')
+      .update({ status: 'accepted', accepted_by: userId, email: finalEmail })
+      .eq('id', invite.id)
+  }
 
   return NextResponse.json({ ok: true })
 }
