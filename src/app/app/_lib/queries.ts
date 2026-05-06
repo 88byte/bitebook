@@ -499,8 +499,16 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
   const supabase = await createClient()
   const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
 
-  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
-  const [{ count: tripsThisYear }, hunterRows] = await Promise.all([
+  // v27.8.1 — harvests count restored. Sums BOTH the guide's own
+  // harvests (entries where hunter_id = guide_id, e.g. self-guided
+  // outings) AND every client's harvests on guide-owned trips. Pulled
+  // via harvest_log_entries → harvest_logs → trips embed; PostgREST
+  // nested filter is unreliable so we project trips.guide_id and
+  // filter in JS, mirroring the pattern in fetchHunterStats and other
+  // v22+ RLS-recursion-aware reads. species rows aren't counted here
+  // because each entry can have multiple species — entries are the
+  // canonical "harvest event" unit.
+  const [{ count: tripsThisYear }, hunterRows, harvestRows] = await Promise.all([
     supabase
       .from('trips')
       .select('id', { count: 'exact', head: true })
@@ -511,12 +519,27 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
       .select('hunter_id, guest_name, trips!inner(guide_id, starts_at)')
       .eq('trips.guide_id', guideId)
       .gte('trips.starts_at', yearStart),
+    supabase
+      .from('harvest_log_entries')
+      .select('id, harvest_logs!inner(trips!inner(guide_id, starts_at))'),
   ])
 
   const huntersServed = new Set(
     (hunterRows.data ?? []).map((r) => r.hunter_id ?? `guest:${r.guest_name ?? ''}`)
   ).size
-  return { tripsThisYear: tripsThisYear ?? 0, huntersServed, harvests: 0 }
+
+  // JS-side filter: keep only entries whose harvest_logs.trips.guide_id
+  // matches and whose trip starts this calendar year. Counts every
+  // entry once — covers the guide's own + every client's harvests
+  // because `trips.guide_id = guideId` includes both kinds.
+  const harvests = (harvestRows.data ?? []).filter((row) => {
+    const log = (row as { harvest_logs?: { trips?: { guide_id?: string; starts_at?: string } } }).harvest_logs
+    const trip = log?.trips
+    if (!trip || trip.guide_id !== guideId) return false
+    return typeof trip.starts_at === 'string' && trip.starts_at >= yearStart
+  }).length
+
+  return { tripsThisYear: tripsThisYear ?? 0, huntersServed, harvests }
 }
 
 export type TripDetail = {

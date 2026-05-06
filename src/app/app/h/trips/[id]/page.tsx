@@ -148,6 +148,17 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
           side rail). */}
       <div className="bb-trip-detail-grid bb-trip-detail-grid--hunter-side mt-4">
         <div className="bb-trip-detail-grid-editor flex flex-col gap-4">
+        {/* v27.8.1 — REVIEW promoted to top of the editor column on
+            completed trips. Hunters see the leave-a-review CTA first
+            instead of having to scroll past every detail tile. */}
+        {isCompleted && (
+          <ReviewForm
+            tripId={trip.id}
+            existingReview={existingReview}
+            canEdit={canEdit}
+          />
+        )}
+
         {/* v27.0b.6 (B): Action-needed card. Renders only on planned/active
             trips when the hunter still has unfulfilled actions (license +
             tag-per-species). Returns null when actions array is empty. */}
@@ -242,14 +253,7 @@ export default async function HunterTripDetailPage({ params }: { params: RoutePa
           </div>
         </section>
 
-        {/* REVIEW (only on completed trips) */}
-        {isCompleted && (
-          <ReviewForm
-            tripId={trip.id}
-            existingReview={existingReview}
-            canEdit={canEdit}
-          />
-        )}
+        {/* v27.8.1 — Review CTA moved to top of editor column above. */}
         </div>{/* /editor */}
 
         {/* RIGHT SIDE RAIL — v27.6.3.5 item 2: hunters then docs

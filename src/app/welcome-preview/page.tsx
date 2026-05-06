@@ -15,21 +15,21 @@ import { ArrowRight, ArrowDown, CheckCircle2 } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Bite Book — Digital log book for hunting & fishing guides',
   description:
-    "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone. 7 days free. No card.",
+    "Paper logs are a tax on your time. Bite Book files your state's trip log from your phone. 7 days free. No card.",
   robots: 'noindex, nofollow',
   alternates: { canonical: 'https://bitebook.lastbite.pro/welcome-preview' },
   openGraph: {
     type: 'website',
     title: 'Bite Book — Built for guides. Made for the field.',
     description:
-      "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone. 7 days free. No card.",
+      "Paper logs are a tax on your time. Bite Book files your state's trip log from your phone. 7 days free. No card.",
     url: 'https://bitebook.lastbite.pro/welcome-preview',
     siteName: 'Bite Book',
     images: [
       {
-        url: 'https://bitebook.lastbite.pro/banners/hunter-hero.png',
-        width: 2172,
-        height: 724,
+        url: 'https://bitebook.lastbite.pro/banners/welcome-hero.png',
+        width: 1672,
+        height: 941,
         alt: 'Bite Book — built for hunting and fishing guides',
       },
     ],
@@ -37,15 +37,14 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Bite Book — Built for guides. Made for the field.',
-    description: "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone.",
-    images: ['https://bitebook.lastbite.pro/banners/hunter-hero.png'],
+    description: "Paper logs are a tax on your time. Bite Book files your state's trip log from your phone.",
+    images: ['https://bitebook.lastbite.pro/banners/welcome-hero.png'],
   },
   keywords: [
     'hunt log app',
     'fishing guide log',
-    'harvest report software',
+    'trip log software',
     'guide license tracker',
-    'CDFW 992-B',
     'state hunt report',
     'warden share',
     'digital hunt log',
@@ -90,10 +89,9 @@ const FAQ_JSONLD = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
   mainEntity: [
-    { '@type': 'Question', name: 'Does it actually fill the CDFW 992-B?', acceptedAnswer: { '@type': 'Answer', text: "Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your state's PDF once and Bite Book maps every field for you. We support every state." } },
-    { '@type': 'Question', name: 'What does it cost my hunters?', acceptedAnswer: { '@type': 'Answer', text: "Nothing. They never pay a dime. Invite them by email, they sign in, see their trips, link their tags. That's it." } },
-    { '@type': 'Question', name: 'Will it work in places without service?', acceptedAnswer: { '@type': 'Answer', text: 'Most of it. View trips, harvests, and saved logs offline. Full offline editing is in active development.' } },
-    { '@type': 'Question', name: "I'm a one-person outfit. Worth it for me?", acceptedAnswer: { '@type': 'Answer', text: "That's exactly who Bite Book was built for. The annual plan is $7.50 a month. One trip pays for it." } },
+    { '@type': 'Question', name: 'Does it fill my state\'s trip log?', acceptedAnswer: { '@type': 'Answer', text: "Yes. Upload your state's trip log PDF once and Bite Book maps every field for you. We support every state." } },
+    { '@type': 'Question', name: 'What does it cost my clients?', acceptedAnswer: { '@type': 'Answer', text: "Nothing. Your clients use Bite Book at no cost. Invite them by email, they sign in, see their trips, link their tags. That's it." } },
+    { '@type': 'Question', name: "I'm a one-person outfit. Worth it for me?", acceptedAnswer: { '@type': 'Answer', text: "That's exactly who Bite Book was built for. $7.50 a month on the annual plan. Less than a tank of gas." } },
   ],
 }
 
@@ -109,7 +107,7 @@ export default function WelcomePreviewPage() {
         {/* Background photo, dark-tinted via gradient overlay below */}
         <div className="bb-mkt-hero-bg" aria-hidden="true">
           <Image
-            src="/banners/hunter-hero.png"
+            src="/banners/welcome-hero.png"
             alt=""
             fill
             priority
@@ -151,7 +149,7 @@ export default function WelcomePreviewPage() {
           </h1>
           <p className="bb-mkt-hero-sub">
             Built for guides who&rsquo;d rather be in the field than in front of a printer. Bite Book files your
-            state&rsquo;s harvest report from your phone &mdash; in less time than it takes to clean a rifle.
+            state&rsquo;s trip log from your phone &mdash; in less time than it takes to clean a rifle.
           </p>
           <div className="bb-mkt-hero-cta-row">
             <Link href="/signup" className="bb-mkt-cta">
@@ -196,7 +194,7 @@ export default function WelcomePreviewPage() {
             <p className="bb-mkt-section-eyebrow">What it does</p>
             <h2 id="bb-mkt-pillars-title" className="bb-mkt-section-title">
               The truck-cab paperwork problem,<br />
-              <span className="bb-mkt-headline-strike">solved</span>.
+              <span className="bb-mkt-headline-accent">solved</span>.
             </h2>
             <p className="bb-mkt-section-sub">
               Four things eat your evening after a hunt. Bite Book takes care of all of them before you finish your beer.
@@ -218,20 +216,20 @@ export default function WelcomePreviewPage() {
             <article className="bb-mkt-pillar">
               <span className="bb-mkt-pillar-icon" aria-hidden="true"><FormIcon /></span>
               <p className="bb-mkt-pillar-num">02</p>
-              <h3 className="bb-mkt-pillar-title">We learned the 992-B so you don&rsquo;t have to.</h3>
+              <h3 className="bb-mkt-pillar-title">We learned your state&rsquo;s log so you don&rsquo;t have to.</h3>
               <p className="bb-mkt-pillar-body">
-                Upload your state&rsquo;s PDF once. Bite Book maps every field. CDFW 992-B,
-                ODFW 1009, NMDGF report &mdash; you name it.
+                Upload your state&rsquo;s trip log PDF once. Bite Book maps every field. Every state, every
+                activity &mdash; we&rsquo;ve got you covered.
               </p>
             </article>
 
             <article className="bb-mkt-pillar">
               <span className="bb-mkt-pillar-icon" aria-hidden="true"><PeopleIcon /></span>
               <p className="bb-mkt-pillar-num">03</p>
-              <h3 className="bb-mkt-pillar-title">Hunters don&rsquo;t pay. Ever.</h3>
+              <h3 className="bb-mkt-pillar-title">Your clients hunt for free.</h3>
               <p className="bb-mkt-pillar-body">
-                Invite them by email &mdash; free for them, forever. They sign waivers, link tags, and stay
-                in the loop. You handle one bill, not seven.
+                The hunters and anglers you guide use Bite Book at no cost. They get the app, they sign
+                waivers, they link tags &mdash; all on their phone, all included.
               </p>
             </article>
 
@@ -248,72 +246,9 @@ export default function WelcomePreviewPage() {
         </div>
       </section>
 
-      {/* ── BEFORE / AFTER — the signature visual moment ─────────── */}
-      <section className="bb-mkt-vs" aria-labelledby="bb-mkt-vs-title">
-        <div className="bb-mkt-container">
-          <div className="bb-mkt-vs-head">
-            <p className="bb-mkt-section-eyebrow">The old way / the new way</p>
-            <h2 id="bb-mkt-vs-title" className="bb-mkt-section-title bb-mkt-section-title-dark">
-              Choose your harvest report.
-            </h2>
-          </div>
-
-          <div className="bb-mkt-vs-grid">
-            {/* OLD — beat-up paper logbook feel */}
-            <figure className="bb-mkt-vs-card bb-mkt-vs-old">
-              <figcaption className="bb-mkt-vs-tag bb-mkt-vs-tag-old">The old way</figcaption>
-              <div className="bb-mkt-vs-paper">
-                <div className="bb-mkt-vs-paper-head">
-                  <span>HARVEST LOG &mdash; CDFW 992-B</span>
-                  <span className="bb-mkt-vs-paper-date">Sat 11/14</span>
-                </div>
-                <ol className="bb-mkt-vs-paper-list">
-                  <li><span className="bb-mkt-vs-strike">Hunter: Michael &mdash;</span> Mike Reyes</li>
-                  <li><span className="bb-mkt-vs-strike">Tag #: D&minus;1244</span> D&minus;1248&hairsp;?</li>
-                  <li>Species: Mule deer</li>
-                  <li><span className="bb-mkt-vs-strike">Lic #: ?????</span> &laquo;ask Mike&raquo;</li>
-                  <li><span className="bb-mkt-vs-strike">Zone: D&minus;9</span> X&minus;7b</li>
-                  <li>Method: rifle &middot; .270</li>
-                  <li>Hours: 7 &mdash; <em className="bb-mkt-vs-mute">give or take</em></li>
-                </ol>
-                <p className="bb-mkt-vs-paper-foot">Sign &amp; mail before the 15th</p>
-              </div>
-              <p className="bb-mkt-vs-caption">
-                Coffee stains, scratched tag numbers, three trips back to the truck for the lic #.
-              </p>
-            </figure>
-
-            {/* NEW — clean Bite Book screen */}
-            <figure className="bb-mkt-vs-card bb-mkt-vs-new">
-              <figcaption className="bb-mkt-vs-tag bb-mkt-vs-tag-new">Bite Book</figcaption>
-              <div className="bb-mkt-vs-screen">
-                <div className="bb-mkt-vs-screen-bar">
-                  <span className="bb-mkt-vs-screen-dot" />
-                  <span className="bb-mkt-vs-screen-title">Trip &middot; Mule deer &middot; D-9</span>
-                </div>
-                <div className="bb-mkt-vs-screen-body">
-                  <ScreenRow label="Hunter" value="Mike Reyes" check />
-                  <ScreenRow label="Tag #" value="D-1248" check />
-                  <ScreenRow label="License" value="CA-19283" check />
-                  <ScreenRow label="Zone" value="X-7b" check />
-                  <ScreenRow label="Method" value="Rifle &middot; .270" check />
-                  <ScreenRow label="Hours" value="7.0" check />
-                </div>
-                <div className="bb-mkt-vs-screen-cta">
-                  <span className="bb-mkt-vs-screen-cta-pill">Generate &amp; sign 992-B</span>
-                </div>
-              </div>
-              <p className="bb-mkt-vs-caption">
-                Tap once. PDF filed. Hunter&rsquo;s signed. Warden has a link. Done before the truck&rsquo;s warm.
-              </p>
-            </figure>
-          </div>
-
-          <p className="bb-mkt-vs-foot">
-            Same hunt. Different evening.
-          </p>
-        </div>
-      </section>
+      {/* v27.8.0-preview4 — before/after section removed. Paper-logbook
+          mockup wasn't landing visually and the made-up form names ran
+          counter to Flavio's "don't get cute" direction. */}
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────── */}
       <section className="bb-mkt-steps-wrap" aria-labelledby="bb-mkt-steps-title">
@@ -359,16 +294,16 @@ export default function WelcomePreviewPage() {
             <span className="bb-mkt-pricing-period">a year.</span>
           </h2>
           <p className="bb-mkt-pricing-statement">
-            One trip pays for it. <span className="bb-mkt-pricing-accent">Skip the next five if you want.</span>
+            <span className="bb-mkt-pricing-accent">Less than a single guide license fee.</span>
           </p>
 
           <ul className="bb-mkt-pricing-list">
             <li><CheckCircle2 size={16} aria-hidden="true" /> All 50 states &middot; hunting and fishing</li>
-            <li><CheckCircle2 size={16} aria-hidden="true" /> Unlimited trips, hunters, harvest report PDFs</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> Unlimited trips, clients, and trip log PDFs</li>
             <li><CheckCircle2 size={16} aria-hidden="true" /> E-signatures on waivers and reports</li>
             <li><CheckCircle2 size={16} aria-hidden="true" /> Wallet for license, insurance, credentials</li>
             <li><CheckCircle2 size={16} aria-hidden="true" /> Warden share &middot; same-day email support</li>
-            <li><CheckCircle2 size={16} aria-hidden="true" /> Hunters are free. Always. We mean it.</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> No fees for your clients</li>
           </ul>
 
           <div className="bb-mkt-pricing-cta-row">
@@ -391,33 +326,29 @@ export default function WelcomePreviewPage() {
             Real answers, in plain English.
           </h2>
           <div className="bb-mkt-faq">
-            <Faq q="Does it actually fill the CDFW 992-B?">
-              Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your state&rsquo;s PDF
-              once and Bite Book maps every field for you. We support every state.
+            <Faq q="Does it fill my state's trip log?">
+              Yes. Upload your state&rsquo;s trip log PDF once and Bite Book maps every field for you.
+              Every state, every activity. Hunting and fishing.
             </Faq>
-            <Faq q="What does it cost my hunters?">
-              Nothing. They never pay a dime. Invite them by email, they sign in, see their trips, link
-              their tags. That&rsquo;s it.
-            </Faq>
-            <Faq q="Will it work in places without service?">
-              Most of it. View trips, harvests, and saved logs offline. Full offline editing is in
-              active development. For now, new edits need a connection.
+            <Faq q="What does it cost my clients?">
+              Nothing. The hunters and anglers you guide use Bite Book at no cost. Invite them by email,
+              they sign in, see their trips, link their tags. That&rsquo;s it.
             </Faq>
             <Faq q="What about my insurance and license docs?">
               They live in your wallet. Bite Book reminds you when something&rsquo;s about to expire so
               you&rsquo;re never caught without proof.
             </Faq>
-            <Faq q="Can my hunters sign waivers from their phone?">
+            <Faq q="Can my clients sign waivers from their phone?">
               Yes. They tap the link in their email, sign on their phone, and you get the signed PDF
-              immediately. Same with the harvest report after the hunt.
+              immediately. Same with the trip log after the hunt.
             </Faq>
             <Faq q="How do I cancel?">
               Tap once in Settings. End your trial before day 7 and you pay nothing. Cancel anytime
               after &mdash; you keep access until your billing period ends.
             </Faq>
             <Faq q="I'm a one-person outfit. Worth it for me?">
-              That&rsquo;s exactly who Bite Book was built for. The annual plan is $7.50 a month. One
-              trip pays for it.
+              That&rsquo;s exactly who Bite Book was built for. The annual plan is $7.50 a month. Less
+              than a tank of gas.
             </Faq>
           </div>
           <p className="bb-mkt-faq-foot">
@@ -545,16 +476,6 @@ function BadgeIcon() {
       <path d="M32 8 L52 16 L52 32 C 52 42 44 50 32 56 C 20 50 12 42 12 32 L12 16 Z" />
       <path d="M22 32 L30 40 L44 24" strokeWidth="2.4" />
     </svg>
-  )
-}
-
-function ScreenRow({ label, value, check }: { label: string; value: string; check?: boolean }) {
-  return (
-    <div className="bb-mkt-vs-screen-row">
-      <span className="bb-mkt-vs-screen-row-label">{label}</span>
-      <span className="bb-mkt-vs-screen-row-value">{value}</span>
-      {check ? <CheckCircle2 size={14} className="bb-mkt-vs-screen-row-check" aria-hidden="true" /> : null}
-    </div>
   )
 }
 

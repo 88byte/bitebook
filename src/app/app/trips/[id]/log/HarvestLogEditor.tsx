@@ -444,7 +444,10 @@ function EntryAccordion({
   logTimeMappings: LogTimeMapping[]
 }) {
   const router = useRouter()
-  const [open, setOpen] = useState<boolean>(false)
+  // v27.8.1 — accordion default-open. Was useState(false) which forced
+  // every guide to tap each hunter row before they could log harvests.
+  // Each entry now expands on first render; user can collapse manually.
+  const [open, setOpen] = useState<boolean>(true)
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useFadingSavedStatus()
 

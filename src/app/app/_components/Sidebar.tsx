@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
@@ -20,10 +20,10 @@ const NAV = [
   { href: '/app/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
 ] as const
 
-// v27.6.0.1 — `isAdmin` drives the ADMIN pill + Mission Control link
-// at the bottom of the sidebar. The /app/layout server component
-// pulls profile.role from requireUser() and passes it down.
-export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+// v27.8.1 — ADMIN pill removed per Flavio. Email-match admin gate
+// stays in proxy.ts; admin emails reach Mission Control by typing
+// /admin directly. The pill was visual clutter on every render.
+export default function Sidebar() {
   const pathname = usePathname() ?? ''
   return (
     <aside className="bb-sidebar" aria-label="Primary navigation">
@@ -58,12 +58,6 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
       </nav>
 
       <div className="bb-sidebar-foot">
-        {isAdmin ? (
-          <Link href="/admin" className="bb-admin-pill" aria-label="Open Mission Control">
-            <ShieldCheck size={12} aria-hidden="true" />
-            <span>Admin</span>
-          </Link>
-        ) : null}
         {/* v27.7.0 — small labeled dot in the sidebar foot, above Sign out.
             Variant 'labeled' renders the dot + uppercase status text so the
             desktop affordance is more discoverable than the inline header dot. */}
