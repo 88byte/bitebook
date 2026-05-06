@@ -7,7 +7,7 @@ import { assertWriteAllowed } from '../_lib/billing-tier'
 import { markStepDone } from '../_lib/onboarding'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { buildExistingHunterAddedEmail, sendBitebookEmail } from '@/lib/email'
+import { buildExistingHunterAddedEmail, buildHunterInviteEmail, sendBitebookEmail } from '@/lib/email'
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -210,19 +210,24 @@ export async function inviteHunterAction(formData: FormData): Promise<InviteActi
   // v26.2: dropped the optional first_name field from InviteForm. Greeting is
   // now a generic "Hi there," — no personalization data is collected at invite
   // time. The hunter sets first_name themselves when they complete onboarding.
-  await sendBitebookEmail({
-    to: email,
-    subject: `${guideLabel} invited you to Bite Book`,
-    text: [
-      'Hi there,',
-      '',
-      `${guideLabel} invited you to join their guide network on Bite Book.`,
-      '',
-      `Accept the invite: ${inviteUrl}`,
-      '',
-      'This link expires in 7 days.',
-    ].join('\n'),
-  })
+  // v27.8.2 — branded HTML invite. Pre-v27.8.2 this was plaintext-only;
+  // Flavio: "brand the hunter-invite email." Mirrors the existing-hunter-
+  // added email's wrapBitebookEmailHTML treatment so all transactional
+  // mail looks consistent.
+  {
+    const body = buildHunterInviteEmail({
+      guideLabel,
+      businessName: guide?.business_name ?? null,
+      inviteUrl,
+      origin,
+    })
+    await sendBitebookEmail({
+      to: email,
+      subject: body.subject,
+      text: body.text,
+      html: body.html,
+    })
+  }
 
   // v24: mark onboarding step done.
   try {
@@ -412,19 +417,31 @@ export async function resendInviteAction(formData: FormData): Promise<ResendInvi
   const proto = h.get('x-forwarded-proto') ?? 'https'
   const inviteUrl = `${proto}://${host}/accept-invite?token=${invite.token}`
 
+  // v27.8.2 — branded HTML resend. Same template as the initial invite,
+  // with "Reminder:" prepended to the subject. Preserves the rest of
+  // the cooldown / error flow below.
   const guideLabel = profile.display_name
+  const origin = `${proto}://${host}`
+
+  // Resend may not have access to the guide_profiles row here without
+  // an extra query. Best-effort: pull business_name; null on miss is fine.
+  const { data: guideRow } = await supabase
+    .from('guide_profiles')
+    .select('business_name')
+    .eq('user_id', profile.id)
+    .maybeSingle()
+
+  const reminderBody = buildHunterInviteEmail({
+    guideLabel,
+    businessName: guideRow?.business_name ?? null,
+    inviteUrl,
+    origin,
+  })
   const result = await sendBitebookEmail({
     to: invite.email,
-    subject: `Reminder: ${guideLabel} invited you to Bite Book`,
-    text: [
-      'Hi,',
-      '',
-      `Just a reminder — ${guideLabel} invited you to join their guide network on Bite Book.`,
-      '',
-      `Accept the invite: ${inviteUrl}`,
-      '',
-      `This link expires ${new Date(invite.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`,
-    ].join('\n'),
+    subject: `Reminder: ${reminderBody.subject}`,
+    text: reminderBody.text,
+    html: reminderBody.html,
   })
 
   if (!result.sent && result.reason === 'send_failed') {

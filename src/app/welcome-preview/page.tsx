@@ -1,7 +1,21 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { ArrowRight, ArrowDown, CheckCircle2 } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowDown,
+  CheckCircle2,
+  Calendar,
+  Users as UsersIcon,
+  Wallet,
+  FileText,
+  ListChecks,
+  PenLine,
+  Star,
+  MoreHorizontal,
+} from 'lucide-react'
+
+import PricingToggle from './PricingToggle'
 
 // v27.8.0-preview3 — full art-directed pass. NOT a wireframe with
 // brand colors painted on. The page is the visual; typography is the
@@ -156,9 +170,6 @@ export default function WelcomePreviewPage() {
               <span>Start 7-day free trial</span>
               <ArrowRight size={18} aria-hidden="true" />
             </Link>
-            <Link href="/login" className="bb-mkt-cta-secondary">
-              I&rsquo;m already a guide
-            </Link>
           </div>
           <ul className="bb-mkt-hero-stat-row" aria-label="What you get">
             <li><strong>50</strong><span>states</span></li>
@@ -285,14 +296,41 @@ export default function WelcomePreviewPage() {
         </div>
       </section>
 
+      {/* ── FEATURES — what's actually in the app ─────────────────── */}
+      <section
+        className="bb-mkt-features-wrap"
+        aria-labelledby="bb-mkt-features-title"
+      >
+        <div className="bb-mkt-container">
+          <p className="bb-mkt-section-eyebrow">Inside Bite Book</p>
+          <h2 id="bb-mkt-features-title" className="bb-mkt-section-title">
+            Everything a guide actually uses.
+          </h2>
+          <p className="bb-mkt-section-sub">
+            Not a feature dump. The real things you reach for between sunup and the drive home.
+          </p>
+
+          <div className="bb-mkt-features">
+            <FeatureCard icon={Calendar} title="Track your hunts" body="Trips, dates, locations, weather notes &mdash; all in one place." />
+            <FeatureCard icon={UsersIcon} title="Manage your clients" body="Hunter profiles, contact info, status. Always current." />
+            <FeatureCard icon={Wallet} title="Wallet" body="Tags, licenses, permits, business credentials. State proof in one tap." />
+            <FeatureCard icon={FileText} title="Documents" body="Waivers, harvest logs, resources &mdash; organized and signed." />
+            <FeatureCard icon={ListChecks} title="Checklists for clients" body="What to bring, what to know before the hunt. Auto-shared." />
+            <FeatureCard icon={PenLine} title="Digital trip logs" body="Fill your state's trip log in seconds. Sign and share." />
+            <FeatureCard icon={Star} title="Reviews from clients" body="Feedback after every trip. Build your reputation." />
+            <FeatureCard icon={MoreHorizontal} title="And more." body="New tools shipped every week. Built with guides, for guides." />
+          </div>
+        </div>
+      </section>
+
       {/* ── PRICING — confident statement, not a card ─────────────── */}
       <section className="bb-mkt-pricing-wrap" id="pricing" aria-labelledby="bb-mkt-pricing-title">
         <div className="bb-mkt-container">
           <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">Pricing, plain</p>
-          <h2 id="bb-mkt-pricing-title" className="bb-mkt-pricing-headline">
-            <span className="bb-mkt-pricing-amount">$90</span>
-            <span className="bb-mkt-pricing-period">a year.</span>
+          <h2 id="bb-mkt-pricing-title" className="bb-mkt-pricing-headline-static">
+            One plan. Two billing options.
           </h2>
+          <PricingToggle />
           <p className="bb-mkt-pricing-statement">
             <span className="bb-mkt-pricing-accent">Less than a single guide license fee.</span>
           </p>
@@ -476,6 +514,26 @@ function BadgeIcon() {
       <path d="M32 8 L52 16 L52 32 C 52 42 44 50 32 56 C 20 50 12 42 12 32 L12 16 Z" />
       <path d="M22 32 L30 40 L44 24" strokeWidth="2.4" />
     </svg>
+  )
+}
+
+function FeatureCard({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Calendar
+  title: string
+  body: string
+}) {
+  return (
+    <article className="bb-mkt-feature-card">
+      <span className="bb-mkt-feature-icon" aria-hidden="true">
+        <Icon size={18} strokeWidth={2.2} />
+      </span>
+      <h3 className="bb-mkt-feature-title">{title}</h3>
+      <p className="bb-mkt-feature-body" dangerouslySetInnerHTML={{ __html: body }} />
+    </article>
   )
 }
 
@@ -1347,6 +1405,17 @@ const styles = `
 }
 @media (min-width: 768px) { .bb-mkt-pricing-wrap { padding: 8rem 2rem; } }
 
+.bb-mkt-pricing-headline-static {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 6vw, 3.8rem);
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  color: #FFFFFF;
+  margin: 0 0 2rem;
+  max-width: 36rem;
+}
+
 .bb-mkt-pricing-headline {
   font-family: var(--font-barlow-condensed);
   font-weight: 800;
@@ -1358,6 +1427,153 @@ const styles = `
   color: #FFFFFF;
   line-height: 0.95;
   letter-spacing: -0.015em;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FEATURES — what's actually in the app (8 cards, 4-col)
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-features-wrap {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: 5rem 1.5rem;
+}
+@media (min-width: 768px) { .bb-mkt-features-wrap { padding: 7rem 2rem; } }
+.bb-mkt-features {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+  margin-top: 2rem;
+}
+@media (min-width: 640px) {
+  .bb-mkt-features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+}
+@media (min-width: 1024px) {
+  .bb-mkt-features { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.1rem; }
+}
+.bb-mkt-feature-card {
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 220ms, transform 220ms, box-shadow 220ms;
+}
+.bb-mkt-feature-card:hover {
+  border-color: rgba(176, 108, 60, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(11, 8, 6, 0.06);
+}
+.bb-mkt-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-copper), #8C5530);
+  color: #FFFFFF;
+  margin-bottom: 0.4rem;
+  box-shadow: 0 4px 10px rgba(176, 108, 60, 0.3);
+}
+.bb-mkt-feature-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.1rem;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--color-ink);
+}
+.bb-mkt-feature-body {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PRICING TOGGLE
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-price-toggle-row {
+  display: inline-flex;
+  background: rgba(244, 239, 229, 0.08);
+  border: 1px solid rgba(244, 239, 229, 0.12);
+  padding: 0.3rem;
+  border-radius: 999px;
+  margin: 0 0 1.5rem;
+}
+.bb-mkt-price-toggle-btn {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(244, 239, 229, 0.65);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 200ms, color 200ms;
+}
+.bb-mkt-price-toggle-btn:hover { color: #FFFFFF; }
+.bb-mkt-price-toggle-btn.is-active {
+  background: var(--color-copper);
+  color: #FFFFFF;
+  box-shadow: 0 6px 16px rgba(176, 108, 60, 0.4);
+}
+.bb-mkt-price-save-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(106, 152, 89, 0.22);
+  color: #BFE0A8;
+  border: 1px solid rgba(106, 152, 89, 0.4);
+  border-radius: 999px;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  padding: 0.15rem 0.45rem;
+  margin-left: 0.35rem;
+}
+.bb-mkt-price-toggle-btn.is-active .bb-mkt-price-save-pill {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.bb-mkt-price-amount-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0 0 0.4rem;
+}
+.bb-mkt-price-amount-big {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(4.5rem, 14vw, 8.5rem);
+  line-height: 1;
+  color: var(--color-copper);
+  letter-spacing: -0.015em;
+}
+.bb-mkt-price-amount-period {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  color: rgba(244, 239, 229, 0.85);
+  line-height: 1;
+}
+.bb-mkt-price-equiv {
+  font-family: var(--font-barlow);
+  font-size: 0.95rem;
+  color: rgba(244, 239, 229, 0.65);
+  margin: 0 0 1rem;
 }
 .bb-mkt-pricing-amount {
   font-size: clamp(5rem, 18vw, 11rem);

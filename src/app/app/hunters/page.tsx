@@ -6,6 +6,7 @@ import NetworkPersonCard from '../_components/NetworkPersonCard'
 import InviteForm from './InviteForm'
 import ResendInviteButton from './ResendInviteButton'
 import CancelInviteButton from './CancelInviteButton'
+import CopyLinkButton from './CopyLinkButton'
 import RemoveHunterButton from './RemoveHunterButton'
 
 type AcceptedRow = {
@@ -18,6 +19,7 @@ type AcceptedRow = {
 type PendingRow = {
   id: string
   email: string
+  token: string
   created_at: string
   expires_at: string
   last_sent_at: string
@@ -46,7 +48,7 @@ export default async function HuntersPage({
 
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at')
+    .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at, token')
     .eq('guide_id', profile.id)
     .order('created_at', { ascending: false })
 
@@ -59,6 +61,7 @@ export default async function HuntersPage({
     .map((i) => ({
       id: i.id,
       email: i.email,
+      token: i.token,
       created_at: i.created_at,
       expires_at: i.expires_at,
       last_sent_at: i.last_sent_at,
@@ -225,6 +228,7 @@ export default async function HuntersPage({
                   </div>
                   <span className="bb-pill bb-pill-planned">Pending</span>
                   <div className="bb-resend-wrap">
+                    <CopyLinkButton token={p.token} />
                     <ResendInviteButton
                       inviteId={p.id}
                       email={p.email}

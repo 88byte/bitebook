@@ -193,6 +193,54 @@ export function buildExistingHunterAddedEmail(opts: {
   return { subject, text, html }
 }
 
+// v27.8.2: branded fresh-invite email. Pre-v27.8.2 this email shipped
+// as plaintext only — no Bite Book chrome, no copper CTA, no logo —
+// which felt off-brand next to the existing-hunter-added email that
+// already had the full treatment. Same wrapBitebookEmailHTML shell;
+// subject, body copy, and CTA tuned for a recipient who's NEW to
+// Bite Book and needs to fill out the accept-invite form.
+export function buildHunterInviteEmail(opts: {
+  guideLabel: string
+  businessName?: string | null
+  inviteUrl: string
+  origin: string
+}): { subject: string; text: string; html: string } {
+  const { guideLabel, businessName, inviteUrl, origin } = opts
+  const guideHeader = businessName?.trim()
+    ? `${guideLabel} from ${businessName.trim()}`
+    : guideLabel
+
+  const subject = `${guideLabel} invited you to Bite Book`
+  const text = [
+    'Hi there,',
+    '',
+    `${guideHeader} invited you to join their Bite Book network. Bite Book is the digital log book your guide uses to keep your trips, tags, and harvest reports in one place.`,
+    '',
+    `Accept the invite and create your account here: ${inviteUrl}`,
+    '',
+    'Hunters use Bite Book at no cost — no credit card, ever.',
+    'This invite expires in 7 days.',
+    '',
+    '— Bite Book',
+    'Questions? support@lastbite.pro',
+  ].join('\n')
+
+  const html = wrapBitebookEmailHTML({
+    origin,
+    preheader: `${guideHeader} invited you to Bite Book. Accept your invite to see your upcoming trips.`,
+    eyebrow: "You're invited",
+    headline: `${guideHeader} invited you to Bite Book`,
+    paragraphs: [
+      `${guideHeader} invited you to join their Bite Book network. Bite Book is the digital log book your guide uses to keep your trips, tags, and harvest reports in one place.`,
+      'Accept the invite to set up your account. Hunters use Bite Book at no cost — no credit card, ever. This link expires in 7 days.',
+    ],
+    ctaLabel: `Accept ${guideLabel}'s invite`,
+    ctaUrl: inviteUrl,
+  })
+
+  return { subject, text, html }
+}
+
 export type EmailResult =
   | { sent: true; id?: string }
   | {
