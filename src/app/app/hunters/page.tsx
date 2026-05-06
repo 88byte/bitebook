@@ -121,13 +121,12 @@ export default async function HuntersPage({
             slot; this body card is hidden via .bb-hunters-mobile-invite.
           • MOBILE (<1024px): banner slot is hidden, this card carries
             the invite form. Same flow, different placement. */}
+      {/* v27.8.2.2 — dropped the .bb-net-invite-head wrapper that
+          carried the icon + "Invite a hunter" title. Flavio: redundant
+          and taking up space. The DashboardHero subtitle already
+          frames the section, and the form's own segmented tabs make
+          the action obvious. */}
       <section className="bb-net-card bb-net-invite mt-4 bb-hunters-mobile-invite">
-        <div className="bb-net-invite-head">
-          <span className="bb-net-invite-icon" aria-hidden="true">
-            <Mail size={20} />
-          </span>
-          <h2 className="bb-net-invite-title">Invite a hunter</h2>
-        </div>
         <InviteForm />
       </section>
 

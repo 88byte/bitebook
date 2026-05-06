@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { applyRememberPreference, REMEMBER_COOKIE } from '@/lib/cookies'
 
+// v27.8.0 — /welcome added as the canonical, indexed marketing page.
+// /welcome-preview kept as a sandbox surface (still noindex'd in its
+// own page-level metadata).
 const PUBLIC_ROUTES = new Set([
   '/',
   '/login',
@@ -9,6 +12,8 @@ const PUBLIC_ROUTES = new Set([
   '/forgot-password',
   '/reset-password',
   '/accept-invite',
+  '/welcome',
+  '/welcome-preview',
 ])
 
 // Wraps NextResponse.redirect so any cookies Supabase wrote to `supabaseResponse`

@@ -142,8 +142,12 @@ export default function InviteForm({ compact = false }: { compact?: boolean }) {
   // ── Compact layout (banner right slot) ────────────────────────
   if (compact) {
     return (
+      // v27.8.2.2 — removed the "INVITE HUNTER" h2 from the banner
+      // (was .bb-hero-invite-title). Flavio: "redundant and taking up
+      // space." The page already shows DashboardHero with the eyebrow
+      // "Your network" + title "Hunters" + subtitle, and the
+      // segmented control's tab labels make the action self-evident.
       <div className="bb-hero-invite">
-        <h2 className="bb-hero-invite-title">Invite hunter</h2>
         {SegControl}
 
         {mode === 'email' && (
