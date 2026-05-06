@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { requireGuide } from '../_lib/auth'
+import { requireGuide, requireGuideAllowOnboarding } from '../_lib/auth'
 import { assertWriteAllowed } from '../_lib/billing-tier'
 import { markStepDone } from '../_lib/onboarding'
 import { US_STATES } from '@/lib/us-states'
@@ -218,7 +218,11 @@ function signaturePathFor(userId: string): string {
 }
 
 export async function saveDefaultSignatureAction(dataUrl: string): Promise<SignatureDefaultResult> {
-  const { user, profile } = await requireGuide()
+  // v27.8.3 — was requireGuide(), which redirects un-onboarded guides
+  // to /app/onboarding (default step=1) BEFORE the upload runs. Step 4
+  // of the wizard saves the signature; that flow was looping new
+  // signups straight back to step 1 the moment they hit Save.
+  const { user, profile } = await requireGuideAllowOnboarding()
   const gate = await assertWriteAllowed(profile.id)
   if ('error' in gate) return { error: gate.error }
   if (!dataUrl || !dataUrl.startsWith('data:image/png;base64,')) {
@@ -258,11 +262,18 @@ export async function saveDefaultSignatureAction(dataUrl: string): Promise<Signa
   }
 
   revalidatePath('/app/settings')
+  // v27.8.3 — Step 4 of the onboarding wizard reads
+  // guide_profiles.default_signature_path on render to flip its
+  // Continue button from disabled→enabled. Without this the
+  // router.refresh() in SignatureDefaultsForm hits a stale RSC cache
+  // and the user sees a still-disabled Continue button.
+  revalidatePath('/app/onboarding')
   return { ok: true, path }
 }
 
 export async function clearDefaultSignatureAction(): Promise<SettingsActionResult> {
-  const { user, profile } = await requireGuide()
+  // v27.8.3 — same onboarding-tolerant auth helper as save above.
+  const { user, profile } = await requireGuideAllowOnboarding()
   const gate = await assertWriteAllowed(profile.id)
   if ('error' in gate) return { error: gate.error }
   const supabase = await createClient()
@@ -282,6 +293,8 @@ export async function clearDefaultSignatureAction(): Promise<SettingsActionResul
     return { error: updated.error.message || 'Could not clear default signature.' }
   }
   revalidatePath('/app/settings')
+  // v27.8.3 — same onboarding revalidation as the save action above.
+  revalidatePath('/app/onboarding')
   return { ok: true }
 }
 

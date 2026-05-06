@@ -5,9 +5,18 @@ import { Briefcase, User, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 type Plan = 'monthly' | 'annual'
 
+// v27.8.3 — split single "Your name" into First name + Last name (Flavio
+// was filling the name twice: once on signup and again in onboarding
+// step 1). Now we capture first/last on signup, the api/checkout route
+// stamps them onto profiles, and the wizard skips the name fields when
+// they're already set.
+//
+// Business name is now OPTIONAL — many guides operate solo without an
+// LLC. Stored as NULL on guide_profiles when blank.
 export default function SignupForm() {
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [businessName, setBusinessName] = useState('')
-  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -21,15 +30,21 @@ export default function SignupForm() {
     setError(null)
     if (!tos) return setError('Please accept the Terms of Service.')
     if (password.length < 8) return setError('Password must be at least 8 characters.')
+    if (!firstName.trim() || !lastName.trim()) return setError('Please enter your first and last name.')
     setLoading(true)
 
+    const displayName = `${firstName.trim()} ${lastName.trim()}`
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
         password,
-        displayName: displayName.trim() || businessName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        displayName,
+        // v27.8.3 — empty businessName is allowed; api/checkout stores
+        // it as NULL on guide_profiles when blank.
         businessName: businessName.trim(),
         plan,
       }),
@@ -66,8 +81,12 @@ export default function SignupForm() {
         />
       </div>
 
-      <IconField icon={<Briefcase size={18} aria-hidden="true" />} type="text" name="businessName" autoComplete="organization" placeholder="Outfitter / business name" value={businessName} onChange={setBusinessName} required />
-      <IconField icon={<User size={18} aria-hidden="true" />} type="text" name="name" autoComplete="name" placeholder="Your name" value={displayName} onChange={setDisplayName} required />
+      {/* v27.8.3 — first/last side-by-side, business optional below. */}
+      <div className="grid grid-cols-2 gap-2">
+        <IconField icon={<User size={18} aria-hidden="true" />} type="text" name="firstName" autoComplete="given-name" placeholder="First name" value={firstName} onChange={setFirstName} required />
+        <IconField icon={<User size={18} aria-hidden="true" />} type="text" name="lastName" autoComplete="family-name" placeholder="Last name" value={lastName} onChange={setLastName} required />
+      </div>
+      <IconField icon={<Briefcase size={18} aria-hidden="true" />} type="text" name="businessName" autoComplete="organization" placeholder="Business name (optional)" value={businessName} onChange={setBusinessName} />
       <IconField icon={<Mail size={18} aria-hidden="true" />} type="email" name="email" autoComplete="email" placeholder="Email address" value={email} onChange={setEmail} required />
 
       <label className="bb-field">

@@ -114,6 +114,38 @@ export async function requireGuideForOnboarding() {
   return { supabase, user, profile, guide: guideRes.data ?? null }
 }
 
+// v27.8.3 — permissive variant of requireGuide() for actions that may run
+// during the first-time onboarding wizard. Same auth + role checks but
+// SKIPS the onboarded_at redirect, so an un-onboarded guide who's
+// mid-wizard can still trigger writes (e.g. saveDefaultSignatureAction
+// from Step 4) without getting bounced back to /app/onboarding (which
+// would default to ?step=1, looping the user).
+//
+// Use this in any action that's reachable from BOTH /app/onboarding and
+// /app/settings — actions reachable only from /app/settings should keep
+// using requireGuide() so the onboarded_at gate stays enforced.
+export async function requireGuideAllowOnboarding() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login?next=/app')
+
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('id, display_name, role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileErr) {
+    console.warn('[requireGuideAllowOnboarding] profiles read failed', { userId: user.id, code: profileErr.code, message: profileErr.message })
+    redirect('/?error=profile_unavailable')
+  }
+  if (!profile) redirect('/?error=no_profile')
+  if (profile.role === 'hunter') redirect('/app/h')
+  if (profile.role !== 'guide') redirect('/?error=guide_only')
+
+  return { supabase, user, profile }
+}
+
 // v25.1: hunter-side gate. Mirrors requireGuide() but enforces 'hunter'.
 // Same loop-safety approach: redirect to "/" with ?error= rather than /login.
 // Guides who somehow hit /app/h get sent back to their own dashboard.

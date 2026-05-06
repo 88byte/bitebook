@@ -239,6 +239,19 @@ function Step1BusinessBasics({
     state: string | null
   }
 }) {
+  // v27.8.3 — Flavio: "I already fill out my name and last name on sign up
+  // and then I have to do it again on first login." Signup now captures
+  // first_name + last_name and the api/checkout route writes them to
+  // profiles. When both are present, hide the name inputs from Step 1 and
+  // submit them as hidden fields so the server action still has the
+  // values it needs. Errors on first_name / last_name (rare — only happens
+  // if someone clears the inputs in DevTools) re-render the visible inputs
+  // so the user can correct.
+  const namesAlreadySet =
+    initialFirstName.trim() !== '' &&
+    initialLastName.trim() !== '' &&
+    !fieldErrors.first_name &&
+    !fieldErrors.last_name
   return (
     <section className="bb-tile bb-form-section" aria-labelledby="ob-step1">
       <div className="bb-tile-body flex flex-col gap-3">
@@ -251,37 +264,49 @@ function Step1BusinessBasics({
           Tell us about you
         </h2>
         <p className="bb-form-help" style={{ marginTop: '-0.3rem' }}>
-          Used on hunter invites and state log auto-fill.
+          {namesAlreadySet
+            ? 'A few last details so we can fill state logs for you.'
+            : 'Used on hunter invites and state log auto-fill.'}
         </p>
         <form action={saveBusinessBasicsAction} className="flex flex-col gap-3">
-          <div className="bb-form-grid-2">
-            <label className="bb-field flex flex-col gap-1">
-              <span className="bb-form-label">First name</span>
-              <input
-                type="text"
-                name="first_name"
-                autoComplete="given-name"
-                required
-                defaultValue={initialFirstName}
-                className="bb-input"
-                aria-invalid={!!fieldErrors.first_name}
-              />
-              <FieldError message={fieldErrors.first_name} />
-            </label>
-            <label className="bb-field flex flex-col gap-1">
-              <span className="bb-form-label">Last name</span>
-              <input
-                type="text"
-                name="last_name"
-                autoComplete="family-name"
-                required
-                defaultValue={initialLastName}
-                className="bb-input"
-                aria-invalid={!!fieldErrors.last_name}
-              />
-              <FieldError message={fieldErrors.last_name} />
-            </label>
-          </div>
+          {namesAlreadySet ? (
+            // Hidden submission of the values captured at signup —
+            // saveBusinessBasicsAction still validates required and
+            // writes display_name = "first last".
+            <>
+              <input type="hidden" name="first_name" value={initialFirstName} />
+              <input type="hidden" name="last_name" value={initialLastName} />
+            </>
+          ) : (
+            <div className="bb-form-grid-2">
+              <label className="bb-field flex flex-col gap-1">
+                <span className="bb-form-label">First name</span>
+                <input
+                  type="text"
+                  name="first_name"
+                  autoComplete="given-name"
+                  required
+                  defaultValue={initialFirstName}
+                  className="bb-input"
+                  aria-invalid={!!fieldErrors.first_name}
+                />
+                <FieldError message={fieldErrors.first_name} />
+              </label>
+              <label className="bb-field flex flex-col gap-1">
+                <span className="bb-form-label">Last name</span>
+                <input
+                  type="text"
+                  name="last_name"
+                  autoComplete="family-name"
+                  required
+                  defaultValue={initialLastName}
+                  className="bb-input"
+                  aria-invalid={!!fieldErrors.last_name}
+                />
+                <FieldError message={fieldErrors.last_name} />
+              </label>
+            </div>
+          )}
           <label className="bb-field flex flex-col gap-1">
             <span className="bb-form-label">State you operate in</span>
             <select
