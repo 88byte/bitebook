@@ -4,6 +4,8 @@ import Hero from '@/components/Hero'
 import FormCard from '@/components/FormCard'
 import Footer from '@/components/Footer'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+import { acceptInviteAsExistingUserActionRedirect } from './actions'
 
 export const metadata = { title: 'Welcome to Bite Book — set your password' }
 
@@ -87,28 +89,76 @@ async function loadInvite(token: string | undefined): Promise<InviteState> {
 export default async function AcceptInvitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>
+  searchParams: Promise<{ token?: string; accept_error?: string }>
 }) {
-  const { token } = await searchParams
+  const { token, accept_error } = await searchParams
   const invite = await loadInvite(token)
+
+  // v27.9.1.1 — detect signed-in state. Three rendering branches:
+  //   1. invalid invite → ErrorBlock (unchanged)
+  //   2. invite valid + signed in → ExistingUserConfirm (one-tap join)
+  //   3. invite valid + signed out → "Already have an account?" link
+  //      above the existing AcceptInviteForm
+  let signedInUserEmail: string | null = null
+  if (invite.ok) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      signedInUserEmail = user?.email ?? null
+    } catch {
+      // Non-fatal: cookie-aware client failed (very rare). Fall through
+      // to the signed-out path so the user can still proceed.
+      signedInUserEmail = null
+    }
+  }
+
+  const subtitle = invite.ok
+    ? signedInUserEmail
+      ? `${invite.guideName} invited you. Confirm to join.`
+      : `${invite.guideName} invited you. Set a password to get started.`
+    : 'Set a password to get started.'
 
   return (
     <main className="flex flex-col min-h-screen">
       <Hero
         taglineLine1="You&rsquo;re in the book."
-        subtitle={
-          invite.ok
-            ? `${invite.guideName} invited you. Set a password to get started.`
-            : 'Set a password to get started.'
-        }
+        subtitle={subtitle}
       />
 
       <section className="px-6 pb-12">
-        <FormCard headerText="Set up account">
+        <FormCard
+          headerText={signedInUserEmail ? 'Confirm and join' : 'Set up account'}
+        >
           {invite.ok ? (
             <>
               {invite.trip && <TripPreviewChip trip={invite.trip} />}
-              <AcceptInviteForm token={invite.token} email={invite.email} />
+              {accept_error && (
+                <p
+                  role="alert"
+                  style={{
+                    margin: '0 0 0.75rem',
+                    padding: '0.55rem 0.7rem',
+                    borderRadius: 8,
+                    background: '#F2D6CE',
+                    color: '#8C3C2A',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  {accept_error}
+                </p>
+              )}
+              {signedInUserEmail ? (
+                <ExistingUserConfirm
+                  token={invite.token}
+                  email={signedInUserEmail}
+                  tripTitle={invite.trip?.title ?? null}
+                />
+              ) : (
+                <>
+                  <SignInOffer token={invite.token} />
+                  <AcceptInviteForm token={invite.token} email={invite.email} />
+                </>
+              )}
             </>
           ) : (
             <ErrorBlock reason={invite.reason} />
@@ -118,6 +168,82 @@ export default async function AcceptInvitePage({
 
       <Footer />
     </main>
+  )
+}
+
+// v27.9.1.1 — existing-hunter confirmation panel. The page already
+// gated on auth + trip status; this component just collects a single
+// click and posts to the redirecting server action wrapper.
+function ExistingUserConfirm({
+  token,
+  email,
+  tripTitle,
+}: {
+  token: string
+  email: string
+  tripTitle: string | null
+}) {
+  return (
+    <form action={acceptInviteAsExistingUserActionRedirect} className="flex flex-col gap-3">
+      <input type="hidden" name="token" value={token} />
+      <p className="text-xs" style={{ color: 'var(--color-ink-muted)', margin: 0 }}>
+        Signed in as <strong style={{ color: 'var(--color-ink)' }}>{email}</strong>.
+      </p>
+      <p className="text-sm" style={{ color: 'var(--color-ink)', margin: 0 }}>
+        {tripTitle
+          ? `Tap Confirm to add yourself to ${tripTitle}.`
+          : 'Tap Confirm to accept this invite and join the guide’s network.'}
+      </p>
+      <button type="submit" className="bb-cta">
+        Confirm and join
+      </button>
+      <p className="text-[10px] text-center" style={{ color: 'var(--color-ink-soft)', margin: 0 }}>
+        Wrong account?{' '}
+        <Link href="/login?next=/" className="underline" style={{ color: 'var(--color-copper)' }}>
+          Sign out and use a different one
+        </Link>
+        .
+      </p>
+    </form>
+  )
+}
+
+// v27.9.1.1 — sign-in offer above the new-hunter form. Routes to /login
+// with ?next= back to this same accept-invite URL so the user lands
+// here logged in and the page flips to the ExistingUserConfirm branch.
+function SignInOffer({ token }: { token: string }) {
+  const next = encodeURIComponent(`/accept-invite?token=${token}`)
+  return (
+    <div
+      style={{
+        marginBottom: '0.85rem',
+        padding: '0.7rem 0.85rem',
+        borderRadius: 10,
+        background: 'rgba(11, 8, 6, 0.04)',
+        border: '1px solid rgba(11, 8, 6, 0.08)',
+      }}
+    >
+      <p
+        className="text-sm"
+        style={{ margin: 0, color: 'var(--color-ink)' }}
+      >
+        Already have a Bite Book account?{' '}
+        <Link
+          href={`/login?next=${next}`}
+          className="underline font-bold"
+          style={{ color: 'var(--color-copper)' }}
+        >
+          Sign in
+        </Link>{' '}
+        and we&rsquo;ll add you on the next screen.
+      </p>
+      <p
+        className="text-xs"
+        style={{ margin: '0.3rem 0 0', color: 'var(--color-ink-muted)' }}
+      >
+        New here? Set up your account below.
+      </p>
+    </div>
   )
 }
 

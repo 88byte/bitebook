@@ -70,10 +70,14 @@ export default function TripShareLinkButton({
       }}
     >
       <span className="bb-form-label">Share this trip with hunters</span>
+      {/* v27.9.1.1 — copy clarifies BOTH paths: existing hunters
+          sign in (no surprise email collision), new hunters get
+          prompted to create an account and are auto-added. */}
       <p className="bb-form-help" style={{ margin: 0 }}>
-        Hunters who accept this link join Bite Book AND get added to{' '}
-        <strong>{tripTitle}</strong>. Share with as many as you want. Link
-        expires on the trip start date.
+        Hunters who already have a Bite Book account just sign in and
+        they&rsquo;re added to <strong>{tripTitle}</strong>. New hunters
+        will be prompted to create an account, then auto-added. Share
+        with as many as you want. Link expires on the trip start date.
       </p>
 
       {!shareUrl && (
