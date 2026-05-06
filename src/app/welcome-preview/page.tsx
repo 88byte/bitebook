@@ -1,55 +1,44 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import {
-  PenLine,
-  MapPin,
-  Users,
-  ShieldCheck,
-  CheckCircle2,
-  ArrowRight,
-  Smartphone,
-  Clock,
-  FileText,
-  Mail,
-} from 'lucide-react'
+import { ArrowRight, ArrowDown, CheckCircle2 } from 'lucide-react'
 
-// v27.8.0-preview2 — full design + SEO pass. Audience: hunting and
-// fishing guides. Voice: terse, concrete, field-spoken. NO corporate
-// SaaS speak ("platform", "leverage", "stakeholders" all banned).
-// Real form names + real pain points. No fabricated testimonials.
+// v27.8.0-preview3 — full art-directed pass. NOT a wireframe with
+// brand colors painted on. The page is the visual; typography is the
+// hero; the photo is the page. Borrowing from Field Mag, Garage,
+// editorial outdoor magazines — display type at scale, copper accent
+// rules, asymmetric grid, hand-drawn SVG accents, before/after as the
+// signature moment, dark cinematic close.
 //
-// Preview route only — production /welcome will land separately with
-// `robots: 'index, follow'` + canonical pointing here. This page is
-// noindex'd.
+// PREVIEW route only. Production /welcome lands separately with
+// `robots: 'index, follow'` + canonical pointing here.
 export const metadata: Metadata = {
   title: 'Bite Book — Digital log book for hunting & fishing guides',
   description:
-    'Track trips, fill state harvest reports, and share with hunters and wardens — from your phone. Built for guides. 7 days free, no card required.',
+    "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone. 7 days free. No card.",
   robots: 'noindex, nofollow',
   alternates: { canonical: 'https://bitebook.lastbite.pro/welcome-preview' },
   openGraph: {
     type: 'website',
-    title: 'Bite Book — Digital log book for hunting & fishing guides',
+    title: 'Bite Book — Built for guides. Made for the field.',
     description:
-      'Track trips, fill state harvest reports, and share with hunters and wardens — from your phone. 7 days free, no card required.',
+      "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone. 7 days free. No card.",
     url: 'https://bitebook.lastbite.pro/welcome-preview',
     siteName: 'Bite Book',
     images: [
       {
-        url: 'https://bitebook.lastbite.pro/banners/dashboard-hero.png',
+        url: 'https://bitebook.lastbite.pro/banners/hunter-hero.png',
         width: 2172,
         height: 724,
-        alt: 'Bite Book — guide dashboard',
+        alt: 'Bite Book — built for hunting and fishing guides',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Bite Book — Digital log book for hunting & fishing guides',
-    description:
-      'Track trips, fill state harvest reports, and share with hunters and wardens — from your phone.',
-    images: ['https://bitebook.lastbite.pro/banners/dashboard-hero.png'],
+    title: 'Bite Book — Built for guides. Made for the field.',
+    description: "Paper logs are a tax on your time. Bite Book files your state's harvest report from your phone.",
+    images: ['https://bitebook.lastbite.pro/banners/hunter-hero.png'],
   },
   keywords: [
     'hunt log app',
@@ -65,9 +54,6 @@ export const metadata: Metadata = {
   ],
 }
 
-// JSON-LD structured data — pulled out so the page render stays clean.
-// Three blocks: Organization, Product (with pricing), FAQPage. Google
-// uses these for rich snippets.
 const ORG_JSONLD = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
@@ -75,18 +61,9 @@ const ORG_JSONLD = {
   url: 'https://bitebook.lastbite.pro/',
   logo: 'https://bitebook.lastbite.pro/bb-logo-mark.png',
   description: 'Digital log book for hunting and fishing guides.',
-  parentOrganization: {
-    '@type': 'Organization',
-    name: 'Last Bite Pro',
-    url: 'https://lastbite.pro/',
-  },
-  contactPoint: {
-    '@type': 'ContactPoint',
-    contactType: 'Customer Support',
-    email: 'support@lastbite.pro',
-  },
+  parentOrganization: { '@type': 'Organization', name: 'Last Bite Pro', url: 'https://lastbite.pro/' },
+  contactPoint: { '@type': 'ContactPoint', contactType: 'Customer Support', email: 'support@lastbite.pro' },
 }
-
 const PRODUCT_JSONLD = {
   '@context': 'https://schema.org',
   '@type': 'Product',
@@ -97,1073 +74,487 @@ const PRODUCT_JSONLD = {
   offers: [
     {
       '@type': 'Offer',
-      price: '9.00',
-      priceCurrency: 'USD',
-      priceSpecification: {
-        '@type': 'UnitPriceSpecification',
-        price: '9.00',
-        priceCurrency: 'USD',
-        unitText: 'MON',
-      },
-      availability: 'https://schema.org/InStock',
-      url: 'https://bitebook.lastbite.pro/signup',
+      price: '9.00', priceCurrency: 'USD',
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: '9.00', priceCurrency: 'USD', unitText: 'MON' },
+      availability: 'https://schema.org/InStock', url: 'https://bitebook.lastbite.pro/signup',
     },
     {
       '@type': 'Offer',
-      price: '90.00',
-      priceCurrency: 'USD',
-      priceSpecification: {
-        '@type': 'UnitPriceSpecification',
-        price: '90.00',
-        priceCurrency: 'USD',
-        unitText: 'ANN',
-      },
-      availability: 'https://schema.org/InStock',
-      url: 'https://bitebook.lastbite.pro/signup',
+      price: '90.00', priceCurrency: 'USD',
+      priceSpecification: { '@type': 'UnitPriceSpecification', price: '90.00', priceCurrency: 'USD', unitText: 'ANN' },
+      availability: 'https://schema.org/InStock', url: 'https://bitebook.lastbite.pro/signup',
     },
   ],
 }
-
 const FAQ_JSONLD = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
   mainEntity: [
-    {
-      '@type': 'Question',
-      name: 'Does it actually fill the CDFW 992-B?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your state's PDF once and Bite Book maps every field for you. We support every state.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'What does it cost my hunters?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "Nothing. They never pay a dime. Invite them by email, they sign in, see their trips, link their tags. That's it.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Will it work in places without service?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "Most of it. View trips, harvests, and saved logs offline. Full offline editing is in active development. For now, new edits need a connection.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'What about my insurance and license docs?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "They live in your wallet. Bite Book reminds you when something's about to expire so you're never caught without proof.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Can my hunters sign waivers from their phone?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "Yes. They tap the link in their email, sign on their phone, and you get the signed PDF immediately. Same with the harvest report after the hunt.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: "I'm a one-person outfit. Worth it for me?",
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text:
-          "That's exactly who Bite Book was built for. The annual plan is $7.50 a month. One trip pays for it.",
-      },
-    },
+    { '@type': 'Question', name: 'Does it actually fill the CDFW 992-B?', acceptedAnswer: { '@type': 'Answer', text: "Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your state's PDF once and Bite Book maps every field for you. We support every state." } },
+    { '@type': 'Question', name: 'What does it cost my hunters?', acceptedAnswer: { '@type': 'Answer', text: "Nothing. They never pay a dime. Invite them by email, they sign in, see their trips, link their tags. That's it." } },
+    { '@type': 'Question', name: 'Will it work in places without service?', acceptedAnswer: { '@type': 'Answer', text: 'Most of it. View trips, harvests, and saved logs offline. Full offline editing is in active development.' } },
+    { '@type': 'Question', name: "I'm a one-person outfit. Worth it for me?", acceptedAnswer: { '@type': 'Answer', text: "That's exactly who Bite Book was built for. The annual plan is $7.50 a month. One trip pays for it." } },
   ],
 }
 
 export default function WelcomePreviewPage() {
   return (
     <main className="bb-mkt">
-      {/* Structured data — emitted as JSON-LD <script> tags so search
-          engines can pick up Organization + Product + FAQ for rich
-          snippets. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(PRODUCT_JSONLD) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSONLD) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(PRODUCT_JSONLD) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSONLD) }} />
 
-      {/* ── HERO ─────────────────────────────────────────────────── */}
-      <section
-        className="bb-hero relative overflow-hidden"
-        aria-labelledby="bb-mkt-hero-title"
-      >
-        <div
-          className="bb-hero-fade absolute inset-x-0 bottom-0 h-32 pointer-events-none"
-          aria-hidden="true"
-        />
-        <div className="bb-mkt-hero-inner">
-          <Link
-            href="/welcome-preview"
-            aria-label="Bite Book home"
-            className="bb-mkt-hero-mark-link"
-          >
-            <Image
-              src="/bb-logo-mark.png"
-              alt="Bite Book"
-              width={1024}
-              height={1024}
-              sizes="(min-width: 768px) 96px, 80px"
-              className="bb-mkt-hero-mark"
-              priority
-            />
-          </Link>
-          <p className="bb-mkt-eyebrow">Bite Book &middot; for guides &middot; field-tested</p>
+      {/* ── HERO — cinematic full-bleed ─────────────────────────── */}
+      <section className="bb-mkt-hero" aria-labelledby="bb-mkt-hero-title">
+        {/* Background photo, dark-tinted via gradient overlay below */}
+        <div className="bb-mkt-hero-bg" aria-hidden="true">
+          <Image
+            src="/banners/hunter-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="bb-mkt-hero-bg-img"
+          />
+          <div className="bb-mkt-hero-veil" />
+          <div className="bb-mkt-hero-topo" />
+        </div>
+
+        {/* Brand mark in the top-left corner */}
+        <header className="bb-mkt-hero-corner" aria-label="Bite Book brand">
+          <Image
+            src="/bb-logo-mark.png"
+            alt="Bite Book"
+            width={1024}
+            height={1024}
+            sizes="48px"
+            className="bb-mkt-hero-mark"
+            priority
+          />
+          <span className="bb-mkt-hero-wordmark">Bite Book</span>
+        </header>
+
+        {/* Compass-rule decorative mark in the top-right */}
+        <span className="bb-mkt-hero-decor-tr" aria-hidden="true">
+          <Compass />
+        </span>
+
+        {/* Main headline + CTA, asymmetric — anchored bottom-left */}
+        <div className="bb-mkt-hero-stack">
+          <p className="bb-mkt-hero-eyebrow">
+            <span className="bb-mkt-hero-eyebrow-rule" aria-hidden="true" />
+            For hunting & fishing guides &middot; field-tested
+          </p>
           <h1 id="bb-mkt-hero-title" className="bb-mkt-hero-title">
-            Less paperwork.
-            <br />
-            <span className="bb-mkt-hero-title-accent">More hunting.</span>
+            <span className="bb-mkt-hero-title-line">Less paperwork.</span>
+            <span className="bb-mkt-hero-title-line bb-mkt-hero-title-accent">More hunting.</span>
           </h1>
           <p className="bb-mkt-hero-sub">
-            The digital log book for hunting and fishing guides. Track trips, fill
-            your state&rsquo;s harvest report, and share with hunters and wardens
-            &mdash; all from your phone.
+            Built for guides who&rsquo;d rather be in the field than in front of a printer. Bite Book files your
+            state&rsquo;s harvest report from your phone &mdash; in less time than it takes to clean a rifle.
           </p>
           <div className="bb-mkt-hero-cta-row">
-            <Link href="/signup" className="bb-cta bb-mkt-cta-primary">
-              Start 7-day free trial
+            <Link href="/signup" className="bb-mkt-cta">
+              <span>Start 7-day free trial</span>
+              <ArrowRight size={18} aria-hidden="true" />
             </Link>
-            <Link href="/login" className="bb-mkt-secondary-link">
-              Already a guide? Sign in <ArrowRight size={14} aria-hidden="true" />
+            <Link href="/login" className="bb-mkt-cta-secondary">
+              I&rsquo;m already a guide
             </Link>
           </div>
-          <ul className="bb-mkt-trust-row" aria-label="What you get">
-            <li>
-              <ShieldCheck size={14} aria-hidden="true" />
-              All 50 states
-            </li>
-            <li>
-              <Smartphone size={14} aria-hidden="true" />
-              Built for the field
-            </li>
-            <li>
-              <Clock size={14} aria-hidden="true" />
-              No card required
-            </li>
+          <ul className="bb-mkt-hero-stat-row" aria-label="What you get">
+            <li><strong>50</strong><span>states</span></li>
+            <li><strong>0</strong><span>hunter fees</span></li>
+            <li><strong>7</strong><span>days free</span></li>
+            <li><strong>5 min</strong><span>to set up</span></li>
           </ul>
         </div>
+
+        {/* Scroll down hint */}
+        <span className="bb-mkt-hero-scroll" aria-hidden="true">
+          <ArrowDown size={14} />
+          Scroll
+        </span>
       </section>
 
-      {/* ── PAIN / GAIN — 4 PILLARS ──────────────────────────────── */}
-      <section
-        className="bb-mkt-section bb-mkt-section-paper"
-        aria-labelledby="bb-mkt-pillars-title"
-      >
+      {/* ── MANIFESTO STRIP — pull-quote between hero and pillars ── */}
+      <aside className="bb-mkt-manifesto" aria-label="Bite Book manifesto">
+        <div className="bb-mkt-manifesto-inner">
+          <p className="bb-mkt-manifesto-mark" aria-hidden="true">&ldquo;</p>
+          <p className="bb-mkt-manifesto-text">
+            Paper logs are a tax on your time.
+            <br />
+            <span className="bb-mkt-manifesto-accent">Stop paying it.</span>
+          </p>
+        </div>
+      </aside>
+
+      {/* ── PILLARS — asymmetric, hand-drawn iconography ────────── */}
+      <section className="bb-mkt-pillars-wrap" aria-labelledby="bb-mkt-pillars-title">
         <div className="bb-mkt-container">
-          <p className="bb-mkt-section-eyebrow">Built for guides who&rsquo;d rather be outside</p>
-          <h2 id="bb-mkt-pillars-title" className="bb-mkt-section-title">
-            The truck-cab paperwork problem, solved.
-          </h2>
+          <div className="bb-mkt-pillars-head">
+            <p className="bb-mkt-section-eyebrow">What it does</p>
+            <h2 id="bb-mkt-pillars-title" className="bb-mkt-section-title">
+              The truck-cab paperwork problem,<br />
+              <span className="bb-mkt-headline-strike">solved</span>.
+            </h2>
+            <p className="bb-mkt-section-sub">
+              Four things eat your evening after a hunt. Bite Book takes care of all of them before you finish your beer.
+            </p>
+          </div>
+
           <div className="bb-mkt-pillars">
-            <Pillar
-              icon={PenLine}
-              title="Stop typing in the truck."
-              body="Add hunters, log harvests, and generate state reports right from your phone. Bite Book has every field your state asks for &mdash; already there, ready to fill."
-            />
-            <Pillar
-              icon={MapPin}
-              title="Your state's forms. Already filled."
-              body="Upload your state's PDF once. Bite Book auto-fills it for every trip after that. CDFW 992-B, ODFW 1009, NMDGF report &mdash; you name it."
-            />
-            <Pillar
-              icon={Users}
-              title="Hunters don't pay. Ever."
-              body="Invite hunters by email &mdash; free for them. They sign waivers, link tags, and stay in the loop. You handle one bill, not seven."
-            />
-            <Pillar
-              icon={ShieldCheck}
-              title="Warden walks up. You're ready."
-              body="One tap, signed PDF in hand. Show it on your phone or share a link. Real signatures, real timestamps, real audit trail."
-            />
+            <article className="bb-mkt-pillar bb-mkt-pillar-lg">
+              <span className="bb-mkt-pillar-icon" aria-hidden="true"><AntlersIcon /></span>
+              <p className="bb-mkt-pillar-num">01</p>
+              <h3 className="bb-mkt-pillar-title">Stop typing in the truck.</h3>
+              <p className="bb-mkt-pillar-body">
+                Add hunters. Log harvests. Generate reports. All from your phone &mdash; same hand
+                you&rsquo;re holding the coffee with. Bite Book has every field your state asks for,
+                already there, ready to fill.
+              </p>
+            </article>
+
+            <article className="bb-mkt-pillar">
+              <span className="bb-mkt-pillar-icon" aria-hidden="true"><FormIcon /></span>
+              <p className="bb-mkt-pillar-num">02</p>
+              <h3 className="bb-mkt-pillar-title">We learned the 992-B so you don&rsquo;t have to.</h3>
+              <p className="bb-mkt-pillar-body">
+                Upload your state&rsquo;s PDF once. Bite Book maps every field. CDFW 992-B,
+                ODFW 1009, NMDGF report &mdash; you name it.
+              </p>
+            </article>
+
+            <article className="bb-mkt-pillar">
+              <span className="bb-mkt-pillar-icon" aria-hidden="true"><PeopleIcon /></span>
+              <p className="bb-mkt-pillar-num">03</p>
+              <h3 className="bb-mkt-pillar-title">Hunters don&rsquo;t pay. Ever.</h3>
+              <p className="bb-mkt-pillar-body">
+                Invite them by email &mdash; free for them, forever. They sign waivers, link tags, and stay
+                in the loop. You handle one bill, not seven.
+              </p>
+            </article>
+
+            <article className="bb-mkt-pillar">
+              <span className="bb-mkt-pillar-icon" aria-hidden="true"><BadgeIcon /></span>
+              <p className="bb-mkt-pillar-num">04</p>
+              <h3 className="bb-mkt-pillar-title">Warden walks up. You&rsquo;re ready.</h3>
+              <p className="bb-mkt-pillar-body">
+                One tap, signed PDF. Show it on your phone or send a link. Real signatures.
+                Real timestamps. Real audit trail.
+              </p>
+            </article>
           </div>
         </div>
       </section>
 
-      {/* ── HOW IT WORKS — 3 STEPS ───────────────────────────────── */}
-      <section
-        className="bb-mkt-section bb-mkt-section-dark"
-        aria-labelledby="bb-mkt-steps-title"
-      >
+      {/* ── BEFORE / AFTER — the signature visual moment ─────────── */}
+      <section className="bb-mkt-vs" aria-labelledby="bb-mkt-vs-title">
         <div className="bb-mkt-container">
-          <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">
-            How it works
+          <div className="bb-mkt-vs-head">
+            <p className="bb-mkt-section-eyebrow">The old way / the new way</p>
+            <h2 id="bb-mkt-vs-title" className="bb-mkt-section-title bb-mkt-section-title-dark">
+              Choose your harvest report.
+            </h2>
+          </div>
+
+          <div className="bb-mkt-vs-grid">
+            {/* OLD — beat-up paper logbook feel */}
+            <figure className="bb-mkt-vs-card bb-mkt-vs-old">
+              <figcaption className="bb-mkt-vs-tag bb-mkt-vs-tag-old">The old way</figcaption>
+              <div className="bb-mkt-vs-paper">
+                <div className="bb-mkt-vs-paper-head">
+                  <span>HARVEST LOG &mdash; CDFW 992-B</span>
+                  <span className="bb-mkt-vs-paper-date">Sat 11/14</span>
+                </div>
+                <ol className="bb-mkt-vs-paper-list">
+                  <li><span className="bb-mkt-vs-strike">Hunter: Michael &mdash;</span> Mike Reyes</li>
+                  <li><span className="bb-mkt-vs-strike">Tag #: D&minus;1244</span> D&minus;1248&hairsp;?</li>
+                  <li>Species: Mule deer</li>
+                  <li><span className="bb-mkt-vs-strike">Lic #: ?????</span> &laquo;ask Mike&raquo;</li>
+                  <li><span className="bb-mkt-vs-strike">Zone: D&minus;9</span> X&minus;7b</li>
+                  <li>Method: rifle &middot; .270</li>
+                  <li>Hours: 7 &mdash; <em className="bb-mkt-vs-mute">give or take</em></li>
+                </ol>
+                <p className="bb-mkt-vs-paper-foot">Sign &amp; mail before the 15th</p>
+              </div>
+              <p className="bb-mkt-vs-caption">
+                Coffee stains, scratched tag numbers, three trips back to the truck for the lic #.
+              </p>
+            </figure>
+
+            {/* NEW — clean Bite Book screen */}
+            <figure className="bb-mkt-vs-card bb-mkt-vs-new">
+              <figcaption className="bb-mkt-vs-tag bb-mkt-vs-tag-new">Bite Book</figcaption>
+              <div className="bb-mkt-vs-screen">
+                <div className="bb-mkt-vs-screen-bar">
+                  <span className="bb-mkt-vs-screen-dot" />
+                  <span className="bb-mkt-vs-screen-title">Trip &middot; Mule deer &middot; D-9</span>
+                </div>
+                <div className="bb-mkt-vs-screen-body">
+                  <ScreenRow label="Hunter" value="Mike Reyes" check />
+                  <ScreenRow label="Tag #" value="D-1248" check />
+                  <ScreenRow label="License" value="CA-19283" check />
+                  <ScreenRow label="Zone" value="X-7b" check />
+                  <ScreenRow label="Method" value="Rifle &middot; .270" check />
+                  <ScreenRow label="Hours" value="7.0" check />
+                </div>
+                <div className="bb-mkt-vs-screen-cta">
+                  <span className="bb-mkt-vs-screen-cta-pill">Generate &amp; sign 992-B</span>
+                </div>
+              </div>
+              <p className="bb-mkt-vs-caption">
+                Tap once. PDF filed. Hunter&rsquo;s signed. Warden has a link. Done before the truck&rsquo;s warm.
+              </p>
+            </figure>
+          </div>
+
+          <p className="bb-mkt-vs-foot">
+            Same hunt. Different evening.
           </p>
-          <h2
-            id="bb-mkt-steps-title"
-            className="bb-mkt-section-title bb-mkt-section-title-dark"
-          >
-            Three steps. That&rsquo;s it.
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ─────────────────────────────────────────── */}
+      <section className="bb-mkt-steps-wrap" aria-labelledby="bb-mkt-steps-title">
+        <div className="bb-mkt-container">
+          <p className="bb-mkt-section-eyebrow">How it works</p>
+          <h2 id="bb-mkt-steps-title" className="bb-mkt-section-title">
+            Three steps. <span className="bb-mkt-headline-accent">No manual.</span>
           </h2>
           <ol className="bb-mkt-steps">
-            <Step
-              n={1}
-              icon={Mail}
-              title="Sign up"
-              body="7 days free. No card. Pick your state and you're in."
-            />
-            <Step
-              n={2}
-              icon={MapPin}
-              title="Add a trip"
-              body="Pull in your hunters, set the dates, mark species and zone. Bite Book remembers it all."
-            />
-            <Step
-              n={3}
-              icon={FileText}
-              title="File the report"
-              body="Tap Generate. Bite Book fills your state's PDF, signs it, and you're done before dinner."
-            />
+            <li className="bb-mkt-step">
+              <span className="bb-mkt-step-num">01</span>
+              <h3 className="bb-mkt-step-title">Sign up.</h3>
+              <p className="bb-mkt-step-body">
+                7 days free. No card. Pick your state and you&rsquo;re in.
+              </p>
+            </li>
+            <li className="bb-mkt-step bb-mkt-step-mid">
+              <span className="bb-mkt-step-connector" aria-hidden="true" />
+              <span className="bb-mkt-step-num">02</span>
+              <h3 className="bb-mkt-step-title">Add a trip.</h3>
+              <p className="bb-mkt-step-body">
+                Pull in your hunters, set the dates, mark species and zone. Bite Book remembers it all.
+              </p>
+            </li>
+            <li className="bb-mkt-step">
+              <span className="bb-mkt-step-connector" aria-hidden="true" />
+              <span className="bb-mkt-step-num">03</span>
+              <h3 className="bb-mkt-step-title">File the report.</h3>
+              <p className="bb-mkt-step-body">
+                Tap Generate. Bite Book fills your state&rsquo;s PDF, signs it, and you&rsquo;re done before dinner.
+              </p>
+            </li>
           </ol>
         </div>
       </section>
 
-      {/* ── PRICING ───────────────────────────────────────────────── */}
-      <section
-        className="bb-mkt-section bb-mkt-section-paper"
-        id="pricing"
-        aria-labelledby="bb-mkt-pricing-title"
-      >
-        <div className="bb-mkt-container bb-mkt-container-narrow">
-          <p className="bb-mkt-section-eyebrow">Pricing</p>
-          <h2 id="bb-mkt-pricing-title" className="bb-mkt-section-title">
-            One plan. Try it free.
+      {/* ── PRICING — confident statement, not a card ─────────────── */}
+      <section className="bb-mkt-pricing-wrap" id="pricing" aria-labelledby="bb-mkt-pricing-title">
+        <div className="bb-mkt-container">
+          <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">Pricing, plain</p>
+          <h2 id="bb-mkt-pricing-title" className="bb-mkt-pricing-headline">
+            <span className="bb-mkt-pricing-amount">$90</span>
+            <span className="bb-mkt-pricing-period">a year.</span>
           </h2>
-          <p className="bb-mkt-section-sub">
-            7 days free. No card required. Cancel any time.
+          <p className="bb-mkt-pricing-statement">
+            One trip pays for it. <span className="bb-mkt-pricing-accent">Skip the next five if you want.</span>
           </p>
 
-          <div className="bb-mkt-price-card">
-            <div className="bb-mkt-price-tag">Best value &middot; save $18 a year</div>
+          <ul className="bb-mkt-pricing-list">
+            <li><CheckCircle2 size={16} aria-hidden="true" /> All 50 states &middot; hunting and fishing</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> Unlimited trips, hunters, harvest report PDFs</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> E-signatures on waivers and reports</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> Wallet for license, insurance, credentials</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> Warden share &middot; same-day email support</li>
+            <li><CheckCircle2 size={16} aria-hidden="true" /> Hunters are free. Always. We mean it.</li>
+          </ul>
 
-            <div className="bb-mkt-price-toggle" role="group" aria-label="Billing period">
-              <span className="bb-mkt-price-toggle-pill is-active">Annual</span>
-              <span className="bb-mkt-price-toggle-pill">Monthly</span>
-            </div>
-
-            <div className="bb-mkt-price-amount-row">
-              <span className="bb-mkt-price-amount">$90</span>
-              <span className="bb-mkt-price-period">/year</span>
-            </div>
-            <p className="bb-mkt-price-equivalence">
-              That&rsquo;s <strong>$7.50 a month.</strong> One trip pays for it.
-            </p>
-            <p className="bb-mkt-price-monthly-alt">
-              Or pay monthly: <strong>$9/month</strong>
-            </p>
-
-            <ul className="bb-mkt-price-features">
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                All 50 states &middot; hunting and fishing
-              </li>
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                Unlimited trips and hunters
-              </li>
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                Unlimited harvest report PDFs
-              </li>
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                E-signatures on waivers and reports
-              </li>
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                Wallet for license, insurance, credentials
-              </li>
-              <li>
-                <CheckCircle2 size={16} aria-hidden="true" />
-                Warden share &middot; same-day email support
-              </li>
-            </ul>
-
-            <Link href="/signup" className="bb-cta bb-mkt-price-cta">
-              Start 7-day free trial
+          <div className="bb-mkt-pricing-cta-row">
+            <Link href="/signup" className="bb-mkt-cta bb-mkt-cta-large">
+              <span>Start 7-day free trial</span>
+              <ArrowRight size={20} aria-hidden="true" />
             </Link>
-            <p className="bb-mkt-price-fineprint">
-              Hunters are free, forever &middot; cancel anytime
+            <p className="bb-mkt-pricing-fineprint">
+              7 days free &middot; no card required &middot; cancel anytime. Or pay <strong>$9/month</strong> if you&rsquo;d rather.
             </p>
           </div>
         </div>
       </section>
 
       {/* ── FAQ ───────────────────────────────────────────────────── */}
-      <section
-        className="bb-mkt-section bb-mkt-section-paper bb-mkt-section-faq"
-        id="faq"
-        aria-labelledby="bb-mkt-faq-title"
-      >
+      <section className="bb-mkt-faq-wrap" id="faq" aria-labelledby="bb-mkt-faq-title">
         <div className="bb-mkt-container bb-mkt-container-narrow">
-          <p className="bb-mkt-section-eyebrow">Questions guides ask</p>
+          <p className="bb-mkt-section-eyebrow">Things real guides have asked us</p>
           <h2 id="bb-mkt-faq-title" className="bb-mkt-section-title">
             Real answers, in plain English.
           </h2>
           <div className="bb-mkt-faq">
             <Faq q="Does it actually fill the CDFW 992-B?">
-              Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your
-              state&rsquo;s PDF once and Bite Book maps every field for you. We
-              support every state.
+              Yes. And the ODFW Form 1009. And the NMDGF harvest report. Upload your state&rsquo;s PDF
+              once and Bite Book maps every field for you. We support every state.
             </Faq>
             <Faq q="What does it cost my hunters?">
-              Nothing. They never pay a dime. Invite them by email, they sign in,
-              see their trips, link their tags. That&rsquo;s it.
+              Nothing. They never pay a dime. Invite them by email, they sign in, see their trips, link
+              their tags. That&rsquo;s it.
             </Faq>
             <Faq q="Will it work in places without service?">
-              Most of it. View trips, harvests, and saved logs offline. Full offline
-              editing is in active development. For now, new edits need a
-              connection.
+              Most of it. View trips, harvests, and saved logs offline. Full offline editing is in
+              active development. For now, new edits need a connection.
             </Faq>
             <Faq q="What about my insurance and license docs?">
-              They live in your wallet. Bite Book reminds you when something&rsquo;s
-              about to expire so you&rsquo;re never caught without proof.
+              They live in your wallet. Bite Book reminds you when something&rsquo;s about to expire so
+              you&rsquo;re never caught without proof.
             </Faq>
             <Faq q="Can my hunters sign waivers from their phone?">
-              Yes. They tap the link in their email, sign on their phone, and you
-              get the signed PDF immediately. Same with the harvest report after the
-              hunt.
+              Yes. They tap the link in their email, sign on their phone, and you get the signed PDF
+              immediately. Same with the harvest report after the hunt.
             </Faq>
             <Faq q="How do I cancel?">
-              Tap once in Settings. End your trial before day 7 and you pay nothing.
-              Cancel anytime after &mdash; you keep access until your billing period
-              ends.
+              Tap once in Settings. End your trial before day 7 and you pay nothing. Cancel anytime
+              after &mdash; you keep access until your billing period ends.
             </Faq>
             <Faq q="I'm a one-person outfit. Worth it for me?">
-              That&rsquo;s exactly who Bite Book was built for. You spend less time on
-              paperwork, more time guiding. The annual plan is $7.50 a month. One
+              That&rsquo;s exactly who Bite Book was built for. The annual plan is $7.50 a month. One
               trip pays for it.
             </Faq>
           </div>
           <p className="bb-mkt-faq-foot">
-            Have a question we didn&rsquo;t cover? Email{' '}
+            Got a question we missed? Email{' '}
             <a href="mailto:support@lastbite.pro" className="bb-mkt-inline-link">
               support@lastbite.pro
-            </a>{' '}
-            &mdash; we answer fast, usually same day.
+            </a>
+            . Same-day reply, usually faster.
           </p>
         </div>
       </section>
 
-      {/* ── FINAL CTA ─────────────────────────────────────────────── */}
-      <section
-        className="bb-mkt-section bb-mkt-section-dark bb-mkt-final"
-        aria-labelledby="bb-mkt-final-title"
-      >
-        <div className="bb-mkt-container bb-mkt-container-narrow text-center">
-          <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">
-            Sunup tomorrow
-          </p>
-          <h2 id="bb-mkt-final-title" className="bb-mkt-final-headline">
-            Be ready before the truck lights come on.
+      {/* ── FINAL CTA — cinematic dark close ─────────────────────── */}
+      <section className="bb-mkt-final" aria-labelledby="bb-mkt-final-title">
+        <div className="bb-mkt-final-topo" aria-hidden="true" />
+        <div className="bb-mkt-container bb-mkt-container-narrow">
+          <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">Tomorrow, 4:30 AM</p>
+          <h2 id="bb-mkt-final-title" className="bb-mkt-final-title">
+            Be ready before<br />
+            the truck lights<br />
+            <span className="bb-mkt-final-accent">come on.</span>
           </h2>
-          <p className="bb-mkt-final-sub-top">
+          <p className="bb-mkt-final-sub">
             Set up Bite Book in five minutes tonight. Skip the paperwork tomorrow.
           </p>
-          <Link href="/signup" className="bb-cta bb-mkt-final-cta">
-            Start 7-day free trial
-            <ArrowRight size={18} aria-hidden="true" />
+          <Link href="/signup" className="bb-mkt-cta bb-mkt-cta-large bb-mkt-final-cta">
+            <span>Start 7-day free trial</span>
+            <ArrowRight size={20} aria-hidden="true" />
           </Link>
-          <p className="bb-mkt-final-sub">
-            7 days free &middot; no card required &middot; cancel anytime
+          <p className="bb-mkt-final-fineprint">
+            7 days free &middot; no card &middot; cancel anytime
           </p>
         </div>
       </section>
 
-      {/* ── MARKETING FOOTER ──────────────────────────────────────── */}
+      {/* ── FOOTER ───────────────────────────────────────────────── */}
       <footer className="bb-mkt-footer" aria-label="Site footer">
         <div className="bb-mkt-container bb-mkt-footer-inner">
           <div className="bb-mkt-footer-brand">
             <div className="bb-mkt-footer-brand-row">
-              <Image
-                src="/bb-logo-mark.png"
-                alt=""
-                width={1024}
-                height={1024}
-                sizes="48px"
-                className="bb-mkt-footer-mark"
-              />
+              <Image src="/bb-logo-mark.png" alt="" width={1024} height={1024} sizes="40px" className="bb-mkt-footer-mark" />
               <span className="bb-mkt-footer-brand-text">Bite Book</span>
             </div>
             <p className="bb-mkt-footer-tag">
-              The digital log book for hunting and fishing guides. A Last Bite Pro
-              product.
+              The digital log book for hunting and fishing guides. Built by guides, for guides. A Last Bite Pro product.
             </p>
-            <a
-              href="mailto:support@lastbite.pro"
-              className="bb-mkt-footer-support"
-            >
-              <Mail size={14} aria-hidden="true" />
-              support@lastbite.pro
-            </a>
+            <a href="mailto:support@lastbite.pro" className="bb-mkt-footer-support">support@lastbite.pro</a>
           </div>
           <div className="bb-mkt-footer-cols">
-            <FooterCol
-              heading="Product"
-              links={[
-                { label: 'Sign up', href: '/signup' },
-                { label: 'Sign in', href: '/login' },
-                { label: 'Pricing', href: '#pricing' },
-                { label: 'FAQ', href: '#faq' },
-              ]}
-            />
-            <FooterCol
-              heading="Company"
-              links={[
-                { label: 'Last Bite Pro', href: 'https://lastbite.pro/', external: true },
-              ]}
-            />
-            <FooterCol
-              heading="Legal"
-              links={[
-                { label: 'Terms', href: 'https://lastbite.pro/terms', external: true },
-                { label: 'Privacy', href: 'https://lastbite.pro/privacy', external: true },
-                { label: 'Support', href: 'mailto:support@lastbite.pro' },
-              ]}
-            />
+            <FooterCol heading="Product" links={[
+              { label: 'Sign up', href: '/signup' },
+              { label: 'Sign in', href: '/login' },
+              { label: 'Pricing', href: '#pricing' },
+              { label: 'FAQ', href: '#faq' },
+            ]} />
+            <FooterCol heading="Company" links={[
+              { label: 'Last Bite Pro', href: 'https://lastbite.pro/', external: true },
+            ]} />
+            <FooterCol heading="Legal" links={[
+              { label: 'Terms', href: 'https://lastbite.pro/terms', external: true },
+              { label: 'Privacy', href: 'https://lastbite.pro/privacy', external: true },
+              { label: 'Support', href: 'mailto:support@lastbite.pro' },
+            ]} />
           </div>
         </div>
         <div className="bb-mkt-footer-bottom">
-          © 2026 Bite Book &middot; Field-tested for guides and hunters
+          <span>© 2026 Bite Book</span>
+          <span className="bb-mkt-footer-bottom-divider" aria-hidden="true">/</span>
+          <span>Field-tested for guides and hunters</span>
         </div>
       </footer>
 
-      <style>{`
-        .bb-mkt { display: block; color: var(--color-ink); }
-
-        /* ── HERO ───────────────────────────────────────────────── */
-        .bb-hero { min-height: 78vh; }
-        @media (min-width: 768px) { .bb-hero { min-height: 82vh; } }
-
-        .bb-mkt-hero-inner {
-          position: relative;
-          z-index: 10;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.6rem;
-          text-align: center;
-          padding: 3rem 1.5rem 4rem;
-          max-width: 56rem;
-          margin: 0 auto;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-hero-inner { padding: 4.5rem 2rem 5rem; gap: 0.85rem; }
-        }
-        .bb-mkt-hero-mark-link { display: inline-flex; }
-        .bb-mkt-hero-mark {
-          width: 80px; height: 80px;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-hero-mark { width: 96px; height: 96px; }
-        }
-
-        .bb-mkt-eyebrow {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.22em;
-          color: rgba(244, 239, 229, 0.55);
-          margin: 0.25rem 0 0;
-        }
-
-        .bb-mkt-hero-title {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: clamp(2.4rem, 8.5vw, 4.6rem);
-          line-height: 1.02;
-          color: #FFFFFF;
-          margin: 0.6rem 0 0.5rem;
-          letter-spacing: 0.005em;
-        }
-        .bb-mkt-hero-title-accent {
-          color: var(--color-copper);
-        }
-
-        .bb-mkt-hero-sub {
-          font-family: var(--font-barlow);
-          font-size: 1.05rem;
-          line-height: 1.55;
-          color: rgba(244, 239, 229, 0.85);
-          margin: 0 auto;
-          max-width: 36rem;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-hero-sub { font-size: 1.18rem; max-width: 44rem; }
-        }
-
-        .bb-mkt-hero-cta-row {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.85rem;
-          margin-top: 1.5rem;
-          width: 100%;
-          max-width: 22rem;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-hero-cta-row { flex-direction: row; max-width: none; gap: 1.5rem; margin-top: 2rem; }
-        }
-        .bb-mkt-cta-primary { width: 100%; }
-        @media (min-width: 768px) {
-          .bb-mkt-cta-primary {
-            width: auto;
-            padding-left: 2.5rem;
-            padding-right: 2.5rem;
-          }
-        }
-        .bb-mkt-secondary-link {
-          font-family: var(--font-barlow);
-          font-size: 0.95rem;
-          color: rgba(244, 239, 229, 0.78);
-          text-decoration: none;
-          font-weight: 500;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-        }
-        .bb-mkt-secondary-link:hover { color: #FFFFFF; }
-
-        .bb-mkt-trust-row {
-          list-style: none;
-          padding: 0;
-          margin: 1.5rem 0 0;
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 0.4rem 1rem;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-trust-row { margin-top: 2.25rem; gap: 0.5rem 1.5rem; }
-        }
-        .bb-mkt-trust-row li {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: rgba(244, 239, 229, 0.7);
-        }
-        .bb-mkt-trust-row svg { color: var(--color-copper); }
-
-        /* ── SECTIONS ───────────────────────────────────────────── */
-        .bb-mkt-section { padding: 4rem 1.25rem; }
-        @media (min-width: 768px) { .bb-mkt-section { padding: 6rem 2rem; } }
-        .bb-mkt-section-paper { background: var(--color-paper); color: var(--color-ink); }
-        .bb-mkt-section-dark { background: var(--color-page-bg); color: #F4EFE5; }
-        .bb-mkt-container { max-width: 1080px; margin: 0 auto; }
-        .bb-mkt-container-narrow { max-width: 720px; }
-
-        .bb-mkt-section-eyebrow {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
-          color: var(--color-copper);
-          margin: 0 0 0.75rem;
-        }
-        .bb-mkt-section-eyebrow-dark { color: #D89169; }
-        .bb-mkt-section-title {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: clamp(1.95rem, 5vw, 2.85rem);
-          line-height: 1.08;
-          letter-spacing: 0.005em;
-          margin: 0 0 1.5rem;
-          color: var(--color-ink);
-        }
-        .bb-mkt-section-title-dark { color: #FFFFFF; }
-        .bb-mkt-section-sub {
-          font-family: var(--font-barlow);
-          font-size: 1.05rem;
-          color: var(--color-ink-soft);
-          margin: 0 0 2rem;
-          max-width: 36rem;
-        }
-
-        /* ── PILLARS ────────────────────────────────────────────── */
-        .bb-mkt-pillars {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 1rem;
-          margin-top: 0.5rem;
-        }
-        @media (min-width: 640px) {
-          .bb-mkt-pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
-        }
-        @media (min-width: 1024px) {
-          .bb-mkt-pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
-        }
-        .bb-mkt-pillar {
-          background: #FFFFFF;
-          border: 1px solid var(--color-card-divider);
-          border-radius: 16px;
-          padding: 1.5rem;
-          transition: transform 200ms, border-color 200ms, box-shadow 200ms;
-        }
-        .bb-mkt-pillar:hover {
-          border-color: rgba(176, 108, 60, 0.4);
-          transform: translateY(-2px);
-          box-shadow: 0 18px 36px rgba(11, 8, 6, 0.08);
-        }
-        .bb-mkt-pillar-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 2.6rem;
-          height: 2.6rem;
-          border-radius: 999px;
-          background: linear-gradient(135deg, var(--color-copper), #8C5530);
-          color: #FFFFFF;
-          margin-bottom: 1rem;
-          box-shadow: 0 4px 12px rgba(176, 108, 60, 0.25);
-        }
-        .bb-mkt-pillar-title {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 1.25rem;
-          line-height: 1.15;
-          margin: 0 0 0.5rem;
-          color: var(--color-ink);
-          letter-spacing: 0.005em;
-        }
-        .bb-mkt-pillar-body {
-          font-family: var(--font-barlow);
-          font-size: 0.95rem;
-          line-height: 1.55;
-          color: var(--color-ink-muted);
-          margin: 0;
-        }
-
-        /* ── STEPS ──────────────────────────────────────────────── */
-        .bb-mkt-steps {
-          list-style: none;
-          padding: 0;
-          margin: 1rem 0 0;
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 1.25rem;
-        }
-        @media (min-width: 1024px) {
-          .bb-mkt-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.75rem; }
-        }
-        .bb-mkt-step {
-          background: rgba(244, 239, 229, 0.04);
-          border: 1px solid rgba(244, 239, 229, 0.1);
-          border-radius: 16px;
-          padding: 1.75rem 1.5rem;
-          position: relative;
-        }
-        .bb-mkt-step-num-row {
-          display: flex;
-          align-items: center;
-          gap: 0.85rem;
-          margin-bottom: 1rem;
-        }
-        .bb-mkt-step-num {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 2.4rem;
-          height: 2.4rem;
-          border-radius: 999px;
-          background: var(--color-copper);
-          color: #FFFFFF;
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 1.1rem;
-          flex-shrink: 0;
-        }
-        .bb-mkt-step-icon {
-          color: rgba(244, 239, 229, 0.45);
-        }
-        .bb-mkt-step-title {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 1.4rem;
-          line-height: 1.15;
-          margin: 0 0 0.4rem;
-          color: #FFFFFF;
-          letter-spacing: 0.005em;
-        }
-        .bb-mkt-step-body {
-          font-family: var(--font-barlow);
-          font-size: 0.98rem;
-          line-height: 1.55;
-          color: rgba(244, 239, 229, 0.78);
-          margin: 0;
-        }
-
-        /* ── PRICING ────────────────────────────────────────────── */
-        .bb-mkt-price-card {
-          position: relative;
-          background: #FFFFFF;
-          border: 1px solid var(--color-card-divider);
-          border-radius: 18px;
-          padding: 2.5rem 1.75rem 2rem;
-          margin-top: 1.75rem;
-          box-shadow: 0 24px 48px rgba(11, 8, 6, 0.1);
-        }
-        @media (min-width: 768px) { .bb-mkt-price-card { padding: 3rem 2.5rem 2.25rem; } }
-        .bb-mkt-price-tag {
-          position: absolute;
-          top: -0.85rem;
-          left: 50%;
-          transform: translateX(-50%);
-          background: linear-gradient(135deg, var(--color-copper), #8C5530);
-          color: #FFFFFF;
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 0.7rem;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-          padding: 0.4rem 0.95rem;
-          border-radius: 999px;
-          box-shadow: 0 6px 18px rgba(176, 108, 60, 0.4);
-          white-space: nowrap;
-        }
-        .bb-mkt-price-toggle {
-          display: inline-flex;
-          gap: 0;
-          padding: 0.3rem;
-          border-radius: 999px;
-          background: rgba(176, 108, 60, 0.08);
-          margin: 0.25rem 0 1.5rem;
-        }
-        .bb-mkt-price-toggle-pill {
-          padding: 0.45rem 1rem;
-          border-radius: 999px;
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.78rem;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          color: var(--color-ink-muted);
-          transition: background 200ms, color 200ms;
-        }
-        .bb-mkt-price-toggle-pill.is-active {
-          background: var(--color-copper);
-          color: #FFFFFF;
-        }
-        .bb-mkt-price-amount-row {
-          display: flex;
-          align-items: baseline;
-          gap: 0.5rem;
-        }
-        .bb-mkt-price-amount {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: clamp(3rem, 9vw, 4rem);
-          line-height: 1;
-          color: var(--color-ink);
-          letter-spacing: -0.005em;
-        }
-        .bb-mkt-price-period {
-          font-family: var(--font-barlow);
-          font-size: 1.1rem;
-          color: var(--color-ink-soft);
-        }
-        .bb-mkt-price-equivalence {
-          font-family: var(--font-barlow);
-          font-size: 0.95rem;
-          color: var(--color-ink-muted);
-          margin: 0.5rem 0 0;
-        }
-        .bb-mkt-price-equivalence strong { color: var(--color-ink); font-weight: 600; }
-        .bb-mkt-price-monthly-alt {
-          font-family: var(--font-barlow);
-          font-size: 0.92rem;
-          color: var(--color-ink-soft);
-          margin: 0.85rem 0 0;
-        }
-        .bb-mkt-price-monthly-alt strong { color: var(--color-ink); font-weight: 600; }
-        .bb-mkt-price-features {
-          list-style: none;
-          padding: 0;
-          margin: 1.5rem 0 1.75rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.6rem;
-        }
-        .bb-mkt-price-features li {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          font-family: var(--font-barlow);
-          font-size: 0.95rem;
-          color: var(--color-ink);
-        }
-        .bb-mkt-price-features li svg { color: var(--color-copper); flex-shrink: 0; }
-        .bb-mkt-price-cta { width: 100%; }
-        .bb-mkt-price-fineprint {
-          text-align: center;
-          font-family: var(--font-barlow);
-          font-size: 0.85rem;
-          color: var(--color-ink-soft);
-          margin: 0.95rem 0 0;
-        }
-
-        /* ── FAQ ────────────────────────────────────────────────── */
-        .bb-mkt-section-faq { padding-top: 3rem; }
-        @media (min-width: 768px) { .bb-mkt-section-faq { padding-top: 4rem; } }
-        .bb-mkt-faq {
-          margin-top: 1rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.6rem;
-        }
-        .bb-mkt-faq-item {
-          background: #FFFFFF;
-          border: 1px solid var(--color-card-divider);
-          border-radius: 14px;
-          padding: 0;
-          overflow: hidden;
-          transition: border-color 200ms;
-        }
-        .bb-mkt-faq-item[open] { border-color: rgba(176, 108, 60, 0.4); }
-        .bb-mkt-faq-item summary {
-          padding: 1.05rem 1.25rem;
-          cursor: pointer;
-          font-family: var(--font-barlow);
-          font-weight: 600;
-          font-size: 1.02rem;
-          color: var(--color-ink);
-          list-style: none;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-        }
-        .bb-mkt-faq-item summary::-webkit-details-marker { display: none; }
-        .bb-mkt-faq-item summary::after {
-          content: '+';
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 1.55rem;
-          color: var(--color-copper);
-          line-height: 1;
-        }
-        .bb-mkt-faq-item[open] summary::after { content: '−'; }
-        .bb-mkt-faq-body {
-          padding: 0 1.25rem 1.1rem;
-          font-family: var(--font-barlow);
-          font-size: 0.97rem;
-          line-height: 1.6;
-          color: var(--color-ink-muted);
-        }
-        .bb-mkt-faq-foot {
-          margin: 1.75rem 0 0;
-          font-family: var(--font-barlow);
-          font-size: 0.92rem;
-          color: var(--color-ink-soft);
-          text-align: center;
-        }
-        .bb-mkt-inline-link {
-          color: var(--color-copper);
-          text-decoration: underline;
-          font-weight: 600;
-        }
-
-        /* ── FINAL CTA ──────────────────────────────────────────── */
-        .bb-mkt-final { padding-top: 4.5rem; padding-bottom: 4.5rem; }
-        @media (min-width: 768px) { .bb-mkt-final { padding-top: 5.5rem; padding-bottom: 5.5rem; } }
-        .bb-mkt-final-headline {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: clamp(2rem, 5.5vw, 3rem);
-          line-height: 1.08;
-          margin: 0 0 0.85rem;
-          color: #FFFFFF;
-          letter-spacing: 0.005em;
-        }
-        .bb-mkt-final-sub-top {
-          font-family: var(--font-barlow);
-          font-size: 1.05rem;
-          color: rgba(244, 239, 229, 0.78);
-          margin: 0 0 2rem;
-        }
-        .bb-mkt-final-cta {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          width: auto;
-          padding-left: 2.25rem;
-          padding-right: 2.25rem;
-        }
-        .bb-mkt-final-sub {
-          margin: 1.1rem 0 0;
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-          color: rgba(244, 239, 229, 0.55);
-        }
-
-        /* ── FOOTER ─────────────────────────────────────────────── */
-        .bb-mkt-footer {
-          background: #07050a;
-          color: rgba(244, 239, 229, 0.78);
-          padding: 3.5rem 1.25rem 1.5rem;
-        }
-        @media (min-width: 768px) { .bb-mkt-footer { padding: 4.5rem 2rem 1.75rem; } }
-        .bb-mkt-footer-inner {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 2.5rem;
-        }
-        @media (min-width: 768px) {
-          .bb-mkt-footer-inner { grid-template-columns: 1.2fr 2fr; gap: 3.5rem; }
-        }
-        .bb-mkt-footer-brand {
-          display: flex;
-          flex-direction: column;
-          gap: 0.85rem;
-        }
-        .bb-mkt-footer-brand-row { display: flex; align-items: center; gap: 0.7rem; }
-        .bb-mkt-footer-mark { width: 40px; height: 40px; }
-        .bb-mkt-footer-brand-text {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 800;
-          font-size: 1.1rem;
-          letter-spacing: 0.04em;
-          color: #FFFFFF;
-          text-transform: uppercase;
-        }
-        .bb-mkt-footer-tag {
-          font-family: var(--font-barlow);
-          font-size: 0.92rem;
-          color: rgba(244, 239, 229, 0.55);
-          margin: 0;
-          max-width: 24rem;
-          line-height: 1.55;
-        }
-        .bb-mkt-footer-support {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.45rem;
-          font-family: var(--font-barlow);
-          font-size: 0.92rem;
-          color: rgba(244, 239, 229, 0.78);
-          text-decoration: none;
-        }
-        .bb-mkt-footer-support:hover { color: #FFFFFF; }
-        .bb-mkt-footer-support svg { color: var(--color-copper); }
-
-        .bb-mkt-footer-cols {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1.5rem;
-        }
-        @media (max-width: 480px) {
-          .bb-mkt-footer-cols { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-          .bb-mkt-footer-cols > :nth-child(3) { grid-column: span 2; }
-        }
-        .bb-mkt-footer-col-heading {
-          font-family: var(--font-barlow-condensed);
-          font-weight: 700;
-          font-size: 0.78rem;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: rgba(244, 239, 229, 0.55);
-          margin: 0 0 0.85rem;
-        }
-        .bb-mkt-footer-col-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 0.55rem;
-        }
-        .bb-mkt-footer-col-list a {
-          font-family: var(--font-barlow);
-          font-size: 0.92rem;
-          color: rgba(244, 239, 229, 0.78);
-          text-decoration: none;
-        }
-        .bb-mkt-footer-col-list a:hover { color: #FFFFFF; }
-        .bb-mkt-footer-bottom {
-          margin-top: 2.75rem;
-          padding-top: 1.4rem;
-          border-top: 1px solid rgba(244, 239, 229, 0.08);
-          font-family: var(--font-barlow);
-          font-size: 0.78rem;
-          color: rgba(244, 239, 229, 0.4);
-          text-align: center;
-        }
-      `}</style>
+      <style>{styles}</style>
     </main>
   )
 }
 
-function Pillar({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: typeof PenLine
-  title: string
-  body: string
-}) {
+/* ── Hand-drawn SVG accents ──────────────────────────────────── */
+function Compass() {
   return (
-    <article className="bb-mkt-pillar">
-      <span className="bb-mkt-pillar-icon" aria-hidden="true">
-        <Icon size={20} strokeWidth={2.2} />
-      </span>
-      <h3 className="bb-mkt-pillar-title">{title}</h3>
-      <p className="bb-mkt-pillar-body" dangerouslySetInnerHTML={{ __html: body }} />
-    </article>
+    <svg viewBox="0 0 64 64" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="32" cy="32" r="26" />
+      <circle cx="32" cy="32" r="20" opacity="0.45" />
+      <path d="M32 8 L32 14 M32 50 L32 56 M8 32 L14 32 M50 32 L56 32" />
+      <path d="M32 14 L37 32 L32 50 L27 32 Z" fill="currentColor" opacity="0.85" />
+      <circle cx="32" cy="32" r="2.2" fill="currentColor" />
+    </svg>
+  )
+}
+function AntlersIcon() {
+  return (
+    <svg viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M32 50 L32 38" />
+      <path d="M32 38 C 28 32 20 30 12 30 C 16 26 22 24 26 22" />
+      <path d="M26 22 L24 16 M26 22 L20 18" />
+      <path d="M32 38 C 36 32 44 30 52 30 C 48 26 42 24 38 22" />
+      <path d="M38 22 L40 16 M38 22 L44 18" />
+      <path d="M28 50 L36 50" />
+    </svg>
+  )
+}
+function FormIcon() {
+  return (
+    <svg viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 10 L46 10 L50 14 L50 54 L14 54 Z" />
+      <path d="M44 10 L44 14 L50 14" />
+      <path d="M20 24 L40 24 M20 32 L40 32 M20 40 L34 40" />
+      <path d="M22 46 L28 50 L42 36" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  )
+}
+function PeopleIcon() {
+  return (
+    <svg viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="24" cy="22" r="6" />
+      <circle cx="42" cy="24" r="5" />
+      <path d="M12 50 C 14 40 20 36 24 36 C 28 36 34 40 36 50" />
+      <path d="M34 50 C 36 42 40 38 44 38 C 48 38 52 42 54 50" />
+    </svg>
+  )
+}
+function BadgeIcon() {
+  return (
+    <svg viewBox="0 0 64 64" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M32 8 L52 16 L52 32 C 52 42 44 50 32 56 C 20 50 12 42 12 32 L12 16 Z" />
+      <path d="M22 32 L30 40 L44 24" strokeWidth="2.4" />
+    </svg>
   )
 }
 
-function Step({
-  n,
-  icon: Icon,
-  title,
-  body,
-}: {
-  n: number
-  icon: typeof Mail
-  title: string
-  body: string
-}) {
+function ScreenRow({ label, value, check }: { label: string; value: string; check?: boolean }) {
   return (
-    <li className="bb-mkt-step">
-      <div className="bb-mkt-step-num-row">
-        <span className="bb-mkt-step-num" aria-hidden="true">
-          {n}
-        </span>
-        <Icon size={22} className="bb-mkt-step-icon" aria-hidden="true" />
-      </div>
-      <h3 className="bb-mkt-step-title">{title}</h3>
-      <p className="bb-mkt-step-body">{body}</p>
-    </li>
+    <div className="bb-mkt-vs-screen-row">
+      <span className="bb-mkt-vs-screen-row-label">{label}</span>
+      <span className="bb-mkt-vs-screen-row-value">{value}</span>
+      {check ? <CheckCircle2 size={14} className="bb-mkt-vs-screen-row-check" aria-hidden="true" /> : null}
+    </div>
   )
 }
 
@@ -1176,29 +567,1141 @@ function Faq({ q, children }: { q: string; children: React.ReactNode }) {
   )
 }
 
-function FooterCol({
-  heading,
-  links,
-}: {
-  heading: string
-  links: Array<{ label: string; href: string; external?: boolean }>
-}) {
+function FooterCol({ heading, links }: { heading: string; links: Array<{ label: string; href: string; external?: boolean }> }) {
   return (
     <div>
       <p className="bb-mkt-footer-col-heading">{heading}</p>
       <ul className="bb-mkt-footer-col-list">
         {links.map((l) => (
           <li key={l.label}>
-            {l.external ? (
-              <a href={l.href} target="_blank" rel="noreferrer noopener">
-                {l.label}
-              </a>
-            ) : (
-              <Link href={l.href}>{l.label}</Link>
-            )}
+            {l.external
+              ? <a href={l.href} target="_blank" rel="noreferrer noopener">{l.label}</a>
+              : <Link href={l.href}>{l.label}</Link>}
           </li>
         ))}
       </ul>
     </div>
   )
 }
+
+/* ── Styles (page-scoped) ────────────────────────────────────── */
+// Topo SVG pattern, used as a background-image on dark sections for a
+// wilderness texture. Kept tiny + tile-friendly.
+const TOPO = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 320' width='320' height='320'>
+    <g fill='none' stroke='%23B06C3C' stroke-opacity='0.18' stroke-width='0.7'>
+      <path d='M -20 60 Q 60 30 140 60 T 340 60' />
+      <path d='M -20 100 Q 80 70 160 100 T 340 100' />
+      <path d='M -20 140 Q 60 110 140 140 T 340 140' />
+      <path d='M -20 180 Q 100 150 180 180 T 340 180' />
+      <path d='M -20 220 Q 60 190 140 220 T 340 220' />
+      <path d='M -20 260 Q 80 230 160 260 T 340 260' />
+    </g>
+  </svg>`
+)}`
+
+const styles = `
+.bb-mkt {
+  display: block;
+  color: var(--color-ink);
+  background: var(--color-paper);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HERO — cinematic, full-bleed, asymmetric
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-hero {
+  position: relative;
+  min-height: 92vh;
+  background: var(--color-page-bg);
+  color: #F4EFE5;
+  overflow: hidden;
+  isolation: isolate;
+}
+@media (min-width: 768px) { .bb-mkt-hero { min-height: 96vh; } }
+
+.bb-mkt-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+}
+.bb-mkt-hero-bg-img {
+  object-fit: cover;
+  object-position: center;
+  filter: grayscale(0.25) contrast(1.05) saturate(0.85);
+}
+.bb-mkt-hero-veil {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(11,8,6,0.55) 0%, rgba(11,8,6,0.35) 40%, rgba(11,8,6,0.85) 100%),
+    linear-gradient(110deg, rgba(11,8,6,0.85) 0%, rgba(11,8,6,0.45) 50%, rgba(31,36,25,0.55) 100%);
+  mix-blend-mode: multiply;
+}
+.bb-mkt-hero-topo {
+  position: absolute; inset: 0;
+  background-image: url("${TOPO}");
+  background-repeat: repeat;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+
+.bb-mkt-hero-corner {
+  position: absolute;
+  top: 1.4rem;
+  left: 1.5rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+@media (min-width: 768px) {
+  .bb-mkt-hero-corner { top: 2rem; left: 2.5rem; }
+}
+.bb-mkt-hero-mark {
+  width: 36px; height: 36px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+}
+@media (min-width: 768px) { .bb-mkt-hero-mark { width: 44px; height: 44px; } }
+.bb-mkt-hero-wordmark {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.88rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+}
+
+.bb-mkt-hero-decor-tr {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 4;
+  color: rgba(176, 108, 60, 0.7);
+  display: none;
+}
+@media (min-width: 768px) {
+  .bb-mkt-hero-decor-tr { display: inline-flex; top: 2rem; right: 2.5rem; }
+}
+
+.bb-mkt-hero-stack {
+  position: relative;
+  z-index: 3;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8rem 1.5rem 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 92vh;
+  justify-content: flex-end;
+}
+@media (min-width: 768px) {
+  .bb-mkt-hero-stack { padding: 10rem 3rem 6rem; gap: 1.4rem; max-width: 1280px; }
+}
+
+.bb-mkt-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: rgba(244, 239, 229, 0.78);
+  margin: 0;
+}
+.bb-mkt-hero-eyebrow-rule {
+  display: inline-block;
+  width: 2.2rem;
+  height: 1px;
+  background: var(--color-copper);
+}
+
+.bb-mkt-hero-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(3.3rem, 12vw, 9rem);
+  line-height: 0.92;
+  letter-spacing: -0.005em;
+  color: #FFFFFF;
+  margin: 0;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.45);
+}
+.bb-mkt-hero-title-line {
+  display: block;
+  text-transform: none;
+}
+.bb-mkt-hero-title-accent {
+  color: var(--color-copper);
+}
+
+.bb-mkt-hero-sub {
+  font-family: var(--font-barlow);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: rgba(244, 239, 229, 0.88);
+  margin: 0.4rem 0 0;
+  max-width: 36rem;
+}
+@media (min-width: 768px) { .bb-mkt-hero-sub { font-size: 1.18rem; max-width: 44rem; } }
+
+.bb-mkt-hero-cta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+}
+@media (min-width: 540px) { .bb-mkt-hero-cta-row { flex-direction: row; align-items: center; gap: 1.5rem; } }
+
+.bb-mkt-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  padding: 1.05rem 1.6rem;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 200ms, transform 200ms, box-shadow 200ms;
+  box-shadow: 0 12px 28px rgba(176, 108, 60, 0.38);
+}
+.bb-mkt-cta:hover { background: #C07845; transform: translateY(-1px); box-shadow: 0 16px 36px rgba(176, 108, 60, 0.5); }
+.bb-mkt-cta:active { background: #8C5530; transform: translateY(0); }
+.bb-mkt-cta-large {
+  font-size: 0.95rem;
+  padding: 1.2rem 2rem;
+  letter-spacing: 0.2em;
+}
+
+.bb-mkt-cta-secondary {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(244, 239, 229, 0.85);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(244, 239, 229, 0.35);
+  padding-bottom: 0.15rem;
+}
+.bb-mkt-cta-secondary:hover { color: #FFFFFF; border-bottom-color: #FFFFFF; }
+
+.bb-mkt-hero-stat-row {
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+  border-top: 1px solid rgba(244, 239, 229, 0.16);
+  padding-top: 1.5rem;
+  max-width: 28rem;
+}
+@media (min-width: 540px) { .bb-mkt-hero-stat-row { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: none; } }
+.bb-mkt-hero-stat-row li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.bb-mkt-hero-stat-row strong {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.85rem;
+  color: #FFFFFF;
+  line-height: 1;
+}
+.bb-mkt-hero-stat-row span {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(244, 239, 229, 0.55);
+}
+
+.bb-mkt-hero-scroll {
+  position: absolute;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: rgba(244, 239, 229, 0.55);
+  animation: bb-mkt-bob 2.8s ease-in-out infinite;
+}
+@media (min-width: 768px) { .bb-mkt-hero-scroll { display: inline-flex; } }
+@keyframes bb-mkt-bob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 6px); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MANIFESTO — pull-quote strip
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-manifesto {
+  background: var(--color-page-bg);
+  color: #F4EFE5;
+  padding: 4rem 1.5rem;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.bb-mkt-manifesto::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("${TOPO}");
+  background-repeat: repeat;
+  opacity: 0.4;
+  z-index: 0;
+}
+@media (min-width: 768px) { .bb-mkt-manifesto { padding: 6rem 2rem; } }
+.bb-mkt-manifesto-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1080px;
+  margin: 0 auto;
+  text-align: left;
+}
+.bb-mkt-manifesto-mark {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(4rem, 12vw, 8rem);
+  color: var(--color-copper);
+  line-height: 0.6;
+  margin: 0 0 0.5rem;
+  user-select: none;
+}
+.bb-mkt-manifesto-text {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(2.1rem, 6.5vw, 4.8rem);
+  line-height: 1.05;
+  color: #FFFFFF;
+  margin: 0;
+  letter-spacing: -0.005em;
+}
+.bb-mkt-manifesto-accent {
+  color: var(--color-copper);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PILLARS — asymmetric
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-pillars-wrap {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: 5rem 1.5rem 5rem;
+}
+@media (min-width: 768px) { .bb-mkt-pillars-wrap { padding: 7rem 2rem; } }
+
+.bb-mkt-container { max-width: 1200px; margin: 0 auto; }
+.bb-mkt-container-narrow { max-width: 760px; margin: 0 auto; }
+
+.bb-mkt-pillars-head {
+  max-width: 56rem;
+  margin: 0 0 3rem;
+}
+
+.bb-mkt-section-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--color-copper);
+  margin: 0 0 1rem;
+}
+.bb-mkt-section-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 2rem;
+  height: 1px;
+  background: var(--color-copper);
+}
+.bb-mkt-section-eyebrow-dark { color: #D89169; }
+
+.bb-mkt-section-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(2.1rem, 5.5vw, 3.6rem);
+  line-height: 1.04;
+  letter-spacing: -0.005em;
+  margin: 0 0 1rem;
+  color: var(--color-ink);
+}
+.bb-mkt-section-title-dark { color: #FFFFFF; }
+.bb-mkt-section-sub {
+  font-family: var(--font-barlow);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--color-ink-soft);
+  margin: 0;
+  max-width: 36rem;
+}
+.bb-mkt-headline-strike {
+  position: relative;
+  display: inline-block;
+  color: var(--color-copper);
+}
+.bb-mkt-headline-strike::after {
+  content: '';
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  top: 56%;
+  height: 6px;
+  background: var(--color-copper);
+  transform: rotate(-2deg);
+  opacity: 0.45;
+}
+.bb-mkt-headline-accent { color: var(--color-copper); }
+
+.bb-mkt-pillars {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .bb-mkt-pillars {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+.bb-mkt-pillar {
+  position: relative;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 18px;
+  padding: 1.85rem 1.6rem 1.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 220ms, transform 220ms, box-shadow 220ms;
+}
+.bb-mkt-pillar:hover {
+  border-color: rgba(176, 108, 60, 0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 24px 48px rgba(11, 8, 6, 0.08);
+}
+@media (min-width: 768px) {
+  .bb-mkt-pillar { grid-column: span 2; }
+  .bb-mkt-pillar-lg { grid-column: span 6; }
+}
+@media (min-width: 1024px) {
+  .bb-mkt-pillar-lg { grid-column: span 3; padding: 2.5rem 2rem; }
+  .bb-mkt-pillar { grid-column: span 1; }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(2) { grid-column: span 3; }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(3) { grid-column: span 3; }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(4) { grid-column: span 3; }
+}
+.bb-mkt-pillar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #2a221c, #1F2419);
+  color: var(--color-copper);
+  margin-bottom: 0.65rem;
+}
+.bb-mkt-pillar-num {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  color: var(--color-copper);
+  margin: 0;
+  text-transform: uppercase;
+}
+.bb-mkt-pillar-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.55rem;
+  line-height: 1.1;
+  margin: 0 0 0.35rem;
+  color: var(--color-ink);
+}
+.bb-mkt-pillar-lg .bb-mkt-pillar-title { font-size: 1.85rem; }
+.bb-mkt-pillar-body {
+  font-family: var(--font-barlow);
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+.bb-mkt-pillar-lg .bb-mkt-pillar-body { font-size: 1.02rem; }
+
+/* ════════════════════════════════════════════════════════════════
+   BEFORE / AFTER — signature visual moment
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-vs {
+  position: relative;
+  background: #1F2419;
+  color: #F4EFE5;
+  padding: 5rem 1.5rem 6rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.bb-mkt-vs::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0; right: 0;
+  height: 36px;
+  background: var(--color-paper);
+  clip-path: polygon(0 0, 100% 0, 100% 0, 0 100%);
+  z-index: 1;
+}
+.bb-mkt-vs::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("${TOPO}");
+  background-repeat: repeat;
+  opacity: 0.35;
+  z-index: 0;
+}
+@media (min-width: 768px) { .bb-mkt-vs { padding: 7rem 2rem 8rem; } }
+
+.bb-mkt-vs-head {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 3rem;
+  max-width: 56rem;
+}
+
+.bb-mkt-vs-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+@media (min-width: 900px) {
+  .bb-mkt-vs-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    align-items: center;
+  }
+}
+
+.bb-mkt-vs-card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.bb-mkt-vs-tag {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  align-self: flex-start;
+}
+.bb-mkt-vs-tag-old {
+  background: rgba(244, 239, 229, 0.08);
+  color: rgba(244, 239, 229, 0.55);
+  border: 1px solid rgba(244, 239, 229, 0.12);
+}
+.bb-mkt-vs-tag-new {
+  background: linear-gradient(135deg, var(--color-copper), #8C5530);
+  color: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(176, 108, 60, 0.45);
+}
+
+.bb-mkt-vs-paper {
+  background: #f0e6cf;
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(60, 50, 35, 0.15) 27px, rgba(60, 50, 35, 0.15) 28px),
+    radial-gradient(ellipse at 30% 30%, rgba(120, 80, 30, 0.12), transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(100, 60, 20, 0.18), transparent 60%);
+  color: #2A2017;
+  padding: 1.4rem 1.4rem 1.6rem;
+  border-radius: 4px;
+  font-family: var(--font-barlow);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(120, 80, 30, 0.18);
+  transform: rotate(-1.2deg);
+  position: relative;
+}
+.bb-mkt-vs-paper::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-3deg);
+  width: 70px;
+  height: 22px;
+  background: rgba(184, 132, 88, 0.55);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+}
+.bb-mkt-vs-paper-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #4A3622;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid rgba(74, 54, 34, 0.25);
+  padding-bottom: 0.45rem;
+}
+.bb-mkt-vs-paper-date { font-weight: 600; letter-spacing: 0.08em; }
+.bb-mkt-vs-paper-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  color: #2A2017;
+}
+.bb-mkt-vs-paper-list li {
+  display: block;
+  line-height: 1.45;
+}
+.bb-mkt-vs-strike {
+  text-decoration: line-through;
+  text-decoration-color: rgba(140, 60, 30, 0.65);
+  text-decoration-thickness: 2px;
+  color: rgba(74, 54, 34, 0.55);
+  margin-right: 0.35rem;
+}
+.bb-mkt-vs-mute {
+  color: rgba(74, 54, 34, 0.6);
+  font-style: normal;
+  font-weight: 500;
+}
+.bb-mkt-vs-paper-foot {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(140, 60, 30, 0.85);
+  margin: 1rem 0 0;
+  border-top: 1px dashed rgba(74, 54, 34, 0.4);
+  padding-top: 0.55rem;
+}
+
+.bb-mkt-vs-screen {
+  background: #0E0B08;
+  border-radius: 22px;
+  padding: 1.1rem 1.1rem 1.3rem;
+  border: 1px solid rgba(244, 239, 229, 0.1);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(176,108,60,0.18);
+  transform: rotate(1deg);
+  position: relative;
+}
+.bb-mkt-vs-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(244,239,229,0.06), transparent 30%);
+  pointer-events: none;
+}
+.bb-mkt-vs-screen-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem 0.85rem;
+  border-bottom: 1px solid rgba(244, 239, 229, 0.08);
+}
+.bb-mkt-vs-screen-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 999px;
+  background: var(--color-copper);
+  box-shadow: 0 0 0 3px rgba(176, 108, 60, 0.18);
+}
+.bb-mkt-vs-screen-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(244, 239, 229, 0.8);
+}
+.bb-mkt-vs-screen-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.25rem;
+}
+.bb-mkt-vs-screen-row {
+  display: grid;
+  grid-template-columns: 5.2rem 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem 0.4rem;
+  border-bottom: 1px solid rgba(244, 239, 229, 0.06);
+}
+.bb-mkt-vs-screen-row:last-child { border-bottom: 0; }
+.bb-mkt-vs-screen-row-label {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(244, 239, 229, 0.5);
+}
+.bb-mkt-vs-screen-row-value {
+  font-family: var(--font-barlow);
+  font-size: 0.95rem;
+  color: #F4EFE5;
+  font-weight: 600;
+}
+.bb-mkt-vs-screen-row-check { color: #6A9859; }
+.bb-mkt-vs-screen-cta {
+  margin-top: 0.85rem;
+  padding: 0.4rem;
+}
+.bb-mkt-vs-screen-cta-pill {
+  display: block;
+  background: var(--color-copper);
+  color: #FFFFFF;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-align: center;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(176, 108, 60, 0.4);
+}
+
+.bb-mkt-vs-caption {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: rgba(244, 239, 229, 0.65);
+  margin: 0.6rem 0 0;
+  max-width: 28rem;
+}
+
+.bb-mkt-vs-foot {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  margin: 3.5rem auto 0;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  letter-spacing: 0.005em;
+  color: #FFFFFF;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   STEPS — How it works
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-steps-wrap {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: 5rem 1.5rem;
+}
+@media (min-width: 768px) { .bb-mkt-steps-wrap { padding: 7rem 2rem; } }
+.bb-mkt-steps {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .bb-mkt-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+}
+.bb-mkt-step {
+  position: relative;
+  padding: 1.5rem 1.5rem 1.75rem;
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 18px;
+}
+@media (min-width: 900px) {
+  .bb-mkt-step {
+    border-radius: 0;
+    padding: 2.5rem 2rem;
+    border-right: 0;
+  }
+  .bb-mkt-step:first-child { border-radius: 18px 0 0 18px; }
+  .bb-mkt-step:last-child { border-radius: 0 18px 18px 0; border-right: 1px solid var(--color-card-divider); }
+}
+.bb-mkt-step-num {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 2.5rem;
+  line-height: 1;
+  color: var(--color-copper);
+  display: block;
+  margin-bottom: 0.85rem;
+  letter-spacing: -0.005em;
+}
+.bb-mkt-step-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1.1;
+  margin: 0 0 0.45rem;
+  color: var(--color-ink);
+}
+.bb-mkt-step-body {
+  font-family: var(--font-barlow);
+  font-size: 0.97rem;
+  line-height: 1.55;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+.bb-mkt-step-connector {
+  display: none;
+}
+@media (min-width: 900px) {
+  .bb-mkt-step-connector {
+    display: block;
+    position: absolute;
+    top: 3.5rem;
+    left: -1px;
+    width: 1px;
+    height: calc(100% - 7rem);
+    background: var(--color-card-divider);
+  }
+  .bb-mkt-step-connector::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: -3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--color-copper);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PRICING — confident statement
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-pricing-wrap {
+  position: relative;
+  background: var(--color-page-bg);
+  color: #F4EFE5;
+  padding: 6rem 1.5rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.bb-mkt-pricing-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("${TOPO}");
+  background-repeat: repeat;
+  opacity: 0.4;
+  z-index: 0;
+}
+.bb-mkt-pricing-wrap > .bb-mkt-container {
+  position: relative;
+  z-index: 1;
+}
+@media (min-width: 768px) { .bb-mkt-pricing-wrap { padding: 8rem 2rem; } }
+
+.bb-mkt-pricing-headline {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  margin: 0;
+  color: #FFFFFF;
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+}
+.bb-mkt-pricing-amount {
+  font-size: clamp(5rem, 18vw, 11rem);
+  color: var(--color-copper);
+}
+.bb-mkt-pricing-period {
+  font-size: clamp(2.5rem, 7vw, 4.5rem);
+  color: rgba(244, 239, 229, 0.85);
+}
+.bb-mkt-pricing-statement {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.15;
+  margin: 0.85rem 0 0;
+  color: rgba(244, 239, 229, 0.85);
+  max-width: 36rem;
+}
+.bb-mkt-pricing-accent { color: var(--color-copper); }
+
+.bb-mkt-pricing-list {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem 1.5rem;
+  max-width: 56rem;
+}
+@media (min-width: 640px) { .bb-mkt-pricing-list { grid-template-columns: 1fr 1fr; } }
+.bb-mkt-pricing-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-barlow);
+  font-size: 1rem;
+  color: rgba(244, 239, 229, 0.85);
+}
+.bb-mkt-pricing-list li svg { color: var(--color-copper); flex-shrink: 0; }
+
+.bb-mkt-pricing-cta-row {
+  margin: 2.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.bb-mkt-pricing-fineprint {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  color: rgba(244, 239, 229, 0.55);
+  margin: 0;
+  max-width: 26rem;
+}
+.bb-mkt-pricing-fineprint strong { color: #F4EFE5; font-weight: 600; }
+
+/* ════════════════════════════════════════════════════════════════
+   FAQ
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-faq-wrap {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: 5rem 1.5rem;
+}
+@media (min-width: 768px) { .bb-mkt-faq-wrap { padding: 7rem 2rem; } }
+.bb-mkt-faq {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.bb-mkt-faq-item {
+  background: #FFFFFF;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+  transition: border-color 200ms;
+}
+.bb-mkt-faq-item[open] { border-color: rgba(176, 108, 60, 0.5); }
+.bb-mkt-faq-item summary {
+  padding: 1.1rem 1.4rem;
+  cursor: pointer;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--color-ink);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  letter-spacing: 0.005em;
+}
+.bb-mkt-faq-item summary::-webkit-details-marker { display: none; }
+.bb-mkt-faq-item summary::after {
+  content: '+';
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1.7rem;
+  color: var(--color-copper);
+  line-height: 1;
+}
+.bb-mkt-faq-item[open] summary::after { content: '−'; }
+.bb-mkt-faq-body {
+  padding: 0 1.4rem 1.15rem;
+  font-family: var(--font-barlow);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+}
+.bb-mkt-faq-foot {
+  margin: 2rem 0 0;
+  font-family: var(--font-barlow);
+  font-size: 0.95rem;
+  color: var(--color-ink-soft);
+  text-align: left;
+}
+.bb-mkt-inline-link { color: var(--color-copper); text-decoration: underline; font-weight: 600; }
+
+/* ════════════════════════════════════════════════════════════════
+   FINAL CTA — cinematic dark close
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-final {
+  position: relative;
+  background: #0B0806;
+  color: #F4EFE5;
+  padding: 6rem 1.5rem 7rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+.bb-mkt-final-topo {
+  position: absolute; inset: 0;
+  background-image: url("${TOPO}");
+  background-repeat: repeat;
+  opacity: 0.45;
+  z-index: 0;
+}
+@media (min-width: 768px) { .bb-mkt-final { padding: 8rem 2rem 9rem; } }
+.bb-mkt-final > .bb-mkt-container { position: relative; z-index: 1; }
+
+.bb-mkt-final-title {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.005em;
+  margin: 0.85rem 0 1.5rem;
+  color: #FFFFFF;
+}
+.bb-mkt-final-accent { color: var(--color-copper); }
+.bb-mkt-final-sub {
+  font-family: var(--font-barlow);
+  font-size: 1.1rem;
+  color: rgba(244, 239, 229, 0.78);
+  margin: 0 0 2.25rem;
+  max-width: 36rem;
+}
+.bb-mkt-final-cta { box-shadow: 0 20px 48px rgba(176, 108, 60, 0.5); }
+.bb-mkt-final-fineprint {
+  margin: 1.25rem 0 0;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: rgba(244, 239, 229, 0.55);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FOOTER
+   ════════════════════════════════════════════════════════════════ */
+.bb-mkt-footer {
+  background: #07050a;
+  color: rgba(244, 239, 229, 0.78);
+  padding: 4rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba(176, 108, 60, 0.18);
+}
+@media (min-width: 768px) { .bb-mkt-footer { padding: 5rem 2rem 1.75rem; } }
+.bb-mkt-footer-inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+}
+@media (min-width: 768px) {
+  .bb-mkt-footer-inner { grid-template-columns: 1.2fr 2fr; gap: 3.5rem; }
+}
+.bb-mkt-footer-brand { display: flex; flex-direction: column; gap: 0.85rem; }
+.bb-mkt-footer-brand-row { display: flex; align-items: center; gap: 0.7rem; }
+.bb-mkt-footer-mark { width: 36px; height: 36px; }
+.bb-mkt-footer-brand-text {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.16em;
+  color: #FFFFFF;
+  text-transform: uppercase;
+}
+.bb-mkt-footer-tag {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  color: rgba(244, 239, 229, 0.55);
+  margin: 0;
+  max-width: 24rem;
+  line-height: 1.55;
+}
+.bb-mkt-footer-support {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  color: var(--color-copper);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(176, 108, 60, 0.4);
+  padding-bottom: 0.1rem;
+  align-self: flex-start;
+}
+.bb-mkt-footer-support:hover { color: #FFFFFF; border-bottom-color: #FFFFFF; }
+
+.bb-mkt-footer-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+@media (max-width: 480px) {
+  .bb-mkt-footer-cols { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .bb-mkt-footer-cols > :nth-child(3) { grid-column: span 2; }
+}
+.bb-mkt-footer-col-heading {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(244, 239, 229, 0.45);
+  margin: 0 0 0.85rem;
+}
+.bb-mkt-footer-col-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.bb-mkt-footer-col-list a {
+  font-family: var(--font-barlow);
+  font-size: 0.92rem;
+  color: rgba(244, 239, 229, 0.78);
+  text-decoration: none;
+}
+.bb-mkt-footer-col-list a:hover { color: #FFFFFF; }
+.bb-mkt-footer-bottom {
+  margin-top: 2.75rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(244, 239, 229, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 0.8rem;
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(244, 239, 229, 0.4);
+  text-align: center;
+}
+.bb-mkt-footer-bottom-divider { color: var(--color-copper); }
+`
