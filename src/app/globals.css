@@ -3899,6 +3899,27 @@ body {
   color: #F4EFE5;
 }
 
+/* v27.8.4.4 — mobile banner clipping fix. /app/hunters now stacks
+   eyebrow + title + subtitle + segmented invite tabs + email row +
+   helper messages inside the banner. Below 640px the v27.6.3.4 fixed
+   clamp height (220–280px) cuts the bottom of the form off. Switch
+   from fixed `height` to `min-height` ONLY on mobile + ONLY when the
+   banner contains an invite form, so other pages (no rightSlot) keep
+   the original visual proportions. The banner can grow as the form
+   does; .bb-dash-hero-img absolute-positions the photo so it covers
+   whatever height we end at. */
+@media (max-width: 47.99rem) {
+  .bb-dash-hero:has(.bb-hero-invite) {
+    height: auto;
+    min-height: clamp(220px, 32vw, 280px);
+  }
+  .bb-dash-hero:has(.bb-hero-invite) .bb-dash-hero-inner {
+    /* Add bottom breathing room so the helper text + status pill
+       under the form don't sit flush against the rounded corner. */
+    padding-bottom: 1.4rem;
+  }
+}
+
 .bb-dash-hero-img {
   object-fit: cover;
   object-position: center;

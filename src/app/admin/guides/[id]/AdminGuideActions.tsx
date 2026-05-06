@@ -185,7 +185,11 @@ export default function AdminGuideActions({
             {isComped ? 'Update' : 'Comp'}
           </button>
           {isComped ? (
-            <button type="button" onClick={runClearComp} disabled={pending} className="bb-cta-sm-destructive">
+            // v27.8.4.4 — bb-cta-sm provides display/padding/border-radius
+            // that bb-cta-sm-destructive overlays the red surface on top
+            // of. Without the base class the button rendered as a bare
+            // unstyled element. Same fix applied to Delete account below.
+            <button type="button" onClick={runClearComp} disabled={pending} className="bb-cta-sm bb-cta-sm-destructive">
               Clear comp
             </button>
           ) : null}
@@ -269,8 +273,14 @@ export default function AdminGuideActions({
               type="button"
               onClick={() => setDeleteOpen(true)}
               disabled={pending}
-              className="bb-cta-sm-destructive"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+              // v27.8.4.4 — bb-cta-sm + bb-cta-sm-destructive paired
+              // (was just the destructive class, which only paints
+              // background+color and inherits everything else from
+              // .bb-cta-sm). Without the base class the button rendered
+              // with no padding / no border-radius / no font sizing.
+              // Inline `style` removed — .bb-cta-sm already sets
+              // display:inline-flex + align-items:center + gap:0.4rem.
+              className="bb-cta-sm bb-cta-sm-destructive"
             >
               <Trash2 size={14} aria-hidden="true" />
               Delete account
