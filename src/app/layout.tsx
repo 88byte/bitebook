@@ -8,7 +8,7 @@ import RecoveryHandler from '@/components/RecoveryHandler'
 // Bump on each release that ships new static assets so installed PWAs
 // know to refresh. Visible in the rendered HTML as <meta name="bb-build">
 // for easy curl/view-source verification of which build a client is on.
-const BUILD_TAG = 'v27.8.4-admin-delete-account-plus-v27.8.4.1-step2-license-error-surfacing'
+const BUILD_TAG = 'v27.8.4.2-idempotent-license-upsert-on-onboarding-step2'
 
 const barlow = Barlow({
   variable: '--font-barlow',

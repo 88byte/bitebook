@@ -127,17 +127,34 @@ export async function saveGuideLicenseAction(formData: FormData): Promise<void> 
   // license), use validTo as both ends so the row inserts cleanly.
   const validFrom = validTo < today ? validTo : today
 
+  // v27.8.4.2 — idempotent upsert keyed on the existing UNIQUE index
+  // (user_id, state, type, identifier). Pre-v27.8.4.2 a plain insert
+  // would fail with `duplicate key value violates uq_wallet_identifier`
+  // when the user re-ran the wizard (same license number, same state,
+  // same type). Flavio testing the signup flow hit this every retest:
+  //   1st attempt: row inserted, redirect to step 3, user backs out.
+  //   2nd attempt: same identifier, INSERT blocks, friendly error
+  //                surface said "Database error: duplicate key value
+  //                violates constraint uq_wallet_identifier."
+  // Treating same-license re-submit as a no-op refresh of valid_from /
+  // valid_to fixes the loop without weakening the constraint — across
+  // distinct users or states the row stays unique. jurisdiction +
+  // user_id remain pinned by the conflict key + service-role-free
+  // RLS gate.
   const { error: walletErr } = await supabase
     .from('wallet_items')
-    .insert({
-      user_id: user.id,
-      type: 'guide_license',
-      jurisdiction: 'state',
-      identifier,
-      state,
-      valid_from: validFrom,
-      valid_to: validTo,
-    })
+    .upsert(
+      {
+        user_id: user.id,
+        type: 'guide_license',
+        jurisdiction: 'state',
+        identifier,
+        state,
+        valid_from: validFrom,
+        valid_to: validTo,
+      },
+      { onConflict: 'user_id,state,type,identifier' },
+    )
   if (walletErr) {
     console.warn('[onboarding.saveGuideLicense.wallet]', { code: walletErr.code, message: walletErr.message })
     const friendly = walletErr.message || 'Database refused the insert.'
