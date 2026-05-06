@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getGuideTier } from '@/app/app/_lib/billing-tier'
+import { markStepDone } from '@/app/app/_lib/onboarding'
 
 // v27.1.5.0 — onboarding consolidation. The accept-invite route now also
 // captures address + license + (optional) tag in the same submit.
@@ -152,6 +153,24 @@ export async function POST(request: Request) {
     )
   if (profileErr) {
     return NextResponse.json({ error: `Profile creation failed: ${profileErr.message}` }, { status: 500 })
+  }
+
+  // v27.8.1.2 — mark `profile_set` done now. Flavio testing v27.8.1.1:
+  // hunter completes accept-invite (which captures display + first +
+  // last + 4-part address — every gating field for `profile_set`),
+  // signs in, lands on the dashboard, sees a "Finish setting up" banner
+  // pointing them at /app/h/welcome → /app/h/profile to RE-FILL the
+  // exact data they just submitted. Net experience: redundant five
+  // minutes of busy-work that "felt broken." Fix: stamp the step here,
+  // best-effort. The form earlier in the route already validates every
+  // required field for the step, so the gate is implicit. wait_for_guide
+  // is data-derived from invitations.accepted_by (set below) so it's
+  // covered automatically. first_trip_viewed correctly stays for the
+  // trip-detail page to mark on real first view.
+  try {
+    await markStepDone(admin, userId, 'profile_set')
+  } catch (e) {
+    console.warn('[accept-invite.markStepDone profile_set]', { userId, error: (e as Error).message })
   }
 
   // Wallet items (license + optional tag). Track inserted ids so we can
