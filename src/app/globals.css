@@ -1318,6 +1318,26 @@ body {
 }
 .bb-form-grid-2 > * { min-width: 0; }
 
+/* v27.8.1.1 — modifier that stacks the 2-col grid into a single
+   column below 640px. Used on /accept-invite for the License
+   Issued / Valid through date pair: native iOS Safari date inputs
+   have an intrinsic min-width close to 160px, which combined with
+   .bb-form-narrow + 1rem padding overflows the 2-col grid at 375px
+   and the two inputs visually overlap. Stacking on narrow screens
+   solves it without touching the desktop layout. */
+.bb-form-grid-2-stack-sm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
+.bb-form-grid-2-stack-sm > * { min-width: 0; }
+@media (min-width: 40rem) {
+  .bb-form-grid-2-stack-sm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 /* v26.5.3: DateTimeField — styled <button> overlay that shows our short
    "Apr 28, 11:45 AM" format, with a hidden <input type="datetime-local">
    behind it that handles picking via showPicker(). Native iOS Safari

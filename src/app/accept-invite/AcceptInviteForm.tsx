@@ -71,9 +71,13 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
     valid_to: endOfYearIso(),
   })
 
-  // Tag (visible by default; "I'll add later" lets them skip — the most
-  // common case since hunters typically don't have a tag at invite time)
-  const [skipTag, setSkipTag] = useState(true)
+  // Tag — section visible by default with empty fields. v27.8.1.1
+  // (Flavio): the "add later" toggle now starts UNCHECKED so the
+  // hunter has to actively opt in to skipping. Mirrors how License
+  // already works. Earlier auto-checked behavior pre-skipped tag for
+  // every hunter, which buried the form fields and meant guides who
+  // do have a tag at invite time had to find the toggle to reveal it.
+  const [skipTag, setSkipTag] = useState(false)
   const [tag, setTag] = useState<TagDraft>({
     identifier: '',
     species: '',
@@ -362,7 +366,11 @@ export default function AcceptInviteForm({ token, email }: { token: string; emai
                 </select>
               </label>
             </div>
-            <div className="bb-form-grid-2">
+            {/* v27.8.1.1: stack-sm modifier — date inputs are full-width
+                stacked below 640px (avoids iOS Safari date-input
+                min-width overflowing the .bb-form-narrow container)
+                and 50/50 grid at desktop. */}
+            <div className="bb-form-grid-2-stack-sm">
               <label className="bb-field">
                 <span className="bb-form-label">Issued</span>
                 <input
