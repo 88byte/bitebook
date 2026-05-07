@@ -41,6 +41,104 @@ function decodeSignaturePngDataUrl(dataUrl: string): Uint8Array {
   return Uint8Array.from(Buffer.from(m[1], 'base64'))
 }
 
+// v27.9.8a — resolve a hunter-side data_source_path against the signing
+// hunter's profile + wallet. Mirrors the hunter branch of
+// harvest-log-fill.ts resolveSource, scoped to a single hunter (no slot
+// dimension). Returns a string ready for PDFTextField.setText, or null
+// when the path isn't a hunter-side path this resolver knows about.
+type HunterProfile = {
+  id: string
+  display_name: string | null
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  address_street: string | null
+  address_street2: string | null
+  address_city: string | null
+  address_state: string | null
+  address_zip: string | null
+}
+type HunterWalletItem = {
+  type: string
+  identifier: string | null
+  state: string | null
+  jurisdiction: string | null
+  year: number | null
+  valid_to: string | null
+  archived_at: string | null
+  updated_at: string
+}
+type HunterCtx = {
+  profile: HunterProfile
+  license: HunterWalletItem | null
+  reportCard: HunterWalletItem | null
+  stamp: HunterWalletItem | null
+}
+
+function fmtIsoDateMMDDYYYY(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${m}/${day}/${d.getUTCFullYear()}`
+}
+
+function hunterFullName(p: HunterProfile): string {
+  const joined = [p.first_name, p.last_name].filter(Boolean).join(' ').trim()
+  return joined || (p.display_name ?? '')
+}
+
+function resolveHunterSourcePath(path: string, ctx: HunterCtx): string | null {
+  const p = ctx.profile
+  // hunter.*
+  if (path === 'hunter.full_name') return hunterFullName(p)
+  if (path === 'hunter.first_name') return p.first_name ?? ''
+  if (path === 'hunter.last_name') return p.last_name ?? ''
+  if (path === 'hunter.phone') return p.phone ?? ''
+  if (path === 'hunter.street1') return p.address_street ?? ''
+  if (path === 'hunter.street2') return p.address_street2 ?? ''
+  if (path === 'hunter.city') return p.address_city ?? ''
+  if (path === 'hunter.state') return p.address_state ?? ''
+  if (path === 'hunter.postal_code') return p.address_zip ?? ''
+  if (path === 'hunter.city_state') {
+    return [p.address_city, p.address_state].filter(Boolean).join(', ')
+  }
+  if (path === 'hunter.address_full') {
+    const cityState = [p.address_city, p.address_state].filter(Boolean).join(', ')
+    return [p.address_street, p.address_street2, cityState, p.address_zip]
+      .filter(Boolean)
+      .join(', ')
+  }
+  // hunter_license.*
+  if (path === 'hunter_license.identifier') return ctx.license?.identifier ?? ''
+  if (path === 'hunter_license.state') return ctx.license?.state ?? ''
+  if (path === 'hunter_license.valid_to') return fmtIsoDateMMDDYYYY(ctx.license?.valid_to ?? null)
+  if (path === 'hunter_license.holder_name') return hunterFullName(p)
+  // hunter_harvest_report_card.*
+  if (path === 'hunter_harvest_report_card.identifier') return ctx.reportCard?.identifier ?? ''
+  if (path === 'hunter_harvest_report_card.state') return ctx.reportCard?.state ?? ''
+  if (path === 'hunter_harvest_report_card.year') {
+    return ctx.reportCard?.year !== null && ctx.reportCard?.year !== undefined
+      ? String(ctx.reportCard.year)
+      : ''
+  }
+  if (path === 'hunter_harvest_report_card.valid_to') {
+    return fmtIsoDateMMDDYYYY(ctx.reportCard?.valid_to ?? null)
+  }
+  // hunter_stamp.*
+  if (path === 'hunter_stamp.identifier') return ctx.stamp?.identifier ?? ''
+  if (path === 'hunter_stamp.jurisdiction') return ctx.stamp?.jurisdiction ?? ''
+  if (path === 'hunter_stamp.state') return ctx.stamp?.state ?? ''
+  if (path === 'hunter_stamp.year') {
+    return ctx.stamp?.year !== null && ctx.stamp?.year !== undefined
+      ? String(ctx.stamp.year)
+      : ''
+  }
+  if (path === 'hunter_stamp.valid_to') return fmtIsoDateMMDDYYYY(ctx.stamp?.valid_to ?? null)
+  return null
+}
+
 // PlacementCoords moved to signature-placement.ts in v27.2.0.3.
 
 export async function signWaiverAction(
@@ -128,6 +226,63 @@ export async function signWaiverAction(
     }
   }
 
+  // v27.9.8a — load the signing hunter's profile + active wallet items
+  // once so we can resolve hunter.* / hunter_license.* / etc. mappings
+  // onto PDF text fields. Mirrors harvest-log-fill's hunter resolver
+  // pattern but scoped to one hunter (no slot dimension).
+  const { data: profileRow } = await sb
+    .from('profiles')
+    .select('id, display_name, first_name, last_name, phone, address_street, address_street2, address_city, address_state, address_zip')
+    .eq('id', user.id)
+    .maybeSingle()
+  const { data: walletRows } = await sb
+    .from('wallet_items')
+    .select('type, identifier, state, jurisdiction, season_year, valid_to, archived_at, updated_at')
+    .eq('user_id', user.id)
+    .is('archived_at', null)
+    .order('updated_at', { ascending: false })
+  type WalletDbRow = {
+    type: string
+    identifier: string | null
+    state: string | null
+    jurisdiction: string | null
+    season_year: number | null
+    valid_to: string | null
+    archived_at: string | null
+    updated_at: string
+  }
+  const walletList = (walletRows ?? []) as WalletDbRow[]
+  const toCtxItem = (r: WalletDbRow | undefined): HunterWalletItem | null =>
+    r
+      ? {
+          type: r.type,
+          identifier: r.identifier,
+          state: r.state,
+          jurisdiction: r.jurisdiction,
+          year: r.season_year,
+          valid_to: r.valid_to,
+          archived_at: r.archived_at,
+          updated_at: r.updated_at,
+        }
+      : null
+  const hunterCtx: HunterCtx = {
+    profile: (profileRow as HunterProfile | null) ?? {
+      id: user.id,
+      display_name: null,
+      first_name: null,
+      last_name: null,
+      phone: null,
+      address_street: null,
+      address_street2: null,
+      address_city: null,
+      address_state: null,
+      address_zip: null,
+    },
+    license: toCtxItem(walletList.find((w) => w.type === 'license')),
+    reportCard: toCtxItem(walletList.find((w) => w.type === 'harvest_report_card')),
+    stamp: toCtxItem(walletList.find((w) => w.type === 'stamp')),
+  }
+
   // 4. Compose the signed PDF.
   const pdf = await PDFDocument.load(baseBytes, { ignoreEncryption: true })
 
@@ -143,10 +298,40 @@ export async function signWaiverAction(
           /* unknown field on a replaced PDF — skip */
         }
       }
-      try { form.flatten() } catch { /* ignore */ }
     } catch {
       /* form unavailable — proceed image-only */
     }
+  }
+
+  // v27.9.8a — stamp hunter-source mappings (hunter.*, hunter_license.*,
+  // hunter_harvest_report_card.*, hunter_stamp.*) onto their PDF text
+  // fields. Per-field try/catch matches the existing date-field pattern.
+  // Skip when the resolver returns null (path isn't a hunter path) or
+  // empty string (leave the field unset).
+  try {
+    const form = pdf.getForm()
+    for (const m of allMappings) {
+      if ((m.mapping_kind ?? 'field') !== 'field') continue
+      const path = m.data_source_path
+      if (!path) continue
+      if (
+        !path.startsWith('hunter.') &&
+        !path.startsWith('hunter_license.') &&
+        !path.startsWith('hunter_harvest_report_card.') &&
+        !path.startsWith('hunter_stamp.')
+      ) continue
+      const value = resolveHunterSourcePath(path, hunterCtx)
+      if (value === null || value === '') continue
+      try {
+        const field = form.getField(m.field_name)
+        if (field instanceof PDFTextField) field.setText(value)
+      } catch {
+        /* unknown field on a replaced PDF — skip */
+      }
+    }
+    try { form.flatten() } catch { /* ignore */ }
+  } catch {
+    /* form unavailable — proceed image-only */
   }
 
   let signaturePng: PDFImage

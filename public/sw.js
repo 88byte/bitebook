@@ -23,7 +23,7 @@
 // in bitebook-runtime. Subsequent releases bump SHELL_CACHE (fresh
 // CSS/JS) but leave runtime alone (offline app keeps working).
 
-const SHELL_CACHE = 'bitebook-shell-v27.9.7.8'
+const SHELL_CACHE = 'bitebook-shell-v27.9.8a'
 const RUNTIME_CACHE = 'bitebook-runtime'
 
 // Pre-cache list. /offline.html is the universal fallback for failed

@@ -863,6 +863,7 @@ export default function MappingWizard({
       <FieldRow
         key={f.name}
         field={f}
+        docKind={docKind}
         value={currentPath}
         fallbackValue={fallbacks[f.name] ?? ''}
         staticText={staticText[f.name] ?? ''}
@@ -1966,6 +1967,7 @@ function StatusPill({
 
 function FieldRow({
   field,
+  docKind,
   value,
   fallbackValue,
   staticText,
@@ -1989,6 +1991,7 @@ function FieldRow({
   onRestoreAi,
 }: {
   field: DocPdfField
+  docKind: 'log' | 'waiver'
   value: string
   fallbackValue: string
   staticText: string
@@ -2035,7 +2038,7 @@ function FieldRow({
 
   const slot = slotOverride > 0 ? slotOverride : detectedSlot
 
-  const sources = useMemo(() => sourcesForFieldOnSlot(field.type, slot), [field.type, slot])
+  const sources = useMemo(() => sourcesForFieldOnSlot(field.type, slot, docKind), [field.type, slot, docKind])
   const grouped = useMemo(() => {
     const out: Record<string, DataSourceOption[]> = {}
     for (const cat of CATEGORY_ORDER) out[cat] = []

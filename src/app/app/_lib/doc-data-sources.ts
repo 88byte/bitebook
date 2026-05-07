@@ -281,15 +281,23 @@ export function valueTypeForFieldType(
 // special. Slot === 0 (trip-level field) → only NON-perRow sources +
 // special. Wizard scopes the dropdown so the user doesn't drag a
 // per-hunter source onto a trip-level field.
+//
+// v27.9.8a: optional docKind. When docKind === 'waiver' AND slot === 0,
+// we ALSO admit perRow sources because waivers are signed by ONE hunter
+// at a time — that hunter IS the row. Slot 0 on logs continues to filter
+// perRow sources out (trip-level only). Default 'log' for backward compat.
 export function sourcesForFieldOnSlot(
   fieldType: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown',
-  slot: number
+  slot: number,
+  docKind: 'log' | 'waiver' = 'log'
 ): DataSourceOption[] {
   const want = valueTypeForFieldType(fieldType)
   return DATA_SOURCES.filter((s) => {
     if (s.valueType !== want) return false
     if (s.category === 'special') return true
     if (slot >= 1) return s.perRow === true
+    // Slot === 0 — trip-level on logs, signing-hunter on waivers.
+    if (docKind === 'waiver') return true
     return s.perRow !== true
   })
 }
