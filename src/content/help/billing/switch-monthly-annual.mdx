@@ -1,0 +1,49 @@
+---
+title: "How to switch between monthly and annual billing"
+slug: "switch-monthly-annual"
+category: "billing"
+audience: "guide"
+tags: ["billing", "subscription", "monthly", "annual", "plan"]
+last_updated: "2026-05-07"
+related: ["seven-day-free-trial", "cancel-and-restart-subscription"]
+---
+
+Bite Book has one plan with two billing options: $9 a month or $90 a year. You can switch in either direction at any time from your Settings.
+
+## Open the plan switcher
+
+1. Tap **Settings** in the sidebar.
+2. Open the **Billing** tab.
+3. Find the **PLAN** section.
+
+You’ll see two chips:
+
+- **Monthly · $9 / mo**
+- **Annual · $90 / yr** with **Save 17%** in copper
+
+The chip for your current plan has a **Current** pill on it.
+
+## Switch
+
+1. Tap the OTHER chip — the one that isn’t marked Current.
+2. Bite Book shows a "Calculating proration…" spinner while it asks Stripe what the change costs.
+3. A confirmation panel appears with the headline **Switch to Monthly · $9 / mo** or **Switch to Annual · $90 / yr** and a body explaining the math.
+
+The body line depends on where you are in your billing cycle:
+
+- If switching costs money today: "You'll be charged **$X** today. Next renewal: [date]."
+- If you have unused time on the old plan: "You'll receive **$X** credit applied to future invoices. Next renewal: [date]."
+- If the math nets to zero (common during the trial): "No charge today. The new plan starts immediately and renews on your next cycle. Next renewal: [date]."
+
+4. Tap **Confirm switch** to commit, or **Cancel** to back out.
+
+## When you can’t switch
+
+The plan chips are hidden on a couple of states:
+
+- If you’ve canceled and your subscription is set to end at period close, the section reads "Reactivate first" — you have to reactivate before you can switch plans.
+- If you don’t have an active subscription at all, the chips don’t render.
+
+## What changes
+
+Stripe handles the proration the moment you confirm. The new plan starts immediately. Your renewal date in the Billing tab updates to reflect the new cycle.

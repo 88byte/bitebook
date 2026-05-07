@@ -1,0 +1,64 @@
+---
+title: "How to show your trip to a warden in the field"
+slug: "show-trip-to-warden"
+category: "warden-share"
+audience: "guide"
+tags: ["warden", "share", "field", "harvest-log"]
+last_updated: "2026-05-07"
+related: ["e-sign-the-harvest-log", "generate-state-harvest-log-first-time"]
+---
+
+When a warden walks up, you tap one button. Bite Book hands them your signed harvest log on a full-screen overlay so they can read it directly off your device.
+
+## The button
+
+On the trip detail page, find the action row. Tap **Share with warden**.
+
+The button is visible on:
+
+- **In progress** trips
+- **Done** trips
+- **Active** (planned) trips, only if you’ve already generated at least one log
+
+It’s hidden on **Canceled** trips.
+
+## What you need set up first
+
+Bite Book gates the share screen on three things. If anything’s missing you’ll see an error gate with a fix.
+
+1. **A default signature.** Save one in Settings (or you’ll be prompted on the spot). Wardens see signed logs — Bite Book auto-signs unsigned logs when you enter the share view.
+2. **A default state log doc** picked in Settings → Profile. Bite Book uses this template to fill the harvest log if none has been generated yet.
+3. **Mapping complete on that doc.** If your default doc is partly mapped, the gate links you to **Finish mapping**.
+
+If a generation fails for any other reason, the gate shows the underlying error.
+
+## What the warden sees
+
+When the share view loads:
+
+- A full-screen black overlay covers the rest of the app.
+- The header reads **WARDEN SHARE** in uppercase.
+- The body shows the signed harvest log PDF, page by page, vertically scrollable.
+- A **Done** button (top-left and bottom-center) closes the view back to the trip.
+
+If you’ve generated more than one set of logs over time, a small set picker appears in the header so you can flip between them.
+
+## What the warden does NOT see
+
+The warden share view is the harvest log PDF only. Wardens do not see:
+
+- Your wallet items as separate cards
+- The hunter list outside what’s on the PDF
+- Other trips
+- Waivers
+- Your billing or settings
+
+License numbers, hunter names, harvest counts, and dates are on the PDF itself — only because the harvest log template is mapped to pull those fields. If your state form doesn’t ask for a piece of info, it won’t appear.
+
+## Network needed
+
+Loading the warden share requires a network connection — the PDFs are pulled fresh from Bite Book. If you’re in a dead zone, open the trip and tap **Hunt logs** earlier (when you’ve got bars), open the latest signed PDF in a new tab, and let your phone cache it before you head out.
+
+## Closing the view
+
+Tap **Done** at the top or bottom. The overlay drops and you’re back on the trip detail page.

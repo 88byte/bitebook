@@ -1,0 +1,53 @@
+---
+title: "How to cancel and restart your subscription"
+slug: "cancel-and-restart-subscription"
+category: "billing"
+audience: "guide"
+tags: ["billing", "cancel", "subscription", "reactivate"]
+last_updated: "2026-05-07"
+related: ["seven-day-free-trial", "switch-monthly-annual"]
+---
+
+Bite Book lets you cancel from inside the app — no need to call or email. If you change your mind, reactivating is one tap.
+
+## Cancel
+
+1. Tap **Settings** in the sidebar.
+2. Open the **Billing** tab.
+3. Scroll to the bottom and find **Cancel subscription** (red, with an X icon).
+4. Tap it.
+
+A confirmation modal opens with the title **Cancel subscription?** and this body:
+
+> Your subscription stays active until [date], then your account becomes read-only. You can reactivate anytime before that date with one tap. After that date, you'll need to start a new subscription to keep using Bite Book.
+
+5. Tap **Cancel subscription** in the modal to confirm. (Or tap **Keep it** to back out.)
+
+## What happens
+
+- Stripe sets your subscription to cancel at the end of the current billing period — so you keep paid access through the date you’ve already paid for.
+- The Billing tab now shows a **Canceling** pill, plus the line "Canceling on [date]."
+- The Cancel button is replaced by a **Reactivate subscription** button (copper) and a banner explaining the canceling state.
+
+You will not be charged again unless you reactivate before the date.
+
+## Reactivate
+
+While the subscription is in the "canceling" state:
+
+1. Open **Settings → Billing**.
+2. Tap **Reactivate subscription** in the canceling banner.
+
+The cancel-at-period-end flag is removed and your subscription continues normally on the next cycle. No new charge happens at reactivate — Stripe picks up where it left off.
+
+## After the period ends
+
+Once the date in "Canceling on [date]" passes, your subscription is fully canceled:
+
+- The Billing tab pill flips to **Canceled**.
+- A banner reads "Your subscription is canceled. To resume, restart signup or contact support@lastbite.pro."
+- The rest of the app shows a locked screen with a **Restart subscription** button. Tapping it sends you back through `/signup` to start a new subscription at standard pricing ($9 a month or $90 a year — there’s no special restart rate).
+
+## A note on data
+
+Canceling does not delete your account or your data. Your trips, hunters, wallet, and generated PDFs all remain on file. When you restart, everything’s where you left it. The only thing the canceled state changes is access — read-only until you re-subscribe.

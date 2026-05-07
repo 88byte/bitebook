@@ -1,0 +1,51 @@
+---
+title: "How to edit a generated log without starting over"
+slug: "edit-a-generated-log"
+category: "hunt-logs"
+audience: "guide"
+tags: ["hunt-log", "edit", "regenerate", "fix"]
+last_updated: "2026-05-07"
+related: ["generate-state-harvest-log-first-time", "e-sign-the-harvest-log"]
+---
+
+You generated a filled harvest log, and then you noticed a typo on a hunter’s name or a wrong species count. You don’t need to delete and redo. Bite Book edits the underlying data and re-runs the fill into the same PDF.
+
+## The flow
+
+1. On the trip’s **Hunt logs** page, edit the harvest entries that were wrong. Every input on the page auto-saves on blur — there’s no save button. You’ll see a small "Saving…" → "Saved" indicator.
+2. Scroll to the **Logs** list.
+3. Find the row for the PDF you want to refresh.
+4. Tap the **Re-generate** icon-tile (rotating-arrow icon).
+5. A confirmation modal asks **Re-generate this PDF?** with the body "The current file will be overwritten with fresh data from your harvest log. The download link stays the same; the report's name doesn't change unless you rename it after."
+6. Tap **Re-generate**.
+
+The same row updates in place — the file path stays the same so any external link still works, but the contents reflect the new data.
+
+## After a re-generate
+
+- The row’s "Generated [time] ago" label flips to "Updated [time] ago" with the new date.
+- If the PDF was already signed, the signed copy is overwritten by the fresh unsigned copy. You’ll need to sign it again — the **Sign** tile flips back to its unsigned state.
+
+## Renaming a generated PDF
+
+Tap the pencil icon next to the filename in the Logs row. Type a new name (200 char max) and tap the check mark to save. The `.pdf` extension is added automatically.
+
+## Editing the field mapping itself
+
+If the PDF is filling in the wrong fields (not just the wrong values), the issue is the mapping, not the data:
+
+1. Go to **Documents** and open the log doc.
+2. Tap **Edit mapping**.
+3. Fix the fields that map wrong.
+4. Tap **Mapping Complete** at the bottom.
+5. Go back to the trip’s Hunt logs page and tap **Re-generate** on the row.
+
+Mapping changes don’t propagate automatically — you have to re-generate to push them into existing PDFs.
+
+## Deleting a bad PDF
+
+If you’d rather start clean, tap the **Delete** tile on the row, confirm in the modal ("The file is removed from your trip and from storage. This can't be undone."), and then tap **Generate Filled Out Log** again to make a fresh one.
+
+## When Re-generate is disabled
+
+If the original log doc has been deleted from the docs library, the Re-generate button is disabled with a tooltip that says **Original log doc no longer available**. In that case, upload or pick a new template, and generate fresh from it — the old PDF stays as a record but can’t be refreshed.
