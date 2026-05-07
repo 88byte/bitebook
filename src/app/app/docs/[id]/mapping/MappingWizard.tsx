@@ -66,6 +66,7 @@ export default function MappingWizard({
   existingAiSuggestedByField,
   existingAiSuggestedPathByField,
   existingAiSuggestedSlotByField,
+  existingUserLabelByField = {},
   currentStatus,
   viewerOwnsDoc = true,
 }: {
@@ -78,6 +79,12 @@ export default function MappingWizard({
   existingAiSuggestedByField: Record<string, boolean>
   existingAiSuggestedPathByField: Record<string, string>
   existingAiSuggestedSlotByField: Record<string, number>
+  // v27.9.8b — pre-filled user_label per field. Carries the AI's
+  // auto-suggested 1-sentence confirmation copy on
+  // hunter_input.waiver_checkbox rows AND the log-time short label
+  // on user_input.log_time rows. Same DB column, mutually-exclusive
+  // sentinel paths.
+  existingUserLabelByField?: Record<string, string>
   currentStatus: string
   // v27.9.7.8 — when false, render read-only mode. Bite Book templates
   // are visible to any guide via fetchGuideDoc, but server-side write
@@ -128,6 +135,25 @@ export default function MappingWizard({
   const [fallbacks, setFallbacks] = useState<Record<string, string>>(
     () => ({ ...existingFallbackByField })
   )
+
+  // v27.9.8b — per-field user_label state. Carries the AI's
+  // auto-suggested 1-sentence confirmation copy on
+  // hunter_input.waiver_checkbox rows AND the log-time short label
+  // on user_input.log_time rows. Save action persists into
+  // doc_field_mappings.user_label for whichever sentinel path is
+  // currently selected (mutually exclusive paths via kind_filter).
+  const [userLabels, setUserLabels] = useState<Record<string, string>>(
+    () => ({ ...existingUserLabelByField })
+  )
+
+  // v27.9.8b — the wizard's save flow + checkbox-required validation
+  // both consult this map; the FieldRow input below writes to it.
+  function handleUserLabelChange(fieldName: string, value: string) {
+    setUserLabels((prev) => ({ ...prev, [fieldName]: value }))
+    setSavedAt(null)
+    setCompletedAt(null)
+    setAiSuggestedFlags((prev) => (prev[fieldName] ? { ...prev, [fieldName]: false } : prev))
+  }
 
   // v27.1.1.0.3c.1: per-field manual slot override. 0 = auto-detect via
   // regex; 1+ = explicit slot. Hydrated from doc_field_mappings.hunter_slot.
@@ -332,11 +358,13 @@ export default function MappingWizard({
   // partially-mapped doc when transient fetch state made existingByField
   // briefly empty, sending the wizard into a Step 2 → Step 1 loop on
   // revisit even though the 82 saved rows existed in the DB.
-  // v27.3.10.8 item 1: AI auto-poll only fires for log kinds. Waivers
-  // get manual mapping only — no AI Step 1/2/3 onboarding, no
-  // background polling.
+  // v27.9.8b: AI auto-poll fires for log AND waiver kinds. Waivers now
+  // get the same Step 1/2/3 onboarding (suggestMappingsAction lifted
+  // its log-only gate; the waiver-mode prompt branches inside the
+  // server action). Resources stay manual-only.
+  const aiSupported = docKind === 'log' || docKind === 'waiver'
   const initialIsEmpty =
-    docKind === 'log' &&
+    aiSupported &&
     Object.keys(existingByField).length === 0 &&
     Object.keys(existingAiSuggestedByField).length === 0 &&
     currentStatus === 'unmapped'
@@ -440,8 +468,20 @@ export default function MappingWizard({
       }
       return changed ? next : prev
     })
+    // v27.9.8b — same merge pattern for AI-supplied user_label rows.
+    setUserLabels((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(existingUserLabelByField)) {
+        if (next[k] !== v && (next[k] === undefined || next[k] === '')) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingByField, existingSlotByField, existingOverrideByField, existingAiSuggestedByField])
+  }, [existingByField, existingSlotByField, existingOverrideByField, existingAiSuggestedByField, existingUserLabelByField])
 
   function discover() {
     setLoadingFields(true)
@@ -547,12 +587,19 @@ export default function MappingWizard({
         rawFb === STATIC_DATE_PREFIX ||
         rawFb === STATIC_DATE_RANGE_PREFIX
       const fallback_path = fbBarePrefix || !rawFb ? null : rawFb
+      // v27.9.8b — pass user_label through for the two sentinel paths
+      // that consume it (user_input.log_time + hunter_input.
+      // waiver_checkbox). The server action sanitizes by path before
+      // persisting, so an off-path string here is harmless.
+      const rawLabel = userLabels[f.name] ?? ''
+      const user_label = rawLabel.trim() ? rawLabel.trim() : null
       out.push({
         field_name: f.name,
         data_source_path: finalPath,
         fallback_path,
         hunter_slot: slot,
         is_override: isOverride,
+        user_label,
       })
     }
     return out
@@ -564,6 +611,20 @@ export default function MappingWizard({
     setCompletedAt(null)
     setMirroredCount(0)
     const payload = buildPayload()
+    // v27.9.8b — pre-flight check: hunter_input.waiver_checkbox rows
+    // require a description. Surface the error inline before the
+    // server round-trip so the guide gets immediate feedback.
+    for (const m of payload) {
+      if (
+        m.data_source_path === 'hunter_input.waiver_checkbox' &&
+        (!m.user_label || !m.user_label.trim())
+      ) {
+        setSaveError(
+          `Add a description for the checkbox confirmation on field "${m.field_name}".`
+        )
+        return
+      }
+    }
     startTransition(async () => {
       const res = await saveDocMappingsAction(docId, payload)
       if ('error' in res) {
@@ -877,6 +938,7 @@ export default function MappingWizard({
         mirrorPath={mirrorPath}
         mirrorFallbackPath={mirrorFallbackPath}
         advanced={advancedMode}
+        userLabel={userLabels[f.name] ?? ''}
         onChange={handleDropdownChange}
         onFallbackChange={handleFallbackChange}
         onStaticTextChange={handleStaticTextChange}
@@ -885,6 +947,7 @@ export default function MappingWizard({
         onSlotChange={handleSlotChange}
         onOverrideToggle={handleOverrideToggle}
         onRestoreAi={handleRestoreAiSuggestion}
+        onUserLabelChange={handleUserLabelChange}
       />
     )
   }
@@ -921,7 +984,7 @@ export default function MappingWizard({
           v27.9.7.8: every write-CTA branch below is gated by
           viewerOwnsDoc so non-owner viewers see the field list as
           read-only summary rows only. */}
-      {viewerOwnsDoc && docKind === 'log' && stage === 'start' && (
+      {viewerOwnsDoc && aiSupported && stage === 'start' && (
         <StepCard
           stepNumber={1}
           title="Start by letting AI map your form"
@@ -957,7 +1020,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {viewerOwnsDoc && docKind === 'log' && stage === 'working' && (
+      {viewerOwnsDoc && aiSupported && stage === 'working' && (
         <StepCard
           stepNumber={2}
           title={aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
@@ -991,7 +1054,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {viewerOwnsDoc && docKind === 'log' && stage === 'success' && (
+      {viewerOwnsDoc && aiSupported && stage === 'success' && (
         <div
           className="bb-tile"
           style={{
@@ -1066,7 +1129,7 @@ export default function MappingWizard({
                   ? 'Working…'
                   : 'Mapping Complete'}
               </button>
-              {docKind === 'log' && (
+              {aiSupported && (
                 <button
                   type="button"
                   className="bb-btn-secondary"
@@ -1111,7 +1174,7 @@ export default function MappingWizard({
         // is log-only. Waivers skip it.
         return (
           <>
-            {docKind === 'log' && stage === 'review' && (
+            {aiSupported && stage === 'review' && (
               <StepCard
                 stepNumber={3}
                 title="Review your mappings"
@@ -1290,7 +1353,7 @@ export default function MappingWizard({
         filterCounts={filterCounts}
         onRerunAi={handleSuggestMappings}
         rerunDisabled={pending || aiSuggesting}
-        showRerunAi={viewerOwnsDoc && docKind === 'log'}
+        showRerunAi={viewerOwnsDoc && aiSupported}
       />
 
       {sections.map(({ slot, members }) => {
@@ -1981,6 +2044,7 @@ function FieldRow({
   mirrorPath,
   mirrorFallbackPath,
   advanced,
+  userLabel,
   onChange,
   onFallbackChange,
   onStaticTextChange,
@@ -1989,6 +2053,7 @@ function FieldRow({
   onSlotChange,
   onOverrideToggle,
   onRestoreAi,
+  onUserLabelChange,
 }: {
   field: DocPdfField
   docKind: 'log' | 'waiver'
@@ -2009,6 +2074,12 @@ function FieldRow({
   // slot 2..N row, the FallbackSourceEditor renders disabled with
   // this value so the UI matches the primary's mirror behavior.
   mirrorFallbackPath: string | null
+  // v27.9.8b — current user_label value for this field. Renders an
+  // inline text input below the source dropdown when the selected
+  // path is one of the two sentinels that consume it
+  // (user_input.log_time or hunter_input.waiver_checkbox). Empty
+  // string until the AI populates it or the guide types.
+  userLabel: string
   onChange: (fieldName: string, value: string) => void
   onFallbackChange: (fieldName: string, value: string) => void
   onStaticTextChange: (fieldName: string, value: string) => void
@@ -2017,6 +2088,7 @@ function FieldRow({
   onSlotChange: (fieldName: string, slot: number) => void
   onOverrideToggle: (fieldName: string, isOverride: boolean) => void
   onRestoreAi: (fieldName: string) => void
+  onUserLabelChange: (fieldName: string, value: string) => void
 }) {
   // v27.1.1.0.3c: source list slot-aware (per-hunter vs trip-level filter).
   // v27.1.1.0.3c.1: slotOverride from doc_field_mappings.hunter_slot wins
@@ -2246,6 +2318,77 @@ function FieldRow({
           ) : null
         )}
       </select>
+
+      {/* v27.9.8b — user_label inline editor. Renders for the two
+          sentinel paths that consume it:
+            user_input.log_time      (log mode — short label shown on
+                                      the harvest log row above
+                                      Total hours)
+            hunter_input.waiver_checkbox (waiver mode — required
+                                      1-sentence confirmation copy
+                                      shown to the hunter at signing)
+          The waiver branch is REQUIRED and validated server-side
+          plus pre-flight client-side; an inline error+asterisk
+          surface when empty. The log branch is optional (the AI
+          auto-suggests it, but a missing label degrades gracefully
+          to the field's PDF name in the editor). */}
+      {(value === 'user_input.log_time' || value === 'hunter_input.waiver_checkbox') && (() => {
+        const isWaiver = value === 'hunter_input.waiver_checkbox'
+        const trimmed = (userLabel ?? '').trim()
+        const showRequiredError = isWaiver && trimmed.length === 0
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label
+              className="bb-form-label"
+              htmlFor={`ul-${field.name}`}
+              style={{ marginBottom: 0 }}
+            >
+              {isWaiver ? 'What is the hunter confirming?' : 'Short label for this field'}
+              {isWaiver && (
+                <span
+                  aria-hidden="true"
+                  style={{ color: '#B33A2E', marginLeft: '0.2rem' }}
+                >
+                  *
+                </span>
+              )}
+            </label>
+            <input
+              id={`ul-${field.name}`}
+              type="text"
+              className="bb-input"
+              placeholder={
+                isWaiver
+                  ? 'e.g. I assume all liability for hunting accidents'
+                  : 'e.g. How many points on the antlers?'
+              }
+              value={userLabel}
+              onChange={(e) => onUserLabelChange(field.name, e.target.value)}
+              maxLength={isWaiver ? 200 : 120}
+              aria-required={isWaiver || undefined}
+              aria-invalid={showRequiredError || undefined}
+              style={
+                showRequiredError
+                  ? { borderColor: '#B33A2E' }
+                  : undefined
+              }
+            />
+            <p
+              className="bb-form-help"
+              style={{
+                margin: 0,
+                color: showRequiredError ? '#B33A2E' : 'var(--color-ink-soft)',
+              }}
+            >
+              {showRequiredError
+                ? 'Required — the hunter sees this on the sign screen.'
+                : isWaiver
+                ? 'Hunter must check this confirmation before signing.'
+                : 'Shown on the harvest log row when you fill this field.'}
+            </p>
+          </div>
+        )
+      })()}
 
       {/* v27.1.1.0.3d.2.8: "Use AI suggestion" restore link. Renders only
           when the AI's saved recommendation differs from the guide's

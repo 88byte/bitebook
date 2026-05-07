@@ -1010,11 +1010,24 @@ export async function saveDocMappingsAction(
     const isOverride = m.is_override === true
     // v27.3.9: only persist user_label when path is the log-time
     // sentinel; otherwise null. Cap at 120 chars defensively.
+    // v27.9.8b: also persist for the waiver-checkbox sentinel —
+    // same column, mutually-exclusive paths (log-only vs
+    // waiver-only via kind_filter), so no conflict. Cap bumps
+    // to 200 on waiver confirmations (full sentences).
     const rawLabel = (m as { user_label?: string | null }).user_label
+    const isLogTimePath = path === 'user_input.log_time'
+    const isWaiverCheckboxPath = path === 'hunter_input.waiver_checkbox'
     const userLabel =
-      path === 'user_input.log_time' && typeof rawLabel === 'string' && rawLabel.trim()
-        ? rawLabel.trim().slice(0, 120)
+      (isLogTimePath || isWaiverCheckboxPath) && typeof rawLabel === 'string' && rawLabel.trim()
+        ? rawLabel.trim().slice(0, isWaiverCheckboxPath ? 200 : 120)
         : null
+    // v27.9.8b — waiver checkbox confirmations require a description.
+    // The hunter sees this string at signing time; blank means the
+    // sign screen has nothing to render and the field becomes
+    // unfillable. Mirror the existing error-return shape.
+    if (isWaiverCheckboxPath && !userLabel) {
+      return { error: 'Add a description for the checkbox confirmation.' }
+    }
     staged.set(fieldName, {
       path,
       fallbackPath,
@@ -1288,16 +1301,15 @@ export async function suggestMappingsAction(
     .eq('guide_id', profile.id)
     .maybeSingle()
   if (!doc) return { error: 'Doc not found.' }
-  // v27.3.10.8 item 1 — back to log-only. v27.3.10.7 opened AI to
-  // waivers, but Flavio decided waivers should be manual mapping
-  // (signature placement is the heavy automation for waivers, not
-  // field mapping). Resources never had a mapping flow. The wizard
-  // also hides the AI Step 1/2/3 onboarding when docKind !== 'log',
-  // so this gate is the server-side belt to the client-side
-  // suspenders — direct callers (e.g. from a future API) still
-  // get the same error.
-  if (doc.kind !== 'log') {
-    return { error: 'AI suggestions are only available for log docs.' }
+  // v27.9.8b — AI mapping now opens to waivers too. The waiver-mode
+  // prompt (see buildSystemPrompt below) tells the model about the
+  // hunter.* / e_signature.* / signature_date.now / hunter_input.
+  // waiver_checkbox routes the catalog filter admits, and the
+  // catalogForLLM kind_filter pass strips log-only paths so the model
+  // can't hallucinate harvest_log_entry_species into a waiver doc.
+  // Resources stay manual-only — they never had a mapping flow.
+  if (doc.kind !== 'log' && doc.kind !== 'waiver') {
+    return { error: 'AI suggestions are only available for log and waiver docs.' }
   }
 
   // Reuse extractDocFieldsAction's discovery (downloads + parses the PDF
@@ -1361,8 +1373,13 @@ export async function suggestMappingsAction(
     STATIC_DATE_RANGE_PREFIX,
     SKIP_VALUE,
   ])
+  // v27.9.8b — also filter by DataSourceOption.kind_filter so the model
+  // doesn't see log-only sources on a waiver call (and vice-versa).
+  // Sources without a kind_filter (or kind_filter === 'both') pass
+  // through to either kind.
   const catalogForLLM = DATA_SOURCES
     .filter((s) => !PREFIX_SENTINELS_FOR_GUIDE_ONLY.has(s.value))
+    .filter((s) => !s.kind_filter || s.kind_filter === 'both' || s.kind_filter === doc.kind)
     .map((s: DataSourceOption) => ({
       path: s.value,
       label: s.label,
@@ -1387,7 +1404,9 @@ export async function suggestMappingsAction(
     }
   })
 
-  const systemPrompt = `You map PDF form-field names to data-source paths for a hunting/fishing guide log auto-fill tool.
+  // v27.9.8b — log-mode system prompt (unchanged from v27.3.10.x).
+  // Waiver mode falls through to a separate prompt below.
+  const logSystemPrompt = `You map PDF form-field names to data-source paths for a hunting/fishing guide log auto-fill tool.
 
 You are given:
 1. The PDF itself as a document (visual context — labels, section headings, hunter columns, where each box sits on the page).
@@ -1460,6 +1479,67 @@ EITHER-OR FIELDS (use fallback_path):
 - For ordinary single-source fields, omit fallback_path (or set to empty string). Only use it when the label genuinely accepts either-or.
 
 When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`
+
+  // v27.9.8b — waiver-mode system prompt. Waivers are signed by ONE
+  // participating hunter at a time (the catalog filter admits perRow
+  // sources on slot 0; sourcesForFieldOnSlot already does this for the
+  // wizard, and the catalogForLLM kind_filter pass strips log-only
+  // paths so the model never sees harvest_log_entry_species or
+  // wallet_consumed). All "this hunter" fields point at hunter.* /
+  // hunter_license.* / hunter_stamp.* / hunter_harvest_report_card.*.
+  // Checkbox confirmations (the new hunter_input.waiver_checkbox
+  // sentinel) get a user_label rewrite from the surrounding PDF text.
+  const waiverSystemPrompt = `You map PDF form-field names to data-source paths for a hunting/fishing guide waiver auto-fill tool.
+
+You are given:
+1. The PDF itself as a document (visual context — labels, section headings, signature lines, where each box sits on the page).
+2. A list of form-field internal names (with detected type + a slotHint).
+3. A catalog of data-source paths the auto-fill engine knows how to resolve.
+
+The doc is a HUNTER WAIVER signed by ONE participating hunter at a time. Your job: for each PDF field, suggest the best data_source_path from the catalog.
+
+Call the submit_mappings tool exactly once with one entry per form-field, in the order given.
+
+Rules:
+- "suggested_path" must EXACTLY match a catalog "path" string OR be "skip" (no fit).
+- "hunter_slot" is always 0 on a waiver — there's only ONE signing hunter, and that hunter IS the row.
+- For checkbox fields, choose a path with valueType="boolean" or "skip".
+- For text fields, choose valueType="string" or "skip".
+- "confidence":"low" when the box is ambiguous or no catalog path fits.
+- "user_label" — REQUIRED when suggested_path = "hunter_input.waiver_checkbox". A 1-sentence plain-English description of what the hunter is confirming, derived from the field's surrounding PDF text. Example: "I assume all liability for hunting accidents on this trip." Empty string for any other path.
+
+GUIDANCE — pick the right path for each field:
+- Hunter name fields → "hunter.first_name", "hunter.last_name", or "hunter.full_name".
+- Hunter address → "hunter.street1" / "hunter.street2" / "hunter.city" / "hunter.state" / "hunter.postal_code" / "hunter.city_state" / "hunter.address_full".
+- Hunter phone / email → "hunter.phone".
+- Hunter license # / state / expiration / holder name → "hunter_license.identifier" / "hunter_license.state" / "hunter_license.valid_to" / "hunter_license.holder_name".
+- Hunter stamp / federal duck stamp → "hunter_stamp.identifier" / "hunter_stamp.jurisdiction" / "hunter_stamp.state" / "hunter_stamp.year".
+- Hunter signature fields → "e_signature.hunter".
+- Guide / outfitter / master guide signature fields → "e_signature.guide".
+- Date fields near signatures (any "Date Signed" / "Date of Signature" / "Signature Date" / "Date") → "signature_date.now". NEVER a hardcoded date.
+- Trip / hunt info (location, dates, target species, method) → standard "trip.*" paths (trip.title, trip.location_city, trip.location_state, trip.start_date, trip.end_date, trip.species_targeted, trip.method).
+- Outfitter / guide business info (business name, full name, address) → "guide.*" paths.
+- Guide license # / state / expiration → "guide_license.*" paths.
+
+CHECKBOX FIELDS (critical — use the waiver_checkbox sentinel):
+- Most checkboxes on a waiver are CONFIRMATIONS the hunter ticks before signing ("I assume liability", "I have read the safety policy", "I am at least 18 years old"). For these → "hunter_input.waiver_checkbox", and populate user_label with a 1-sentence plain-English description of what the hunter is confirming, taken from the surrounding PDF text.
+- Examples:
+    Field labeled "I understand and agree to the rules above" → suggested_path="hunter_input.waiver_checkbox", user_label="I understand and agree to the rules above."
+    Field next to "Liability waiver acknowledged" → suggested_path="hunter_input.waiver_checkbox", user_label="I assume all liability for hunting accidents on this trip."
+- EXCEPTION: when the checkbox is a STATIC yes/no answer the document expects to be pre-checked or pre-unchecked (rare on waivers but possible — e.g. a "minor" checkbox pre-marked NO by default), use "static:checked" or "static:unchecked" instead.
+- DEFAULT to "hunter_input.waiver_checkbox" for any unmarked confirmation-style checkbox the hunter would tick at signing time.
+
+SIGNATURE FIELDS (route to e-signature sentinels — never skip):
+- "Date Signed" / "Date of Signature" / "Signature Date" / "Signed On" / "Date" sitting next to a signature line → MUST map to "signature_date.now". Never a calendar date source. These fill at signing time, NOT at PDF generation.
+- "Signature" / "Sign Here" / "Initials" / signature-type form fields → MUST map to one of the e-signature sentinels:
+  - "Hunter Signature" / "Hunter Sign" / "Hunter Initials" / signature line in a hunter section → "e_signature.hunter".
+  - "Guide Signature" / "Guide Sign" / "Outfitter Signature" / "Master Guide Signature" / signature line in a guide section → "e_signature.guide".
+  - Generic "Signature" / "Sign Here" / "Initials" with no role hint → default to "e_signature.hunter" (waivers are hunter-signed by default).
+- These resolve to NULL at fill time so the AcroForm field stays blank; the signing engine reads the widget rect and stamps the signer's signature image at signing time. NEVER use "skip" for signature widgets.
+
+When the field name is ambiguous, prefer "skip" over forcing a wrong category match.`
+
+  const systemPrompt = doc.kind === 'waiver' ? waiverSystemPrompt : logSystemPrompt
 
   const userText = `Form-field list (${fieldsForLLM.length} total):
 ${JSON.stringify(fieldsForLLM)}
@@ -1546,7 +1626,7 @@ Return the JSON array now.`
                 user_label: {
                   type: 'string',
                   description:
-                    'REQUIRED when suggested_path = "user_input.log_time". A short plain-English label shown to the guide on the harvest log row above "Total hours." 4-8 words, sentence case, no ALL_CAPS, no trailing _N. Empty string for any other path.',
+                    'REQUIRED when suggested_path = "user_input.log_time" OR suggested_path = "hunter_input.waiver_checkbox". For "user_input.log_time" (log mode): a short plain-English label shown to the guide on the harvest log row above "Total hours." 4-8 words, sentence case, no ALL_CAPS, no trailing _N. For "hunter_input.waiver_checkbox" (waiver mode): a 1-sentence plain-English description of what the hunter is confirming, derived from the surrounding PDF text (e.g. "I assume all liability for hunting accidents on this trip."). Empty string for any other path.',
                 },
               },
               required: ['field_name', 'suggested_path', 'hunter_slot', 'confidence'],
@@ -1633,11 +1713,17 @@ Return the JSON array now.`
         fallback = s.fallback_path
       }
     }
-    // v27.3.9: user_label only persists when the path is the
-    // log-time sentinel. Trim + cap defensively.
+    // v27.3.9: user_label persists when the path is the log-time
+    // sentinel. v27.9.8b: also persist for the waiver-checkbox
+    // sentinel — same column, mutually-exclusive paths (log-only
+    // vs waiver-only via kind_filter), so no conflict. Cap at 200
+    // chars on waivers (was 120 for log-time) since waiver
+    // confirmations read as full sentences.
+    const isLogTime = s.path === 'user_input.log_time'
+    const isWaiverCheckbox = s.path === 'hunter_input.waiver_checkbox'
     const userLabel =
-      s.path === 'user_input.log_time' && s.user_label
-        ? s.user_label.trim().slice(0, 120)
+      (isLogTime || isWaiverCheckbox) && s.user_label
+        ? s.user_label.trim().slice(0, isWaiverCheckbox ? 200 : 120)
         : null
     accepted.push({
       field_name: s.field_name,

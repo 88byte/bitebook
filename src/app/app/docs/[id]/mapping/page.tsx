@@ -39,7 +39,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const sb = await createClient()
   const { data: existingRows } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, is_override, is_ai_suggested, ai_suggested_path, ai_suggested_slot')
+    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, is_override, is_ai_suggested, ai_suggested_path, ai_suggested_slot, user_label')
     .eq('doc_id', doc.id)
     .eq('mapping_kind', 'field')
 
@@ -53,6 +53,11 @@ export default async function DocMappingPage({ params }: { params: Params }) {
   const existingAiSuggestedByField: Record<string, boolean> = {}
   const existingAiSuggestedPathByField: Record<string, string> = {}
   const existingAiSuggestedSlotByField: Record<string, number> = {}
+  // v27.9.8b: hydrate user_label so the wizard's checkbox-description
+  // input on hunter_input.waiver_checkbox rows starts pre-filled with
+  // the AI's auto-suggested confirmation copy. Same column also
+  // carries log-time labels (mutually exclusive paths).
+  const existingUserLabelByField: Record<string, string> = {}
   for (const r of existingRows ?? []) {
     if (r.field_name) {
       existingByField[r.field_name] = r.data_source_path ?? ''
@@ -68,6 +73,10 @@ export default async function DocMappingPage({ params }: { params: Params }) {
       }
       if (typeof r.ai_suggested_slot === 'number') {
         existingAiSuggestedSlotByField[r.field_name] = r.ai_suggested_slot
+      }
+      const ul = (r as { user_label?: string | null }).user_label ?? null
+      if (typeof ul === 'string' && ul.length > 0) {
+        existingUserLabelByField[r.field_name] = ul
       }
     }
   }
@@ -108,6 +117,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         existingAiSuggestedByField={existingAiSuggestedByField}
         existingAiSuggestedPathByField={existingAiSuggestedPathByField}
         existingAiSuggestedSlotByField={existingAiSuggestedSlotByField}
+        existingUserLabelByField={existingUserLabelByField}
         currentStatus={doc.mapping_status}
         viewerOwnsDoc={viewerOwnsDoc}
       />

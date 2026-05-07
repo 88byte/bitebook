@@ -54,6 +54,14 @@ export type DataSourceOption = {
   valueType: ValueType
   perRow?: boolean
   type?: 'text' | 'date' | 'boolean' | 'number'
+  // v27.9.8b — restricts which doc kinds this source is offered to. The
+  // catalog AI sees on a waiver call hides log-only paths
+  // (harvest_log_entry_species[*], wallet_consumed.*, harvest_log.*,
+  // user_input.log_time) and vice-versa for waiver-only paths
+  // (hunter_input.waiver_checkbox). Default 'both' so shared sources
+  // (guide.*, signature_*, e_signature.*) work everywhere. v27.9.8c will
+  // reuse this to filter the wizard dropdown's source list explicitly.
+  kind_filter?: 'log' | 'waiver' | 'both'
 }
 
 export const DATA_SOURCES: DataSourceOption[] = [
@@ -69,20 +77,20 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'trip.species_targeted',     label: 'Species you were after',               category: 'trip', valueType: 'string', type: 'text' },
   { value: 'trip.method',               label: 'How you hunted (gun, bow, etc.)',      category: 'trip', valueType: 'string', type: 'text' },
   // Trip-level derived from harvest_log
-  { value: 'harvest_log.log_date',          label: 'Hunt date',                              category: 'trip', valueType: 'string', type: 'date' },
-  { value: 'harvest_log.total_hours_sum',   label: 'Total hours across all hunters',         category: 'trip', valueType: 'string', type: 'number' },
+  { value: 'harvest_log.log_date',          label: 'Hunt date',                              category: 'trip', valueType: 'string', type: 'date',    kind_filter: 'log' },
+  { value: 'harvest_log.total_hours_sum',   label: 'Total hours across all hunters',         category: 'trip', valueType: 'string', type: 'number',  kind_filter: 'log' },
   // Boolean sibling for trip-level checkbox fields.
   { value: 'trip.is_canceled',              label: 'Trip was canceled',                            category: 'trip', valueType: 'boolean', type: 'boolean' },
-  { value: 'harvest_log.purpose.has_hunting',     label: 'Trip is hunting (checks if hunting)',        category: 'trip', valueType: 'boolean', type: 'boolean' },
-  { value: 'harvest_log.purpose.has_big_game',    label: 'Trip is big game (checks if big game)',     category: 'trip', valueType: 'boolean', type: 'boolean' },
-  { value: 'harvest_log.purpose.has_fishing',     label: 'Trip is fishing (checks if fishing)',        category: 'trip', valueType: 'boolean', type: 'boolean' },
-  { value: 'harvest_log.purpose.has_fly_fishing', label: 'Trip is fly fishing (checks if fly fishing)', category: 'trip', valueType: 'boolean', type: 'boolean' },
-  { value: 'harvest_log.purpose.has_other',       label: 'Trip is other (checks if "other")',          category: 'trip', valueType: 'boolean', type: 'boolean' },
+  { value: 'harvest_log.purpose.has_hunting',     label: 'Trip is hunting (checks if hunting)',        category: 'trip', valueType: 'boolean', type: 'boolean', kind_filter: 'log' },
+  { value: 'harvest_log.purpose.has_big_game',    label: 'Trip is big game (checks if big game)',     category: 'trip', valueType: 'boolean', type: 'boolean', kind_filter: 'log' },
+  { value: 'harvest_log.purpose.has_fishing',     label: 'Trip is fishing (checks if fishing)',        category: 'trip', valueType: 'boolean', type: 'boolean', kind_filter: 'log' },
+  { value: 'harvest_log.purpose.has_fly_fishing', label: 'Trip is fly fishing (checks if fly fishing)', category: 'trip', valueType: 'boolean', type: 'boolean', kind_filter: 'log' },
+  { value: 'harvest_log.purpose.has_other',       label: 'Trip is other (checks if "other")',          category: 'trip', valueType: 'boolean', type: 'boolean', kind_filter: 'log' },
   // v27.1.1.0.3c.1: string variants for PDFs whose trip-purpose field is a
   // text input rather than a checkbox. summary joins all checked purposes
   // ("Hunting, Fly fishing"); first returns the first checked label.
-  { value: 'harvest_log.purpose.summary',         label: 'Trip purpose (joined, e.g. "Hunting, Fishing")', category: 'trip', valueType: 'string', type: 'text' },
-  { value: 'harvest_log.purpose.first',           label: 'Trip purpose (first one picked)',                category: 'trip', valueType: 'string', type: 'text' },
+  { value: 'harvest_log.purpose.summary',         label: 'Trip purpose (joined, e.g. "Hunting, Fishing")', category: 'trip', valueType: 'string', type: 'text', kind_filter: 'log' },
+  { value: 'harvest_log.purpose.first',           label: 'Trip purpose (first one picked)',                category: 'trip', valueType: 'string', type: 'text', kind_filter: 'log' },
 
   // ── Guide profile ──────────────────────────────────────────────────
   { value: 'guide.business_name',  label: 'Guide business name',                category: 'guide', valueType: 'string', type: 'text' },
@@ -141,44 +149,44 @@ export const DATA_SOURCES: DataSourceOption[] = [
   { value: 'hunter_stamp.year',         label: 'Stamp year',                      category: 'hunter_stamp', valueType: 'string', type: 'number', perRow: true },
   { value: 'hunter_stamp.valid_to',     label: 'Stamp valid through',             category: 'hunter_stamp', valueType: 'string', type: 'date',   perRow: true },
 
-  // ── Per-hunter slot: harvest entry + species rows ───────────────────
+  // ── Per-hunter slot: harvest entry + species rows (log-only) ────────
   // Entry-level scalars (one per slot).
-  { value: 'harvest_log_entry.total_hours', label: "This hunter's hours",         category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry.notes',       label: "This hunter's notes",         category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry.total_hours', label: "This hunter's hours",         category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry.notes',       label: "This hunter's notes",         category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
   // Species rows 1..3 (1-indexed). State forms typically have 1-3 species
   // columns per hunter row; engine reads species_rows[N-1] for each path.
-  { value: 'harvest_log_entry_species[1].species',                 label: 'First species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[1].qty_harvested',           label: 'How many of the first species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[1].qty_released',            label: 'How many of the first species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
+  { value: 'harvest_log_entry_species[1].species',                 label: 'First species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[1].qty_harvested',           label: 'How many of the first species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[1].qty_released',            label: 'How many of the first species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
   // v27.3.7.2 / v27.3.7.3: per-species tag # / report card #. 1st
   // species auto-fills from the entry-linked wallet items. 2nd+
   // species use a mandatory mode dropdown (same|manual) on the
   // harvest log row that drives this resolver value.
-  { value: 'harvest_log_entry_species[1].tag_identifier',          label: 'Tag # for the first species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[1].report_card_identifier',  label: 'Report card # for the first species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[2].species',                 label: 'Second species this hunter took',          category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[2].qty_harvested',           label: 'How many of the second species harvested', category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[2].qty_released',            label: 'How many of the second species released',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[2].tag_identifier',          label: 'Tag # for the second species',             category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[2].report_card_identifier',  label: 'Report card # for the second species',     category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[3].species',                 label: 'Third species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[3].qty_harvested',           label: 'How many of the third species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[3].qty_released',            label: 'How many of the third species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true },
-  { value: 'harvest_log_entry_species[3].tag_identifier',          label: 'Tag # for the third species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'harvest_log_entry_species[3].report_card_identifier',  label: 'Report card # for the third species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true },
+  { value: 'harvest_log_entry_species[1].tag_identifier',          label: 'Tag # for the first species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[1].report_card_identifier',  label: 'Report card # for the first species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[2].species',                 label: 'Second species this hunter took',          category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[2].qty_harvested',           label: 'How many of the second species harvested', category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[2].qty_released',            label: 'How many of the second species released',  category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[2].tag_identifier',          label: 'Tag # for the second species',             category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[2].report_card_identifier',  label: 'Report card # for the second species',     category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[3].species',                 label: 'Third species this hunter took',           category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[3].qty_harvested',           label: 'How many of the third species harvested',  category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[3].qty_released',            label: 'How many of the third species released',   category: 'harvest', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[3].tag_identifier',          label: 'Tag # for the third species',              category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'harvest_log_entry_species[3].report_card_identifier',  label: 'Report card # for the third species',      category: 'harvest', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
 
-  // ── Per-hunter slot: tag the entry consumed ─────────────────────────
-  { value: 'wallet_consumed.identifier',         label: 'Tag number',                              category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.species',            label: 'Species on the tag',                      category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.state',              label: 'State the tag is for',                    category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.zone',               label: 'Zone or unit on the tag',                 category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.season_year',        label: 'Tag season year',                         category: 'wallet_consumed', valueType: 'string', type: 'number', perRow: true },
-  { value: 'wallet_consumed.weapon_restriction', label: 'Weapon allowed by the tag',               category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.tag_type',           label: 'Tag type',                                category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.sex_restriction',    label: 'Sex limit on the tag',                    category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true },
-  { value: 'wallet_consumed.valid_to',           label: 'Tag good through (date)',                 category: 'wallet_consumed', valueType: 'string', type: 'date',   perRow: true },
-  { value: 'wallet_consumed.is_single_use',      label: 'Tag is single-use (checks if true)',      category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true },
-  { value: 'wallet_consumed.is_federal',         label: 'Tag is federal (checks if true)',         category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true },
+  // ── Per-hunter slot: tag the entry consumed (log-only) ──────────────
+  { value: 'wallet_consumed.identifier',         label: 'Tag number',                              category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.species',            label: 'Species on the tag',                      category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.state',              label: 'State the tag is for',                    category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.zone',               label: 'Zone or unit on the tag',                 category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.season_year',        label: 'Tag season year',                         category: 'wallet_consumed', valueType: 'string', type: 'number', perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.weapon_restriction', label: 'Weapon allowed by the tag',               category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.tag_type',           label: 'Tag type',                                category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.sex_restriction',    label: 'Sex limit on the tag',                    category: 'wallet_consumed', valueType: 'string', type: 'text',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.valid_to',           label: 'Tag good through (date)',                 category: 'wallet_consumed', valueType: 'string', type: 'date',   perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.is_single_use',      label: 'Tag is single-use (checks if true)',      category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true, kind_filter: 'log' },
+  { value: 'wallet_consumed.is_federal',         label: 'Tag is federal (checks if true)',         category: 'wallet_consumed', valueType: 'boolean', type: 'boolean', perRow: true, kind_filter: 'log' },
 
   // ── Special ─────────────────────────────────────────────────────────
   { value: STATIC_TEXT_PREFIX,        label: 'Type your own value',                 category: 'special', valueType: 'string' },
@@ -187,8 +195,30 @@ export const DATA_SOURCES: DataSourceOption[] = [
   // v27.3.9: "Filled at log time" sentinel. Resolves to NULL at PDF
   // generate; the actual value is captured per-entry on the harvest
   // log row above "Total hours" and pulled from
-  // harvest_log_entry_user_inputs at fill time.
-  { value: 'user_input.log_time',     label: 'Filled by guide during log entry',    category: 'special', valueType: 'string', type: 'text', perRow: true },
+  // harvest_log_entry_user_inputs at fill time. v27.9.8b: log-only —
+  // waivers don't have a harvest log row to type into.
+  { value: 'user_input.log_time',     label: 'Filled by guide during log entry',    category: 'special', valueType: 'string', type: 'text', perRow: true, kind_filter: 'log' },
+  // v27.9.8b: "Hunter checks at signing" sentinel. Resolves to NULL
+  // at PDF generate; the hunter ticks the checkbox on the sign
+  // screen before signing, and the e-signature engine writes the
+  // boolean state into the AcroForm widget at signing time. The
+  // mapping's user_label carries the plain-English description of
+  // what the hunter is confirming (e.g. "I assume liability for
+  // hunting accidents"). Mutually exclusive with user_input.log_time
+  // — that's log-only, this is waiver-only — so the same
+  // doc_field_mappings.user_label column is reused without conflict.
+  // perRow: true because the signing hunter IS the row on a waiver
+  // (sourcesForFieldOnSlot admits perRow on slot 0 for waivers per
+  // v27.9.8a).
+  {
+    value: 'hunter_input.waiver_checkbox',
+    label: 'Hunter checks at signing',
+    category: 'special',
+    valueType: 'boolean',
+    type: 'boolean',
+    perRow: true,
+    kind_filter: 'waiver',
+  },
   // v27.1.5.4.1: signature_date.now sentinel. The fill engine resolves
   // this to NULL at PDF generation (leaves the field blank); the e-
   // signature engine fills it with the actual signing timestamp at the
@@ -286,6 +316,13 @@ export function valueTypeForFieldType(
 // we ALSO admit perRow sources because waivers are signed by ONE hunter
 // at a time — that hunter IS the row. Slot 0 on logs continues to filter
 // perRow sources out (trip-level only). Default 'log' for backward compat.
+//
+// v27.9.8b: also filter by kind_filter on each source. Log-only paths
+// (harvest_log_entry_species[*], wallet_consumed.*, harvest_log.*,
+// user_input.log_time) drop out of waiver-mode dropdowns; waiver-only
+// paths (hunter_input.waiver_checkbox) drop out of log-mode dropdowns.
+// Sources without a kind_filter (or kind_filter === 'both') are admitted
+// to either kind.
 export function sourcesForFieldOnSlot(
   fieldType: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown',
   slot: number,
@@ -294,6 +331,10 @@ export function sourcesForFieldOnSlot(
   const want = valueTypeForFieldType(fieldType)
   return DATA_SOURCES.filter((s) => {
     if (s.valueType !== want) return false
+    // v27.9.8b — kind_filter gate. Defaults to 'both' / undefined.
+    if (s.kind_filter && s.kind_filter !== 'both' && s.kind_filter !== docKind) {
+      return false
+    }
     if (s.category === 'special') return true
     if (slot >= 1) return s.perRow === true
     // Slot === 0 — trip-level on logs, signing-hunter on waivers.
