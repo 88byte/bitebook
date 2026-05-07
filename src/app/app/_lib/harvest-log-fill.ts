@@ -436,12 +436,21 @@ export async function generateFilledHarvestLogPDFsAction(
 
   const sb = await createClient()
 
-  // Verify guide owns the doc + the log's trip.
+  // v27.9.6 — was `.eq('guide_id', profile.id)`. Real-prod regression
+  // Flavio reported: guides who picked one of his admin-published Bite
+  // Book templates from the Generate-Filled-Log dropdown got "Doc not
+  // found" because the template's owner is Flavio, not them. Fix: allow
+  // either OWNER docs OR is_template docs. RLS already gates this
+  // correctly via docs_template_select (any authenticated user can
+  // SELECT where is_template=true) + docs_guide_self_all (owner full
+  // access). Both `bb-private` storage and `doc_field_mappings` have
+  // matching template-permissive policies, so the rest of the fill
+  // pipeline (download bytes + read mappings) works cross-tenant.
   const { data: doc } = await sb
     .from('docs')
-    .select('id, guide_id, kind, file_path, label, mapping_status')
+    .select('id, guide_id, kind, file_path, label, mapping_status, is_template')
     .eq('id', docId)
-    .eq('guide_id', profile.id)
+    .or(`guide_id.eq.${profile.id},is_template.eq.true`)
     .maybeSingle()
   if (!doc) return { error: 'Doc not found.' }
   if (doc.kind !== 'log') return { error: 'Only log docs can be filled.' }
