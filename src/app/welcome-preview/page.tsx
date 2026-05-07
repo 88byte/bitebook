@@ -2116,17 +2116,28 @@ const styles = `
     border-radius: 999px;
   }
 
-  /* SECTION PADDING — pull back ~30% from the 768+ defaults so each
-     section reads as one unit instead of taking a full screen. Mobile
-     padding is untouched. */
-  .bb-mkt-pillars-wrap { padding: 5rem 2rem; }
-  .bb-mkt-features-wrap { padding: 5rem 2rem; }
-  .bb-mkt-faq-wrap { padding: 5rem 2rem; }
-  .bb-mkt-pricing-wrap { padding: 5.5rem 2rem; }
-  .bb-mkt-final { padding: 5.5rem 2rem 6rem; }
-  .bb-mkt-manifesto { padding: 4rem 2rem; }
-  .bb-mkt-gallery-wrap { padding: 4rem 2rem 5rem; }
-  .bb-mkt-steps-wrap { padding: 5rem 2rem; }
+  /* SECTION PADDING — v27.9.7.3 second pull. Was 5rem at 1024+ which
+     still felt bloated. Now 3.5rem on most sections so they read as
+     one unit instead of slow vertical reveals. Mobile untouched. */
+  .bb-mkt-pillars-wrap { padding: 3.5rem 2rem; }
+  .bb-mkt-features-wrap { padding: 3.5rem 2rem; }
+  .bb-mkt-faq-wrap { padding: 3.5rem 2rem; }
+  .bb-mkt-pricing-wrap { padding: 3.5rem 2rem; }
+  .bb-mkt-final { padding: 4rem 2rem 4.5rem; }
+  .bb-mkt-manifesto { padding: 3rem 2rem; }
+  .bb-mkt-gallery-wrap { padding: 3rem 2rem 3.5rem; }
+  .bb-mkt-steps-wrap { padding: 3.5rem 2rem; }
+
+  /* SECTION HEADER SPACING — pull the gap between heading block and
+     content grid from the 3rem default down to 1.5rem so each section
+     starts producing content sooner. */
+  .bb-mkt-pillars-head { margin: 0 0 1.5rem; }
+  .bb-mkt-section-eyebrow { margin: 0 0 0.5rem; }
+  .bb-mkt-section-title { margin: 0 0 0.6rem; }
+  .bb-mkt-features .bb-mkt-section-title,
+  .bb-mkt-features-wrap .bb-mkt-section-sub { margin-bottom: 0.6rem; }
+  .bb-mkt-features { margin-top: 1.4rem; }
+  .bb-mkt-faq-foot { margin: 1.25rem 0 0; }
 
   /* HEADLINE WRAP — balance + no hyphens + tighter line-height so big
      headlines don't break weirdly or tower vertically. */
@@ -2191,7 +2202,7 @@ const styles = `
     max-width: 28rem;
   }
   .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg) {
-    padding: 1.4rem 1.4rem;
+    padding: 1.1rem 1.25rem 1.15rem;
     background: #FFFFFF;
   }
   .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg)::before {
@@ -2229,16 +2240,15 @@ const styles = `
   .bb-mkt-step-title { font-size: 1.32rem; }
   .bb-mkt-step-body { font-size: 1rem; line-height: 1.55; }
 
-  /* PRICING — anchored card. v27.9.7.1: padding cut, $90 scale pulled
-     down from clamp 7rem-11rem to clamp 4.5rem-7.5rem so the card
-     fits in one visual unit instead of a 800px+ tower. */
+  /* PRICING — anchored card. v27.9.7.3: tightened to 2.25rem 2.5rem
+     2.25rem so the whole card fits within ~600-650px tall. */
   .bb-mkt-pricing-wrap > .bb-mkt-container {
     text-align: center;
     max-width: 1080px;
     background: linear-gradient(165deg, rgba(31, 36, 25, 0.55) 0%, rgba(11, 8, 6, 0.65) 100%);
     border: 1px solid rgba(176, 108, 60, 0.26);
     border-radius: 24px;
-    padding: 3rem 3rem 2.75rem;
+    padding: 2.25rem 2.5rem 2.25rem;
     position: relative;
     box-shadow: 0 32px 70px rgba(0, 0, 0, 0.32);
     overflow: hidden;
@@ -2252,40 +2262,40 @@ const styles = `
     background: linear-gradient(90deg, rgba(176, 108, 60, 0), var(--color-copper) 50%, rgba(176, 108, 60, 0));
   }
   .bb-mkt-pricing-headline-static {
-    font-size: clamp(2rem, 2.8vw, 2.6rem);
+    font-size: clamp(1.85rem, 2.4vw, 2.25rem);
     max-width: 32rem;
-    margin: 0 auto 1.25rem;
+    margin: 0 auto 0.85rem;
   }
-  .bb-mkt-price-toggle-row { margin: 0 auto 1.25rem; }
+  .bb-mkt-price-toggle-row { margin: 0 auto 0.85rem; }
   .bb-mkt-price-amount-row {
     justify-content: center;
     gap: 0.5rem 1.1rem;
     margin: 0;
   }
   .bb-mkt-price-amount-big {
-    font-size: clamp(4.5rem, 8vw, 7.5rem);
+    font-size: clamp(3.6rem, 6vw, 5.5rem);
     line-height: 1;
-    text-shadow: 0 8px 24px rgba(176, 108, 60, 0.18);
+    text-shadow: 0 6px 20px rgba(176, 108, 60, 0.18);
   }
   .bb-mkt-price-amount-period {
-    font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+    font-size: clamp(1.5rem, 2.2vw, 2rem);
     line-height: 1;
   }
-  .bb-mkt-price-equiv { text-align: center; margin: 0.4rem 0 0.85rem; }
-  .bb-mkt-pricing-statement { margin: 0.35rem auto 0; }
+  .bb-mkt-price-equiv { text-align: center; margin: 0.3rem 0 0.6rem; }
+  .bb-mkt-pricing-statement { margin: 0.25rem auto 0; font-size: 1.1rem; }
   .bb-mkt-pricing-list {
-    margin: 1.75rem auto 0;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 2.4rem;
-    row-gap: 0.75rem;
-    max-width: 42rem;
+    margin: 1.1rem auto 0;
+    grid-template-columns: 1fr 1fr 1fr;
+    column-gap: 1.5rem;
+    row-gap: 0.55rem;
+    max-width: 56rem;
   }
-  .bb-mkt-pricing-list li { justify-self: start; }
+  .bb-mkt-pricing-list li { justify-self: start; font-size: 0.92rem; }
   .bb-mkt-pricing-cta-row {
-    margin-top: 1.5rem;
+    margin-top: 1.1rem;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.55rem;
   }
   .bb-mkt-pricing-fineprint { text-align: center; margin: 0; }
 
