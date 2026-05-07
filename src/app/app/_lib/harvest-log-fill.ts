@@ -367,6 +367,29 @@ function resolveSource(
   if (speciesMatch) {
     const idx = Number(speciesMatch[1]) - 1
     const sp = entry.species_rows[idx]
+
+    // v27.9.7.6 — for the FIRST species row (idx===0), fall back to
+    // entry-level wallet data when the species row hasn't been
+    // persisted yet. The HarvestLogEditor's phantom-row pattern (see
+    // v27.3.7.3) only writes the species_rows[0] DB row on blur with
+    // non-zero data, so a hunter the guide hasn't touched yet has
+    // an entry with a linked tag_wallet_item_id but NO species_rows.
+    // Pre-v27.9.7.6 the resolver bailed at `if (!sp) return ''` and
+    // never reached the `if (idx === 0) return entry.tag?.identifier`
+    // branch — Tag # and Species Taken came out blank on the PDF
+    // even though the wallet had the data. Now: idx===0 paths read
+    // entry.tag / entry.report_card directly when species_rows[0]
+    // is missing, mirroring the existing semantics for when the row
+    // IS present (lines further down already pin idx===0 to
+    // entry.tag.identifier regardless of the row's stored value).
+    if (idx === 0 && !sp) {
+      if (speciesMatch[2] === 'tag_identifier') return entry.tag?.identifier ?? ''
+      if (speciesMatch[2] === 'report_card_identifier') return entry.report_card?.identifier ?? ''
+      if (speciesMatch[2] === 'species') return entry.tag?.species ?? ''
+      // qty_harvested / qty_released stay blank — no harvest was logged.
+      return ''
+    }
+
     if (!sp) return ''
     if (speciesMatch[2] === 'species') return sp.species ?? ''
     if (speciesMatch[2] === 'qty_harvested') return String(sp.qty_harvested)
