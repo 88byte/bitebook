@@ -2052,10 +2052,23 @@ const styles = `
   /* HERO — content column constrained so the phone backdrop owns the
      right. Title scale moderate (was overshooting at 10rem cap). Stat
      row stays in the left column instead of stretching across the
-     full width onto the phone image. */
+     full width onto the phone image.
+
+     v27.9.7.2 — kill the towering hero. The 768+ rule sets the outer
+     .bb-mkt-hero to min-height: 96vh (1037px on 1080p) and the inner
+     stack to min-height clamp(640, 84vh, 880px). At desktop the hero
+     was eating the entire fold and pushing every other section
+     below. At 1024+ both come down: outer caps at clamp(440, 60vh,
+     620px) so on 1080p the hero is ~620px (next section's eyebrow
+     becomes visible above the fold), and the stack clamp matches so
+     content drives height. */
+  .bb-mkt-hero {
+    min-height: clamp(440px, 60vh, 620px);
+  }
   .bb-mkt-hero-stack {
     max-width: 1280px;
-    padding: 6rem 3rem 4.5rem;
+    padding: 5rem 3rem 3.5rem;
+    min-height: clamp(440px, 58vh, 600px);
   }
   .bb-mkt-hero-eyebrow,
   .bb-mkt-hero-title,
