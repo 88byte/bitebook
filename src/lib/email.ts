@@ -241,6 +241,51 @@ export function buildHunterInviteEmail(opts: {
   return { subject, text, html }
 }
 
+// v27.9.8a.1.1 — branded waiver re-sign nudge. Sent when a guide hits
+// Resend on a pending waiver row, or when a replaced waiver auto-fires
+// the bulk delete-and-resend path. Same wrapBitebookEmailHTML shell;
+// CTA points the hunter back to the trip page so they can sign in-app.
+export function buildWaiverResendEmail(opts: {
+  guideLabel: string
+  businessName?: string | null
+  waiverLabel: string
+  tripTitle: string
+  tripUrl: string
+  origin: string
+}): { subject: string; text: string; html: string } {
+  const { guideLabel, businessName, waiverLabel, tripTitle, tripUrl, origin } = opts
+  const guideHeader = businessName?.trim()
+    ? `${guideLabel} from ${businessName.trim()}`
+    : guideLabel
+
+  const subject = `Action needed — sign waiver: ${waiverLabel}`
+  const text = [
+    'Hi there,',
+    '',
+    `${guideHeader} needs you to sign the "${waiverLabel}" waiver for your trip "${tripTitle}".`,
+    '',
+    `Open Bite Book to sign: ${tripUrl}`,
+    '',
+    '— Bite Book',
+    'Questions? support@lastbite.pro',
+  ].join('\n')
+
+  const html = wrapBitebookEmailHTML({
+    origin,
+    preheader: `${guideHeader} needs you to sign "${waiverLabel}" for ${tripTitle}.`,
+    eyebrow: 'Action needed',
+    headline: `Sign waiver: ${waiverLabel}`,
+    paragraphs: [
+      `${guideHeader} needs you to sign the "${waiverLabel}" waiver for your trip "${tripTitle}".`,
+      'Open Bite Book to review and sign — it takes less than a minute.',
+    ],
+    ctaLabel: 'Open trip',
+    ctaUrl: tripUrl,
+  })
+
+  return { subject, text, html }
+}
+
 export type EmailResult =
   | { sent: true; id?: string }
   | {

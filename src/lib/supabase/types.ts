@@ -220,6 +220,7 @@ export type Database = {
           signed_at: string
           ip_address: string | null
           user_agent: string | null
+          action: string
         }
         Insert: {
           id?: string
@@ -232,6 +233,7 @@ export type Database = {
           signed_at?: string
           ip_address?: string | null
           user_agent?: string | null
+          action?: string
         }
         Update: {
           id?: string
@@ -244,6 +246,7 @@ export type Database = {
           signed_at?: string
           ip_address?: string | null
           user_agent?: string | null
+          action?: string
         }
         Relationships: []
       }
@@ -1301,6 +1304,7 @@ export type Database = {
           id: string
           required: boolean
           trip_doc_id: string
+          last_sent_at: string | null
         }
         Insert: {
           action_type: Database["public"]["Enums"]["doc_action_type"]
@@ -1311,6 +1315,7 @@ export type Database = {
           id?: string
           required?: boolean
           trip_doc_id: string
+          last_sent_at?: string | null
         }
         Update: {
           action_type?: Database["public"]["Enums"]["doc_action_type"]
@@ -1321,6 +1326,7 @@ export type Database = {
           id?: string
           required?: boolean
           trip_doc_id?: string
+          last_sent_at?: string | null
         }
         Relationships: [
           {

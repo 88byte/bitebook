@@ -5,7 +5,8 @@ import { Check, ExternalLink, Users } from 'lucide-react'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import { syncTripParticipantsAction } from './actions'
 import TripShareLinkButton from './TripShareLinkButton'
-import ResetWaiverButton from './ResetWaiverButton'
+import DeleteWaiverButton from './DeleteWaiverButton'
+import ResendWaiverButton from './ResendWaiverButton'
 
 // v27.3.8.1 item 1 — combined "Hunters on this trip" panel.
 // v27.3.8.2 bug 1 — toggle freeze fix:
@@ -40,6 +41,10 @@ export type WaiverStatusEntry = {
   signed: boolean
   signedAt: string | null
   signedUrl: string | null
+  // v27.9.8a.1.1 — last_sent_at for the Resend cooldown UI. null = never
+  // pinged the hunter via Resend yet (the original assign email doesn't
+  // count as a "resend" for cooldown purposes).
+  lastSentAt: string | null
 }
 
 export type WaiverStatusByHunter = Record<string, WaiverStatusEntry[]>
@@ -418,12 +423,31 @@ function SignedActions({
           Open
         </a>
       )}
-      <ResetWaiverButton
+      <DeleteWaiverButton
         actionId={entry.actionId}
         hunterName={hunterName}
         waiverLabel={entry.label}
       />
     </span>
+  )
+}
+
+// v27.9.8a.1.1 — Resend nudge for pending waiver rows. Single
+// component used in both the 1-entry and N-entry shapes.
+function PendingResend({
+  hunterName,
+  entry,
+}: {
+  hunterName: string
+  entry: WaiverStatusEntry
+}) {
+  return (
+    <ResendWaiverButton
+      actionId={entry.actionId}
+      lastSentAt={entry.lastSentAt}
+      hunterName={hunterName}
+      waiverLabel={entry.label}
+    />
   )
 }
 
@@ -461,7 +485,10 @@ function HunterWaiverStatusBlock({
             <SignedActions hunterName={hunterName} entry={e} />
           </>
         ) : (
-          <span style={pendingPill()}>Pending waiver</span>
+          <>
+            <span style={pendingPill()}>Pending waiver</span>
+            <PendingResend hunterName={hunterName} entry={e} />
+          </>
         )}
       </div>
     )
@@ -527,7 +554,10 @@ function HunterWaiverStatusBlock({
                   <SignedActions hunterName={hunterName} entry={e} />
                 </>
               ) : (
-                <span style={pendingPill()}>Pending</span>
+                <>
+                  <span style={pendingPill()}>Pending</span>
+                  <PendingResend hunterName={hunterName} entry={e} />
+                </>
               )}
             </li>
           ))}

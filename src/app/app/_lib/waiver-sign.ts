@@ -575,20 +575,23 @@ export async function signWaiverAsGuideAction(
   return { ok: true, signedFilePath, signedAt }
 }
 
-// v27.9.8a.1 — guide-side reset of a hunter-signed waiver. Verifies
+// v27.9.8a.1.1 — guide-side DELETE of a hunter-signed waiver. Verifies
 // trip ownership against the guide, removes the signed PDF from
 // bb-private (admin client because the path is hunter-prefixed and
 // the user-session client can't read/delete it under storage RLS),
-// then clears completed_at + completed_data on the action so the
-// hunter sees the waiver back as Pending.
+// inserts a doc_signatures audit row with action='deleted' anchored
+// on the same trip_doc_hunter_action_id (signer_id = guide doing the
+// delete; sentinel signature_data='deleted-by-guide' satisfies the
+// NOT NULL constraint), then clears completed_at + completed_data on
+// the action so the hunter sees the waiver back as Pending.
 //
-// The original doc_signatures row stays as immutable history — that's
-// the audit trail. No schema change.
-export type ResetWaiverResult = { ok: true } | { error: string }
+// v27.9.8a.1 prior name: resetWaiverSignatureAction. Renamed per
+// Flavio: "I didn't ask for a reset. I asked for a delete."
+export type DeleteWaiverResult = { ok: true } | { error: string }
 
-export async function resetWaiverSignatureAction(
+export async function deleteWaiverSignatureAction(
   actionId: string
-): Promise<ResetWaiverResult> {
+): Promise<DeleteWaiverResult> {
   const { profile } = await requireGuide()
   const gate = await assertWriteAllowed(profile.id, profile.role)
   if ('error' in gate) return { error: gate.error }
@@ -647,14 +650,42 @@ export async function resetWaiverSignatureAction(
         .from('bb-private')
         .remove([signedPath])
       if (rmErr) {
-        console.warn('[reset-waiver:storage]', { path: signedPath, message: rmErr.message })
+        console.warn('[delete-waiver:storage]', { path: signedPath, message: rmErr.message })
       }
     } catch (e) {
-      console.warn('[reset-waiver:storage-throw]', {
+      console.warn('[delete-waiver:storage-throw]', {
         path: signedPath,
         message: (e as Error).message,
       })
     }
+  }
+
+  // v27.9.8a.1.1 — insert audit row BEFORE flipping the action so the
+  // doc_signatures.trip_doc_hunter_action_id FK still resolves cleanly
+  // even though we keep the action row (we null its completed_at/data
+  // below — no row delete). signer_id = guide (the actor); RLS
+  // doc_signatures_signer_self_insert requires signer_id = auth.uid()
+  // which is the guide here.
+  let ipAddress: string | null = null
+  let userAgent: string | null = null
+  try {
+    const h = await headers()
+    ipAddress = h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || null
+    userAgent = h.get('user-agent') || null
+  } catch { /* ignore */ }
+  const { error: auditErr } = await sb.from('doc_signatures').insert({
+    trip_doc_hunter_action_id: action.id,
+    signer_id: profile.id,
+    signature_data: 'deleted-by-guide',
+    signed_at: new Date().toISOString(),
+    ip_address: ipAddress,
+    user_agent: userAgent,
+    action: 'deleted',
+  })
+  if (auditErr) {
+    console.warn('[delete-waiver:audit-insert]', { code: auditErr.code, message: auditErr.message })
+    // Don't fail the whole op — the storage delete may already be done
+    // and re-running would be a no-op. Surface a warning but proceed.
   }
 
   // Flip the action back to incomplete. RLS tdha_guide_all permits the
@@ -665,12 +696,306 @@ export async function resetWaiverSignatureAction(
     .update({ completed_at: null, completed_data: null })
     .eq('id', actionId)
   if (updErr) {
-    console.warn('[reset-waiver:update]', { code: updErr.code, message: updErr.message })
-    return { error: updErr.message || 'Couldn’t reset the action.' }
+    console.warn('[delete-waiver:update]', { code: updErr.code, message: updErr.message })
+    return { error: updErr.message || 'Couldn’t delete the signature.' }
   }
 
   revalidatePath(`/app/trips/${td.trip_id}`)
   revalidatePath(`/app/h/trips/${td.trip_id}`)
   revalidatePath('/app/h')
   return { ok: true }
+}
+
+// v27.9.8a.1.1 — resend a waiver-sign reminder email to the hunter.
+// 5-min server-side cooldown via trip_doc_hunter_actions.last_sent_at,
+// mirroring v25.5 resendInviteAction. Brand email shell shared with
+// the existing-hunter-added template.
+export type ResendWaiverResult =
+  | { ok: true; sent_at: string }
+  | { error: string; cooldown_until?: string }
+
+const RESEND_COOLDOWN_MS = 5 * 60 * 1000
+
+export async function resendWaiverAction(
+  actionId: string
+): Promise<ResendWaiverResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
+  if (!actionId) return { error: 'Missing action id.' }
+
+  const sb = await createClient()
+
+  type Row = {
+    id: string
+    hunter_id: string
+    last_sent_at: string | null
+    completed_at: string | null
+    trip_docs: {
+      id: string
+      trip_id: string
+      docs: { id: string; label: string; kind: string } | null
+      trips: { id: string; guide_id: string; title: string } | null
+    } | null
+  }
+  const { data, error: actErr } = await sb
+    .from('trip_doc_hunter_actions')
+    .select(
+      `id, hunter_id, last_sent_at, completed_at,
+       trip_docs!inner(id, trip_id,
+         docs:doc_id!inner(id, label, kind),
+         trips:trip_id!inner(id, guide_id, title))`
+    )
+    .eq('id', actionId)
+    .maybeSingle()
+  const action = data as unknown as Row | null
+  if (actErr || !action) return { error: actErr?.message || 'Action not found.' }
+  const td = action.trip_docs
+  if (!td || !td.trips || td.trips.guide_id !== profile.id) {
+    return { error: 'Not found.' }
+  }
+  if (action.completed_at) {
+    return { error: 'Already signed — nothing to resend.' }
+  }
+
+  // Cooldown: 5 minutes since last send (null = never sent → allow).
+  if (action.last_sent_at) {
+    const last = new Date(action.last_sent_at).getTime()
+    const cooldownUntilMs = last + RESEND_COOLDOWN_MS
+    const remaining = cooldownUntilMs - Date.now()
+    if (remaining > 0) {
+      return {
+        error: 'cooldown',
+        cooldown_until: new Date(cooldownUntilMs).toISOString(),
+      }
+    }
+  }
+
+  // Resolve hunter's email via admin.auth.admin.getUserById (RLS on
+  // auth.users blocks user-session reads).
+  const admin = createAdminClient()
+  const { data: hunterAuth, error: hunterErr } = await admin.auth.admin.getUserById(action.hunter_id)
+  if (hunterErr || !hunterAuth?.user?.email) {
+    console.warn('[resend-waiver:hunter-lookup]', { hunterId: action.hunter_id, message: hunterErr?.message })
+    return { error: 'Could not find the hunter’s email.' }
+  }
+  const hunterEmail = hunterAuth.user.email
+
+  // Build email body (lazy-import lib/email to avoid pulling Resend
+  // SDK shape into hot paths that don't send).
+  const { sendBitebookEmail, buildWaiverResendEmail } = await import('@/lib/email')
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'bitebook.lastbite.pro'
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const origin = `${proto}://${host}`
+  const tripUrl = `${origin}/app/h/trips/${td.trip_id}`
+
+  // Best-effort guide business-name lookup for the email "from" framing.
+  const { data: guideRow } = await sb
+    .from('guide_profiles')
+    .select('business_name')
+    .eq('user_id', profile.id)
+    .maybeSingle()
+
+  const body = buildWaiverResendEmail({
+    guideLabel: profile.display_name,
+    businessName: guideRow?.business_name ?? null,
+    waiverLabel: td.docs?.label ?? 'a waiver',
+    tripTitle: td.trips.title,
+    tripUrl,
+    origin,
+  })
+  const result = await sendBitebookEmail({
+    to: hunterEmail,
+    subject: body.subject,
+    text: body.text,
+    html: body.html,
+  })
+  if (!result.sent && result.reason === 'send_failed') {
+    console.warn('[resend-waiver:send]', { code: result.code, message: result.error })
+    const detail = (result.error ?? '').trim()
+    const friendly = detail.length > 0 && detail.length <= 240
+      ? `Email service: ${detail}`
+      : 'Email service rejected the send.'
+    return { error: `${friendly} Contact support@lastbite.pro if this persists.` }
+  }
+  // no_api_key in dev = soft success; we still stamp last_sent_at so
+  // the cooldown UX behaves consistently.
+
+  const sentAt = new Date().toISOString()
+  const { error: updErr } = await sb
+    .from('trip_doc_hunter_actions')
+    .update({ last_sent_at: sentAt })
+    .eq('id', actionId)
+  if (updErr) {
+    console.warn('[resend-waiver:stamp]', { code: updErr.code, message: updErr.message })
+    // Soft-fail — email already sent. Cooldown will be slightly under-
+    // enforced until the next successful update.
+  }
+
+  revalidatePath(`/app/trips/${td.trip_id}`)
+  return { ok: true, sent_at: sentAt }
+}
+
+// v27.9.8a.1.1 — bulk delete every stale signature for a waiver doc on
+// a trip + email each affected hunter to re-sign. Triggered from the
+// post-replace stale-signature banner. Skips per-hunter cooldown
+// because the guide explicitly batched it (replacement event is a
+// strong signal that the prior PDF is no longer valid).
+export type BulkDeleteAndResendResult =
+  | { ok: true; deleted: number; sent: number }
+  | { error: string }
+
+export async function bulkDeleteAndResendWaiverAction(
+  docId: string,
+  tripId: string
+): Promise<BulkDeleteAndResendResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
+  if (!docId || !tripId) return { error: 'Missing doc or trip id.' }
+
+  const sb = await createClient()
+
+  // Trip ownership + replaced_at lookup. Bulk path only applies when
+  // the doc was actually replaced; otherwise there's nothing stale.
+  const { data: tripRow } = await sb
+    .from('trips')
+    .select('id, guide_id, title')
+    .eq('id', tripId)
+    .maybeSingle()
+  if (!tripRow || tripRow.guide_id !== profile.id) return { error: 'Not found.' }
+
+  const { data: docRow } = await sb
+    .from('docs')
+    .select('id, label, replaced_at')
+    .eq('id', docId)
+    .maybeSingle()
+  if (!docRow) return { error: 'Doc not found.' }
+  if (!docRow.replaced_at) return { error: 'Doc has not been replaced — nothing stale.' }
+  const replacedAt = new Date(docRow.replaced_at).getTime()
+
+  // Pull every signed action on this trip for this doc that pre-dates
+  // the replacement.
+  type Row = {
+    id: string
+    hunter_id: string
+    completed_at: string | null
+    completed_data: unknown
+    trip_docs: {
+      id: string
+      trip_id: string
+      doc_id: string
+    } | null
+  }
+  const { data: actsData, error: actsErr } = await sb
+    .from('trip_doc_hunter_actions')
+    .select(
+      `id, hunter_id, completed_at, completed_data,
+       trip_docs!inner(id, trip_id, doc_id)`
+    )
+    .eq('action_type', 'sign')
+    .eq('trip_docs.trip_id', tripId)
+    .eq('trip_docs.doc_id', docId)
+    .not('completed_at', 'is', null)
+  if (actsErr) {
+    return { error: actsErr.message || 'Could not load stale signatures.' }
+  }
+  const allActs = (actsData ?? []) as unknown as Row[]
+  const stale = allActs.filter((r) => {
+    if (!r.completed_at) return false
+    return new Date(r.completed_at).getTime() < replacedAt
+  })
+
+  if (stale.length === 0) return { ok: true, deleted: 0, sent: 0 }
+
+  const admin = createAdminClient()
+
+  // Header context (shared across all hunters).
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'bitebook.lastbite.pro'
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const origin = `${proto}://${host}`
+  let ipAddress: string | null = null
+  let userAgent: string | null = null
+  try {
+    ipAddress = h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || null
+    userAgent = h.get('user-agent') || null
+  } catch { /* ignore */ }
+  const { data: guideRow } = await sb
+    .from('guide_profiles')
+    .select('business_name')
+    .eq('user_id', profile.id)
+    .maybeSingle()
+  const { sendBitebookEmail, buildWaiverResendEmail } = await import('@/lib/email')
+
+  let deleted = 0
+  let sent = 0
+  const nowIso = new Date().toISOString()
+  for (const r of stale) {
+    // 1) storage remove
+    const cd = r.completed_data as { signed_pdf_path?: unknown } | null
+    const signedPath = cd && typeof cd.signed_pdf_path === 'string' ? cd.signed_pdf_path : null
+    if (signedPath) {
+      try {
+        const { error: rmErr } = await admin.storage.from('bb-private').remove([signedPath])
+        if (rmErr) console.warn('[bulk-stale:storage]', { path: signedPath, message: rmErr.message })
+      } catch (e) {
+        console.warn('[bulk-stale:storage-throw]', { path: signedPath, message: (e as Error).message })
+      }
+    }
+    // 2) audit insert (action='deleted')
+    const { error: auditErr } = await sb.from('doc_signatures').insert({
+      trip_doc_hunter_action_id: r.id,
+      signer_id: profile.id,
+      signature_data: 'deleted-by-guide',
+      signed_at: nowIso,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      action: 'deleted',
+    })
+    if (auditErr) {
+      console.warn('[bulk-stale:audit]', { code: auditErr.code, message: auditErr.message })
+    }
+    // 3) flip action back to pending + stamp last_sent_at
+    const { error: updErr } = await sb
+      .from('trip_doc_hunter_actions')
+      .update({ completed_at: null, completed_data: null, last_sent_at: nowIso })
+      .eq('id', r.id)
+    if (updErr) {
+      console.warn('[bulk-stale:update]', { code: updErr.code, message: updErr.message })
+      continue
+    }
+    deleted += 1
+
+    // 4) email hunter (skip cooldown — bulk path)
+    try {
+      const { data: hunterAuth } = await admin.auth.admin.getUserById(r.hunter_id)
+      const hunterEmail = hunterAuth?.user?.email
+      if (!hunterEmail) continue
+      const tripUrl = `${origin}/app/h/trips/${tripId}`
+      const body = buildWaiverResendEmail({
+        guideLabel: profile.display_name,
+        businessName: guideRow?.business_name ?? null,
+        waiverLabel: docRow.label,
+        tripTitle: tripRow.title,
+        tripUrl,
+        origin,
+      })
+      const result = await sendBitebookEmail({
+        to: hunterEmail,
+        subject: body.subject,
+        text: body.text,
+        html: body.html,
+      })
+      if (result.sent || (!result.sent && result.reason === 'no_api_key')) {
+        sent += 1
+      }
+    } catch (e) {
+      console.warn('[bulk-stale:email]', { hunterId: r.hunter_id, message: (e as Error).message })
+    }
+  }
+
+  revalidatePath(`/app/trips/${tripId}`)
+  return { ok: true, deleted, sent }
 }

@@ -17,6 +17,7 @@ import {
   fetchTripDocsForGuide,
   fetchAttachableDocsForGuide,
   fetchHunterWaiverStatusForTrip,
+  fetchStaleWaiverSignaturesForTrip,
   type HunterWaiverStatusEntry,
 } from '../../_lib/trip-doc-queries'
 import { loadGuideDefaultSignatureDataUrl } from '../../_lib/guide-default-signature'
@@ -34,6 +35,7 @@ import HuntersOnTripPanel, {
   type WalletLinksByHunter,
   type WaiverStatusByHunter,
 } from './HuntersOnTripPanel'
+import StaleWaiverBanner from './StaleWaiverBanner'
 
 type RouteParams = Promise<{ id: string }>
 
@@ -60,7 +62,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   const participantHunterIds = participants
     .map((p) => p.hunter_id)
     .filter((v): v is string => !!v)
-  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog, waiverStatusByHunter] = await Promise.all([
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog, waiverStatusByHunter, staleWaivers] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
@@ -84,6 +86,11 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
     // assignment) + admin-signed URLs for the Open button on signed
     // entries. Empty object when no hunters on trip.
     fetchHunterWaiverStatusForTrip(trip.id, participantHunterIds),
+    // v27.9.8a.1.1 — stale-signature detection for the post-replace
+    // banner. Returns one entry per waiver doc on this trip whose
+    // PDF has been replaced AND has at least one signature predating
+    // the replacement.
+    fetchStaleWaiverSignaturesForTrip(trip.id),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -225,6 +232,25 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
 
       {/* v27.3.3.1: divider below action row, before content. */}
       <div className="bb-page-divider mt-3" aria-hidden="true" />
+
+      {/* v27.9.8a.1.1 — post-replace stale-signature banners. One per
+          waiver doc on this trip whose underlying PDF was replaced
+          AFTER hunters signed it. CTA fires bulkDeleteAndResendWaiverAction
+          which wipes every stale signature for the doc + emails each
+          affected hunter to re-sign. */}
+      {staleWaivers.length > 0 && (
+        <div>
+          {staleWaivers.map((sw) => (
+            <StaleWaiverBanner
+              key={sw.docId}
+              docId={sw.docId}
+              tripId={trip.id}
+              label={sw.label}
+              staleCount={sw.staleCount}
+            />
+          ))}
+        </div>
+      )}
 
       {/* v27.5.0.4 — desktop 2-col layout. LEFT col: TripDetailEditor
           (overview / location / hunt details / notes) + TripDocsCard.

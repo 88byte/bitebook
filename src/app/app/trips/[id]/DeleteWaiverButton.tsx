@@ -1,18 +1,20 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import ConfirmModal from '@/app/_components/ConfirmModal'
-import { resetWaiverSignatureAction } from '../../_lib/waiver-sign'
+import { deleteWaiverSignatureAction } from '../../_lib/waiver-sign'
 
-// v27.9.8a.1 — guide-side reset of a hunter's signed waiver. Mirrors
-// the RemoveHunterButton + CancelInviteButton ConfirmModal pattern.
+// v27.9.8a.1.1 — guide-side DELETE of a hunter's signed waiver. Renamed
+// from ResetWaiverButton (v27.9.8a.1) per Flavio: "I didn't ask for a
+// reset. I asked for a delete and the ability to resend one on their
+// end especially if the guide needs to upload and updated waiver."
+//
 // Confirm → server action verifies trip ownership, removes the signed
-// PDF from bb-private (admin client), nulls completed_at +
-// completed_data on the action row so the hunter sees the waiver back
-// as Pending. Original doc_signatures audit row stays as immutable
-// history (no schema change).
-export default function ResetWaiverButton({
+// PDF from bb-private (admin client), inserts a doc_signatures audit
+// row with action='deleted', then nulls completed_at + completed_data
+// on the action row so the hunter sees the waiver back as Pending.
+export default function DeleteWaiverButton({
   actionId,
   hunterName,
   waiverLabel,
@@ -32,7 +34,7 @@ export default function ResetWaiverButton({
 
   function onConfirm() {
     startTransition(async () => {
-      const res = await resetWaiverSignatureAction(actionId)
+      const res = await deleteWaiverSignatureAction(actionId)
       setOpen(false)
       if ('error' in res) {
         setError(res.error)
@@ -57,11 +59,11 @@ export default function ResetWaiverButton({
           letterSpacing: '0.06em',
           fontWeight: 700,
         }}
-        aria-label={`Reset ${hunterName}'s ${waiverLabel} signature`}
-        title={`Reset ${hunterName}'s ${waiverLabel} signature`}
+        aria-label={`Delete ${hunterName}'s ${waiverLabel} signature`}
+        title={`Delete ${hunterName}'s ${waiverLabel} signature`}
       >
-        <RotateCcw size={12} aria-hidden="true" />
-        {isPending ? 'Resetting' : 'Reset'}
+        <Trash2 size={12} aria-hidden="true" />
+        {isPending ? 'Deleting' : 'Delete'}
       </button>
       {error && (
         <span
@@ -73,9 +75,9 @@ export default function ResetWaiverButton({
       )}
       <ConfirmModal
         open={open}
-        title="Reset signed waiver?"
-        body={`Reset ${hunterName}'s ${waiverLabel} signature? They'll need to sign again.`}
-        confirmLabel="Reset waiver"
+        title="Delete signed waiver?"
+        body={`Delete ${hunterName}'s ${waiverLabel} signature? The signed PDF will be removed.`}
+        confirmLabel="Delete waiver"
         cancelLabel="Cancel"
         destructive
         isPending={isPending}

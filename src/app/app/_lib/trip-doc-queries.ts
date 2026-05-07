@@ -227,6 +227,8 @@ export type HunterWaiverStatusEntry = {
   signed: boolean
   signedAt: string | null
   signedUrl: string | null
+  // v27.9.8a.1.1 — last_sent_at on the action for the Resend cooldown UI.
+  lastSentAt: string | null
 }
 
 export async function fetchHunterWaiverStatusForTrip(
@@ -244,6 +246,7 @@ export async function fetchHunterWaiverStatusForTrip(
     hunter_id: string
     completed_at: string | null
     completed_data: unknown
+    last_sent_at: string | null
     trip_docs: {
       id: string
       doc_id: string
@@ -253,7 +256,7 @@ export async function fetchHunterWaiverStatusForTrip(
   const { data, error } = await sb
     .from('trip_doc_hunter_actions')
     .select(
-      `id, hunter_id, completed_at, completed_data,
+      `id, hunter_id, completed_at, completed_data, last_sent_at,
        trip_docs!inner(id, trip_id, doc_id, docs:doc_id!inner(id, label, kind))`
     )
     .eq('action_type', 'sign')
@@ -306,6 +309,7 @@ export async function fetchHunterWaiverStatusForTrip(
       signed: !!r.completed_at,
       signedAt: r.completed_at,
       signedUrl,
+      lastSentAt: r.last_sent_at ?? null,
     }
     if (!out[r.hunter_id]) out[r.hunter_id] = []
     out[r.hunter_id].push(entry)
@@ -315,4 +319,79 @@ export async function fetchHunterWaiverStatusForTrip(
     out[id].sort((a, b) => a.label.localeCompare(b.label))
   }
   return out
+}
+
+// v27.9.8a.1.1 — stale-signature detection for the post-replace banner
+// on the guide trip-detail page. Returns one entry per waiver doc on
+// the trip that (a) has been replaced (docs.replaced_at IS NOT NULL)
+// AND (b) has at least one signed action whose completed_at predates
+// the replacement timestamp.
+//
+// The bulk delete-and-resend banner reads this; a non-empty list
+// surfaces the action.
+export type StaleWaiverInfo = {
+  docId: string
+  label: string
+  replacedAt: string
+  staleCount: number
+  totalSigned: number
+  staleActionIds: string[]
+}
+
+export async function fetchStaleWaiverSignaturesForTrip(
+  tripId: string
+): Promise<StaleWaiverInfo[]> {
+  const sb = await createClient()
+  // Pull every signed sign-action on this trip joined to its doc's
+  // replaced_at. RLS scopes the read to the owning guide via
+  // tdha_guide_all.
+  type Row = {
+    id: string
+    completed_at: string | null
+    trip_docs: {
+      id: string
+      doc_id: string
+      docs: { id: string; label: string; replaced_at: string | null } | null
+    } | null
+  }
+  const { data, error } = await sb
+    .from('trip_doc_hunter_actions')
+    .select(
+      `id, completed_at,
+       trip_docs!inner(id, trip_id, doc_id,
+         docs:doc_id!inner(id, label, replaced_at))`
+    )
+    .eq('action_type', 'sign')
+    .eq('trip_docs.trip_id', tripId)
+    .not('completed_at', 'is', null)
+  if (error) {
+    console.warn('[trip-docs.fetchStaleWaivers]', { code: error.code, message: error.message })
+    return []
+  }
+  const rows = (data ?? []) as unknown as Row[]
+  const byDoc = new Map<string, StaleWaiverInfo>()
+  for (const r of rows) {
+    const d = r.trip_docs?.docs
+    if (!d || !d.replaced_at || !r.completed_at) continue
+    const completedMs = new Date(r.completed_at).getTime()
+    const replacedMs = new Date(d.replaced_at).getTime()
+    let entry = byDoc.get(d.id)
+    if (!entry) {
+      entry = {
+        docId: d.id,
+        label: d.label,
+        replacedAt: d.replaced_at,
+        staleCount: 0,
+        totalSigned: 0,
+        staleActionIds: [],
+      }
+      byDoc.set(d.id, entry)
+    }
+    entry.totalSigned += 1
+    if (completedMs < replacedMs) {
+      entry.staleCount += 1
+      entry.staleActionIds.push(r.id)
+    }
+  }
+  return Array.from(byDoc.values()).filter((e) => e.staleCount > 0)
 }
