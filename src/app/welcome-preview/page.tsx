@@ -2067,8 +2067,9 @@ const styles = `
   }
   .bb-mkt-hero-stack {
     max-width: 1280px;
-    padding: 5rem 3rem 3.5rem;
+    padding: 3rem 3rem 2.5rem;
     min-height: clamp(440px, 58vh, 600px);
+    gap: 0.85rem;
   }
   .bb-mkt-hero-eyebrow,
   .bb-mkt-hero-title,
@@ -2078,7 +2079,7 @@ const styles = `
     max-width: 56%;
   }
   .bb-mkt-hero-title {
-    font-size: clamp(3.5rem, 6vw, 6.5rem);
+    font-size: clamp(3rem, 4.8vw, 5rem);
     letter-spacing: -0.012em;
     line-height: 1;
     text-wrap: balance;
@@ -2086,9 +2087,9 @@ const styles = `
   }
   .bb-mkt-hero-stat-row {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.4rem;
-    padding-top: 1.5rem;
-    margin-top: 1.75rem;
+    gap: 1.2rem;
+    padding-top: 1.1rem;
+    margin-top: 1.1rem;
   }
   .bb-mkt-hero-stat-row strong { font-size: 1.95rem; }
   .bb-mkt-hero-stat-row span { font-size: 0.74rem; }
