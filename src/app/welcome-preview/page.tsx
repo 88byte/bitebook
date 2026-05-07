@@ -729,7 +729,12 @@ const styles = `
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-height: 92vh;
+  /* v27.9.2 — was min-height 92vh. On 1080p laptops (about 720px
+     viewport after browser chrome) 92vh dominated the fold and
+     pushed the stats row off-screen. Clamp to a reasonable range so
+     the hero still anchors the page on desktop without overflowing
+     on shorter screens. */
+  min-height: clamp(640px, 84vh, 880px);
   justify-content: flex-end;
 }
 @media (min-width: 768px) {
@@ -1015,10 +1020,28 @@ const styles = `
   grid-template-columns: 1fr;
   gap: 1rem;
 }
+/* v27.9.2 — pillars desktop fix. Pre-v27.9.2 the wrap declared
+   repeat 6 minmax 0 1fr and the .bb-mkt-pillar-lg modifier was
+   supposed to span more columns to create an asymmetric layout —
+   but the span rule was never written, so card 01 auto-flowed into
+   1 column, card 02 stretched, and rows 2 broke unevenly. Two
+   surgical changes:
+   At minimum 768px: 2x2 grid; cards keep their density, read as a
+     clear quartet, none stretches into oblivion.
+   At minimum 1280px: 4-col row of equal cards on wide shells where
+     the 2x2 has too much vertical scroll.
+   No JSX touch — .bb-mkt-pillar-lg continues to render as a normal
+   pillar; the modifier class becomes harmless. */
 @media (min-width: 768px) {
   .bb-mkt-pillars {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem;
+  }
+}
+@media (min-width: 80rem) {
+  .bb-mkt-pillars {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.1rem;
   }
 }
 
@@ -1464,6 +1487,32 @@ const styles = `
   z-index: 1;
 }
 @media (min-width: 768px) { .bb-mkt-pricing-wrap { padding: 8rem 2rem; } }
+
+/* v27.9.2 — anchor the pricing block to the center of the page on
+   desktop. Pre-v27.9.2 every child of the pricing container hugged
+   left, leaving ~900px of dead space on the right at 1440px+. The
+   children-collapsed rule centers the inner blocks (headline, toggle,
+   bullet list, CTA, helper) and caps them at a readable width so the
+   block reads as one anchored unit instead of a left rail. */
+@media (min-width: 1024px) {
+  .bb-mkt-pricing-wrap > .bb-mkt-container {
+    text-align: center;
+  }
+  .bb-mkt-pricing-wrap .bb-mkt-section-eyebrow,
+  .bb-mkt-pricing-wrap .bb-mkt-section-eyebrow-dark {
+    justify-content: center;
+  }
+  .bb-mkt-pricing-headline-static,
+  .bb-mkt-pricing-statement,
+  .bb-mkt-pricing-list,
+  .bb-mkt-pricing-cta-row {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .bb-mkt-pricing-list { max-width: 44rem; }
+  .bb-mkt-pricing-cta-row { justify-content: center; }
+  .bb-mkt-pricing-list li { justify-self: center; }
+}
 
 .bb-mkt-pricing-headline-static {
   font-family: var(--font-barlow-condensed);
