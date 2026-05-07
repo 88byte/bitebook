@@ -4,6 +4,7 @@ import { requireGuide } from '../_lib/auth'
 import { fetchTripsPage, fetchTripsInRange } from '../_lib/queries'
 import { fetchGuideTripTemplates } from '../_lib/trip-template-queries'
 import TripRow from '../_components/TripRow'
+import BulkSelectableTripsList from './BulkSelectableTripsList'
 import DashboardHero from '../_components/DashboardHero'
 import TripTemplatesList from './TripTemplatesList'
 import TripsCalendar from './TripsCalendar'
@@ -299,13 +300,23 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
                   )}
                 </div>
               ) : (
-                <div role="list" className="flex flex-col gap-3">
+                /* v27.9.4 — bulk-select wrapper. Renders a Select
+                   toggle + per-card checkbox overlay + sticky bulk
+                   action bar. Outside selection mode, the list reads
+                   identically to the pre-v27.9.4 server-rendered
+                   layout (each row in document order, role=listitem,
+                   gap-3 stack). */
+                <BulkSelectableTripsList tripIds={rows.map((t) => t.id)}>
                   {rows.map((t) => (
-                    <div role="listitem" key={t.id}>
-                      <TripRow trip={t} hunters={t.hunters} rating={t.rating} reviewCount={t.reviewCount} />
-                    </div>
+                    <TripRow
+                      key={t.id}
+                      trip={t}
+                      hunters={t.hunters}
+                      rating={t.rating}
+                      reviewCount={t.reviewCount}
+                    />
                   ))}
-                </div>
+                </BulkSelectableTripsList>
               )}
 
               {pageCount > 1 && (

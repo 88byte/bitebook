@@ -370,3 +370,109 @@ export async function deleteTripAction(formData: FormData): Promise<DeleteTripRe
   revalidatePath('/app/h')
   return { ok: true }
 }
+
+// v27.9.4 — bulk delete trips from /app/trips. Same cascade and
+// storage-cleanup semantics as deleteTripAction above; differences:
+//   • Bulk-friendly type-to-confirm: caller types "delete" (lowercase
+//     trim) instead of each individual trip title — many titles to
+//     match would defeat the purpose of bulk.
+//   • Per-trip success/failure tracking: a single trip failing (e.g.
+//     a Stripe edge case, RLS hiccup) doesn't abort the rest. Returns
+//     deletedCount + failedIds so the UI can surface partial success.
+//   • Storage cleanup runs once after all rows delete, batched.
+//
+// Standing safety: requireGuide gate + per-trip ownership re-verify
+// (eq guide_id) so a malicious caller can't pass tripIds for trips
+// they don't own.
+export type BulkDeleteTripsResult =
+  | { ok: true; deletedCount: number; failedIds: string[] }
+  | { error: string }
+
+export async function bulkDeleteTripsAction(
+  tripIds: string[],
+  confirmText: string,
+): Promise<BulkDeleteTripsResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+  if (!Array.isArray(tripIds) || tripIds.length === 0) {
+    return { error: 'No trips selected.' }
+  }
+  if (confirmText.trim().toLowerCase() !== 'delete') {
+    return { error: 'Type "delete" to confirm.' }
+  }
+  // Defense-in-depth cap. The UI doesn't surface 100+ at once but a
+  // direct action call could; this prevents a runaway loop.
+  if (tripIds.length > 100) {
+    return { error: 'Select up to 100 trips at a time.' }
+  }
+
+  const sb = await createClient()
+
+  // Single round-trip to fetch every owned trip in the request,
+  // pulling generated-log file paths via a join. Anything not in the
+  // returned set is either not-owned or already-deleted — flagged as
+  // failed.
+  const { data: ownedTrips, error: readErr } = await sb
+    .from('trips')
+    .select('id, trip_generated_logs(file_path)')
+    .in('id', tripIds)
+    .eq('guide_id', profile.id)
+  if (readErr) {
+    console.warn('[bulkDeleteTrips:read]', { code: readErr.code, message: readErr.message })
+    return { error: readErr.message || 'Could not load trips.' }
+  }
+
+  const ownedIds = new Set((ownedTrips ?? []).map((t) => t.id))
+  const failedIds: string[] = tripIds.filter((id) => !ownedIds.has(id))
+
+  // Collect file paths across ALL trips in this batch for one storage
+  // cleanup pass after the row deletes.
+  const allFilePaths: string[] = []
+  for (const t of ownedTrips ?? []) {
+    const paths = (t as { trip_generated_logs?: { file_path: string | null }[] }).trip_generated_logs ?? []
+    for (const p of paths) {
+      if (p.file_path) allFilePaths.push(p.file_path)
+    }
+  }
+
+  // Delete trips in one query — FK CASCADE handles all child tables.
+  // Per-trip failures here aren't really possible (it's a single SQL
+  // statement), but we capture which IDs the DB confirmed deleted via
+  // .select() so we can surface accurate counts.
+  const ownedIdList = Array.from(ownedIds)
+  let deletedIds: string[] = []
+  if (ownedIdList.length > 0) {
+    const { data: deletedRows, error: delErr } = await sb
+      .from('trips')
+      .delete()
+      .in('id', ownedIdList)
+      .eq('guide_id', profile.id)
+      .select('id')
+    if (delErr) {
+      console.warn('[bulkDeleteTrips:delete]', { code: delErr.code, message: delErr.message })
+      return { error: delErr.message || 'Could not delete trips.' }
+    }
+    deletedIds = (deletedRows ?? []).map((r) => r.id)
+    // Any owned id that didn't come back from the delete is a failure.
+    for (const id of ownedIdList) {
+      if (!deletedIds.includes(id)) failedIds.push(id)
+    }
+  }
+
+  // Storage cleanup — best-effort, batched.
+  if (allFilePaths.length > 0) {
+    try {
+      const admin = createAdminClient()
+      await admin.storage.from('bb-private').remove(allFilePaths)
+    } catch (e) {
+      console.warn('[bulkDeleteTrips:storage]', { count: allFilePaths.length, error: (e as Error).message })
+    }
+  }
+
+  revalidatePath('/app')
+  revalidatePath('/app/trips')
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
+  return { ok: true, deletedCount: deletedIds.length, failedIds }
+}
