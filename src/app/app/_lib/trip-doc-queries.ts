@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // v27.1.3 — Trip-doc + per-hunter action read queries.
 
@@ -206,4 +207,112 @@ export async function fetchAttachableDocsForGuide(guideId: string): Promise<Atta
     is_template: d.is_template,
     guide_id: d.guide_id,
   }))
+}
+
+// v27.9.8a.1 — per-hunter waiver status for the guide trip-detail
+// "Hunters on this trip" panel. Returns one entry per (hunter,
+// waiver-doc) pair. Signed entries get a short-lived admin-signed URL
+// against the hunter-prefixed signed/{hunter_id}/waivers/... path
+// (storage RLS scopes those to the owning hunter, so user-session
+// readers can't sign them — admin client is the trust boundary).
+//
+// CALL ONLY AFTER TRIP-OWNERSHIP IS VERIFIED. The caller (trip detail
+// page) gates on requireGuide() + fetchTripDetail's guide_id eq before
+// this runs; we don't re-verify here.
+export type HunterWaiverStatusEntry = {
+  actionId: string
+  tripDocId: string
+  docId: string
+  label: string
+  signed: boolean
+  signedAt: string | null
+  signedUrl: string | null
+}
+
+export async function fetchHunterWaiverStatusForTrip(
+  tripId: string,
+  hunterIds: string[]
+): Promise<Record<string, HunterWaiverStatusEntry[]>> {
+  const out: Record<string, HunterWaiverStatusEntry[]> = {}
+  if (hunterIds.length === 0) return out
+
+  const sb = await createClient()
+  // Pull every waiver-kind trip_doc on this trip + any actions for our
+  // hunters. RLS gates the read to trip owner via tdha_guide_all.
+  type Row = {
+    id: string
+    hunter_id: string
+    completed_at: string | null
+    completed_data: unknown
+    trip_docs: {
+      id: string
+      doc_id: string
+      docs: { id: string; label: string; kind: string } | null
+    } | null
+  }
+  const { data, error } = await sb
+    .from('trip_doc_hunter_actions')
+    .select(
+      `id, hunter_id, completed_at, completed_data,
+       trip_docs!inner(id, trip_id, doc_id, docs:doc_id!inner(id, label, kind))`
+    )
+    .eq('action_type', 'sign')
+    .eq('trip_docs.trip_id', tripId)
+    .in('hunter_id', hunterIds)
+  if (error) {
+    console.warn('[trip-docs.fetchHunterWaiverStatus]', { code: error.code, message: error.message })
+    return out
+  }
+  const rows = (data ?? []) as unknown as Row[]
+  // Filter to waiver kind only — sign-action lives only on waivers
+  // today but the filter is defensive.
+  const waiverRows = rows.filter((r) => r.trip_docs?.docs?.kind === 'waiver')
+
+  // Sign each hunter-prefixed signed PDF via the admin client. Storage
+  // RLS keeps hunter-owned signed/ paths invisible to the user-session
+  // guide reader; admin bypasses that.
+  let admin: ReturnType<typeof createAdminClient> | null = null
+  for (const r of waiverRows) {
+    const td = r.trip_docs
+    const doc = td?.docs
+    if (!td || !doc) continue
+    let signedUrl: string | null = null
+    let signedPath: string | null = null
+    if (r.completed_at) {
+      const cd = r.completed_data as { signed_pdf_path?: unknown } | null
+      if (cd && typeof cd.signed_pdf_path === 'string') {
+        signedPath = cd.signed_pdf_path
+      }
+      if (signedPath) {
+        try {
+          if (!admin) admin = createAdminClient()
+          const { data: s } = await admin.storage
+            .from('bb-private')
+            .createSignedUrl(signedPath, 3600)
+          signedUrl = s?.signedUrl ?? null
+        } catch (e) {
+          console.warn('[trip-docs.fetchHunterWaiverStatus.sign]', {
+            path: signedPath,
+            message: (e as Error).message,
+          })
+        }
+      }
+    }
+    const entry: HunterWaiverStatusEntry = {
+      actionId: r.id,
+      tripDocId: td.id,
+      docId: doc.id,
+      label: doc.label,
+      signed: !!r.completed_at,
+      signedAt: r.completed_at,
+      signedUrl,
+    }
+    if (!out[r.hunter_id]) out[r.hunter_id] = []
+    out[r.hunter_id].push(entry)
+  }
+  // Stable label ordering inside each hunter's list.
+  for (const id of Object.keys(out)) {
+    out[id].sort((a, b) => a.label.localeCompare(b.label))
+  }
+  return out
 }

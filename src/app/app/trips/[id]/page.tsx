@@ -16,6 +16,8 @@ import { fetchHarvestLogSummary } from '../../_lib/harvest-log-queries'
 import {
   fetchTripDocsForGuide,
   fetchAttachableDocsForGuide,
+  fetchHunterWaiverStatusForTrip,
+  type HunterWaiverStatusEntry,
 } from '../../_lib/trip-doc-queries'
 import { loadGuideDefaultSignatureDataUrl } from '../../_lib/guide-default-signature'
 import { tripHasAnyGeneratedLog } from '../../_lib/warden-share'
@@ -30,6 +32,7 @@ import TripDocsCard from './TripDocsCard'
 import HuntersOnTripPanel, {
   type ParticipantRow,
   type WalletLinksByHunter,
+  type WaiverStatusByHunter,
 } from './HuntersOnTripPanel'
 
 type RouteParams = Promise<{ id: string }>
@@ -49,7 +52,15 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   if (!detail) notFound()
 
   const { trip, participants } = detail
-  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog] = await Promise.all([
+  // v27.9.8a.1 — collect hunter ids up-front so we can pull per-hunter
+  // waiver status alongside the other parallel fetches. Trust boundary:
+  // the admin-signed URLs inside fetchHunterWaiverStatusForTrip are
+  // gated by the requireGuide() + fetchTripDetail guide_id check that
+  // already ran above (parent-trip ownership).
+  const participantHunterIds = participants
+    .map((p) => p.hunter_id)
+    .filter((v): v is string => !!v)
+  const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog, waiverStatusByHunter] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
     fetchAttachableDocsForGuide(profile.id),
@@ -69,6 +80,10 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
     // but we hide the button on canceled trips and on planned-with-no-
     // logs to keep the action row honest about what's actually shareable.
     tripHasAnyGeneratedLog(trip.id),
+    // v27.9.8a.1 — per-hunter waiver status (Signed / Pending / no-
+    // assignment) + admin-signed URLs for the Open button on signed
+    // entries. Empty object when no hunters on trip.
+    fetchHunterWaiverStatusForTrip(trip.id, participantHunterIds),
   ])
   const isOpen = trip.status === 'planned' || trip.status === 'active'
   const isClosed = trip.status === 'completed' || trip.status === 'canceled'
@@ -253,12 +268,19 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
                 species: l.species,
               }))
             }
+            // v27.9.8a.1 — coerce the per-hunter waiver-status map into
+            // the typed shape the panel expects. The fetch already
+            // returns Record<hunterId, entry[]>; cast preserves the
+            // HunterWaiverStatusEntry shape end-to-end.
+            const waiverStatusObj: WaiverStatusByHunter =
+              waiverStatusByHunter as Record<string, HunterWaiverStatusEntry[]>
             return (
               <HuntersOnTripPanel
                 tripId={trip.id}
                 tripTitle={trip.title}
                 participants={participants as ParticipantRow[]}
                 walletLinksByHunter={walletLinksByHunterObj}
+                waiverStatusByHunter={waiverStatusObj}
                 candidates={candidates}
                 initialSelectedIds={initialSelectedIds}
                 speciesTargeted={trip.species_targeted}

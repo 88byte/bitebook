@@ -20,7 +20,8 @@ import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { PDFDocument, PDFTextField, type PDFImage } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
-import { requireUser } from './auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { requireGuide, requireUser } from './auth'
 import { assertWriteAllowed } from './billing-tier'
 import { resolvePlacements, computeDrawPosition, type MappingRow } from './signature-placement'
 
@@ -572,4 +573,104 @@ export async function signWaiverAsGuideAction(
 
   revalidatePath(`/app/trips/${tripDoc.trip_id}`)
   return { ok: true, signedFilePath, signedAt }
+}
+
+// v27.9.8a.1 — guide-side reset of a hunter-signed waiver. Verifies
+// trip ownership against the guide, removes the signed PDF from
+// bb-private (admin client because the path is hunter-prefixed and
+// the user-session client can't read/delete it under storage RLS),
+// then clears completed_at + completed_data on the action so the
+// hunter sees the waiver back as Pending.
+//
+// The original doc_signatures row stays as immutable history — that's
+// the audit trail. No schema change.
+export type ResetWaiverResult = { ok: true } | { error: string }
+
+export async function resetWaiverSignatureAction(
+  actionId: string
+): Promise<ResetWaiverResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
+  if (!actionId) return { error: 'Missing action id.' }
+
+  const sb = await createClient()
+
+  // Load the action + nested trip-doc + trip for ownership check.
+  // RLS on trip_doc_hunter_actions already gates trip-owner access via
+  // tdha_guide_all but we re-verify guide_id explicitly so a stray
+  // action id can't leak across tenants.
+  type Row = {
+    id: string
+    hunter_id: string
+    completed_at: string | null
+    completed_data: unknown
+    trip_docs: {
+      id: string
+      trip_id: string
+      doc_id: string
+      trips: { id: string; guide_id: string } | null
+    } | null
+  }
+  const { data, error: actErr } = await sb
+    .from('trip_doc_hunter_actions')
+    .select(
+      `id, hunter_id, completed_at, completed_data,
+       trip_docs!inner(id, trip_id, doc_id, trips:trip_id!inner(id, guide_id))`
+    )
+    .eq('id', actionId)
+    .maybeSingle()
+  const action = data as unknown as Row | null
+  if (actErr || !action) {
+    return { error: actErr?.message || 'Action not found.' }
+  }
+  const td = action.trip_docs
+  if (!td || !td.trips || td.trips.guide_id !== profile.id) {
+    return { error: 'Not found.' }
+  }
+  if (!action.completed_at) {
+    return { error: 'This waiver isn’t signed yet.' }
+  }
+
+  // Pull the signed PDF path out of completed_data (jsonb, untyped).
+  let signedPath: string | null = null
+  const cd = action.completed_data as { signed_pdf_path?: unknown } | null
+  if (cd && typeof cd.signed_pdf_path === 'string') {
+    signedPath = cd.signed_pdf_path
+  }
+
+  // Best-effort storage delete via admin (path is hunter-prefixed).
+  if (signedPath) {
+    try {
+      const admin = createAdminClient()
+      const { error: rmErr } = await admin.storage
+        .from('bb-private')
+        .remove([signedPath])
+      if (rmErr) {
+        console.warn('[reset-waiver:storage]', { path: signedPath, message: rmErr.message })
+      }
+    } catch (e) {
+      console.warn('[reset-waiver:storage-throw]', {
+        path: signedPath,
+        message: (e as Error).message,
+      })
+    }
+  }
+
+  // Flip the action back to incomplete. RLS tdha_guide_all permits the
+  // owning guide to UPDATE; we still scope the .eq on id as defense in
+  // depth.
+  const { error: updErr } = await sb
+    .from('trip_doc_hunter_actions')
+    .update({ completed_at: null, completed_data: null })
+    .eq('id', actionId)
+  if (updErr) {
+    console.warn('[reset-waiver:update]', { code: updErr.code, message: updErr.message })
+    return { error: updErr.message || 'Couldn’t reset the action.' }
+  }
+
+  revalidatePath(`/app/trips/${td.trip_id}`)
+  revalidatePath(`/app/h/trips/${td.trip_id}`)
+  revalidatePath('/app/h')
+  return { ok: true }
 }

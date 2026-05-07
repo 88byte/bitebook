@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { Users } from 'lucide-react'
+import { Check, ExternalLink, Users } from 'lucide-react'
 import HuntersMultiSelect, { type HunterOption } from '../_components/HuntersMultiSelect'
 import { syncTripParticipantsAction } from './actions'
 import TripShareLinkButton from './TripShareLinkButton'
+import ResetWaiverButton from './ResetWaiverButton'
 
 // v27.3.8.1 item 1 — combined "Hunters on this trip" panel.
 // v27.3.8.2 bug 1 — toggle freeze fix:
@@ -28,6 +29,21 @@ export type WalletLink = {
 
 export type WalletLinksByHunter = Record<string, WalletLink[]>
 
+// v27.9.8a.1 — per-hunter waiver status emitted by the server query in
+// trip-doc-queries.ts. One entry per (hunter, waiver-doc) pair.
+// signed=true → completed_at populated + signedUrl from admin storage.
+export type WaiverStatusEntry = {
+  actionId: string
+  tripDocId: string
+  docId: string
+  label: string
+  signed: boolean
+  signedAt: string | null
+  signedUrl: string | null
+}
+
+export type WaiverStatusByHunter = Record<string, WaiverStatusEntry[]>
+
 export type ParticipantRow = {
   id: string
   hunter_id: string | null
@@ -43,6 +59,7 @@ type Props = {
   tripTitle: string
   participants: ParticipantRow[]
   walletLinksByHunter: WalletLinksByHunter
+  waiverStatusByHunter: WaiverStatusByHunter
   candidates: HunterOption[]
   initialSelectedIds: string[]
   speciesTargeted: string | null
@@ -62,6 +79,7 @@ export default function HuntersOnTripPanel({
   tripTitle,
   participants,
   walletLinksByHunter,
+  waiverStatusByHunter,
   candidates,
   initialSelectedIds,
   speciesTargeted,
@@ -201,6 +219,9 @@ export default function HuntersOnTripPanel({
                 if (!hasLicense) pendingPills.push('license')
                 if (!hasTag && speciesTargeted) pendingPills.push('tag')
               }
+              const waiverEntries = p.hunter_id
+                ? waiverStatusByHunter[p.hunter_id] ?? []
+                : []
               return (
                 <div key={p.id} className="bb-detail-row">
                   <span className="bb-avatar" aria-hidden="true">{initials(name)}</span>
@@ -209,6 +230,17 @@ export default function HuntersOnTripPanel({
                     <div className="bb-detail-sub">
                       {p.profile ? 'Bite Book hunter' : 'Guest'} · {p.role}
                     </div>
+                    {/* v27.9.8a.1 — waiver status row. Only renders for
+                        real Bite Book hunters (guests can't be assigned
+                        actions). 0 entries = "No waiver required",
+                        1 entry = single pill, 2+ = aggregate pill +
+                        per-waiver expand. */}
+                    {p.hunter_id && (
+                      <HunterWaiverStatusBlock
+                        hunterName={name}
+                        entries={waiverEntries}
+                      />
+                    )}
                     {(links.length > 0 || pendingPills.length > 0) && (
                       <div
                         style={{
@@ -307,5 +339,200 @@ export default function HuntersOnTripPanel({
         )}
       </div>
     </section>
+  )
+}
+
+// v27.9.8a.1 — per-hunter waiver-status pill block. Shapes:
+//   • 0 entries → "No waiver required" (muted pill)
+//   • 1 entry signed → "Signed waiver" + Open + Reset
+//   • 1 entry pending → "Pending waiver"
+//   • 2+ entries → "Waivers: X of Y signed" aggregate, with a
+//     <details> expand listing each waiver's pill + actions
+function pillBase(): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    padding: '0.15rem 0.55rem',
+    borderRadius: 999,
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  }
+}
+function neutralPill(): React.CSSProperties {
+  return {
+    ...pillBase(),
+    background: 'var(--color-paper-tint)',
+    border: '1px solid var(--color-ink-tint)',
+    color: 'var(--color-ink-soft)',
+  }
+}
+function pendingPill(): React.CSSProperties {
+  return {
+    ...pillBase(),
+    background: '#F2D6CE',
+    color: '#8C3C2A',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    fontSize: '0.72rem',
+    fontWeight: 700,
+  }
+}
+function signedPill(): React.CSSProperties {
+  return {
+    ...pillBase(),
+    background: '#DDE7DD',
+    color: '#2F5233',
+    fontWeight: 700,
+  }
+}
+
+function SignedActions({
+  hunterName,
+  entry,
+}: {
+  hunterName: string
+  entry: WaiverStatusEntry
+}) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+      {entry.signedUrl && (
+        <a
+          href={entry.signedUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bb-text-action bb-text-action-copper"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            fontSize: '0.72rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontWeight: 700,
+          }}
+          aria-label={`Open ${hunterName}'s ${entry.label}`}
+        >
+          <ExternalLink size={12} aria-hidden="true" />
+          Open
+        </a>
+      )}
+      <ResetWaiverButton
+        actionId={entry.actionId}
+        hunterName={hunterName}
+        waiverLabel={entry.label}
+      />
+    </span>
+  )
+}
+
+function HunterWaiverStatusBlock({
+  hunterName,
+  entries,
+}: {
+  hunterName: string
+  entries: WaiverStatusEntry[]
+}) {
+  const wrap: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+    alignItems: 'center',
+    marginTop: '0.4rem',
+  }
+  if (entries.length === 0) {
+    return (
+      <div style={wrap}>
+        <span style={neutralPill()}>No waiver required</span>
+      </div>
+    )
+  }
+  if (entries.length === 1) {
+    const e = entries[0]
+    return (
+      <div style={wrap}>
+        {e.signed ? (
+          <>
+            <span style={signedPill()}>
+              <Check size={11} aria-hidden="true" />
+              Signed waiver
+            </span>
+            <SignedActions hunterName={hunterName} entry={e} />
+          </>
+        ) : (
+          <span style={pendingPill()}>Pending waiver</span>
+        )}
+      </div>
+    )
+  }
+  // 2+ waivers — aggregate pill + expand.
+  const signedCount = entries.filter((e) => e.signed).length
+  const allSigned = signedCount === entries.length
+  return (
+    <div style={{ marginTop: '0.4rem' }}>
+      <details>
+        <summary
+          style={{
+            cursor: 'pointer',
+            listStyle: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+          }}
+        >
+          <span style={allSigned ? signedPill() : pendingPill()}>
+            {allSigned && <Check size={11} aria-hidden="true" />}
+            Waivers: {signedCount} of {entries.length} signed
+          </span>
+          <span
+            style={{
+              fontSize: '0.7rem',
+              color: 'var(--color-copper)',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            View
+          </span>
+        </summary>
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: '0.5rem 0 0 0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.35rem',
+          }}
+        >
+          {entries.map((e) => (
+            <li
+              key={e.actionId}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: 'var(--color-ink)' }}>{e.label}</span>
+              {e.signed ? (
+                <>
+                  <span style={signedPill()}>
+                    <Check size={11} aria-hidden="true" />
+                    Signed
+                  </span>
+                  <SignedActions hunterName={hunterName} entry={e} />
+                </>
+              ) : (
+                <span style={pendingPill()}>Pending</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
   )
 }
