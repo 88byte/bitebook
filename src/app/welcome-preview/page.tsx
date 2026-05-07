@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 
+import { QRCodeSVG } from 'qrcode.react'
 import PricingToggle from './PricingToggle'
 
 // v27.8.0-preview3 — full art-directed pass. NOT a wireframe with
@@ -159,7 +160,7 @@ export default function WelcomePreviewPage() {
           </p>
           <h1 id="bb-mkt-hero-title" className="bb-mkt-hero-title">
             <span className="bb-mkt-hero-title-line">Less paperwork.</span>
-            <span className="bb-mkt-hero-title-line bb-mkt-hero-title-accent">More hunting.</span>
+            <span className="bb-mkt-hero-title-line bb-mkt-hero-title-accent">More hunting and fishing.</span>
           </h1>
           <p className="bb-mkt-hero-sub">
             Built for guides who&rsquo;d rather be in the field than in front of a printer. Bite Book files your
@@ -479,6 +480,37 @@ export default function WelcomePreviewPage() {
           <p className="bb-mkt-final-fineprint">
             7 days free &middot; no card &middot; cancel anytime
           </p>
+        </div>
+      </section>
+
+      {/* ── QR SHARE — v27.9.7.4 ─────────────────────────────────────
+         Encodes the canonical /welcome URL so a guide can hand their
+         phone to a friend or colleague and have them scan their way
+         to the page. Sits between the Final CTA and the Footer on
+         the dark surface. */}
+      <section className="bb-mkt-qr" aria-labelledby="bb-mkt-qr-title">
+        <div className="bb-mkt-container bb-mkt-qr-inner">
+          <div className="bb-mkt-qr-copy">
+            <p className="bb-mkt-section-eyebrow bb-mkt-section-eyebrow-dark">Scan to share</p>
+            <h2 id="bb-mkt-qr-title" className="bb-mkt-qr-title">
+              Hand your phone to a friend.
+            </h2>
+            <p className="bb-mkt-qr-sub">
+              Point any camera at the code. Bite Book opens on their device.
+            </p>
+            <p className="bb-mkt-qr-url">bitebook.lastbite.pro/welcome</p>
+          </div>
+          <div className="bb-mkt-qr-card" aria-hidden="false">
+            <QRCodeSVG
+              value="https://bitebook.lastbite.pro/welcome"
+              size={176}
+              level="M"
+              bgColor="#FAF7F2"
+              fgColor="#1F1A14"
+              marginSize={2}
+              aria-label="QR code for bitebook.lastbite.pro/welcome"
+            />
+          </div>
         </div>
       </section>
 
