@@ -17,12 +17,17 @@ export default async function HunterSupportPage() {
 
   const categories = categoriesForAudience('hunter')
   const articles = articlesForAudience('hunter')
-  const recent = articles.slice(0, 6)
+  const recent = articles.slice(0, 4)
   const articleCountByCategory = new Map<string, number>()
   for (const a of articles) {
     articleCountByCategory.set(a.category, (articleCountByCategory.get(a.category) ?? 0) + 1)
   }
   const searchIndex = buildSearchIndex('hunter')
+
+  // v27.9.5c — landing reorder mirror.
+  const gettingStartedSlug = 'getting-started-hunters'
+  const gettingStarted = articles.filter((a) => a.category === gettingStartedSlug)
+  const otherCategories = categories.filter((c) => c.slug !== gettingStartedSlug)
 
   return (
     <main className="bb-app-main">
@@ -36,6 +41,45 @@ export default async function HunterSupportPage() {
 
       <div className="bb-help-shell">
         <HelpSearch index={searchIndex} />
+
+        {recent.length > 0 && (
+          <section className="bb-help-section">
+            <h2 className="bb-help-h2">Most recent</h2>
+            <ul className="bb-help-grid">
+              {recent.map((a) => (
+                <li key={a.slug}>
+                  <Link href={`/app/h/support/${a.slug}`} className="bb-help-card">
+                    <span className="bb-help-card-title">{a.title}</span>
+                    {a.excerpt && (
+                      <span className="bb-help-card-excerpt">{a.excerpt}</span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {gettingStarted.length > 0 && (
+          <section id={`cat-${gettingStartedSlug}`} className="bb-help-section">
+            <h2 className="bb-help-h2">Start here</h2>
+            <p className="bb-help-section-sub">
+              The four things every hunter should do before trip day.
+            </p>
+            <ul className="bb-help-grid">
+              {gettingStarted.map((a) => (
+                <li key={a.slug}>
+                  <Link href={`/app/h/support/${a.slug}`} className="bb-help-card">
+                    <span className="bb-help-card-title">{a.title}</span>
+                    {a.excerpt && (
+                      <span className="bb-help-card-excerpt">{a.excerpt}</span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="bb-help-section">
           <h2 className="bb-help-h2">Browse by topic</h2>
@@ -58,25 +102,7 @@ export default async function HunterSupportPage() {
           </ul>
         </section>
 
-        {recent.length > 0 && (
-          <section className="bb-help-section">
-            <h2 className="bb-help-h2">Most recent</h2>
-            <ul className="bb-help-grid">
-              {recent.map((a) => (
-                <li key={a.slug}>
-                  <Link href={`/app/h/support/${a.slug}`} className="bb-help-card">
-                    <span className="bb-help-card-title">{a.title}</span>
-                    {a.excerpt && (
-                      <span className="bb-help-card-excerpt">{a.excerpt}</span>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {categories.map((c) => {
+        {otherCategories.map((c) => {
           const inCat = articles.filter((a) => a.category === c.slug)
           if (inCat.length === 0) return null
           return (
