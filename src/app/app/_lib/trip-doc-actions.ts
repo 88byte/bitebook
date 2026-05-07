@@ -18,6 +18,134 @@ function isActionType(s: string | null | undefined): s is ActionType {
   return s === 'sign' || s === 'view'
 }
 
+// v27.9.8b.1 — Hunter waivers/resources never surfaced because no one ever
+// fired the per-hunter assignment. The "Manage actions" modal was the only
+// path that wrote into trip_doc_hunter_actions, and it was a manual extra
+// step the guide had to remember after attach. We now auto-create those
+// rows on attach (every existing real participant gets a row) AND on
+// participant add (every existing waiver/resource doc on the trip gets
+// a row for the new hunter). Both helpers run server-side under the
+// guide's RLS context (tdha_guide_all permits the inserts) and skip
+// rows that already exist so reruns are idempotent.
+
+function actionTypeForKind(kind: string): ActionType | null {
+  if (kind === 'waiver') return 'sign'
+  if (kind === 'resource') return 'view'
+  return null
+}
+
+/**
+ * Auto-assign a (sign|view) action to every real participant on the trip
+ * for a freshly attached waiver/resource doc. Skips guests, skips already-
+ * assigned hunters. Best-effort: errors are logged, not surfaced — the
+ * attach itself already succeeded by the time we get here.
+ */
+async function autoAssignActionsForTripDoc(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
+  tripDocId: string,
+  kind: string
+): Promise<void> {
+  const actionType = actionTypeForKind(kind)
+  if (!actionType) return
+
+  const { data: parts } = await sb
+    .from('trip_participants')
+    .select('hunter_id')
+    .eq('trip_id', tripId)
+  const hunterIds = (parts ?? [])
+    .map((p) => p.hunter_id)
+    .filter((id): id is string => !!id)
+  if (hunterIds.length === 0) return
+
+  const { data: existing } = await sb
+    .from('trip_doc_hunter_actions')
+    .select('hunter_id')
+    .eq('trip_doc_id', tripDocId)
+  const have = new Set((existing ?? []).map((r) => r.hunter_id))
+  const rows = hunterIds
+    .filter((hid) => !have.has(hid))
+    .map((hunter_id) => ({
+      trip_doc_id: tripDocId,
+      hunter_id,
+      action_type: actionType,
+      required: true,
+    }))
+  if (rows.length === 0) return
+  const { error } = await sb.from('trip_doc_hunter_actions').insert(rows)
+  if (error) {
+    console.warn('[trip-docs.autoAssignActionsForTripDoc]', {
+      tripDocId,
+      code: error.code,
+      message: error.message,
+    })
+  }
+}
+
+/**
+ * Backfill the inverse direction: when a hunter is added to a trip that
+ * already has waiver/resource docs attached, give them a row per doc so
+ * the surfaces (PendingActionsCard + HunterTripDocsSection) light up.
+ * Called from syncTripParticipantsAction + addTripParticipantsAction.
+ */
+export async function autoAssignActionsForNewParticipants(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
+  newHunterIds: string[]
+): Promise<void> {
+  if (newHunterIds.length === 0) return
+  type DocRow = { id: string; doc: { kind: string } | null }
+  const { data: docs } = await sb
+    .from('trip_docs')
+    .select('id, doc:docs!inner(kind)')
+    .eq('trip_id', tripId)
+  const rows = ((docs ?? []) as unknown as DocRow[])
+    .map((d) => ({ id: d.id, kind: d.doc?.kind ?? '' }))
+    .filter((d) => actionTypeForKind(d.kind) !== null)
+  if (rows.length === 0) return
+
+  // Filter out (trip_doc, hunter) pairs that already exist so we don't
+  // race a previously-attached row.
+  const tripDocIds = rows.map((r) => r.id)
+  const { data: existing } = await sb
+    .from('trip_doc_hunter_actions')
+    .select('trip_doc_id, hunter_id')
+    .in('trip_doc_id', tripDocIds)
+    .in('hunter_id', newHunterIds)
+  const haveKey = new Set(
+    (existing ?? []).map((e) => `${e.trip_doc_id}:${e.hunter_id}`)
+  )
+
+  const inserts: Array<{
+    trip_doc_id: string
+    hunter_id: string
+    action_type: ActionType
+    required: boolean
+  }> = []
+  for (const r of rows) {
+    const at = actionTypeForKind(r.kind)
+    if (!at) continue
+    for (const hid of newHunterIds) {
+      if (haveKey.has(`${r.id}:${hid}`)) continue
+      inserts.push({
+        trip_doc_id: r.id,
+        hunter_id: hid,
+        action_type: at,
+        required: true,
+      })
+    }
+  }
+  if (inserts.length === 0) return
+  const { error } = await sb.from('trip_doc_hunter_actions').insert(inserts)
+  if (error) {
+    console.warn('[trip-docs.autoAssignActionsForNewParticipants]', {
+      tripId,
+      code: error.code,
+      message: error.message,
+    })
+  }
+}
+
 // Verify a doc the guide is trying to attach is one they own OR a
 // Bite Book template — and that it isn't a generated-PDF residue.
 // Returns the doc row (kind, label) on success.
@@ -94,8 +222,15 @@ export async function attachDocToTripAction(
     return { error: insErr?.message || 'Could not attach doc.' }
   }
 
+  // v27.9.8b.1 — auto-create per-hunter sign/view rows so the hunter
+  // surfaces (PendingActionsCard + HunterTripDocsSection) light up
+  // immediately. Manual "Manage actions" still works for opting hunters
+  // in/out after the fact, but the default is now "everyone signs".
+  await autoAssignActionsForTripDoc(sb, tripId, created.id, vet.doc.kind)
+
   revalidatePath(`/app/trips/${tripId}`)
   revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h')
   return { ok: true, id: created.id }
 }
 

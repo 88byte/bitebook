@@ -16,6 +16,7 @@ import {
   closeTrip,
 } from '../../_lib/queries'
 import { ensureHarvestLog } from '../../_lib/harvest-log-queries'
+import { autoAssignActionsForNewParticipants } from '../../_lib/trip-doc-actions'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidMethod } from '@/lib/methods'
@@ -59,6 +60,17 @@ export async function syncTripParticipantsAction(
     await ensureHarvestLog(tripId, profile.id)
   } catch (e) {
     console.warn('[syncTripParticipants:ensureHarvestLog]', e)
+  }
+
+  // v27.9.8b.1 — back-fill per-hunter sign/view actions for any
+  // waiver/resource trip docs already attached. Idempotent — passing
+  // the full participant list (instead of only newcomers) is fine
+  // because the helper skips (trip_doc, hunter) pairs that already
+  // exist. Best-effort: a failure here doesn't block the sync itself.
+  try {
+    await autoAssignActionsForNewParticipants(sb, tripId, cleaned)
+  } catch (e) {
+    console.warn('[syncTripParticipants:autoAssignActions]', e)
   }
 
   revalidatePath(`/app/trips/${tripId}`)
@@ -110,6 +122,15 @@ export async function addTripParticipantsAction(
     await ensureHarvestLog(tripId, profile.id)
   } catch (e) {
     console.warn('[addTripParticipants:ensureHarvestLog]', e)
+  }
+
+  // v27.9.8b.1 — back-fill per-hunter sign/view actions for any
+  // waiver/resource trip docs already attached so the new hunters'
+  // PendingActionsCard + HunterTripDocsSection light up immediately.
+  try {
+    await autoAssignActionsForNewParticipants(supabase, tripId, hunterIds)
+  } catch (e) {
+    console.warn('[addTripParticipants:autoAssignActions]', e)
   }
 
   revalidatePath(`/app/trips/${tripId}`)
