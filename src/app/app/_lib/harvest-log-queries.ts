@@ -243,30 +243,65 @@ export async function ensureHarvestLog(
     .maybeSingle()
   if (!trip) return { error: 'Trip not found.' }
 
+  // v27.9.7.5 — find-or-create the harvest_logs row, then ALWAYS run the
+  // entry-sync block. Pre-v27.9.7.5 the early-return on an existing log
+  // skipped the entry sync, so any hunter added to the trip AFTER the
+  // first /log visit never got a harvest_log_entry. The user-facing
+  // symptom: trip with 2 hunters but the Hunt logs page only shows 1.
+  // Fix is insert-only: we add entries for participants without one,
+  // and we never delete entries for removed participants (preserves
+  // any species rows / harvest data the guide already typed).
+  let logId: string
   const { data: existing } = await sb
     .from('harvest_logs')
     .select('id')
     .eq('trip_id', tripId)
     .maybeSingle()
-  if (existing) return { ok: true, id: existing.id }
-
-  const { data: created, error: insErr } = await sb
-    .from('harvest_logs')
-    .insert({ trip_id: tripId, created_by: guideId })
-    .select('id')
-    .single()
-  if (insErr || !created) {
-    console.warn('[ensureHarvestLog:insert]', { code: insErr?.code, message: insErr?.message })
-    return { error: insErr?.message || 'Could not create harvest log.' }
+  if (existing) {
+    logId = existing.id
+  } else {
+    const { data: created, error: insErr } = await sb
+      .from('harvest_logs')
+      .insert({ trip_id: tripId, created_by: guideId })
+      .select('id')
+      .single()
+    if (insErr || !created) {
+      console.warn('[ensureHarvestLog:insert]', { code: insErr?.code, message: insErr?.message })
+      return { error: insErr?.message || 'Could not create harvest log.' }
+    }
+    logId = created.id
   }
-  const logId = created.id
 
   const { data: parts } = await sb
     .from('trip_participants')
     .select('id, hunter_id, guest_name, added_at')
     .eq('trip_id', tripId)
     .order('added_at', { ascending: true })
-  const participants = parts ?? []
+  const allParticipants = parts ?? []
+
+  // Diff: find participants without an existing entry. Identity is
+  // hunter_id when present, else guest_name (legacy guest entries).
+  const { data: existingEntries } = await sb
+    .from('harvest_log_entries')
+    .select('hunter_id, guest_name')
+    .eq('log_id', logId)
+
+  const haveHunterIds = new Set(
+    (existingEntries ?? [])
+      .map((e) => e.hunter_id)
+      .filter((v): v is string => !!v)
+  )
+  const haveGuestNames = new Set(
+    (existingEntries ?? [])
+      .filter((e) => !e.hunter_id && e.guest_name)
+      .map((e) => e.guest_name as string)
+  )
+
+  const participants = allParticipants.filter((p) => {
+    if (p.hunter_id) return !haveHunterIds.has(p.hunter_id)
+    if (p.guest_name) return !haveGuestNames.has(p.guest_name)
+    return false
+  })
 
   if (participants.length > 0) {
     const hunterIds = participants

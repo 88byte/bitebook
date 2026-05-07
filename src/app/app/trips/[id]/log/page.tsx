@@ -36,34 +36,38 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   // first visit briefly flashed the error boundary before the page
   // resolved. ensureHarvestLog does the same insert work without the
   // revalidate, so the render is clean.
-  let log = await fetchHarvestLog(tripId)
-  if (!log) {
-    const res = await ensureHarvestLog(tripId, profile.id)
-    if ('error' in res) {
-      return (
-        <main className="bb-app-main">
-          <div className="mb-3">
-            <Link
-              href={`/app/trips/${tripId}`}
-              className="bb-text-action"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            >
-              <ArrowLeft size={14} aria-hidden="true" />
-              Back to trip
-            </Link>
-          </div>
-          <header>
-            <h1 className="bb-page-title">Hunt report</h1>
-            <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
-              Could not generate the hunt report: {res.error}
-            </p>
-          </header>
-        </main>
-      )
-    }
-    log = await fetchHarvestLog(tripId)
-    if (!log) redirect(`/app/trips/${tripId}`)
+  //
+  // v27.9.7.5 — call ensureHarvestLog on EVERY render, not just when the
+  // log row is missing. The function is now insert-only and idempotent:
+  // it finds-or-creates the log row + adds entries for any participants
+  // who don't yet have one. Pre-v27.9.7.5 the page early-returned the
+  // existing log without re-checking entries, so a hunter added AFTER
+  // the first /log visit never got a row in the editor.
+  const ensureRes = await ensureHarvestLog(tripId, profile.id)
+  if ('error' in ensureRes) {
+    return (
+      <main className="bb-app-main">
+        <div className="mb-3">
+          <Link
+            href={`/app/trips/${tripId}`}
+            className="bb-text-action"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <ArrowLeft size={14} aria-hidden="true" />
+            Back to trip
+          </Link>
+        </div>
+        <header>
+          <h1 className="bb-page-title">Hunt report</h1>
+          <p className="bb-form-help" role="alert" style={{ color: '#8C3C2A' }}>
+            Could not generate the hunt report: {ensureRes.error}
+          </p>
+        </header>
+      </main>
+    )
   }
+  const log = await fetchHarvestLog(tripId)
+  if (!log) redirect(`/app/trips/${tripId}`)
 
   // v27.1.1.0.3b: fetch mapped log docs for the Generate PDF picker.
   // v27.1.1.0.3e.3: also fetch the trip's generated PDF history.
