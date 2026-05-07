@@ -17,6 +17,7 @@ import {
 } from '../../_lib/queries'
 import { ensureHarvestLog } from '../../_lib/harvest-log-queries'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidMethod } from '@/lib/methods'
 import type { Database } from '@/lib/supabase/types'
 
@@ -258,6 +259,113 @@ export async function wrapUpTripAction(formData: FormData): Promise<WrapUpTripRe
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
   revalidatePath(`/app/h/trips/${tripId}`)
+  revalidatePath('/app/h/trips')
+  revalidatePath('/app/h')
+  return { ok: true }
+}
+
+export type DeleteTripResult = { ok: true } | { error: string }
+
+// v27.9.3 — permanent trip delete. Distinct from cancel/wrap-up: this
+// removes the trip row entirely and lets FK CASCADE clean up every
+// child table. FK audit (v27.9.3 sql/check):
+//   harvest_logs              CASCADE → cascades harvest_log_entries +
+//                                       _user_inputs +
+//                                       _entry_species + _entry_user_inputs
+//   invitations               CASCADE (v27.9.1 added trip_id col)
+//   media                     CASCADE
+//   trip_docs                 CASCADE → cascades doc_signatures +
+//                                       trip_doc_hunter_actions
+//   trip_generated_logs       CASCADE — but storage files in bb-private
+//                             still need explicit removal (best-effort
+//                             via the loop below; failures don't block
+//                             the row delete since the user wants the
+//                             trip gone regardless).
+//   trip_participants         CASCADE
+//   trip_reviews              CASCADE
+//   trip_wallet_items         CASCADE — note: only the LINK rows go;
+//                             the underlying wallet_items (license/tag)
+//                             stay in the hunter's wallet.
+// Migration NOT needed — every trip-keyed FK was already CASCADE.
+//
+// Safety:
+//   1. requireGuide gate
+//   2. Caller must own the trip (eq guide_id)
+//   3. confirmTitle must match trips.title (case-insensitive trim) —
+//      defense in depth alongside the type-to-confirm modal.
+export async function deleteTripAction(formData: FormData): Promise<DeleteTripResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+  const tripId = String(formData.get('trip_id') ?? '').trim()
+  const confirmTitle = String(formData.get('confirm_title') ?? '').trim()
+  if (!tripId) return { error: 'Missing trip id.' }
+  if (!confirmTitle) return { error: 'Type the trip title to confirm.' }
+
+  const sb = await createClient()
+
+  // Read the trip first — verifies ownership AND gives us the canonical
+  // title for the case-insensitive match. Also captures the file paths
+  // we need to remove from storage post-delete.
+  const { data: trip, error: readErr } = await sb
+    .from('trips')
+    .select('id, title')
+    .eq('id', tripId)
+    .eq('guide_id', profile.id)
+    .maybeSingle()
+  if (readErr) {
+    console.warn('[deleteTripAction:read]', { code: readErr.code, message: readErr.message })
+    return { error: readErr.message || 'Could not load trip.' }
+  }
+  if (!trip) return { error: 'Trip not found.' }
+
+  // Case-insensitive trimmed match.
+  if (trip.title.trim().toLowerCase() !== confirmTitle.toLowerCase()) {
+    return { error: `Title doesn't match. Type "${trip.title}" exactly.` }
+  }
+
+  // Pull generated-log file paths BEFORE the delete cascade so we can
+  // clean them out of bb-private after. Best-effort: if this read
+  // fails, we still proceed with the row delete.
+  let filePaths: string[] = []
+  try {
+    const { data: logs } = await sb
+      .from('trip_generated_logs')
+      .select('file_path')
+      .eq('trip_id', tripId)
+    filePaths = (logs ?? []).map((l) => l.file_path).filter(Boolean)
+  } catch (e) {
+    console.warn('[deleteTripAction:logsRead]', { error: (e as Error).message })
+  }
+
+  // Delete the trip row. RLS gates by guide_id; eq() is defense-in-depth.
+  // FK CASCADE on every trip-keyed table cleans the rest.
+  const { error: delErr } = await sb
+    .from('trips')
+    .delete()
+    .eq('id', tripId)
+    .eq('guide_id', profile.id)
+  if (delErr) {
+    console.warn('[deleteTripAction:delete]', { code: delErr.code, message: delErr.message })
+    return { error: delErr.message || 'Could not delete trip.' }
+  }
+
+  // Storage cleanup — runs AFTER row delete so a failure here can't
+  // strand orphan rows pointing at deleted files. Use the service-role
+  // admin client because storage RLS may be scoped per-user and the
+  // file paths come from rows that are now deleted (so per-user
+  // ownership is no longer derivable). Best-effort.
+  if (filePaths.length > 0) {
+    try {
+      const admin = createAdminClient()
+      await admin.storage.from('bb-private').remove(filePaths)
+    } catch (e) {
+      console.warn('[deleteTripAction:storage]', { count: filePaths.length, error: (e as Error).message })
+    }
+  }
+
+  revalidatePath('/app')
+  revalidatePath('/app/trips')
   revalidatePath('/app/h/trips')
   revalidatePath('/app/h')
   return { ok: true }

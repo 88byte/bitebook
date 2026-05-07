@@ -23,6 +23,7 @@ import StatusPill from '../../_components/StatusPill'
 import WrapUpTripButton from './WrapUpTripButton'
 import ReopenTripButton from './ReopenTripButton'
 import CancelTripButton from './CancelTripButton'
+import DeleteTripButton from './DeleteTripButton'
 import SaveAsTemplateButton from './SaveAsTemplateButton'
 import TripDetailEditor from './TripDetailEditor'
 import TripDocsCard from './TripDocsCard'
@@ -167,6 +168,11 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
           {isOpen && <WrapUpTripButton tripId={trip.id} />}
           {isOpen && <CancelTripButton tripId={trip.id} />}
           {isClosed && <ReopenTripButton tripId={trip.id} />}
+          {/* v27.9.3 — permanent delete. Available on every status
+              (planned/active/completed/canceled) so guides can clean
+              up old test trips or wrong entries. Type-to-confirm
+              modal gates the actual delete. */}
+          <DeleteTripButton tripId={trip.id} tripTitle={trip.title} />
         </div>
         <div className="bb-trip-actions-secondary">
           <Link
