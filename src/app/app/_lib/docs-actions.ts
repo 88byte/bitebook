@@ -795,13 +795,24 @@ export async function extractDocFieldsAction(docId: string): Promise<ExtractFiel
   if (!docId) return { error: 'Missing doc id.' }
 
   const sb = await createClient()
+  // v27.9.7.7 — let non-owner guides resolve Bite Book templates so the
+  // mapping wizard can load in view-only mode. Pre-v27.9.7.7 the lookup
+  // was `.eq('guide_id', profile.id)`, which threw "Doc not found" the
+  // moment a non-owner clicked "View mapping" on a template — same bug
+  // pattern v27.9.6 fixed for the GENERATE path. RLS (docs_guide_self_all
+  // for owners + docs_template_select for templates) gates the read.
+  // Field extraction is read-only (downloads the PDF and lists form field
+  // names) so allowing templates is safe. Write actions on mappings
+  // (save, mark complete, AI suggest) keep their existing owner-lock.
   const { data: doc } = await sb
     .from('docs')
-    .select('id, kind, file_path, file_mime, form_template_hash')
+    .select('id, kind, file_path, file_mime, form_template_hash, guide_id, is_template')
     .eq('id', docId)
-    .eq('guide_id', profile.id)
     .maybeSingle()
   if (!doc) return { error: 'Doc not found.' }
+  if (doc.guide_id !== profile.id && !doc.is_template) {
+    return { error: 'Doc not found.' }
+  }
   if (doc.kind !== 'log' && doc.kind !== 'waiver') {
     return { error: 'Field mapping is only available for log and waiver docs.' }
   }
