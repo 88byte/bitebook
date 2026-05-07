@@ -15,7 +15,7 @@ const NAV = [
   { href: '/app/h/wallet',   label: 'Wallet',    icon: Wallet,          match: (p: string) => p.startsWith('/app/h/wallet') },
   { href: '/app/h/guides',   label: 'Guides',    icon: Users,           match: (p: string) => p.startsWith('/app/h/guides') },
   { href: '/app/h/profile',  label: 'Profile',   icon: User,            match: (p: string) => p.startsWith('/app/h/profile') },
-  { href: '/app/h/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/h/support') },
+  { href: '/app/h/support',  label: 'Help',      icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/h/support') },
 ] as const
 
 export default function HunterSidebar() {

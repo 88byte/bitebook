@@ -17,7 +17,7 @@ const NAV = [
   { href: '/app/reviews',  label: 'Reviews',   icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
   { href: '/app/docs',     label: 'Documents', icon: FileText,        match: (p: string) => p.startsWith('/app/docs') },
   { href: '/app/settings', label: 'Settings',  icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
-  { href: '/app/support',  label: 'Support',   icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
+  { href: '/app/support',  label: 'Help',      icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
 ] as const
 
 // v27.8.1 — ADMIN pill removed per Flavio. Email-match admin gate

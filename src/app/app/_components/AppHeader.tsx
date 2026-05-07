@@ -19,7 +19,7 @@ import ConnectivityDot from '@/app/_components/ConnectivityDot'
 const GUIDE_DRAWER_ITEMS = [
   { href: '/app/docs',     label: 'Documents', iconName: 'fileText' as const },
   { href: '/app/settings', label: 'Settings',  iconName: 'settings' as const },
-  { href: '/app/support',  label: 'Support',   iconName: 'lifebuoy' as const },
+  { href: '/app/support',  label: 'Help',      iconName: 'lifebuoy' as const },
 ] as const
 
 // Top bar shared across every /app screen. Active-state lives in the

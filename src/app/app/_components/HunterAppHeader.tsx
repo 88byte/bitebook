@@ -12,7 +12,7 @@ import ConnectivityDot from '@/app/_components/ConnectivityDot'
 //
 // v26.1.1: serializable iconName strings only (see AppHeader for context).
 const HUNTER_DRAWER_ITEMS = [
-  { href: '/app/h/support', label: 'Support', iconName: 'lifebuoy' as const },
+  { href: '/app/h/support', label: 'Help',    iconName: 'lifebuoy' as const },
 ] as const
 
 // v25.1: hunter-side mobile top bar. Same structure as AppHeader but the

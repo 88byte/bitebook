@@ -15,7 +15,7 @@ export default async function HunterSupportPage() {
     <main className="bb-app-main">
       <header>
         <p className="bb-page-eyebrow">We are here</p>
-        <h1 className="bb-page-title">Support</h1>
+        <h1 className="bb-page-title">Help</h1>
         <p className="bb-page-sub">
           Need a hand? Email us at support@lastbite.pro. We answer most messages within a business day.
         </p>
