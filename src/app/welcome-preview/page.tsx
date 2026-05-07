@@ -2126,19 +2126,21 @@ const styles = `
   }
 
   /* PILLARS — asymmetric featured layout. Pillar 01 (bb-mkt-pillar-lg)
-     anchors the left column at full height; 02/03/04 stack as 3
-     satellites on the right. v27.9.7.1: dialed pillar-lg down so it
-     doesn't tower over the satellites — smaller padding, smaller icon,
-     smaller title + body. */
+     anchors the left column; 02/03/04 stack as 3 satellites on the
+     right. v27.9.7.1: align-self: start on pillar-lg so it sits at
+     natural height instead of stretching to match the satellite stack.
+     Satellite cards tighter + smaller pillar-lg padding/icon/title to
+     prevent towering. */
   .bb-mkt-pillars {
     grid-template-columns: 1.2fr 1fr;
     grid-template-rows: auto;
     gap: 1.1rem;
-    align-items: stretch;
+    align-items: start;
   }
   .bb-mkt-pillar-lg {
     grid-column: 1;
     grid-row: 1 / span 3;
+    align-self: start;
     padding: 2.4rem 2.2rem 2.2rem;
     background: linear-gradient(160deg, #FFFFFF 0%, #F8F1E5 100%);
     border-color: rgba(176, 108, 60, 0.22);
