@@ -2041,13 +2041,21 @@ const styles = `
    - FOOTER: 4-column layout with brand column on left + 3 link columns,
      credit row at bottom. */
 
+/* v27.9.7.1 — pull-back. v27.9.7 went too aggressive on type +
+   spacing: words landed on their own rows and sections ran to 1000px+
+   tall. Headlines pulled down (hero 10rem → 6.5rem cap; final 8rem →
+   5.5rem; pricing $90 11rem → 7.5rem). Section paddings cut ~30%.
+   Big headlines get text-wrap: balance + hyphens: none + line-height
+   1.0 so they don't tower vertically or break weird. */
+
 @media (min-width: 1024px) {
   /* HERO — content column constrained so the phone backdrop owns the
-     right. Title scaled up. Stat row stays in the left column instead
-     of stretching across the full width onto the phone image. */
+     right. Title scale moderate (was overshooting at 10rem cap). Stat
+     row stays in the left column instead of stretching across the
+     full width onto the phone image. */
   .bb-mkt-hero-stack {
     max-width: 1280px;
-    padding: 9rem 3rem 6rem;
+    padding: 6rem 3rem 4.5rem;
   }
   .bb-mkt-hero-eyebrow,
   .bb-mkt-hero-title,
@@ -2057,16 +2065,19 @@ const styles = `
     max-width: 56%;
   }
   .bb-mkt-hero-title {
-    font-size: clamp(5.5rem, 8.6vw, 10rem);
+    font-size: clamp(3.5rem, 6vw, 6.5rem);
     letter-spacing: -0.012em;
+    line-height: 1;
+    text-wrap: balance;
+    hyphens: none;
   }
   .bb-mkt-hero-stat-row {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1.4rem;
-    padding-top: 1.85rem;
-    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    margin-top: 1.75rem;
   }
-  .bb-mkt-hero-stat-row strong { font-size: 2.25rem; }
+  .bb-mkt-hero-stat-row strong { font-size: 1.95rem; }
   .bb-mkt-hero-stat-row span { font-size: 0.74rem; }
 
   /* SECTION DIVIDER — copper hairline + soft topo wash to give the
@@ -2091,19 +2102,44 @@ const styles = `
     border-radius: 999px;
   }
 
+  /* SECTION PADDING — pull back ~30% from the 768+ defaults so each
+     section reads as one unit instead of taking a full screen. Mobile
+     padding is untouched. */
+  .bb-mkt-pillars-wrap { padding: 5rem 2rem; }
+  .bb-mkt-features-wrap { padding: 5rem 2rem; }
+  .bb-mkt-faq-wrap { padding: 5rem 2rem; }
+  .bb-mkt-pricing-wrap { padding: 5.5rem 2rem; }
+  .bb-mkt-final { padding: 5.5rem 2rem 6rem; }
+  .bb-mkt-manifesto { padding: 4rem 2rem; }
+  .bb-mkt-gallery-wrap { padding: 4rem 2rem 5rem; }
+  .bb-mkt-steps-wrap { padding: 5rem 2rem; }
+
+  /* HEADLINE WRAP — balance + no hyphens + tighter line-height so big
+     headlines don't break weirdly or tower vertically. */
+  .bb-mkt-section-title,
+  .bb-mkt-pricing-headline-static,
+  .bb-mkt-final-title,
+  .bb-mkt-manifesto-text {
+    text-wrap: balance;
+    hyphens: none;
+    line-height: 1.02;
+  }
+
   /* PILLARS — asymmetric featured layout. Pillar 01 (bb-mkt-pillar-lg)
      anchors the left column at full height; 02/03/04 stack as 3
-     satellites on the right. */
+     satellites on the right. v27.9.7.1: dialed pillar-lg down so it
+     doesn't tower over the satellites — smaller padding, smaller icon,
+     smaller title + body. */
   .bb-mkt-pillars {
-    grid-template-columns: 1.25fr 1fr;
+    grid-template-columns: 1.2fr 1fr;
     grid-template-rows: auto;
-    gap: 1.25rem;
+    gap: 1.1rem;
     align-items: stretch;
   }
   .bb-mkt-pillar-lg {
     grid-column: 1;
     grid-row: 1 / span 3;
-    padding: 3.5rem 3rem 3rem;
+    padding: 2.4rem 2.2rem 2.2rem;
     background: linear-gradient(160deg, #FFFFFF 0%, #F8F1E5 100%);
     border-color: rgba(176, 108, 60, 0.22);
     box-shadow: 0 24px 60px rgba(11, 8, 6, 0.06);
@@ -2119,26 +2155,27 @@ const styles = `
     background: linear-gradient(90deg, var(--color-copper), rgba(176, 108, 60, 0));
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-icon {
-    width: 4.6rem;
-    height: 4.6rem;
-    border-radius: 22px;
-    margin-bottom: 1rem;
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: 18px;
+    margin-bottom: 0.7rem;
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-num {
-    font-size: 1rem;
-    letter-spacing: 0.28em;
+    font-size: 0.88rem;
+    letter-spacing: 0.24em;
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-title {
-    font-size: clamp(2.2rem, 2.6vw, 2.8rem);
-    margin-top: 0.35rem;
+    font-size: clamp(1.7rem, 2vw, 2.2rem);
+    margin-top: 0.3rem;
+    line-height: 1.08;
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-body {
-    font-size: 1.1rem;
-    line-height: 1.6;
+    font-size: 1rem;
+    line-height: 1.55;
     max-width: 28rem;
   }
   .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg) {
-    padding: 1.7rem 1.6rem;
+    padding: 1.4rem 1.4rem;
     background: #FFFFFF;
   }
   .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg)::before {
@@ -2165,29 +2202,29 @@ const styles = `
     box-shadow: 0 28px 56px rgba(11, 8, 6, 0.1);
   }
 
-  /* HOW IT WORKS — bigger numerals + tighter copy. */
-  .bb-mkt-step { padding: 2.4rem 2rem 2.2rem; }
+  /* HOW IT WORKS — modest numeral bump + tighter step copy. v27.9.7.1
+     pulled padding + title back from v27.9.7's overshoot. */
+  .bb-mkt-step { padding: 2rem 1.6rem 1.85rem; }
   .bb-mkt-step-num {
-    font-size: 3.2rem;
+    font-size: 2.6rem;
     line-height: 1;
     letter-spacing: -0.01em;
   }
-  .bb-mkt-step-title { font-size: 1.5rem; }
-  .bb-mkt-step-body { font-size: 1.02rem; line-height: 1.55; }
+  .bb-mkt-step-title { font-size: 1.32rem; }
+  .bb-mkt-step-body { font-size: 1rem; line-height: 1.55; }
 
-  /* PRICING — anchored card. Wrap the inner container so the price,
-     statement, list, and CTA read as one unit. Copper top stroke +
-     ink-gradient body + dropshadow. Pull off the raw "centered text"
-     look in favor of a real anchored object. */
+  /* PRICING — anchored card. v27.9.7.1: padding cut, $90 scale pulled
+     down from clamp 7rem-11rem to clamp 4.5rem-7.5rem so the card
+     fits in one visual unit instead of a 800px+ tower. */
   .bb-mkt-pricing-wrap > .bb-mkt-container {
     text-align: center;
     max-width: 1080px;
     background: linear-gradient(165deg, rgba(31, 36, 25, 0.55) 0%, rgba(11, 8, 6, 0.65) 100%);
     border: 1px solid rgba(176, 108, 60, 0.26);
-    border-radius: 28px;
-    padding: 4.5rem 4rem 4rem;
+    border-radius: 24px;
+    padding: 3rem 3rem 2.75rem;
     position: relative;
-    box-shadow: 0 36px 80px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 32px 70px rgba(0, 0, 0, 0.32);
     overflow: hidden;
   }
   .bb-mkt-pricing-wrap > .bb-mkt-container::before {
@@ -2195,48 +2232,49 @@ const styles = `
     position: absolute;
     top: 0; left: 0;
     width: 100%;
-    height: 5px;
+    height: 4px;
     background: linear-gradient(90deg, rgba(176, 108, 60, 0), var(--color-copper) 50%, rgba(176, 108, 60, 0));
   }
   .bb-mkt-pricing-headline-static {
-    font-size: clamp(2.6rem, 3.4vw, 3.4rem);
-    max-width: 36rem;
-    margin: 0 auto 2rem;
+    font-size: clamp(2rem, 2.8vw, 2.6rem);
+    max-width: 32rem;
+    margin: 0 auto 1.25rem;
   }
-  .bb-mkt-price-toggle-row { margin: 0 auto 2rem; }
+  .bb-mkt-price-toggle-row { margin: 0 auto 1.25rem; }
   .bb-mkt-price-amount-row {
     justify-content: center;
-    gap: 0.6rem 1.4rem;
+    gap: 0.5rem 1.1rem;
     margin: 0;
   }
   .bb-mkt-price-amount-big {
-    font-size: clamp(7rem, 11vw, 11rem);
-    text-shadow: 0 12px 40px rgba(176, 108, 60, 0.22);
+    font-size: clamp(4.5rem, 8vw, 7.5rem);
+    line-height: 1;
+    text-shadow: 0 8px 24px rgba(176, 108, 60, 0.18);
   }
   .bb-mkt-price-amount-period {
-    font-size: clamp(2.4rem, 3.6vw, 3.6rem);
+    font-size: clamp(1.8rem, 2.6vw, 2.4rem);
+    line-height: 1;
   }
-  .bb-mkt-price-equiv { text-align: center; margin: 0.5rem 0 1.25rem; }
-  .bb-mkt-pricing-statement { margin: 0.5rem auto 0; }
+  .bb-mkt-price-equiv { text-align: center; margin: 0.4rem 0 0.85rem; }
+  .bb-mkt-pricing-statement { margin: 0.35rem auto 0; }
   .bb-mkt-pricing-list {
-    margin: 2.5rem auto 0;
+    margin: 1.75rem auto 0;
     grid-template-columns: 1fr 1fr;
-    column-gap: 3rem;
-    row-gap: 0.85rem;
-    max-width: 44rem;
+    column-gap: 2.4rem;
+    row-gap: 0.75rem;
+    max-width: 42rem;
   }
   .bb-mkt-pricing-list li { justify-self: start; }
   .bb-mkt-pricing-cta-row {
-    margin-top: 2.25rem;
+    margin-top: 1.5rem;
     flex-direction: column;
     align-items: center;
-    gap: 0.85rem;
+    gap: 0.75rem;
   }
   .bb-mkt-pricing-fineprint { text-align: center; margin: 0; }
 
-  /* FINAL CTA — center on desktop, bigger headline, more breathing
-     room. Copy was left-aligned on a wide canvas, so the right half
-     felt like dead space. */
+  /* FINAL CTA — center on desktop. v27.9.7.1: title clamp dropped from
+     7rem cap to 4.5rem cap; padding pulled. */
   .bb-mkt-final > .bb-mkt-container {
     text-align: center;
   }
@@ -2245,12 +2283,14 @@ const styles = `
     justify-content: center;
   }
   .bb-mkt-final-title {
-    font-size: clamp(4.5rem, 6.6vw, 7rem);
+    font-size: clamp(3rem, 4.5vw, 4.5rem);
     max-width: none;
+    margin: 0.85rem auto 1.25rem;
   }
   .bb-mkt-final-sub {
-    margin: 0 auto 2.5rem;
-    font-size: 1.2rem;
+    margin: 0 auto 1.5rem;
+    font-size: 1.1rem;
+    max-width: 32rem;
   }
   .bb-mkt-final-fineprint { text-align: center; }
 
@@ -2268,34 +2308,35 @@ const styles = `
   }
 }
 
-/* WIDE — 1280+ tier. Dial up the typography one more notch on huge
-   shells where 1024+ rules still leave headroom. */
+/* WIDE — 1280+ tier. v27.9.7.1: was overshooting at the previous
+   caps (hero 11rem, final 8rem, manifesto 6rem). Modest bump only —
+   the page should feel confident on a wide shell, not ransom-note. */
 @media (min-width: 1280px) {
   .bb-mkt-hero-title {
-    font-size: clamp(6.5rem, 9vw, 11rem);
+    font-size: clamp(4rem, 6.5vw, 7rem);
   }
   .bb-mkt-hero-sub {
-    font-size: 1.28rem;
+    font-size: 1.18rem;
     max-width: 38rem;
   }
-  .bb-mkt-hero-stat-row strong { font-size: 2.55rem; }
+  .bb-mkt-hero-stat-row strong { font-size: 2.15rem; }
 
   .bb-mkt-section-title {
-    font-size: clamp(3.4rem, 5vw, 5.4rem);
+    font-size: clamp(2.4rem, 3.5vw, 3.8rem);
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-title {
-    font-size: clamp(2.6rem, 2.8vw, 3.2rem);
+    font-size: clamp(1.85rem, 2.2vw, 2.4rem);
   }
   .bb-mkt-pillar-lg .bb-mkt-pillar-body {
-    font-size: 1.18rem;
+    font-size: 1.05rem;
   }
 
   .bb-mkt-final-title {
-    font-size: clamp(5.5rem, 7.4vw, 8rem);
+    font-size: clamp(3.5rem, 5.5vw, 5.5rem);
   }
 
   .bb-mkt-manifesto-text {
-    font-size: clamp(3.5rem, 6vw, 6rem);
+    font-size: clamp(2.4rem, 4vw, 4rem);
   }
 }
 
@@ -2303,6 +2344,6 @@ const styles = `
    readable at 1920+ instead of stretching corner-to-corner. */
 @media (min-width: 1600px) {
   .bb-mkt-container { max-width: 1320px; }
-  .bb-mkt-hero-stack { max-width: 1440px; padding: 10rem 4rem 7rem; }
+  .bb-mkt-hero-stack { max-width: 1440px; padding: 7rem 4rem 5rem; }
 }
 `
