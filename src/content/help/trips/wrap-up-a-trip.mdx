@@ -3,37 +3,49 @@ title: "How to wrap up a trip when it ends"
 slug: "wrap-up-a-trip"
 category: "trips"
 audience: "guide"
-tags: ["trip", "wrap-up", "complete", "report"]
+tags: ["trip", "wrap-up", "complete", "log"]
 last_updated: "2026-05-06"
 related: ["create-a-trip", "edit-a-trip", "five-minute-first-trip"]
 ---
 
-Wrapping up a trip is what triggers the state harvest report. It also moves the trip out of your **Active** list so your dashboard stays focused on what’s next.
+Wrapping up a trip moves it from In progress to Done. After that, you can still pull up the hunt log, generate a filled-out PDF, and sign it.
 
 ## When to wrap up
 
-After the last day in the field. You can wrap a trip up the same evening or wait a few days while you confirm details with your hunters — Bite Book doesn’t time you out.
+After the last day in the field. There’s no time limit — you can wrap up the same evening or wait until you’ve confirmed details with your hunters.
 
-## Steps
+## Wrap up
 
-1. Tap the trip.
-2. Make sure every harvest is logged. Each entry needs a hunter, a species, and a method. Date and location notes are nice but not required.
-3. Tap **Wrap up trip** at the top.
-4. Bite Book asks you to confirm: this changes the trip status from **Active** to **Completed** and unlocks the state report.
-5. Tap **Confirm**. The trip is now in **Completed**.
+1. Open the trip from your dashboard or trips list.
+2. In the action row near the top, tap **Wrap up trip**.
+3. The confirmation modal asks **Wrap up this trip?**
+4. Tap **Finish trip**.
 
-## File the state report
+The trip moves from In progress to Done.
 
-Right after wrap-up, you’ll see a green tile: **Generate state log**. Tap it.
+## The hunt log
 
-1. Bite Book picks the right form for your state and pre-fills every field it can — your name, address, license number, the trip dates, the hunters and their licenses, the harvests, the methods.
-2. Review the filled-in form. Anything in copper is from your wallet or your profile and can be re-pulled. Anything in black is something you typed.
-3. Fix anything wrong. Tap **Save**.
-4. Tap **Generate PDF**. Bite Book builds the signed PDF and stores it on the trip.
-5. E-sign at the bottom. If your state requires the hunter’s signature too, tap **Send to hunters for signature** — they get a notification and can sign from their phone.
+The Hunt logs page is available at any trip status — before, during, and after wrap-up. Open it from the trip’s action row by tapping **Hunt logs**.
 
-The signed PDF lives on the trip detail page forever. Email it to the state, hand it to a warden, or pull it up next year if you ever need it.
+Inside the hunt log:
 
-## After wrap-up
+1. Each hunter on the trip has their own row. Expand a row to fill in their species rows (species, quantity harvested, quantity released, optional notes).
+2. Once entries are filled in, scroll to the **Generate filled PDFs** section.
+3. Pick the log template you want to fill. The dropdown lists every doc you’ve already mapped at `/app/docs/[id]/mapping`. (See the Hunt logs section of Help once those articles ship.)
+4. Tap **Generate Filled Out Log**.
 
-A wrapped-up trip is mostly read-only. You can still edit the harvests if you spot a mistake, but adding new hunters or changing the dates is locked. If you need to make a substantial change, tap **Reopen trip** at the top of the trip page — it moves back to **Active** until you wrap it up again.
+Bite Book builds the PDF using the field mappings you set up. The result lands in the **Logs** list below with these per-row actions:
+
+- **Open** — view the PDF in a new tab.
+- **Download** — save it to your device.
+- **Sign** — add your signature on top of the existing PDF.
+- **Re-generate** — rebuild the PDF if you’ve edited entries since.
+- **Delete** — remove this generated copy.
+
+## Hunters and signatures
+
+Hunters cannot sign harvest logs. Only the guide signs the harvest log via the **Sign** action. Hunters can sign **waivers** that you attached to the trip — that’s a separate flow.
+
+## Reopening
+
+A wrapped-up trip is mostly read-only. If you spot a mistake, tap **Reopen trip** in the action row, confirm with **Reopen**, and the trip flips back to In progress so you can edit. Wrap it up again when you’re done.

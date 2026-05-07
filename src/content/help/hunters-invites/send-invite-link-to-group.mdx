@@ -8,46 +8,36 @@ last_updated: "2026-05-06"
 related: ["email-invite-vs-share-link", "resend-invite", "create-a-trip"]
 ---
 
-When you’ve got a group of three, four, or more hunters showing up to the same trip, the share link is faster than typing emails one at a time.
+For groups of hunters showing up to the same trip, share-link mode is faster than typing emails.
 
-## Generate the link
+## Two kinds of share links
 
-1. Tap the trip.
-2. In the **Hunters** section, tap **Invite**.
-3. Tap **Share link**.
-4. Bite Book generates a link and copies it to your clipboard automatically.
+Bite Book has two share-link surfaces:
 
-The link looks like `bitebook.lastbite.pro/i/abc123`. Don’t worry about the random characters — that’s the trip-specific token. Each trip gets its own.
+- **Trip share link** — generated from the trip detail page. The link is tied to that specific trip. Hunters who use it land on the trip immediately. The link expires on the trip’s start date.
+- **Network share link** — generated on **Hunters** in your sidebar (`/app/hunters`). The link adds hunters to your network without tying them to a trip. Best when you’re collecting prospective hunters before scheduling anything.
+
+For a known group going on a known trip, use the trip share link.
+
+## Generate a trip share link
+
+1. Open the trip from your dashboard or trips list.
+2. Find the **Trip share link** panel and tap **Get trip share link**.
+3. Bite Book shows the URL in a read-only field with a **Copy** button next to it.
+4. Tap **Copy** to put the URL on your clipboard.
+
+The URL looks like `bitebook.lastbite.pro/accept-invite?token=<long token>`. The token is unique to that trip’s link.
 
 ## Share it
 
-Paste the link wherever your group is talking:
+Paste the URL anywhere your group is talking — text thread, group chat, email, pinned in a Slack channel. Each hunter taps the link, signs in or sets a password, and lands on the trip.
 
-- A group text
-- WhatsApp, Signal, or any other messenger
-- An email of your own
-- A Facebook group post
-- Pinned in your hunting club’s Slack
+## Track who joined
 
-Each hunter taps the link, signs in or sets a password, and lands on the trip.
+The trip’s **Hunters** section updates as people accept. The list reflects the current participants.
 
-## Track who’s joined
+## Generating a new link
 
-Back on the trip detail page, the **Hunters** section updates in real time. Each hunter shows up as soon as they accept. You’ll see:
+If you need to rotate the link, tap **Get trip share link** again — it returns the existing active link or generates a new one if none was active. There isn’t a one-tap “disable” or “regenerate” button. The link expires on the trip’s start date regardless.
 
-- **Confirmed** — they’ve fully accepted and their email is verified
-- **Pending** — they’ve tapped the link but haven’t finished setting up their account yet
-
-## When you’re done accepting
-
-Once everyone’s joined, kill the link so it can’t be shared further:
-
-1. Tap the trip.
-2. Tap **Manage hunters**.
-3. Tap **Disable share link**.
-
-Anyone who already accepted stays on the trip. The link itself just stops working for new people.
-
-## A new link for the same trip
-
-If you accidentally posted the link somewhere public and want a clean one, tap **Regenerate link**. The old one stops working immediately and a new token replaces it.
+To stop a link earlier than that, go to your **Hunters** page, find the link row, and tap **Cancel invite**.
