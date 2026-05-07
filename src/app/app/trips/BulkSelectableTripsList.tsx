@@ -200,7 +200,19 @@ export default function BulkSelectableTripsList({
 
       {/* List — wrap each child with checkbox overlay when in
           selection mode. Outside selection mode the children render
-          identically to the pre-v27.9.4 behavior. */}
+          identically to the pre-v27.9.4 behavior.
+          v27.9.4.1 — was a wrapper div + hidden <input checkbox> +
+          visible icon span. Two bugs:
+          (1) clicking the input area fired BOTH the input's onChange
+              and the wrapper's onClick → toggle(id) ran twice → state
+              flipped and flipped back, visible as a no-op.
+          (2) the wrapper's "ignore clicks inside a, button" guard let
+              the inner TripRow's <Link> navigate away before the
+              wrapper could intercept on row-body taps.
+          Fix: render a single absolute-positioned <button> overlay
+          covering the whole row when in selection mode. Higher
+          z-index than the Link inside TripRow, so it captures every
+          click cleanly. One handler, no double-fire, no navigation. */}
       <div role="list" className="flex flex-col gap-3">
         {children.map((child, idx) => {
           const id = tripIds[idx]
@@ -216,31 +228,43 @@ export default function BulkSelectableTripsList({
             <div
               role="listitem"
               key={id}
-              onClick={(e) => {
-                // Don't hijack clicks on actual links/buttons inside
-                // the row; only the surrounding shell selects.
-                const target = e.target as HTMLElement
-                if (target.closest('a, button')) return
-                e.preventDefault()
-                toggle(id)
-              }}
               style={{
                 position: 'relative',
-                cursor: 'pointer',
                 borderRadius: 12,
                 outline: checked ? '2px solid var(--color-copper)' : '2px solid transparent',
                 outlineOffset: 2,
-                transition: 'outline-color 120ms ease, opacity 120ms ease',
+                transition: 'outline-color 120ms ease',
               }}
             >
-              {/* Visible checkbox overlay top-left of each row. */}
+              {/* Single overlay button — captures all clicks within
+                  the row's bounds. Sits above the TripRow's internal
+                  Link, so a tap anywhere selects without navigating. */}
+              <button
+                type="button"
+                onClick={() => toggle(id)}
+                aria-pressed={checked}
+                aria-label={checked ? 'Deselect trip' : 'Select trip'}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 4,
+                  background: 'transparent',
+                  border: 0,
+                  padding: 0,
+                  margin: 0,
+                  cursor: 'pointer',
+                  borderRadius: 12,
+                }}
+              />
+              {/* Visible check indicator top-left. pointer-events:none
+                  so it never intercepts the overlay button's clicks. */}
               <span
                 aria-hidden="true"
                 style={{
                   position: 'absolute',
                   top: 8,
                   left: 8,
-                  zIndex: 2,
+                  zIndex: 5,
                   background: '#FFFFFF',
                   borderRadius: 6,
                   padding: 2,
@@ -255,23 +279,6 @@ export default function BulkSelectableTripsList({
                   <Square size={20} style={{ color: 'var(--color-ink-muted)' }} />
                 )}
               </span>
-              {/* Aria checkbox for screen readers. */}
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(id)}
-                aria-label={`Select trip`}
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  width: 24,
-                  height: 24,
-                  opacity: 0,
-                  cursor: 'pointer',
-                  zIndex: 3,
-                }}
-              />
               {child}
             </div>
           )
