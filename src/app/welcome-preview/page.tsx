@@ -1061,17 +1061,12 @@ const styles = `
   transform: translateY(-3px);
   box-shadow: 0 24px 48px rgba(11, 8, 6, 0.08);
 }
-@media (min-width: 768px) {
-  .bb-mkt-pillar { grid-column: span 2; }
-  .bb-mkt-pillar-lg { grid-column: span 6; }
-}
-@media (min-width: 1024px) {
-  .bb-mkt-pillar-lg { grid-column: span 3; padding: 2.5rem 2rem; }
-  .bb-mkt-pillar { grid-column: span 1; }
-  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(2) { grid-column: span 3; }
-  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(3) { grid-column: span 3; }
-  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg):nth-of-type(4) { grid-column: span 3; }
-}
+/* v27.9.7 — legacy :nth-of-type(2/3/4) span rules removed. They were
+   higher-specificity overrides from a long-dead repeat(6, 1fr) layout
+   and were silently destroying every grid-template-columns rule above.
+   Pillars now lay out from the bb-mkt-pillars grid-template alone, with
+   the asymmetric featured layout defined inside the v27.9.7 desktop
+   block at the bottom of this file. */
 .bb-mkt-pillar-icon {
   display: inline-flex;
   align-items: center;
@@ -2020,4 +2015,294 @@ const styles = `
   text-align: center;
 }
 .bb-mkt-footer-bottom-divider { color: var(--color-copper); }
+
+/* ════════════════════════════════════════════════════════════════
+   v27.9.7 — DESKTOP REDESIGN
+   ════════════════════════════════════════════════════════════════
+   Mobile is locked. All rules below are guarded by min-width: 1024px
+   (sm-desktop) or 1280px+ (wide). They reconsider layout, scale, and
+   composition for screens that have room — not stretch mobile out.
+
+   Sections touched:
+   - HERO: bigger title, content column constrained so phone backdrop
+     reads through on the right; stat row pulled into its own credentials
+     band so it doesn't get clipped by the phone image.
+   - DIVIDERS: copper hairline + topo-fade bands between dark/paper
+     sections so the rhythm feels intentional.
+   - PILLARS: asymmetric — featured pillar 01 spans 2 rows on the left,
+     pillars 02/03/04 stack as 3 satellites on the right. Real visual
+     hierarchy that mobile can't pull off.
+   - PILLAR VISUAL TREATMENT: gradient ink-tone backgrounds, copper
+     top accent stroke, larger numerals, deeper hover lift.
+   - HOW IT WORKS: bigger numerals + tighter rhythm.
+   - PRICING: wrapped in an anchored card with copper top stroke, ink
+     gradient, dropshadow. $90 reads as the centerpiece, not a footnote.
+   - FINAL CTA: centered, bigger, with breathing room.
+   - FOOTER: 4-column layout with brand column on left + 3 link columns,
+     credit row at bottom. */
+
+@media (min-width: 1024px) {
+  /* HERO — content column constrained so the phone backdrop owns the
+     right. Title scaled up. Stat row stays in the left column instead
+     of stretching across the full width onto the phone image. */
+  .bb-mkt-hero-stack {
+    max-width: 1280px;
+    padding: 9rem 3rem 6rem;
+  }
+  .bb-mkt-hero-eyebrow,
+  .bb-mkt-hero-title,
+  .bb-mkt-hero-sub,
+  .bb-mkt-hero-cta-row,
+  .bb-mkt-hero-stat-row {
+    max-width: 56%;
+  }
+  .bb-mkt-hero-title {
+    font-size: clamp(5.5rem, 8.6vw, 10rem);
+    letter-spacing: -0.012em;
+  }
+  .bb-mkt-hero-stat-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.4rem;
+    padding-top: 1.85rem;
+    margin-top: 2.5rem;
+  }
+  .bb-mkt-hero-stat-row strong { font-size: 2.25rem; }
+  .bb-mkt-hero-stat-row span { font-size: 0.74rem; }
+
+  /* SECTION DIVIDER — copper hairline + soft topo wash to give the
+     transition between dark and paper sections a real edge instead
+     of a hard color flip. */
+  .bb-mkt-pillars-wrap,
+  .bb-mkt-features-wrap,
+  .bb-mkt-faq-wrap {
+    position: relative;
+  }
+  .bb-mkt-pillars-wrap::before,
+  .bb-mkt-features-wrap::before,
+  .bb-mkt-faq-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 3.5rem;
+    height: 3px;
+    background: var(--color-copper);
+    border-radius: 999px;
+  }
+
+  /* PILLARS — asymmetric featured layout. Pillar 01 (bb-mkt-pillar-lg)
+     anchors the left column at full height; 02/03/04 stack as 3
+     satellites on the right. */
+  .bb-mkt-pillars {
+    grid-template-columns: 1.25fr 1fr;
+    grid-template-rows: auto;
+    gap: 1.25rem;
+    align-items: stretch;
+  }
+  .bb-mkt-pillar-lg {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    padding: 3.5rem 3rem 3rem;
+    background: linear-gradient(160deg, #FFFFFF 0%, #F8F1E5 100%);
+    border-color: rgba(176, 108, 60, 0.22);
+    box-shadow: 0 24px 60px rgba(11, 8, 6, 0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .bb-mkt-pillar-lg::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-copper), rgba(176, 108, 60, 0));
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-icon {
+    width: 4.6rem;
+    height: 4.6rem;
+    border-radius: 22px;
+    margin-bottom: 1rem;
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-num {
+    font-size: 1rem;
+    letter-spacing: 0.28em;
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-title {
+    font-size: clamp(2.2rem, 2.6vw, 2.8rem);
+    margin-top: 0.35rem;
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-body {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    max-width: 28rem;
+  }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg) {
+    padding: 1.7rem 1.6rem;
+    background: #FFFFFF;
+  }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 1.6rem;
+    width: 2.2rem;
+    height: 3px;
+    background: var(--color-copper);
+    border-radius: 999px;
+  }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg) .bb-mkt-pillar-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+  }
+  .bb-mkt-pillars > .bb-mkt-pillar:not(.bb-mkt-pillar-lg) .bb-mkt-pillar-title {
+    font-size: 1.32rem;
+  }
+  .bb-mkt-pillars > .bb-mkt-pillar:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 28px 56px rgba(11, 8, 6, 0.1);
+  }
+
+  /* HOW IT WORKS — bigger numerals + tighter copy. */
+  .bb-mkt-step { padding: 2.4rem 2rem 2.2rem; }
+  .bb-mkt-step-num {
+    font-size: 3.2rem;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .bb-mkt-step-title { font-size: 1.5rem; }
+  .bb-mkt-step-body { font-size: 1.02rem; line-height: 1.55; }
+
+  /* PRICING — anchored card. Wrap the inner container so the price,
+     statement, list, and CTA read as one unit. Copper top stroke +
+     ink-gradient body + dropshadow. Pull off the raw "centered text"
+     look in favor of a real anchored object. */
+  .bb-mkt-pricing-wrap > .bb-mkt-container {
+    text-align: center;
+    max-width: 1080px;
+    background: linear-gradient(165deg, rgba(31, 36, 25, 0.55) 0%, rgba(11, 8, 6, 0.65) 100%);
+    border: 1px solid rgba(176, 108, 60, 0.26);
+    border-radius: 28px;
+    padding: 4.5rem 4rem 4rem;
+    position: relative;
+    box-shadow: 0 36px 80px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+  }
+  .bb-mkt-pricing-wrap > .bb-mkt-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(90deg, rgba(176, 108, 60, 0), var(--color-copper) 50%, rgba(176, 108, 60, 0));
+  }
+  .bb-mkt-pricing-headline-static {
+    font-size: clamp(2.6rem, 3.4vw, 3.4rem);
+    max-width: 36rem;
+    margin: 0 auto 2rem;
+  }
+  .bb-mkt-price-toggle-row { margin: 0 auto 2rem; }
+  .bb-mkt-price-amount-row {
+    justify-content: center;
+    gap: 0.6rem 1.4rem;
+    margin: 0;
+  }
+  .bb-mkt-price-amount-big {
+    font-size: clamp(7rem, 11vw, 11rem);
+    text-shadow: 0 12px 40px rgba(176, 108, 60, 0.22);
+  }
+  .bb-mkt-price-amount-period {
+    font-size: clamp(2.4rem, 3.6vw, 3.6rem);
+  }
+  .bb-mkt-price-equiv { text-align: center; margin: 0.5rem 0 1.25rem; }
+  .bb-mkt-pricing-statement { margin: 0.5rem auto 0; }
+  .bb-mkt-pricing-list {
+    margin: 2.5rem auto 0;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 3rem;
+    row-gap: 0.85rem;
+    max-width: 44rem;
+  }
+  .bb-mkt-pricing-list li { justify-self: start; }
+  .bb-mkt-pricing-cta-row {
+    margin-top: 2.25rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .bb-mkt-pricing-fineprint { text-align: center; margin: 0; }
+
+  /* FINAL CTA — center on desktop, bigger headline, more breathing
+     room. Copy was left-aligned on a wide canvas, so the right half
+     felt like dead space. */
+  .bb-mkt-final > .bb-mkt-container {
+    text-align: center;
+  }
+  .bb-mkt-final .bb-mkt-section-eyebrow,
+  .bb-mkt-final .bb-mkt-section-eyebrow-dark {
+    justify-content: center;
+  }
+  .bb-mkt-final-title {
+    font-size: clamp(4.5rem, 6.6vw, 7rem);
+    max-width: none;
+  }
+  .bb-mkt-final-sub {
+    margin: 0 auto 2.5rem;
+    font-size: 1.2rem;
+  }
+  .bb-mkt-final-fineprint { text-align: center; }
+
+  /* FOOTER — 4-col layout. Brand block keeps left column; 3 link cols
+     fan out across the rest of the row. */
+  .bb-mkt-footer-inner {
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 4rem;
+    align-items: start;
+  }
+  .bb-mkt-footer-cols {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2.5rem;
+    grid-column: span 3;
+  }
+}
+
+/* WIDE — 1280+ tier. Dial up the typography one more notch on huge
+   shells where 1024+ rules still leave headroom. */
+@media (min-width: 1280px) {
+  .bb-mkt-hero-title {
+    font-size: clamp(6.5rem, 9vw, 11rem);
+  }
+  .bb-mkt-hero-sub {
+    font-size: 1.28rem;
+    max-width: 38rem;
+  }
+  .bb-mkt-hero-stat-row strong { font-size: 2.55rem; }
+
+  .bb-mkt-section-title {
+    font-size: clamp(3.4rem, 5vw, 5.4rem);
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-title {
+    font-size: clamp(2.6rem, 2.8vw, 3.2rem);
+  }
+  .bb-mkt-pillar-lg .bb-mkt-pillar-body {
+    font-size: 1.18rem;
+  }
+
+  .bb-mkt-final-title {
+    font-size: clamp(5.5rem, 7.4vw, 8rem);
+  }
+
+  .bb-mkt-manifesto-text {
+    font-size: clamp(3.5rem, 6vw, 6rem);
+  }
+}
+
+/* ULTRA-WIDE — 1600+ tier. Constrain content lengths so lines stay
+   readable at 1920+ instead of stretching corner-to-corner. */
+@media (min-width: 1600px) {
+  .bb-mkt-container { max-width: 1320px; }
+  .bb-mkt-hero-stack { max-width: 1440px; padding: 10rem 4rem 7rem; }
+}
 `
