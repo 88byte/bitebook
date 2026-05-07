@@ -170,6 +170,18 @@ export function detectPairedBases(fieldNames: string[]): Set<string> {
 // from the field's PARSED slot (the regex-detected sequence number),
 // NOT the AI-/heuristic-rewritten hunter_slot. This keeps the species
 // split stable regardless of any later mirror passes.
+//
+// v27.9.7.8 — bare-anchor guard. Forms like CDFW 992b name Hunter 1
+// fields without a slot suffix ("SPECIES TAKEN") and only suffix
+// Hunter 2..N as "_2".."_10". For those bare fields parseFieldName
+// returns parsedSlot = 0, and the previous formula `((0-1)%2)+1`
+// hit JS negative modulo: -1%2 = -1 in JS, so the result was 0,
+// and `0 === 1 ? 1 : 2` then misrouted bare fields to species 2.
+// Net effect: the slot-1 anchor map for paired bases never had a
+// "|1" entry (bare went to "|2", colliding with _2), and the save
+// mirror loop wrote species[2] across every odd-sequence sibling.
+// Treat parsedSlot ≤ 1 as "first entry in the paired group" → 1.
 export function pairedSpeciesIndex(parsedSlot: number): 1 | 2 {
+  if (parsedSlot <= 1) return 1
   return ((parsedSlot - 1) % 2) + 1 === 1 ? 1 : 2
 }

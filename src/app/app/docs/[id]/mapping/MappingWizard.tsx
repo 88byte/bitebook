@@ -67,6 +67,7 @@ export default function MappingWizard({
   existingAiSuggestedPathByField,
   existingAiSuggestedSlotByField,
   currentStatus,
+  viewerOwnsDoc = true,
 }: {
   docId: string
   docKind: 'log' | 'waiver'
@@ -78,6 +79,11 @@ export default function MappingWizard({
   existingAiSuggestedPathByField: Record<string, string>
   existingAiSuggestedSlotByField: Record<string, number>
   currentStatus: string
+  // v27.9.7.8 — when false, render read-only mode. Bite Book templates
+  // are visible to any guide via fetchGuideDoc, but server-side write
+  // actions filter by guide_id; without this gate the wizard rendered
+  // edit dropdowns and a Save CTA whose post would silently no-op.
+  viewerOwnsDoc?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -728,7 +734,8 @@ export default function MappingWizard({
     if (effSlot >= 2 && !isOverride) {
       let mirrored: string | undefined
       if (slot1Anchors.pairedBases.has(parsed.base)) {
-        const speciesIdx = ((parsed.slot - 1) % 2) + 1
+        // v27.9.7.8 — bare-anchor guard, see pairedSpeciesIndex.
+        const speciesIdx = parsed.slot <= 1 ? 1 : (((parsed.slot - 1) % 2) + 1 === 1 ? 1 : 2)
         mirrored = slot1Anchors.byBaseSpecies.get(`${parsed.base}|${speciesIdx}`)
       } else {
         mirrored = slot1Anchors.byBase.get(parsed.base)
@@ -834,7 +841,8 @@ export default function MappingWizard({
     let mirrorFallbackPath: string | null = null
     if (effSlot >= 2) {
       if (slot1Anchors.pairedBases.has(parsed.base)) {
-        const speciesIdx = ((parsed.slot - 1) % 2) + 1
+        // v27.9.7.8 — bare-anchor guard, see pairedSpeciesIndex.
+        const speciesIdx = parsed.slot <= 1 ? 1 : (((parsed.slot - 1) % 2) + 1 === 1 ? 1 : 2)
         const key = `${parsed.base}|${speciesIdx}`
         mirrorPath = slot1Anchors.byBaseSpecies.get(key) ?? null
         mirrorFallbackPath = slot1Anchors.byBaseSpeciesFallback.get(key) ?? null
@@ -882,6 +890,23 @@ export default function MappingWizard({
 
   return (
     <section className="mt-4 flex flex-col gap-3">
+      {/* v27.9.7.8 — read-only banner + suppress write CTAs when the
+          viewer doesn't own the doc (Bite Book template viewing). */}
+      {!viewerOwnsDoc && (
+        <div
+          className="bb-tile"
+          style={{
+            borderColor: 'var(--color-copper)',
+            background: 'rgba(176,108,60,0.08)',
+            padding: '0.85rem 1rem',
+          }}
+          role="status"
+        >
+          <strong>Viewing template &mdash; read only.</strong>{' '}
+          This is a Bite Book template. To customize the mapping, save
+          your own copy.
+        </div>
+      )}
       {/* v27.1.1.0.3d.2.4: explicit step-by-step CTA flow. Each phase
           gets its own card with a single primary copper CTA so the
           guide always knows the next action. Stages: 'start' (welcome
@@ -891,8 +916,11 @@ export default function MappingWizard({
           v27.3.10.8 item 1: Steps 1, 2, 3 + Re-run AI surfaces are
           gated to log kinds. Waivers go straight to manual mapping —
           no AI flow at all. The signature-placement wizard is the
-          waiver-side automation, separate from this flow. */}
-      {docKind === 'log' && stage === 'start' && (
+          waiver-side automation, separate from this flow.
+          v27.9.7.8: every write-CTA branch below is gated by
+          viewerOwnsDoc so non-owner viewers see the field list as
+          read-only summary rows only. */}
+      {viewerOwnsDoc && docKind === 'log' && stage === 'start' && (
         <StepCard
           stepNumber={1}
           title="Start by letting AI map your form"
@@ -928,7 +956,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {docKind === 'log' && stage === 'working' && (
+      {viewerOwnsDoc && docKind === 'log' && stage === 'working' && (
         <StepCard
           stepNumber={2}
           title={aiSuggesting ? 'AI is reading your form…' : 'AI is reading your PDF…'}
@@ -962,7 +990,7 @@ export default function MappingWizard({
         </StepCard>
       )}
 
-      {docKind === 'log' && stage === 'success' && (
+      {viewerOwnsDoc && docKind === 'log' && stage === 'success' && (
         <div
           className="bb-tile"
           style={{
@@ -1008,7 +1036,7 @@ export default function MappingWizard({
           implicit save.
           v27.3.10.6 item 2: CTA copy "Mark mapping complete" →
           "Mapping Complete" (one word shorter, simpler). */}
-      {stage !== 'working' && (() => {
+      {viewerOwnsDoc && stage !== 'working' && (() => {
         const mappingPreviouslyCompleted = currentStatus === 'complete'
 
         if (mappingPreviouslyCompleted) {
@@ -1199,8 +1227,10 @@ export default function MappingWizard({
       {/* v27.1.5.4: "Show advanced" toggle. Hides slot picker pill,
           override checkbox, AI restore link, and +Add fallback link by
           default so the wizard reads as a clean source-pick-per-field
-          flow. Default OFF; persists per browser via localStorage. */}
-      {fields.length > 0 && (
+          flow. Default OFF; persists per browser via localStorage.
+          v27.9.7.8: hidden in read-only template view (no edit surfaces
+          to gate). */}
+      {viewerOwnsDoc && fields.length > 0 && (
         <div
           style={{
             display: 'flex',
@@ -1259,7 +1289,7 @@ export default function MappingWizard({
         filterCounts={filterCounts}
         onRerunAi={handleSuggestMappings}
         rerunDisabled={pending || aiSuggesting}
-        showRerunAi={docKind === 'log'}
+        showRerunAi={viewerOwnsDoc && docKind === 'log'}
       />
 
       {sections.map(({ slot, members }) => {
@@ -1312,6 +1342,30 @@ export default function MappingWizard({
             {!isCollapsed && (
               <div id={`section-${slot}-body`}>
                 {visible.map((f) => {
+                  // v27.9.7.8 — read-only mode renders a non-interactive
+                  // summary row (no expand/collapse, no editor). The
+                  // status pill + field name + chosen source label are
+                  // enough for guides to inspect a Bite Book template
+                  // without exposing write surfaces.
+                  if (!viewerOwnsDoc) {
+                    return (
+                      <div
+                        key={f.name}
+                        className="bb-mapping-row-compact"
+                        style={{ cursor: 'default' }}
+                        aria-readonly={true}
+                      >
+                        <StatusPill status={statusForField(f.name)} />
+                        <div className="bb-mapping-row-compact-name">
+                          <span className="bb-mapping-row-compact-label">{f.name}</span>
+                          <span className="bb-mapping-row-compact-source">
+                            <span className="bb-mapping-row-compact-source-arrow">&rarr;</span>
+                            {shortSourceLabel(f.name)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  }
                   // v27.3.10.5 item 3: default compact; expandedFields
                   // tracks rows the guide has explicitly tapped to open.
                   const isExpanded = expandedFields.has(f.name)
@@ -1695,7 +1749,11 @@ function computeSlot1ByBase(
     if (effSlot !== 1) continue
     const fb = fallbacks[f.name] ?? ''
     if (pairedBases.has(parsed.base)) {
-      const speciesIdx = ((parsed.slot - 1) % 2) + 1
+      // v27.9.7.8 — same bare-anchor guard as pairedSpeciesIndex
+      // in harvest-log-fill-types.ts. Bare fields with parsedSlot=0
+      // are species 1; without this short-circuit JS negative
+      // modulo routed them to species 2.
+      const speciesIdx = parsed.slot <= 1 ? 1 : (((parsed.slot - 1) % 2) + 1 === 1 ? 1 : 2)
       const key = `${parsed.base}|${speciesIdx}`
       byBaseSpecies.set(key, sel)
       if (fb) byBaseSpeciesFallback.set(key, fb)

@@ -25,6 +25,13 @@ export default async function DocMappingPage({ params }: { params: Params }) {
     notFound()
   }
 
+  // v27.9.7.8 — gate the wizard's write CTAs by ownership. fetchGuideDoc
+  // returns Bite Book templates to any guide (so they can VIEW the
+  // mapping), but server actions filter by guide_id so non-owners' Save
+  // attempts silently no-op. Pass through ownership so the wizard can
+  // render read-only when a non-owner is viewing.
+  const viewerOwnsDoc = doc.guide_id === profile.id
+
   // Pre-fetch any existing mappings so the wizard can hydrate the
   // dropdowns. Field discovery happens client-side via the server action
   // because it requires reading the PDF binary on every visit (cheap, a
@@ -83,9 +90,11 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         </p>
         <h1 className="bb-page-title">{doc.label}</h1>
         <p className="bb-page-sub">
-          {doc.kind === 'log'
-            ? 'Match each PDF field to a Bite Book data source. Tap Auto-suggest mappings to let AI pre-fill suggestions you can review.'
-            : 'Field mapping is set up here. The signature-placement step ships in v27.1.2.'}
+          {viewerOwnsDoc
+            ? doc.kind === 'log'
+              ? 'Match each PDF field to a Bite Book data source. Tap Auto-suggest mappings to let AI pre-fill suggestions you can review.'
+              : 'Field mapping is set up here. The signature-placement step ships in v27.1.2.'
+            : 'These are the field mappings for this Bite Book template.'}
         </p>
       </header>
 
@@ -100,6 +109,7 @@ export default async function DocMappingPage({ params }: { params: Params }) {
         existingAiSuggestedPathByField={existingAiSuggestedPathByField}
         existingAiSuggestedSlotByField={existingAiSuggestedSlotByField}
         currentStatus={doc.mapping_status}
+        viewerOwnsDoc={viewerOwnsDoc}
       />
     </main>
   )
