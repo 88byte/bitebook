@@ -1420,16 +1420,21 @@ export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
   // canceled trips from the "Trips you've been on" + "Guides" counts.
   // PostgREST nested filtering is unreliable, so we filter in JS after
   // the fetch — same belt-and-suspenders rule as fetchHunterUpcomingTrips.
-  // v27.1.1.0.3a: harvests dropped, real implementation in harvest-log-queries.ts (pending)
+  // v27.9.9.1: harvests is the SUM of harvest_log_entry_species.qty_harvested
+  // for this hunter's own entries on COMPLETED trips. Mirrors the v27.9.9
+  // guide-side fix in fetchDashboardStats — entries are not animals and
+  // active/planned/canceled trips shouldn't contribute to the displayed
+  // "Harvests" count. Hunter only sees their OWN entries (filter on
+  // harvest_log_entries.hunter_id), not trip-mates' harvests.
   const [participantsRes, harvestsRes] = await Promise.all([
     supabase
       .from('trip_participants')
       .select('trip_id, trips!inner(guide_id, status)')
       .eq('hunter_id', hunterId),
     supabase
-      .from('harvest_log_entries')
-      .select('id', { count: 'exact', head: true })
-      .eq('hunter_id', hunterId),
+      .from('harvest_log_entry_species')
+      .select('qty_harvested, harvest_log_entries!inner(hunter_id, harvest_logs!inner(trips!inner(status)))')
+      .eq('harvest_log_entries.hunter_id', hunterId),
   ])
 
   const tripsSet = new Set<string>()
@@ -1457,9 +1462,31 @@ export async function fetchHunterStats(hunterId: string): Promise<HunterStats> {
     }
   })
 
+  // JS-side filter + sum: keep only species rows whose entry belongs
+  // to this hunter AND whose owning trip status is 'completed'.
+  // .eq() on the embed already filters hunter_id at the DB but we
+  // double-check defensively (PostgREST nested filters can be flaky
+  // on multi-level embeds — same v22+ pattern). qty_harvested is
+  // NOT NULL integer per schema.
+  type SpeciesRow = {
+    qty_harvested: number
+    harvest_log_entries?: {
+      hunter_id?: string
+      harvest_logs?: { trips?: { status?: string } }
+    }
+  }
+  const harvests = (harvestsRes.data ?? []).reduce<number>((sum, raw) => {
+    const row = raw as SpeciesRow
+    const entry = row.harvest_log_entries
+    if (!entry || entry.hunter_id !== hunterId) return sum
+    const trip = entry.harvest_logs?.trips
+    if (!trip || trip.status !== 'completed') return sum
+    return sum + (Number(row.qty_harvested) || 0)
+  }, 0)
+
   return {
     trips: tripsSet.size,
-    harvests: harvestsRes.count ?? 0,
+    harvests,
     guides: guidesSet.size,
   }
 }
