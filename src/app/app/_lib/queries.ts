@@ -499,15 +499,14 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
   const supabase = await createClient()
   const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
 
-  // v27.8.1 — harvests count restored. Sums BOTH the guide's own
-  // harvests (entries where hunter_id = guide_id, e.g. self-guided
-  // outings) AND every client's harvests on guide-owned trips. Pulled
-  // via harvest_log_entries → harvest_logs → trips embed; PostgREST
-  // nested filter is unreliable so we project trips.guide_id and
-  // filter in JS, mirroring the pattern in fetchHunterStats and other
-  // v22+ RLS-recursion-aware reads. species rows aren't counted here
-  // because each entry can have multiple species — entries are the
-  // canonical "harvest event" unit.
+  // v27.9.9 — harvests is now the SUM of harvest_log_entry_species.qty_harvested
+  // across hunters on the guide's COMPLETED trips. Prior versions counted
+  // entry rows scoped to the calendar year regardless of trip status, which
+  // double-counted in-progress trips and didn't reflect "animals taken" — a
+  // single entry can carry multiple species rows each with its own qty.
+  // Scope is all-time completed trips, matching the dashboard's
+  // unqualified "Harvests" label (Trips card already carries the year
+  // qualifier so we don't repeat it here).
   const [{ count: tripsThisYear }, hunterRows, harvestRows] = await Promise.all([
     supabase
       .from('trips')
@@ -520,24 +519,33 @@ export async function fetchDashboardStats(guideId: string): Promise<DashboardSta
       .eq('trips.guide_id', guideId)
       .gte('trips.starts_at', yearStart),
     supabase
-      .from('harvest_log_entries')
-      .select('id, harvest_logs!inner(trips!inner(guide_id, starts_at))'),
+      .from('harvest_log_entry_species')
+      .select('qty_harvested, harvest_log_entries!inner(harvest_logs!inner(trips!inner(guide_id, status)))'),
   ])
 
   const huntersServed = new Set(
     (hunterRows.data ?? []).map((r) => r.hunter_id ?? `guest:${r.guest_name ?? ''}`)
   ).size
 
-  // JS-side filter: keep only entries whose harvest_logs.trips.guide_id
-  // matches and whose trip starts this calendar year. Counts every
-  // entry once — covers the guide's own + every client's harvests
-  // because `trips.guide_id = guideId` includes both kinds.
-  const harvests = (harvestRows.data ?? []).filter((row) => {
-    const log = (row as { harvest_logs?: { trips?: { guide_id?: string; starts_at?: string } } }).harvest_logs
-    const trip = log?.trips
-    if (!trip || trip.guide_id !== guideId) return false
-    return typeof trip.starts_at === 'string' && trip.starts_at >= yearStart
-  }).length
+  // JS-side filter + sum: keep only species rows whose owning trip is
+  // owned by this guide AND status='completed'. PostgREST nested
+  // filters are unreliable per the v22+ RLS-recursion pattern, so we
+  // project the trip fields and reconcile here. qty_harvested is
+  // NOT NULL integer per schema, so no fallback is needed.
+  type SpeciesRow = {
+    qty_harvested: number
+    harvest_log_entries?: {
+      harvest_logs?: {
+        trips?: { guide_id?: string; status?: string }
+      }
+    }
+  }
+  const harvests = (harvestRows.data ?? []).reduce<number>((sum, raw) => {
+    const row = raw as SpeciesRow
+    const trip = row.harvest_log_entries?.harvest_logs?.trips
+    if (!trip || trip.guide_id !== guideId || trip.status !== 'completed') return sum
+    return sum + (Number(row.qty_harvested) || 0)
+  }, 0)
 
   return { tripsThisYear: tripsThisYear ?? 0, huntersServed, harvests }
 }
