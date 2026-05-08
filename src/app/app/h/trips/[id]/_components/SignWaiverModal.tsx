@@ -3,16 +3,26 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { X, RotateCcw, PenLine } from 'lucide-react'
+import { X, RotateCcw, PenLine, Check } from 'lucide-react'
 import SignaturePad, {
   type SignaturePadHandle,
 } from '../../../../trips/[id]/log/SignaturePad'
-import { signWaiverAction } from '../../../../_lib/waiver-sign'
+import {
+  signWaiverAction,
+  fetchWaiverCheckboxMappingsAction,
+  type WaiverCheckboxMapping,
+} from '../../../../_lib/waiver-sign'
 
 // v27.2.0.2 — hunter-side sign modal for waiver-style trip docs.
 // Re-uses the SignaturePad canvas component from v27.2.0.1 and posts
 // to signWaiverAction. Mirrors the SignModal pattern from the harvest
 // log path; only the action target differs.
+//
+// v27.9.8c — render mandatory hunter_input.waiver_checkbox confirmations
+// above the signature pad. Pad + Save gate on every checkbox being
+// ticked; mappings are fetched on open via
+// fetchWaiverCheckboxMappingsAction. Backward-compat: zero mappings →
+// section doesn't render and the pad enables immediately as before.
 
 export default function SignWaiverModal({
   open,
@@ -32,6 +42,10 @@ export default function SignWaiverModal({
   const [error, setError] = useState<string | null>(null)
   const [isEmpty, setIsEmpty] = useState(true)
   const padContainerRef = useRef<HTMLDivElement>(null)
+  // v27.9.8c — checkbox confirmations.
+  const [checkboxes, setCheckboxes] = useState<WaiverCheckboxMapping[]>([])
+  const [confirmedCheckboxes, setConfirmedCheckboxes] = useState<Record<string, boolean>>({})
+  const [loadingCheckboxes, setLoadingCheckboxes] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -46,8 +60,26 @@ export default function SignWaiverModal({
     if (open) {
       setError(null)
       setIsEmpty(true)
+      setConfirmedCheckboxes({})
+      setLoadingCheckboxes(true)
+      let cancelled = false
+      fetchWaiverCheckboxMappingsAction(actionId).then((res) => {
+        if (cancelled) return
+        if ('error' in res) {
+          // Soft-fail: surface no checkboxes rather than blocking sign.
+          // Server-side validation will still gate if mappings actually exist.
+          console.warn('[SignWaiverModal:fetch-checkboxes]', res.error)
+          setCheckboxes([])
+        } else {
+          setCheckboxes(res.checkboxes)
+        }
+        setLoadingCheckboxes(false)
+      })
+      return () => {
+        cancelled = true
+      }
     }
-  }, [open])
+  }, [open, actionId])
 
   function findPadHandle(): SignaturePadHandle | null {
     const root = padContainerRef.current
@@ -62,8 +94,25 @@ export default function SignWaiverModal({
     findPadHandle()?.clear()
   }
 
+  // v27.9.8c — pad + Save gate on every checkbox being ticked.
+  const allConfirmed =
+    checkboxes.length === 0 ||
+    checkboxes.every((c) => confirmedCheckboxes[c.field_name] === true)
+  const padDisabled = !allConfirmed
+
+  function toggleCheckbox(fieldName: string) {
+    setConfirmedCheckboxes((prev) => ({
+      ...prev,
+      [fieldName]: !prev[fieldName],
+    }))
+  }
+
   function save() {
     setError(null)
+    if (!allConfirmed) {
+      setError('Confirm all required statements above.')
+      return
+    }
     const handle = findPadHandle()
     if (!handle) {
       setError('Signature pad isn’t ready yet — try once more.')
@@ -78,8 +127,11 @@ export default function SignWaiverModal({
       setError('Couldn’t serialize the signature.')
       return
     }
+    const confirmedFieldNames = checkboxes
+      .filter((c) => confirmedCheckboxes[c.field_name])
+      .map((c) => c.field_name)
     startTransition(async () => {
-      const res = await signWaiverAction(actionId, dataUrl)
+      const res = await signWaiverAction(actionId, dataUrl, confirmedFieldNames)
       if ('error' in res) {
         setError(res.error)
         return
@@ -181,7 +233,142 @@ export default function SignWaiverModal({
           </a>
         )}
 
-        <div ref={padContainerRef}>
+        {/* v27.9.8c — mandatory checkbox confirmations. Renders only when
+            the doc has hunter_input.waiver_checkbox mappings with a
+            non-empty user_label. Sig pad + Save are disabled until every
+            checkbox is ticked. */}
+        {checkboxes.length > 0 && (
+          <div
+            className="bb-tile"
+            style={{
+              padding: '0.75rem 0.85rem',
+              borderTop: '2px solid var(--color-copper)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <h3
+                className="bb-form-section-head"
+                style={{ margin: 0, fontSize: '0.95rem' }}
+              >
+                Before signing, confirm:
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: 999,
+                  background: 'rgba(176, 108, 60, 0.12)',
+                  color: 'var(--color-copper)',
+                  whiteSpace: 'nowrap',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Required
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {checkboxes.map((c) => {
+                const checked = confirmedCheckboxes[c.field_name] === true
+                return (
+                  <label
+                    key={c.field_name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.6rem',
+                      minHeight: 44,
+                      padding: '0.35rem 0',
+                      cursor: pending ? 'default' : 'pointer',
+                      color: 'var(--color-ink)',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        flexShrink: 0,
+                        width: 22,
+                        height: 22,
+                        marginTop: 2,
+                        borderRadius: 4,
+                        border: checked
+                          ? '2px solid var(--color-copper)'
+                          : '2px solid var(--color-ink-soft)',
+                        background: checked ? 'rgba(176, 108, 60, 0.12)' : 'transparent',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'border-color 120ms, background 120ms',
+                      }}
+                    >
+                      {checked && (
+                        <Check
+                          size={14}
+                          strokeWidth={3}
+                          style={{ color: 'var(--color-copper)' }}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={pending}
+                      onChange={() => toggleCheckbox(c.field_name)}
+                      style={{
+                        position: 'absolute',
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        width: 0,
+                        height: 0,
+                      }}
+                    />
+                    <span style={{ flex: '1 1 0', lineHeight: 1.4 }}>
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          color: 'var(--color-copper)',
+                          marginRight: '0.4ch',
+                          fontWeight: 700,
+                        }}
+                      >
+                        *
+                      </span>
+                      {c.user_label}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {loadingCheckboxes && (
+          <p className="bb-form-help" style={{ margin: 0, fontStyle: 'normal' }}>
+            Loading confirmations…
+          </p>
+        )}
+
+        <div
+          ref={padContainerRef}
+          style={{
+            opacity: padDisabled ? 0.5 : 1,
+            pointerEvents: padDisabled ? 'none' : 'auto',
+            transition: 'opacity 150ms',
+          }}
+          aria-disabled={padDisabled}
+        >
           <SignaturePad onChange={(empty) => setIsEmpty(empty)} cssHeight={200} />
         </div>
 
@@ -189,7 +376,7 @@ export default function SignWaiverModal({
           <button
             type="button"
             onClick={clearPad}
-            disabled={pending}
+            disabled={pending || padDisabled}
             className="bb-text-action bb-text-action-copper"
             style={{
               display: 'inline-flex',
@@ -199,7 +386,8 @@ export default function SignWaiverModal({
               background: 'transparent',
               border: 'none',
               padding: 0,
-              cursor: 'pointer',
+              cursor: pending || padDisabled ? 'default' : 'pointer',
+              opacity: padDisabled ? 0.5 : 1,
             }}
           >
             <RotateCcw size={14} aria-hidden="true" />
@@ -217,7 +405,7 @@ export default function SignWaiverModal({
           <button
             type="button"
             onClick={save}
-            disabled={pending || isEmpty}
+            disabled={pending || isEmpty || padDisabled}
             className="bb-cta-sm"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
           >
@@ -225,6 +413,12 @@ export default function SignWaiverModal({
             {pending ? 'Signing…' : 'Save signature'}
           </button>
         </div>
+
+        {padDisabled && !error && (
+          <p className="bb-form-help" role="status" style={{ margin: 0 }}>
+            Confirm all required statements above.
+          </p>
+        )}
 
         {error && (
           <p

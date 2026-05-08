@@ -221,6 +221,7 @@ export type Database = {
           ip_address: string | null
           user_agent: string | null
           action: string
+          checkbox_states: Json | null
         }
         Insert: {
           id?: string
@@ -234,6 +235,7 @@ export type Database = {
           ip_address?: string | null
           user_agent?: string | null
           action?: string
+          checkbox_states?: Json | null
         }
         Update: {
           id?: string
@@ -247,6 +249,7 @@ export type Database = {
           ip_address?: string | null
           user_agent?: string | null
           action?: string
+          checkbox_states?: Json | null
         }
         Relationships: []
       }

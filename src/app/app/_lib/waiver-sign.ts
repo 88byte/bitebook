@@ -144,7 +144,8 @@ function resolveHunterSourcePath(path: string, ctx: HunterCtx): string | null {
 
 export async function signWaiverAction(
   tripDocActionId: string,
-  signatureDataUrl: string
+  signatureDataUrl: string,
+  confirmedCheckboxFieldNames?: string[]
 ): Promise<SignWaiverResult> {
   const { user, profile } = await requireUser()
   const gate = await assertWriteAllowed(profile.id, profile.role)
@@ -216,14 +217,41 @@ export async function signWaiverAction(
   // text fields are filled inline.
   const { data: maps } = await sb
     .from('doc_field_mappings')
-    .select('field_name, data_source_path, mapping_kind, signature_role, placement_coords')
+    .select('field_name, data_source_path, mapping_kind, signature_role, placement_coords, user_label')
     .eq('doc_id', doc.id)
 
-  const allMappings = (maps ?? []) as MappingRow[]
+  const allMappings = (maps ?? []) as (MappingRow & { user_label?: string | null })[]
   const dateFieldNames: string[] = []
   for (const m of allMappings) {
     if ((m.mapping_kind ?? 'field') === 'field' && m.data_source_path === 'signature_date.now') {
       dateFieldNames.push(m.field_name)
+    }
+  }
+
+  // v27.9.8c — collect required hunter_input.waiver_checkbox mappings
+  // (must have a non-empty user_label to count). Server-side validation
+  // gates Save when any required confirmation isn't ticked. Defense in
+  // depth: the modal already blocks Save until everything is confirmed.
+  const requiredCheckboxes: string[] = []
+  for (const m of allMappings) {
+    if (
+      (m.mapping_kind ?? 'field') === 'field' &&
+      m.data_source_path === 'hunter_input.waiver_checkbox' &&
+      typeof m.user_label === 'string' &&
+      m.user_label.trim().length > 0
+    ) {
+      requiredCheckboxes.push(m.field_name)
+    }
+  }
+  if (requiredCheckboxes.length > 0) {
+    if (!Array.isArray(confirmedCheckboxFieldNames)) {
+      return { error: 'Confirmation checkboxes are required.' }
+    }
+    const confirmedSet = new Set(confirmedCheckboxFieldNames)
+    for (const name of requiredCheckboxes) {
+      if (!confirmedSet.has(name)) {
+        return { error: 'Please confirm all required statements before signing.' }
+      }
     }
   }
 
@@ -309,12 +337,26 @@ export async function signWaiverAction(
   // fields. Per-field try/catch matches the existing date-field pattern.
   // Skip when the resolver returns null (path isn't a hunter path) or
   // empty string (leave the field unset).
+  // v27.9.8c — also stamp hunter_input.waiver_checkbox mappings by
+  // calling getCheckBox().check() on each matched AcroForm widget.
+  // Validation above already guarantees every required checkbox is
+  // confirmed; this loop just paints the boxes ticked on the PDF so
+  // the durable signed copy reflects the confirmations.
   try {
     const form = pdf.getForm()
     for (const m of allMappings) {
       if ((m.mapping_kind ?? 'field') !== 'field') continue
       const path = m.data_source_path
       if (!path) continue
+      if (path === 'hunter_input.waiver_checkbox') {
+        try {
+          const cb = form.getCheckBox(m.field_name)
+          cb.check()
+        } catch (e) {
+          console.warn('[waiver-sign:checkbox]', { field: m.field_name, msg: String(e) })
+        }
+        continue
+      }
       if (
         !path.startsWith('hunter.') &&
         !path.startsWith('hunter_license.') &&
@@ -385,6 +427,15 @@ export async function signWaiverAction(
     userAgent = h.get('user-agent') || null
   } catch { /* ignore */ }
   const signatureHash = createHash('sha256').update(signatureDataUrl).digest('hex')
+  // v27.9.8c — record the confirmed checkbox state into doc_signatures.
+  // Every required checkbox is true at sign time because validation
+  // already enforced it. Null when this waiver had zero checkbox
+  // mappings, so pre-v27.9.8c rows and waivers without confirmations
+  // stay distinguishable from confirmed rows.
+  const checkboxStates: Record<string, boolean> | null =
+    requiredCheckboxes.length > 0
+      ? Object.fromEntries(requiredCheckboxes.map((name) => [name, true]))
+      : null
   const { error: sigErr } = await sb.from('doc_signatures').insert({
     trip_doc_hunter_action_id: action.id,
     signer_id: profile.id,
@@ -392,6 +443,7 @@ export async function signWaiverAction(
     signed_at: signedAt,
     ip_address: ipAddress,
     user_agent: userAgent,
+    checkbox_states: checkboxStates,
   })
   if (sigErr) {
     console.warn('[sign-waiver:audit-insert]', { code: sigErr.code, message: sigErr.message })
@@ -837,3 +889,71 @@ export async function resendWaiverAction(
   return { ok: true, sent_at: sentAt }
 }
 
+// v27.9.8c — fetch the mandatory waiver-checkbox mappings for an
+// action so the SignWaiverModal can render them above the signature
+// pad. Anchors on trip_doc_hunter_action_id (not doc_id) so the RLS
+// policy gating the action covers the read; the mapping itself comes
+// from doc_field_mappings via the action's parent doc.
+export type WaiverCheckboxMapping = {
+  field_name: string
+  user_label: string
+}
+
+export type WaiverCheckboxesResult =
+  | { ok: true; checkboxes: WaiverCheckboxMapping[] }
+  | { error: string }
+
+export async function fetchWaiverCheckboxMappingsAction(
+  actionId: string
+): Promise<WaiverCheckboxesResult> {
+  const { user } = await requireUser()
+  if (!actionId) return { error: 'Missing action id.' }
+
+  const sb = await createClient()
+
+  // Resolve the doc_id via the action's trip_docs join. RLS on
+  // trip_doc_hunter_actions gates the read to the assigned hunter
+  // (or trip-owning guide); we re-check hunter_id below as defense
+  // in depth.
+  type ActionRow = {
+    id: string
+    hunter_id: string
+    trip_docs: { id: string; doc_id: string } | null
+  }
+  const { data, error } = await sb
+    .from('trip_doc_hunter_actions')
+    .select('id, hunter_id, trip_docs!inner(id, doc_id)')
+    .eq('id', actionId)
+    .maybeSingle()
+  const action = data as unknown as ActionRow | null
+  if (error || !action) return { error: error?.message || 'Action not found.' }
+  if (action.hunter_id !== user.id) return { error: 'Not your action.' }
+  const docId = action.trip_docs?.doc_id
+  if (!docId) return { error: 'Doc not found for this action.' }
+
+  const { data: maps, error: mapErr } = await sb
+    .from('doc_field_mappings')
+    .select('field_name, data_source_path, mapping_kind, user_label')
+    .eq('doc_id', docId)
+    .eq('data_source_path', 'hunter_input.waiver_checkbox')
+  if (mapErr) {
+    console.warn('[waiver-checkboxes:fetch]', { code: mapErr.code, message: mapErr.message })
+    return { error: 'Could not load confirmations.' }
+  }
+
+  type MapRow = {
+    field_name: string
+    data_source_path: string | null
+    mapping_kind: string | null
+    user_label: string | null
+  }
+  const rows = (maps ?? []) as MapRow[]
+  const out: WaiverCheckboxMapping[] = []
+  for (const m of rows) {
+    if ((m.mapping_kind ?? 'field') !== 'field') continue
+    const label = (m.user_label ?? '').trim()
+    if (!label) continue
+    out.push({ field_name: m.field_name, user_label: label })
+  }
+  return { ok: true, checkboxes: out }
+}
