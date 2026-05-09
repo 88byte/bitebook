@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import DashboardHero from '../DashboardHero'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   FileText,
@@ -17,6 +17,11 @@ import {
   CalendarCheck,
   ChevronDown,
   ChevronUp,
+  CheckSquare,
+  Square,
+  Trash2,
+  Archive,
+  X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -26,6 +31,11 @@ import {
   type WalletItemType,
   type WalletItemWithStatus,
 } from '../../_lib/wallet-utils'
+import {
+  bulkArchiveWalletItemsAction,
+  bulkDeleteWalletItemsAction,
+} from '../../_lib/wallet-actions'
+import ConfirmModal from '@/app/_components/ConfirmModal'
 import WalletHeroCard from './WalletHeroCard'
 import WalletDeck from './WalletDeck'
 
@@ -125,6 +135,66 @@ export default function WalletPage({
   const buckets = bucketByStatus(items)
   const Icon = TAB_ICONS[activeTab]
 
+  // v27.9.10 item 1 — bulk select. Mirrors the v27.9.4 trip
+  // bulk-delete pattern. Selection is ACTIVE-TAB scoped (you can
+  // only have selections from the tab you're viewing) — switching
+  // tabs clears the set so cross-tab selection doesn't leak.
+  // showGrid forces in WalletStatusSection when selectionMode is
+  // on so the deck doesn't hide cards behind peeks.
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmMode, setConfirmMode] = useState<null | 'archive' | 'delete'>(null)
+  const [bulkPending, startBulkTransition] = useTransition()
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  const [bulkFlash, setBulkFlash] = useState<string | null>(null)
+  useEffect(() => {
+    // Switching tabs while in selection mode would leave dangling
+    // selections from a tab that's no longer rendered. Clear on
+    // switch and exit selection mode together.
+    setSelected(new Set())
+    setSelectionMode(false)
+    setBulkError(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function exitSelection() {
+    setSelectionMode(false)
+    setSelected(new Set())
+    setBulkError(null)
+  }
+  function runBulk(mode: 'archive' | 'delete') {
+    setBulkError(null)
+    const ids = Array.from(selected)
+    startBulkTransition(async () => {
+      const action = mode === 'archive' ? bulkArchiveWalletItemsAction : bulkDeleteWalletItemsAction
+      const r = await action(ids)
+      if ('error' in r) {
+        setBulkError(r.error)
+        return
+      }
+      const ok = r.processed
+      const failed = r.failedIds.length
+      const verb = mode === 'archive' ? 'Archived' : 'Deleted'
+      setConfirmMode(null)
+      exitSelection()
+      setBulkFlash(
+        failed === 0
+          ? `${verb} ${ok} ${ok === 1 ? 'item' : 'items'}.`
+          : `${verb} ${ok} of ${ids.length}. ${failed} failed.`,
+      )
+      setTimeout(() => setBulkFlash(null), 3500)
+      router.refresh()
+    })
+  }
+  const selectionActive = selectionMode
+
   // Counts shown on stats grid + pill chips. v27.0b.6: only active items
   // count toward the top-of-page counters. Tagged-out / expired / archived
   // items still appear in their respective sections below but no longer
@@ -215,6 +285,145 @@ export default function WalletPage({
         </div>
       )}
 
+      {/* v27.9.10 item 1 — bulk select toolbar. Above the status
+          sections so the affordance lives in a predictable place
+          mirroring /app/trips. Flash success copy lives here too;
+          the sticky bulk-action bar replaces it once one or more
+          cards are selected. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.5rem',
+          marginTop: '0.85rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        {bulkFlash && (
+          <span
+            role="status"
+            className="bb-form-help"
+            style={{
+              margin: 0,
+              padding: '0.3rem 0.6rem',
+              borderRadius: 6,
+              background: 'rgba(176, 108, 60, 0.12)',
+              color: 'var(--color-copper)',
+              fontWeight: 600,
+            }}
+          >
+            {bulkFlash}
+          </span>
+        )}
+        {!selectionActive ? (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => setSelectionMode(true)}
+            disabled={items.length === 0}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <CheckSquare size={14} aria-hidden="true" />
+            Select
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={exitSelection}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <X size={14} aria-hidden="true" />
+            Done
+          </button>
+        )}
+      </div>
+
+      {/* Sticky bulk action bar — visible only when at least one
+          card is checked. Mirrors the /app/trips v27.9.4 pattern. */}
+      {selectionActive && selected.size > 0 && (
+        <div
+          style={{
+            position: 'sticky',
+            top: '0.5rem',
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            padding: '0.6rem 0.85rem',
+            marginTop: '0.6rem',
+            borderRadius: 10,
+            background: 'var(--color-page-bg, #0B0806)',
+            color: '#F4EFE5',
+            boxShadow: '0 6px 20px -8px rgba(0, 0, 0, 0.45)',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-barlow-condensed)',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              fontSize: '0.85rem',
+            }}
+          >
+            {selected.size} {selected.size === 1 ? 'card' : 'cards'} selected
+          </span>
+          <div style={{ display: 'inline-flex', gap: '0.4rem', flexShrink: 0, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setBulkError(null)
+                setConfirmMode('archive')
+              }}
+              disabled={bulkPending}
+              className="bb-btn-secondary"
+              style={{
+                background: 'transparent',
+                borderColor: 'rgba(255,255,255,0.35)',
+                color: '#F4EFE5',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+              }}
+            >
+              <Archive size={14} aria-hidden="true" />
+              Archive
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBulkError(null)
+                setConfirmMode('delete')
+              }}
+              disabled={bulkPending}
+              className="bb-cta-sm bb-cta-sm-destructive"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={exitSelection}
+              disabled={bulkPending}
+              className="bb-btn-secondary"
+              style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.35)', color: '#F4EFE5' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bulkError && !confirmMode && (
+        <p role="alert" style={{ color: '#8C3C2A', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>
+          {bulkError}
+        </p>
+      )}
+
       {/* v27.6.3.3 item 3 — Active + Expired now sit side-by-side at
           desktop via .bb-wallet-status-grid. On tag tab the Done
           bucket (tagged_out) renders inline above the grid since
@@ -231,6 +440,9 @@ export default function WalletPage({
           emptyTitle="Nothing done yet"
           emptySub=""
           holderName={holderName}
+          selectionMode={selectionActive}
+          selectedIds={selected}
+          onToggleSelect={toggleSelected}
         />
       )}
 
@@ -245,6 +457,9 @@ export default function WalletPage({
           emptyTitle={`No active ${TYPE_LABEL[activeTab].toLowerCase()}`}
           emptySub="When you add one, it'll show up here."
           holderName={holderName}
+          selectionMode={selectionActive}
+          selectedIds={selected}
+          onToggleSelect={toggleSelected}
         />
 
         <WalletStatusSection
@@ -257,6 +472,9 @@ export default function WalletPage({
           emptyTitle={`No expired ${TYPE_LABEL[activeTab].toLowerCase()}`}
           emptySub="You're all caught up."
           holderName={holderName}
+          selectionMode={selectionActive}
+          selectedIds={selected}
+          onToggleSelect={toggleSelected}
         />
       </div>
 
@@ -268,6 +486,63 @@ export default function WalletPage({
           </span>
         </p>
       )}
+
+      {/* v27.9.10 item 1 — confirm modals. Type-to-confirm "delete"
+          mirrors /app/trips v27.9.4. Archive uses a softer prompt
+          (reversible) without typeToConfirm. */}
+      <ConfirmModal
+        open={confirmMode === 'archive'}
+        title={`Archive ${selected.size} ${selected.size === 1 ? 'card' : 'cards'}?`}
+        body={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p>
+              Archived cards move out of your active wallet but stay
+              recoverable from the archive view. Trip-linked cards keep
+              their links intact.
+            </p>
+            {bulkError && (
+              <p style={{ color: '#8C3C2A', fontSize: '0.85rem' }} role="alert">
+                {bulkError}
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel={bulkPending ? 'Archiving…' : 'Archive'}
+        cancelLabel="Cancel"
+        onConfirm={() => runBulk('archive')}
+        onCancel={() => {
+          if (!bulkPending) setConfirmMode(null)
+        }}
+        isPending={bulkPending}
+      />
+      <ConfirmModal
+        open={confirmMode === 'delete'}
+        title={`Delete ${selected.size} ${selected.size === 1 ? 'card' : 'cards'} permanently?`}
+        body={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p>
+              This permanently removes the selected cards. Active cards
+              get archived first, then deleted in the same pass — but a
+              card linked to a harvest or trip may fail to delete.{' '}
+              <strong>This cannot be undone.</strong>
+            </p>
+            {bulkError && (
+              <p style={{ color: '#8C3C2A', fontSize: '0.85rem' }} role="alert">
+                {bulkError}
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel={bulkPending ? 'Deleting…' : 'Delete forever'}
+        cancelLabel="Cancel"
+        destructive
+        typeToConfirm="delete"
+        onConfirm={() => runBulk('delete')}
+        onCancel={() => {
+          if (!bulkPending) setConfirmMode(null)
+        }}
+        isPending={bulkPending}
+      />
     </main>
   )
 }
@@ -352,6 +627,9 @@ function WalletStatusSection({
   emptyTitle,
   emptySub,
   holderName,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
 }: {
   title: string
   count: number
@@ -362,6 +640,13 @@ function WalletStatusSection({
   emptyTitle: string
   emptySub: string
   holderName?: string | null
+  /** v27.9.10 item 1: bulk-select state passed through from WalletPage.
+   *  When selectionMode is true the section forces the grid render
+   *  (deck would hide cards behind peeks) and wraps each card with
+   *  an absolute-button overlay that captures clicks for toggle. */
+  selectionMode?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }) {
   // v27.0a.10: "View all" toggle — flips the deck into a vertical stack of
   // every card in this status bucket. Deck (idle) shows top + 2 peeks;
@@ -381,7 +666,9 @@ function WalletStatusSection({
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
-  const showGrid = expanded || isDesktop
+  // v27.9.10 item 1: force grid in selection mode so the deck doesn't
+  // bury cards behind the peek stack — a hidden card can't be selected.
+  const showGrid = expanded || isDesktop || selectionMode
 
   return (
     <section className="bb-wallet-section mt-4">
@@ -389,7 +676,7 @@ function WalletStatusSection({
         <span className="bb-wallet-section-title">
           {title} ({count})
         </span>
-        {items.length > 1 && !isDesktop && (
+        {items.length > 1 && !isDesktop && !selectionMode && (
           <button
             type="button"
             className="bb-text-action bb-text-action-copper"
@@ -405,15 +692,77 @@ function WalletStatusSection({
         <EmptyState icon={emptyIcon} title={emptyTitle} sub={emptySub} />
       ) : showGrid ? (
         <div className="bb-wallet-stack">
-          {items.map((item) => (
-            <WalletHeroCard
-              key={item.id}
-              item={item}
-              basePath={basePath}
-              eyebrow={TYPE_EYEBROW[type]}
-              holderName={holderName}
-            />
-          ))}
+          {items.map((item) => {
+            const card = (
+              <WalletHeroCard
+                key={item.id}
+                item={item}
+                basePath={basePath}
+                eyebrow={TYPE_EYEBROW[type]}
+                holderName={holderName}
+              />
+            )
+            if (!selectionMode || !onToggleSelect) return card
+            const checked = selectedIds?.has(item.id) ?? false
+            // v27.9.10 item 1 — absolute-button overlay pattern from
+            // BulkSelectableTripsList (v27.9.4.1). Single button covers
+            // the whole card area at z=4 so clicks toggle without
+            // navigating to the card's edit Link. Visible check
+            // indicator at top-left has pointer-events:none so it
+            // never intercepts.
+            return (
+              <div
+                key={item.id}
+                style={{
+                  position: 'relative',
+                  borderRadius: 12,
+                  outline: checked ? '2px solid var(--color-copper)' : '2px solid transparent',
+                  outlineOffset: 2,
+                  transition: 'outline-color 120ms ease',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => onToggleSelect(item.id)}
+                  aria-pressed={checked}
+                  aria-label={checked ? 'Deselect card' : 'Select card'}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 4,
+                    background: 'transparent',
+                    border: 0,
+                    padding: 0,
+                    margin: 0,
+                    cursor: 'pointer',
+                    borderRadius: 12,
+                  }}
+                />
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    zIndex: 5,
+                    background: '#FFFFFF',
+                    borderRadius: 6,
+                    padding: 2,
+                    display: 'inline-flex',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {checked ? (
+                    <CheckSquare size={20} style={{ color: 'var(--color-copper)' }} />
+                  ) : (
+                    <Square size={20} style={{ color: 'var(--color-ink-muted)' }} />
+                  )}
+                </span>
+                {card}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <WalletDeck

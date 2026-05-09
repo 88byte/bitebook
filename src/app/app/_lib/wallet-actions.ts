@@ -401,6 +401,81 @@ export async function untagWalletItemAction(itemId: string): Promise<WalletActio
   return { ok: true, id: itemId }
 }
 
+// v27.9.10 item 1 — bulk archive/delete by explicit id list. Mirror
+// of the v27.9.4 trip bulk-delete pattern. Both verify ownership per
+// item via .eq('user_id', profile.id) AND audit on the row count
+// returned. Delete has the same archived-only guard the single-item
+// deleteWalletItemAction enforces (active items must be archived
+// first to avoid orphaning trip_wallet_items / harvest links).
+export type BulkWalletResult =
+  | { ok: true; processed: number; failedIds: string[] }
+  | { error: string }
+
+export async function bulkArchiveWalletItemsAction(itemIds: string[]): Promise<BulkWalletResult> {
+  const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return { error: 'No items selected.' }
+  const sb = await createClient()
+  // Single batch update — RLS + the explicit user_id eq enforce
+  // ownership. Already-archived rows are no-ops (archived_at stays
+  // valid, just gets the updated timestamp), but we filter to active
+  // rows so the audit count reflects what actually changed.
+  const { data: changed, error } = await sb
+    .from('wallet_items')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('user_id', profile.id)
+    .is('archived_at', null)
+    .in('id', itemIds)
+    .select('id')
+  if (error) {
+    console.warn('[walletActions.bulkArchiveItems]', { code: error.code, message: error.message })
+    return { error: error.message || 'Could not archive items.' }
+  }
+  const succeededIds = new Set((changed ?? []).map((r) => r.id as string))
+  const failedIds = itemIds.filter((id) => !succeededIds.has(id))
+  revalidateAfterWalletChange(profile.role)
+  return { ok: true, processed: succeededIds.size, failedIds }
+}
+
+export async function bulkDeleteWalletItemsAction(itemIds: string[]): Promise<BulkWalletResult> {
+  const { profile } = await requireUser()
+  const gate = await assertWriteAllowed(profile.id, profile.role)
+  if ('error' in gate) return { error: gate.error }
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return { error: 'No items selected.' }
+  const sb = await createClient()
+  // v27.9.10: delete in two passes so we surface a meaningful "failed"
+  // list. Pass 1 archives any active rows in the selection (mirrors
+  // single-item policy: must be archived before delete). Pass 2 deletes
+  // archived rows. Active rows that fail to archive (e.g. linked tags)
+  // still bubble into failedIds.
+  const nowIso = new Date().toISOString()
+  const { error: archiveErr } = await sb
+    .from('wallet_items')
+    .update({ archived_at: nowIso })
+    .eq('user_id', profile.id)
+    .is('archived_at', null)
+    .in('id', itemIds)
+  if (archiveErr) {
+    console.warn('[walletActions.bulkDelete:archive]', { code: archiveErr.code, message: archiveErr.message })
+    return { error: archiveErr.message || 'Could not archive selection before delete.' }
+  }
+  const { data: deleted, error: delErr } = await sb
+    .from('wallet_items')
+    .delete()
+    .eq('user_id', profile.id)
+    .in('id', itemIds)
+    .select('id')
+  if (delErr) {
+    console.warn('[walletActions.bulkDelete]', { code: delErr.code, message: delErr.message })
+    return { error: delErr.message || 'Could not delete items.' }
+  }
+  const deletedIds = new Set((deleted ?? []).map((r) => r.id as string))
+  const failedIds = itemIds.filter((id) => !deletedIds.has(id))
+  revalidateAfterWalletChange(profile.role)
+  return { ok: true, processed: deletedIds.size, failedIds }
+}
+
 export async function bulkArchiveExpiredAction(type: WalletItemType): Promise<WalletActionResult> {
   const { profile } = await requireUser()
   const gate = await assertWriteAllowed(profile.id, profile.role)

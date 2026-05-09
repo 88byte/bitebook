@@ -235,6 +235,98 @@ export default function WalletItemForm({
 
   return (
     <form id={formId} onSubmit={onSubmit} className="flex flex-col gap-4">
+      {/* v27.9.10 item 2: action row promoted to TOP, immediately under
+          the page title (rendered by the parent page). Mirrors the
+          v27.0b.9.1 "trip actions promoted to top + Edit primary copper
+          styling" convention applied across trip detail, hunters, log
+          editor, etc. Bottom row is gone — duplicates would muddle
+          the hierarchy. The /new page passes hideInlineActions=true
+          and renders its own top submit; /edit lets this top row do
+          the work for both Save + edit-only actions (Archive /
+          Restore / Delete / Tag-out / Mark active). Divider below
+          closes the action band before the form sections begin. */}
+      {error && (
+        <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>
+      )}
+      {!hideInlineActions && (
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" disabled={pending} className="bb-cta">
+            {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
+          </button>
+          {/* Tag-only manual flip — v27.0b.1. */}
+          {initial.id && isTagType && !isArchived && !isTaggedOut && (
+            <button
+              type="button"
+              className="bb-btn-secondary"
+              onClick={() => setConfirmMode('tagOut')}
+              disabled={pending}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Trophy size={14} aria-hidden="true" />
+              Mark as tagged out
+            </button>
+          )}
+          {initial.id && isTagType && !isArchived && isTaggedOut && (
+            <button
+              type="button"
+              className="bb-btn-secondary"
+              onClick={() => setConfirmMode('untag')}
+              disabled={pending}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              Mark as active
+            </button>
+          )}
+          {initial.id && !isArchived && (
+            <button
+              type="button"
+              className="bb-btn-secondary"
+              onClick={() => callMutation(archiveWalletItemAction)}
+              disabled={pending}
+            >
+              Archive
+            </button>
+          )}
+          {initial.id && isArchived && (
+            <>
+              <button
+                type="button"
+                className="bb-btn-secondary"
+                onClick={() => callMutation(restoreWalletItemAction)}
+                disabled={pending}
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                className="bb-cta-sm bb-cta-sm-destructive"
+                onClick={() => {
+                  if (window.confirm('Delete this wallet item? This cannot be undone.')) {
+                    callMutation(deleteWalletItemAction)
+                  }
+                }}
+                disabled={pending}
+              >
+                Delete
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="bb-btn-secondary"
+            onClick={() => router.push(`${basePath}?type=${type}`)}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {/* v27.9.10: divider between top action row and form sections. */}
+      {!hideInlineActions && (
+        <div className="bb-page-divider" aria-hidden="true" />
+      )}
+
       {/* PHOTO — emphasized above Basics for stamps + permits where the
           photo nudge is strongest (warden visibility); for other types
           the field appears at the bottom (see below). */}
@@ -946,89 +1038,9 @@ export default function WalletItemForm({
         />
       )}
 
-      {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        {/* v27.6.3.5 item 5: when the parent renders the submit in
-            the page header (matches /app/trips/new pattern), hide
-            the inline Submit + Cancel here. Edit-only buttons
-            (Archive / Mark tagged out / Restore / Delete) stay
-            visible so they remain reachable on /[id]/edit. */}
-        {!hideInlineActions && (
-          <button type="submit" disabled={pending} className="bb-cta">
-            {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
-          </button>
-        )}
-        {/* v27.0b.1: tag-only manual flip. */}
-        {initial.id && isTagType && !isArchived && !isTaggedOut && (
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => setConfirmMode('tagOut')}
-            disabled={pending}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Trophy size={14} aria-hidden="true" />
-            Mark as tagged out
-          </button>
-        )}
-        {initial.id && isTagType && !isArchived && isTaggedOut && (
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => setConfirmMode('untag')}
-            disabled={pending}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <RotateCcw size={14} aria-hidden="true" />
-            Mark as active
-          </button>
-        )}
-        {initial.id && !isArchived && (
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => callMutation(archiveWalletItemAction)}
-            disabled={pending}
-          >
-            Archive
-          </button>
-        )}
-        {initial.id && isArchived && (
-          <>
-            <button
-              type="button"
-              className="bb-btn-secondary"
-              onClick={() => callMutation(restoreWalletItemAction)}
-              disabled={pending}
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              className="bb-cta-sm bb-cta-sm-destructive"
-              onClick={() => {
-                if (window.confirm('Delete this wallet item? This cannot be undone.')) {
-                  callMutation(deleteWalletItemAction)
-                }
-              }}
-              disabled={pending}
-            >
-              Delete
-            </button>
-          </>
-        )}
-        {!hideInlineActions && (
-          <button
-            type="button"
-            className="bb-btn-secondary"
-            onClick={() => router.push(`${basePath}?type=${type}`)}
-            disabled={pending}
-          >
-            Cancel
-          </button>
-        )}
-      </div>
+      {/* v27.9.10 item 2: bottom action row removed — moved to top of
+          the form, immediately under the page title. See the matching
+          block above. */}
 
       {/* v27.0b.1: confirm modal for manual tag-out / mark-active */}
       <ConfirmModal
