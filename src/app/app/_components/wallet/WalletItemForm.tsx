@@ -250,7 +250,7 @@ export default function WalletItemForm({
       )}
       {!hideInlineActions && (
         <div className="flex flex-wrap gap-2">
-          <button type="submit" disabled={pending} className="bb-cta">
+          <button type="submit" disabled={pending} className="bb-cta-sm">
             {pending ? 'Saving...' : initial.id ? 'Save changes' : 'Add wallet item'}
           </button>
           {/* Tag-only manual flip — v27.0b.1. */}
