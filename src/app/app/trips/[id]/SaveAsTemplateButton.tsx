@@ -23,7 +23,10 @@ export default function SaveAsTemplateButton({
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState(defaultLabel)
   const [error, setError] = useState<string | null>(null)
-  const [savedToast, setSavedToast] = useState(false)
+  const [savedToast, setSavedToast] = useState<null | {
+    replaced: boolean
+    docCount: number
+  }>(null)
   const [pending, startTransition] = useTransition()
   const titleId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -76,7 +79,7 @@ export default function SaveAsTemplateButton({
   // Auto-dismiss the success toast after a moment.
   useEffect(() => {
     if (!savedToast) return
-    const t = setTimeout(() => setSavedToast(false), 4000)
+    const t = setTimeout(() => setSavedToast(null), 4000)
     return () => clearTimeout(t)
   }, [savedToast])
 
@@ -95,7 +98,7 @@ export default function SaveAsTemplateButton({
         return
       }
       setOpen(false)
-      setSavedToast(true)
+      setSavedToast({ replaced: res.replaced, docCount: res.doc_count })
       router.refresh()
     })
   }
@@ -125,6 +128,16 @@ export default function SaveAsTemplateButton({
                 <p style={{ marginBottom: '0.75rem' }}>
                   Saves activity, location, hunt details, and any waivers or resources
                   attached to this trip. Hunters and harvest logs aren&rsquo;t copied.
+                </p>
+                <p
+                  style={{
+                    marginBottom: '0.75rem',
+                    fontSize: '0.85rem',
+                    color: 'var(--color-ink-soft)',
+                  }}
+                >
+                  Using a name that already exists will refresh that template with this
+                  trip&rsquo;s current docs and details.
                 </p>
                 <form onSubmit={onSubmit}>
                   <label
@@ -203,7 +216,10 @@ export default function SaveAsTemplateButton({
           }}
         >
           <CheckCircle2 size={14} aria-hidden="true" />
-          Template saved
+          {savedToast.replaced ? 'Template updated' : 'Template saved'}
+          {savedToast.docCount > 0
+            ? ` · ${savedToast.docCount} ${savedToast.docCount === 1 ? 'doc' : 'docs'}`
+            : ''}
         </span>
       )}
       {portal}

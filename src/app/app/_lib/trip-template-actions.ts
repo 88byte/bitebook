@@ -18,12 +18,25 @@ import { ensureHarvestLog } from './harvest-log-queries'
 type Kind = Database['public']['Enums']['harvest_kind']
 
 export type SaveTripAsTemplateResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; replaced: boolean; doc_count: number }
   | { error: string }
 
 // Save a trip as a template. Copies activity / location / hunt-details
 // scalars + every non-log linked doc (waivers + resources) into the new
 // template. Logs are excluded — harvest logs are unique per trip.
+//
+// v27.9.12: same-label upsert. If a non-archived template with this
+// label already exists for this owner, the action UPDATES its scalars
+// AND replaces its trip_template_docs with a fresh snapshot from the
+// current trip — instead of silently creating a duplicate that has its
+// own (possibly stale) doc set.
+//
+// Root cause this fixes: the original save flow snapshotted docs only
+// at creation time and there was no path to refresh them. Guides who
+// saved a template before attaching waivers/resources to their source
+// trip ended up with an empty template — subsequent clones produced
+// trips with zero docs. Re-saving with the same name now refreshes the
+// snapshot.
 export async function saveTripAsTemplateAction(
   tripId: string,
   label: string
@@ -45,52 +58,98 @@ export async function saveTripAsTemplateAction(
     .maybeSingle()
   if (tripErr || !trip) return { error: 'Trip not found.' }
 
-  const { data: created, error: insErr } = await sb
-    .from('trip_templates')
-    .insert({
-      owner_id: profile.id,
-      label: trimmed,
-      activity: trip.kind,
-      state: trip.state || null,
-      city: trip.city,
-      location_zone: trip.zone,
-      location_county: trip.county,
-      species_targeted: trip.species_targeted,
-      method: trip.method,
-    })
-    .select('id')
-    .single()
-  if (insErr || !created) {
-    console.warn('[trip-template.save:insert]', { code: insErr?.code, message: insErr?.message })
-    return { error: insErr?.message || 'Could not create template.' }
-  }
-
-  // Pull every doc currently attached to the trip whose kind != 'log',
-  // then bulk-insert link rows. Single round-trip query for both.
+  // v27.9.12: collect the source trip's non-log docs ONCE up front. Used
+  // by both the create and the replace paths, and surfaced in the result
+  // so the UI can render a "saved N docs" / "updated to N docs" toast.
   const { data: linked } = await sb
     .from('trip_docs')
     .select('doc_id, docs!inner(id, kind)')
     .eq('trip_id', tripId)
   type LinkedRow = { doc_id: string; docs: { id: string; kind: string } }
-  const nonLogDocIds = (linked as LinkedRow[] | null ?? [])
+  const linkedRows = (linked as LinkedRow[] | null ?? [])
     .filter((r) => r.docs?.kind && r.docs.kind !== 'log')
-    .map((r) => r.doc_id)
+  const nonLogDocIds = linkedRows.map((r) => r.doc_id)
+  const kindByDocId = new Map<string, string>()
+  for (const r of linkedRows) {
+    if (r.docs?.id && r.docs?.kind) kindByDocId.set(r.docs.id, r.docs.kind)
+  }
 
-  if (nonLogDocIds.length > 0) {
-    // v27.1.3: capture a default required_action_type per doc kind.
-    // waiver → 'sign', resource → null (informational), other kinds → null.
-    // Editable later from the template detail. This is a sane default
-    // that matches the most common guide intent (waivers must be signed
-    // by every hunter; resources are reference material).
-    const kindByDocId = new Map<string, string>()
-    for (const r of (linked as LinkedRow[] | null ?? [])) {
-      if (r.docs?.id && r.docs?.kind) kindByDocId.set(r.docs.id, r.docs.kind)
+  // Same-label active template already exists? UPSERT semantics: refresh
+  // scalars + replace doc snapshot. Else create new template.
+  const { data: existing } = await sb
+    .from('trip_templates')
+    .select('id')
+    .eq('owner_id', profile.id)
+    .ilike('label', trimmed)
+    .is('archived_at', null)
+    .limit(1)
+    .maybeSingle()
+
+  let templateId: string
+  let replaced = false
+  if (existing?.id) {
+    templateId = existing.id
+    replaced = true
+    const { error: updErr } = await sb
+      .from('trip_templates')
+      .update({
+        label: trimmed,
+        activity: trip.kind,
+        state: trip.state || null,
+        city: trip.city,
+        location_zone: trip.zone,
+        location_county: trip.county,
+        species_targeted: trip.species_targeted,
+        method: trip.method,
+      })
+      .eq('id', templateId)
+      .eq('owner_id', profile.id)
+    if (updErr) {
+      console.warn('[trip-template.save:update]', { code: updErr.code, message: updErr.message })
+      return { error: updErr.message || 'Could not update template.' }
     }
+    // Replace the doc snapshot: delete existing template_docs, then
+    // re-insert from the current trip's docs (handled below in the
+    // shared insert path).
+    const { error: delErr } = await sb
+      .from('trip_template_docs')
+      .delete()
+      .eq('template_id', templateId)
+    if (delErr) {
+      console.warn('[trip-template.save:wipe_docs]', { code: delErr.code, message: delErr.message })
+      return { error: delErr.message || 'Could not refresh template docs.' }
+    }
+  } else {
+    const { data: created, error: insErr } = await sb
+      .from('trip_templates')
+      .insert({
+        owner_id: profile.id,
+        label: trimmed,
+        activity: trip.kind,
+        state: trip.state || null,
+        city: trip.city,
+        location_zone: trip.zone,
+        location_county: trip.county,
+        species_targeted: trip.species_targeted,
+        method: trip.method,
+      })
+      .select('id')
+      .single()
+    if (insErr || !created) {
+      console.warn('[trip-template.save:insert]', { code: insErr?.code, message: insErr?.message })
+      return { error: insErr?.message || 'Could not create template.' }
+    }
+    templateId = created.id
+  }
+
+  // Shared doc-link insert path. Runs for both new and replaced templates.
+  // v27.1.3 default: waiver → 'sign', resource → null, other → null.
+  if (nonLogDocIds.length > 0) {
     const { error: linkErr } = await sb
       .from('trip_template_docs')
       .insert(
         nonLogDocIds.map((doc_id) => ({
-          template_id: created.id,
+          template_id: templateId,
           doc_id,
           required_action_type:
             kindByDocId.get(doc_id) === 'waiver' ? 'sign' : null,
@@ -98,12 +157,15 @@ export async function saveTripAsTemplateAction(
       )
     if (linkErr) {
       console.warn('[trip-template.save:link]', { code: linkErr.code, message: linkErr.message })
+      // Soft fail: scalars saved/updated, docs didn't. Surface as error
+      // so the user knows the template won't carry docs on clone.
+      return { error: linkErr.message || 'Saved template details but could not save docs.' }
     }
   }
 
   revalidatePath('/app/trips')
   revalidatePath(`/app/trips/${tripId}`)
-  return { ok: true, id: created.id }
+  return { ok: true, id: templateId, replaced, doc_count: nonLogDocIds.length }
 }
 
 // Clone a template into a new trip. Pre-fills activity / location /
