@@ -129,12 +129,23 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
       )}
 
       {/* v27.6.2.1 — drops bb-form-narrow so the form can span the
-          full bb-trip-detail-grid 2-col layout (matches /app/trips/[id]). */}
+          full bb-trip-detail-grid 2-col layout (matches /app/trips/[id]).
+          v27.9.13 — key prop forces NewTripForm to remount when the
+          ?template= query string changes (Path B: user clicks Use
+          Template while already on /app/trips/new). Without the key
+          React keeps the previously-mounted form instance and its
+          useState / uncontrolled defaultValue inputs ignore the new
+          `initial` prop — so state/species/method/city/zone/county
+          stay stuck at the empty Path B values even after navigation
+          re-fetches the template. Remount via key clears state +
+          re-runs initializers with the new initial. */}
       <div className="mt-4">
         <NewTripForm
+          key={templateData ? `t:${templateData.template.id}` : 'no-template'}
           hunters={hunters}
           initial={initial}
           templateId={templateData ? templateData.template.id : null}
+          templateDocIds={templateData ? templateData.doc_ids : null}
           speciesOptions={speciesOptions}
           attachableDocs={attachableDocs}
         />

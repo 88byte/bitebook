@@ -238,9 +238,14 @@ export async function createTripFromTemplateAction(formData: FormData) {
     }
   }
 
-  // Carry the template's linked non-log docs onto the new trip.
-  // v27.1.3: also pull required_action_type so we can materialize the
-  // per-hunter sign/view requirements on the cloned trip's docs.
+  // v27.9.13: honor the user's docs-picker selection from the form.
+  // Previously this action auto-attached EVERY template doc and
+  // ignored doc_ids from FormData entirely. Now the form pre-checks
+  // template docs and submits whatever's checked; user can uncheck
+  // to exclude a template doc on this specific clone. We also keep
+  // required_action_type per doc so the per-hunter action
+  // materialization still works for waivers (kind='waiver' → 'sign').
+  const formDocIds = formData.getAll('doc_ids').map((v) => String(v)).filter(Boolean)
   const { data: tplDocs } = await sb
     .from('trip_template_docs')
     .select('doc_id, required_action_type')
@@ -249,13 +254,21 @@ export async function createTripFromTemplateAction(formData: FormData) {
     doc_id: string
     required_action_type: string | null
   }>
-  if (tplDocRows.length > 0) {
+  const reqByDocId = new Map(tplDocRows.map((r) => [r.doc_id, r.required_action_type]))
+  // Final attach list = whatever the user submitted. Defense-in-depth
+  // dedupe in case the form submitted duplicates. Falls back to the
+  // template's full set when no doc_ids were submitted (covers legacy
+  // clients + the edge case where the form never rendered the picker).
+  const attachDocIds = Array.from(
+    new Set(formDocIds.length > 0 ? formDocIds : tplDocRows.map((r) => r.doc_id))
+  )
+  if (attachDocIds.length > 0) {
     const { data: createdTripDocs, error: linkErr } = await sb
       .from('trip_docs')
       .insert(
-        tplDocRows.map((r) => ({
+        attachDocIds.map((doc_id) => ({
           trip_id: newTripId,
-          doc_id: r.doc_id,
+          doc_id,
           hunter_visible: true,
         }))
       )
@@ -264,26 +277,25 @@ export async function createTripFromTemplateAction(formData: FormData) {
       console.warn('[trip-template.create:link_docs]', { code: linkErr.code, message: linkErr.message })
     }
     // Materialize per-hunter action rows for every (hunter × doc) where
-    // the template specified a required_action_type. v27.1.3 supports
-    // 'sign' and 'view'. If the action_type doesn't match either, skip
-    // — the template column is text not enum so a stale value doesn't
-    // crash the clone.
+    // the template specified a required_action_type. Skip docs the
+    // user added through the picker that aren't on the template — those
+    // get the autoAssignActionsForTripDoc default per v27.9.8b.1
+    // (action_type derived by doc kind). We only insert hand-rolled
+    // rows here for docs that came from the template AND have an
+    // explicit required_action_type the template recorded.
     if (createdTripDocs && createdTripDocs.length > 0 && hunterIds.length > 0) {
-      const tripDocByDocId = new Map(createdTripDocs.map((r) => [r.doc_id, r.id]))
-      const reqByDocId = new Map(tplDocRows.map((r) => [r.doc_id, r.required_action_type]))
       const actionRows: Array<{
         trip_doc_id: string
         hunter_id: string
         action_type: 'sign' | 'view'
         required: boolean
       }> = []
-      for (const docId of tripDocByDocId.keys()) {
-        const req = reqByDocId.get(docId)
+      for (const r of createdTripDocs) {
+        const req = reqByDocId.get(r.doc_id)
         if (req !== 'sign' && req !== 'view') continue
-        const tripDocId = tripDocByDocId.get(docId)!
         for (const hunterId of hunterIds) {
           actionRows.push({
-            trip_doc_id: tripDocId,
+            trip_doc_id: r.id,
             hunter_id: hunterId,
             action_type: req,
             required: true,

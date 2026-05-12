@@ -43,12 +43,20 @@ export default function NewTripForm({
   hunters,
   initial = null,
   templateId = null,
+  templateDocIds = null,
   speciesOptions,
   attachableDocs = [],
 }: {
   hunters: HunterOption[]
   initial?: NewTripInitial | null
   templateId?: string | null
+  // v27.9.13: when creating from a template, the template's
+  // trip_template_docs ids land here so the docs picker can pre-check
+  // them. Any doc that was on the template starts checked; user can
+  // uncheck to exclude. createTripFromTemplateAction reads doc_ids
+  // from FormData (same as createTripAction) so the user's checkbox
+  // state is honored on submit.
+  templateDocIds?: string[] | null
   // v27.1.3.0.2: full species pool from the species table for the
   // Hunt details Species picker. Same source as wallet/harvest forms.
   speciesOptions: SpeciesOption[]
@@ -72,7 +80,14 @@ export default function NewTripForm({
   const [species, setSpecies] = useState<string>(initial?.species_targeted ?? '')
   // v27.6.2.1: pre-creation docs picker state. doc_ids are submitted
   // alongside hunter_ids; createTripAction attaches each post-insert.
-  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
+  // v27.9.13: pre-checked from templateDocIds when creating from a
+  // template. The form-key remount on templateId change (in page.tsx)
+  // guarantees this initializer re-runs with fresh defaults instead
+  // of carrying over a previously-mounted empty Set on Path B (Use
+  // Template button inside an already-mounted /app/trips/new).
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(
+    () => new Set(templateDocIds ?? [])
+  )
 
   function toggleDoc(id: string) {
     setSelectedDocs((prev) => {
