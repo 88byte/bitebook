@@ -28,10 +28,12 @@ export async function requireGuide() {
   // Fire both reads in parallel — they're independent, both keyed on user.id.
   // v27.1.5.1: also pull onboarded_at so the wizard can intercept the first
   // /app load when it's NULL.
+  // v28.1.0b: include account_tier + current_outfitter_org_id so /app
+  // can branch on the outfitter dashboard variant without a second query.
   const [profileRes, guideRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, display_name, role')
+      .select('id, display_name, role, account_tier, current_outfitter_org_id')
       .eq('id', user.id)
       .maybeSingle(),
     supabase
@@ -228,9 +230,11 @@ export async function requireUser() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/app')
 
+  // v28.1.0b: pull tier columns so callers can dispatch on
+  // account_tier without a second query.
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
-    .select('id, display_name, role')
+    .select('id, display_name, role, account_tier, current_outfitter_org_id')
     .eq('id', user.id)
     .maybeSingle()
 

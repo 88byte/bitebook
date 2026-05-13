@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ArrowRight, Building2 } from 'lucide-react'
 import { requireGuide } from '../_lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -10,6 +11,12 @@ import BillingPanel from './BillingPanel'
 // Server-rendered tabs driven by ?tab=profile|billing (default profile).
 // Profile fetches everything below in parallel; Billing pulls subscription
 // state from outfitter_subscriptions.
+//
+// v28.1.0b — Profile tab now also surfaces a tier-aware Account card at
+// the top: solo guides see an Upgrade-to-Outfitter CTA; outfitter owners
+// see org info (name, state, license, address, logo) + a manage-billing
+// link. Outfitter admins (joining members) see a read-only org info
+// snapshot. Downgrade lands in v28.1.0d.
 
 type SearchParams = Promise<{ tab?: string; billing_error?: string }>
 
@@ -18,7 +25,7 @@ export default async function SettingsPage({
 }: {
   searchParams: SearchParams
 }) {
-  const { user } = await requireGuide()
+  const { user, profile } = await requireGuide()
   const sp = await searchParams
   const tab: 'profile' | 'billing' = sp.tab === 'billing' ? 'billing' : 'profile'
   const billingError = typeof sp.billing_error === 'string' ? sp.billing_error : null
@@ -50,7 +57,12 @@ export default async function SettingsPage({
 
       <div className="bb-form-narrow">
         {tab === 'profile' ? (
-          <ProfileTab userId={user.id} email={user.email ?? ''} />
+          <ProfileTab
+            userId={user.id}
+            email={user.email ?? ''}
+            accountTier={profile.account_tier}
+            currentOrgId={profile.current_outfitter_org_id}
+          />
         ) : (
           <BillingPanel guideId={user.id} billingError={billingError} />
         )}
@@ -87,7 +99,17 @@ function SettingsTab({ href, label, active }: { href: string; label: string; act
   )
 }
 
-async function ProfileTab({ userId, email }: { userId: string; email: string }) {
+async function ProfileTab({
+  userId,
+  email,
+  accountTier,
+  currentOrgId,
+}: {
+  userId: string
+  email: string
+  accountTier: string | null
+  currentOrgId: string | null
+}) {
   // Pull every Profile-tab data source in parallel.
   const supabase = await createClient()
   const [profileRes, guideRes, logDocsRes] = await Promise.all([
@@ -140,8 +162,161 @@ async function ProfileTab({ userId, email }: { userId: string; email: string }) 
     }
   }
 
+  // v28.1.0b — tier-aware Account card. Lands at the top of the
+  // Profile tab so it's the first thing the guide sees.
+  // - Guide (no tier set or 'guide'): Upgrade-to-Outfitter CTA
+  // - outfitter_owner: org snapshot + Manage billing link
+  // - outfitter_admin: read-only org snapshot
+  const isSoloGuide = accountTier === null || accountTier === 'guide'
+  const isOutfitterOwner = accountTier === 'outfitter_owner'
+  const isOutfitterAdmin = accountTier === 'outfitter_admin'
+
+  let orgSnapshot: {
+    name: string
+    state: string | null
+    commercial_license_number: string | null
+    business_address: string | null
+    logo_url: string | null
+    subscription_status: string | null
+  } | null = null
+  if ((isOutfitterOwner || isOutfitterAdmin) && currentOrgId) {
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('outfitter_orgs')
+      .select('name, state, commercial_license_number, business_address, logo_url, subscription_status')
+      .eq('id', currentOrgId)
+      .maybeSingle()
+    orgSnapshot = data ?? null
+  }
+
   return (
     <>
+      {isSoloGuide && (
+        <Link
+          href="/app/upgrade-to-outfitter"
+          className="bb-tile mt-4"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem',
+            padding: '1rem 1.1rem',
+            textDecoration: 'none',
+            background: 'linear-gradient(135deg, rgba(168, 92, 50, 0.12), rgba(168, 92, 50, 0.03))',
+            borderColor: 'var(--color-copper)',
+            color: 'var(--color-ink)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              background: 'var(--color-copper)',
+              color: '#FFFFFF',
+            }}
+          >
+            <Building2 size={20} />
+          </span>
+          <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <strong style={{ display: 'block', fontSize: '0.98rem' }}>
+              Upgrade to Outfitter
+            </strong>
+            <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+              Run an org with up to 3 admins, a shared guide network, and
+              org-wide hunters &amp; calendar. 14-day free trial.
+            </span>
+          </span>
+          <ArrowRight size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--color-copper)' }} />
+        </Link>
+      )}
+
+      {(isOutfitterOwner || isOutfitterAdmin) && orgSnapshot && (
+        <section className="bb-tile mt-4">
+          <div className="bb-tile-body">
+            <h2 className="bb-form-section-head" style={{ marginTop: 0 }}>
+              {isOutfitterOwner ? 'Your outfitter org' : 'Outfitter org'}
+            </h2>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flexShrink: 0 }}>
+                {orgSnapshot.logo_url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={orgSnapshot.logo_url}
+                    alt={`${orgSnapshot.name} logo`}
+                    style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 8, background: '#FFF' }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      width: 72,
+                      height: 72,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 8,
+                      background: 'rgba(168, 92, 50, 0.12)',
+                      color: 'var(--color-copper)',
+                    }}
+                  >
+                    <Building2 size={28} aria-hidden="true" />
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-ink)' }}>
+                  {orgSnapshot.name}
+                </div>
+                <dl
+                  style={{
+                    marginTop: '0.5rem',
+                    display: 'grid',
+                    gridTemplateColumns: 'auto 1fr',
+                    columnGap: '0.75rem',
+                    rowGap: '0.25rem',
+                    fontSize: '0.88rem',
+                  }}
+                >
+                  <dt style={{ color: 'var(--color-ink-muted)' }}>State</dt>
+                  <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.state || 'Not set'}</dd>
+                  <dt style={{ color: 'var(--color-ink-muted)' }}>License</dt>
+                  <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.commercial_license_number || 'Not set'}</dd>
+                  <dt style={{ color: 'var(--color-ink-muted)' }}>Address</dt>
+                  <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.business_address || 'Not set'}</dd>
+                  <dt style={{ color: 'var(--color-ink-muted)' }}>Subscription</dt>
+                  <dd style={{ margin: 0, color: 'var(--color-ink)', textTransform: 'capitalize' }}>
+                    {orgSnapshot.subscription_status || 'unknown'}
+                  </dd>
+                </dl>
+                {isOutfitterOwner && (
+                  <p className="bb-form-help" style={{ marginTop: '0.6rem' }}>
+                    Inline edit + Stripe billing portal land in v28.1.0c. For now,
+                    email{' '}
+                    <a
+                      href="mailto:support@lastbite.pro"
+                      className="bb-text-action bb-text-action-copper"
+                      style={{ display: 'inline', padding: 0 }}
+                    >
+                      support@lastbite.pro
+                    </a>{' '}
+                    to change org details or billing. Downgrade is coming soon.
+                  </p>
+                )}
+                {isOutfitterAdmin && (
+                  <p className="bb-form-help" style={{ marginTop: '0.6rem' }}>
+                    You&rsquo;re an admin on this org. Contact the owner to update org details.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="bb-tile mt-4">
         <div className="bb-tile-body">
           <SettingsForm

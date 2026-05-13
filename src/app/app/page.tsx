@@ -31,8 +31,21 @@ import DashboardHero from './_components/DashboardHero'
 // card, 3 stat cards with icons, and bare Upcoming + Recent sections (no
 // Widget tile wrapper — just an eyebrow head + "View all" link + TripRow
 // stack). Onboarding banner stays above the grid for non-onboarded users.
+import OutfitterDashboard from './_components/OutfitterDashboard'
+
 export default async function DashboardPage() {
   const { profile, guide } = await requireGuide()
+
+  // v28.1.0b — outfitter dashboard variant. Owners + admins see a
+  // different surface focused on org-level navigation. Solo guides
+  // (account_tier='guide' or null) fall through to the existing
+  // dashboard below.
+  if (
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    profile.current_outfitter_org_id
+  ) {
+    return <OutfitterDashboard orgId={profile.current_outfitter_org_id} viewer={{ id: profile.id, name: profile.display_name }} />
+  }
 
   // v27.5.0 — pull default_signature_path inline so the warden-share
   // setup banner only renders when the guide hasn't saved one yet.

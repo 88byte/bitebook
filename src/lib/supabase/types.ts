@@ -1070,6 +1070,10 @@ export type Database = {
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
+          account_tier: string | null
+          current_outfitter_org_id: string | null
+          public_profile_visibility: string
+          public_handle: string | null
         }
         Insert: {
           address_city?: string | null
@@ -1087,6 +1091,10 @@ export type Database = {
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          account_tier?: string | null
+          current_outfitter_org_id?: string | null
+          public_profile_visibility?: string
+          public_handle?: string | null
         }
         Update: {
           address_city?: string | null
@@ -1104,6 +1112,10 @@ export type Database = {
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          account_tier?: string | null
+          current_outfitter_org_id?: string | null
+          public_profile_visibility?: string
+          public_handle?: string | null
         }
         Relationships: []
       }
@@ -1586,6 +1598,105 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      outfitter_guide_network: {
+        Row: {
+          id: string
+          org_id: string
+          guide_profile_id: string
+          status: string
+          invited_by: string | null
+          invited_at: string
+          joined_at: string | null
+          removed_at: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          guide_profile_id: string
+          status?: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          guide_profile_id?: string
+          status?: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Relationships: []
+      }
+      outfitter_hunter_network: {
+        Row: {
+          id: string
+          org_id: string
+          hunter_profile_id: string
+          status: string
+          invited_by: string | null
+          invited_at: string
+          joined_at: string | null
+          removed_at: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          hunter_profile_id: string
+          status?: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          hunter_profile_id?: string
+          status?: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Relationships: []
+      }
+      outfitter_org_members: {
+        Row: {
+          id: string
+          org_id: string
+          profile_id: string
+          role: string
+          invited_by: string | null
+          invited_at: string
+          joined_at: string | null
+          removed_at: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          profile_id: string
+          role: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          profile_id?: string
+          role?: string
+          invited_by?: string | null
+          invited_at?: string
+          joined_at?: string | null
+          removed_at?: string | null
+        }
+        Relationships: []
       }
       outfitter_orgs: {
         Row: {
