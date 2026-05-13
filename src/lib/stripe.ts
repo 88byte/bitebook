@@ -29,17 +29,22 @@ export const PRODUCT_NAME = 'Bite Book Guide'
 // v28.1.0a — Outfitter tier prices. Separate product from the guide
 // tier; lookup keys keep guide + outfitter price catalogs cleanly
 // separable so a re-seed of one doesn't touch the other. Monthly = $39,
-// yearly = $390. 14-day trial baked into the price's recurring
-// configuration so Checkout sessions inherit it without per-call
-// override (matches the guide tier where the price is the source of
-// truth for billing cadence).
+// yearly = $390.
+//
+// v28.1.0b.1 — Trial dropped 14 → 7 days to match the guide tier.
+// Live prices in Stripe still have 14 baked into recurring.trial_period_days
+// (Stripe prices are immutable), but createOutfitterCheckoutAction passes
+// subscription_data.trial_period_days = OUTFITTER_TRIAL_DAYS to override
+// per-session, so the effective trial is 7 days regardless of price
+// history. A future re-seed via ensure-outfitter-prices.mjs picks up the
+// new constant when fresh lookup keys are minted.
 export const OUTFITTER_PRICE_LOOKUP_KEYS = {
   monthly: 'bitebook_outfitter_monthly_v1',
   yearly: 'bitebook_outfitter_yearly_v1',
 } as const
 
 export const OUTFITTER_PRODUCT_NAME = 'Bite Book Outfitter'
-export const OUTFITTER_TRIAL_DAYS = 14
+export const OUTFITTER_TRIAL_DAYS = 7
 
 // Lazily ensures the product + the two recurring prices exist on this Stripe account.
 // Returns price IDs keyed by interval. Safe to call repeatedly — uses lookup_keys.
@@ -103,9 +108,11 @@ export async function ensureBitebookGuidePrices(): Promise<{ monthly: string; an
 
 // v28.1.0a — Outfitter equivalent. Same lookup-keys idempotency
 // pattern as guide. Re-running returns the existing IDs without
-// duplicating. 14-day trial baked into recurring config so any
-// subscription using these prices defaults to a 14-day trial
-// unless the caller overrides trial_period_days.
+// duplicating. v28.1.0b.1: trial dropped 14 → 7 days; fresh prices
+// minted by this helper bake 7 days into recurring config. Existing
+// live prices keep their original trial duration (Stripe prices are
+// immutable); the checkout session overrides per-call so the
+// effective trial always matches OUTFITTER_TRIAL_DAYS.
 export async function ensureBitebookOutfitterPrices(): Promise<{ monthly: string; yearly: string }> {
   const stripe = getStripe()
 

@@ -7,6 +7,7 @@ import { US_STATES } from '@/lib/us-states'
 import {
   uploadOutfitterLogoAction,
   createOutfitterCheckoutAction,
+  bypassOutfitterCheckoutForTesting,
 } from './actions'
 
 // v28.1.0b — 4-step outfitter upgrade wizard. All state lives in this
@@ -16,9 +17,11 @@ import {
 export default function OutfitterUpgradeWizard({
   userEmail,
   canceled,
+  testBypassAllowed = false,
 }: {
   userEmail: string | null
   canceled: boolean
+  testBypassAllowed?: boolean
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [pending, startTransition] = useTransition()
@@ -92,6 +95,31 @@ export default function OutfitterUpgradeWizard({
         return
       }
       window.location.href = res.url
+    })
+  }
+
+  // v28.1.0b.1 — Admin test-bypass. Only renders for allowlisted users
+  // (Flavio + OUTFITTER_TEST_ALLOWLIST). Server-side action ALSO checks
+  // the allowlist, so a non-allowlisted user calling this directly
+  // gets rejected.
+  function runTestBypass() {
+    setError(null)
+    if (!window.confirm('Skip payment and create a comp outfitter org for testing? This org will be flagged is_test=true and wiped before public launch.')) {
+      return
+    }
+    startTransition(async () => {
+      const res = await bypassOutfitterCheckoutForTesting({
+        org_name: orgName.trim(),
+        state: state || null,
+        commercial_license_number: licenseNumber.trim() || null,
+        business_address: businessAddress.trim() || null,
+        temp_logo_path: tempLogoPath,
+      })
+      if ('error' in res) {
+        setError(res.error)
+        return
+      }
+      window.location.href = '/app/upgrade-success?test_bypass=1'
     })
   }
 
@@ -357,7 +385,7 @@ export default function OutfitterUpgradeWizard({
               })}
             </div>
             <p className="bb-form-help" style={{ marginTop: '0.75rem' }}>
-              <strong>14-day trial.</strong> Card collected at signup, no charge until trial ends. Cancel anytime.
+              <strong>7-day trial.</strong> Card collected at signup, no charge until trial ends. Cancel anytime.
             </p>
             <ul style={{ fontSize: '0.9rem', color: 'var(--color-ink-soft)', marginTop: '0.5rem', paddingLeft: '1.2rem' }}>
               <li>3 admin seats (owner + 2 admins)</li>
@@ -442,7 +470,7 @@ export default function OutfitterUpgradeWizard({
                 </div>
               </div>
               <div className="bb-form-help" style={{ marginTop: '0.25rem' }}>
-                Plan: <strong>{interval === 'month' ? '$39/mo' : '$390/yr'}</strong> · 14-day trial · {keepGuideSub ? 'Keeping guide sub' : 'Guide sub will cancel at period end'}
+                Plan: <strong>{interval === 'month' ? '$39/mo' : '$390/yr'}</strong> · 7-day trial · {keepGuideSub ? 'Keeping guide sub' : 'Guide sub will cancel at period end'}
                 {logoFile ? ' · Logo attached' : ''}
               </div>
               <p className="bb-form-help">
@@ -470,9 +498,29 @@ export default function OutfitterUpgradeWizard({
                 onClick={goToCheckout}
                 disabled={pending}
               >
-                {pending ? 'Loading Stripe…' : 'Start 14-day trial'}
+                {pending ? 'Loading Stripe…' : 'Start 7-day trial'}
               </button>
             </div>
+
+            {/* v28.1.0b.1 — Admin test-bypass. Unobtrusive link under the
+                main CTA, only rendered for allowlisted users (Flavio +
+                OUTFITTER_TEST_ALLOWLIST). Server-side check enforced. */}
+            {testBypassAllowed && (
+              <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'var(--color-ink-muted)' }}>
+                <button
+                  type="button"
+                  onClick={runTestBypass}
+                  disabled={pending}
+                  className="bb-text-action"
+                  style={{ display: 'inline', padding: 0, textDecoration: 'underline', color: 'var(--color-ink-muted)' }}
+                >
+                  Skip payment (test mode)
+                </button>
+                <span style={{ marginLeft: '0.4rem' }}>
+                  — admin only. Creates a comp org flagged is_test=true.
+                </span>
+              </div>
+            )}
           </div>
         </section>
       )}

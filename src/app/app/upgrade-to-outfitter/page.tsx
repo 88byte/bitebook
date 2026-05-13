@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { requireUser } from '../_lib/auth'
 import OutfitterUpgradeWizard from './OutfitterUpgradeWizard'
+import { isCurrentUserTestBypassAllowed } from './actions'
 
 // v28.1.0b — Outfitter upgrade wizard. Gated to guide-tier users.
 // Existing outfitter members redirect back to /app to avoid creating
@@ -20,12 +21,14 @@ export default async function UpgradeToOutfitterPage({
   }
   const sp = await searchParams
   const canceled = sp.canceled === 'true'
+  const testBypassAllowed = await isCurrentUserTestBypassAllowed()
 
   return (
     <main className="bb-app-main">
       <OutfitterUpgradeWizard
         userEmail={user.email ?? null}
         canceled={canceled}
+        testBypassAllowed={testBypassAllowed}
       />
     </main>
   )

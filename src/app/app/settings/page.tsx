@@ -228,7 +228,7 @@ async function ProfileTab({
             </strong>
             <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
               Run an org with up to 3 admins, a shared guide network, and
-              org-wide hunters &amp; calendar. 14-day free trial.
+              org-wide hunters &amp; calendar. 7-day free trial.
             </span>
           </span>
           <ArrowRight size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--color-copper)' }} />

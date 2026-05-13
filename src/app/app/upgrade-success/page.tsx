@@ -81,14 +81,20 @@ export default async function UpgradeSuccessPage({ searchParams }: { searchParam
     redirect('/app')
   }
 
+  // v28.1.0b.1 — comp orgs (test-bypass) get distinct copy so the
+  // billing language doesn't claim a trial exists when one doesn't.
+  const isComp = orgRow.subscription_status === 'comp'
+
   return (
     <main className="bb-app-main">
       <div className="bb-form-narrow" style={{ marginTop: '1rem' }}>
         <header>
-          <p className="bb-page-eyebrow">Welcome</p>
+          <p className="bb-page-eyebrow">{isComp ? 'Test mode' : 'Welcome'}</p>
           <h1 className="bb-page-title">You&rsquo;re an outfitter</h1>
           <p className="bb-page-sub">
-            Your trial is live. We&rsquo;ll send a reminder before it converts.
+            {isComp
+              ? 'Comp org provisioned for testing. No card on file. This row will be wiped before public launch.'
+              : 'Your 7-day trial is live. We’ll send a reminder before it converts.'}
           </p>
         </header>
 

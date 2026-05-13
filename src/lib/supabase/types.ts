@@ -1712,6 +1712,7 @@ export type Database = {
           stripe_customer_id: string | null
           created_at: string
           archived_at: string | null
+          is_test: boolean
         }
         Insert: {
           id?: string
@@ -1726,6 +1727,7 @@ export type Database = {
           stripe_customer_id?: string | null
           created_at?: string
           archived_at?: string | null
+          is_test?: boolean
         }
         Update: {
           id?: string
@@ -1740,6 +1742,7 @@ export type Database = {
           stripe_customer_id?: string | null
           created_at?: string
           archived_at?: string | null
+          is_test?: boolean
         }
         Relationships: []
       }

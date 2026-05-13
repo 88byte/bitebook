@@ -2,9 +2,12 @@
 // recurring prices ($39/mo + $390/yr) in the connected Stripe account.
 // Mirrors src/lib/stripe.ts ensureBitebookOutfitterPrices exactly.
 //
-// 14-day trial baked into the price's recurring config so subscriptions
-// using these prices default to a 14-day trial unless trial_period_days
-// is overridden at subscription/checkout time.
+// 7-day trial baked into the price's recurring config so subscriptions
+// using these prices default to a 7-day trial unless trial_period_days
+// is overridden at subscription/checkout time. (v28.1.0b.1 dropped this
+// from 14 → 7 to match the guide tier. Existing live prices stay 14 —
+// Stripe prices are immutable — but createOutfitterCheckoutAction
+// overrides per-session so effective trial is always 7.)
 //
 // Usage:
 //   node --env-file=.env.production scripts/ensure-outfitter-prices.mjs
@@ -24,7 +27,7 @@ const PRODUCT_DESCRIPTION =
   'Outfitter tier for Bite Book — multi-guide org, 3 admin seats, ' +
   'unlimited network guides + hunters, calendar + multi-guide trip ' +
   'assignment + reviews.'
-const TRIAL_DAYS = 14
+const TRIAL_DAYS = 7
 const MONTHLY_CENTS = 3900
 const YEARLY_CENTS = 39000
 
