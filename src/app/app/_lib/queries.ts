@@ -1278,16 +1278,24 @@ export async function fetchHunterTripDetail(
       .from('trip_participants')
       .select('id, role, guest_name, hunter_id')
       .eq('trip_id', tripId),
-    supabase
-      .from('profiles')
-      .select('id, display_name')
-      .eq('id', trip.guide_id)
-      .maybeSingle(),
-    supabase
-      .from('guide_profiles')
-      .select('business_name')
-      .eq('user_id', trip.guide_id)
-      .maybeSingle(),
+    // v28.0.0: trips.guide_id is now nullable (outfitter-owned trips
+    // have it null). Skip the profile/guide_profile lookup when null;
+    // outfitter trip surfaces will resolve org metadata via a
+    // separate path in Sprint 3.4.
+    trip.guide_id
+      ? supabase
+          .from('profiles')
+          .select('id, display_name')
+          .eq('id', trip.guide_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    trip.guide_id
+      ? supabase
+          .from('guide_profiles')
+          .select('business_name')
+          .eq('user_id', trip.guide_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   // Resolve OTHER participants' display names. RLS allows hunters who share a

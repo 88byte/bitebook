@@ -26,6 +26,21 @@ export const PRICE_LOOKUP_KEYS = {
 
 export const PRODUCT_NAME = 'Bite Book Guide'
 
+// v28.1.0a — Outfitter tier prices. Separate product from the guide
+// tier; lookup keys keep guide + outfitter price catalogs cleanly
+// separable so a re-seed of one doesn't touch the other. Monthly = $39,
+// yearly = $390. 14-day trial baked into the price's recurring
+// configuration so Checkout sessions inherit it without per-call
+// override (matches the guide tier where the price is the source of
+// truth for billing cadence).
+export const OUTFITTER_PRICE_LOOKUP_KEYS = {
+  monthly: 'bitebook_outfitter_monthly_v1',
+  yearly: 'bitebook_outfitter_yearly_v1',
+} as const
+
+export const OUTFITTER_PRODUCT_NAME = 'Bite Book Outfitter'
+export const OUTFITTER_TRIAL_DAYS = 14
+
 // Lazily ensures the product + the two recurring prices exist on this Stripe account.
 // Returns price IDs keyed by interval. Safe to call repeatedly — uses lookup_keys.
 export async function ensureBitebookGuidePrices(): Promise<{ monthly: string; annual: string }> {
@@ -84,4 +99,90 @@ export async function ensureBitebookGuidePrices(): Promise<{ monthly: string; an
     monthly: byKey[PRICE_LOOKUP_KEYS.monthly],
     annual: byKey[PRICE_LOOKUP_KEYS.annual],
   }
+}
+
+// v28.1.0a — Outfitter equivalent. Same lookup-keys idempotency
+// pattern as guide. Re-running returns the existing IDs without
+// duplicating. 14-day trial baked into recurring config so any
+// subscription using these prices defaults to a 14-day trial
+// unless the caller overrides trial_period_days.
+export async function ensureBitebookOutfitterPrices(): Promise<{ monthly: string; yearly: string }> {
+  const stripe = getStripe()
+
+  const existing = await stripe.prices.list({
+    lookup_keys: [OUTFITTER_PRICE_LOOKUP_KEYS.monthly, OUTFITTER_PRICE_LOOKUP_KEYS.yearly],
+    expand: ['data.product'],
+    active: true,
+  })
+
+  const byKey: Record<string, string> = {}
+  for (const p of existing.data) byKey[p.lookup_key!] = p.id
+
+  if (
+    byKey[OUTFITTER_PRICE_LOOKUP_KEYS.monthly] &&
+    byKey[OUTFITTER_PRICE_LOOKUP_KEYS.yearly]
+  ) {
+    return {
+      monthly: byKey[OUTFITTER_PRICE_LOOKUP_KEYS.monthly],
+      yearly: byKey[OUTFITTER_PRICE_LOOKUP_KEYS.yearly],
+    }
+  }
+
+  // Find or create the outfitter product. Listed by name match because
+  // Stripe doesn't expose lookup keys on products.
+  const products = await stripe.products.list({ active: true, limit: 100 })
+  let product = products.data.find((p) => p.name === OUTFITTER_PRODUCT_NAME)
+  if (!product) {
+    product = await stripe.products.create({
+      name: OUTFITTER_PRODUCT_NAME,
+      description:
+        'Outfitter tier for Bite Book — multi-guide org, 3 admin seats, ' +
+        'unlimited network guides + hunters, calendar + multi-guide trip ' +
+        'assignment + reviews.',
+    })
+  }
+
+  if (!byKey[OUTFITTER_PRICE_LOOKUP_KEYS.monthly]) {
+    const monthly = await stripe.prices.create({
+      product: product.id,
+      unit_amount: 3900, // $39
+      currency: 'usd',
+      recurring: { interval: 'month', trial_period_days: OUTFITTER_TRIAL_DAYS },
+      lookup_key: OUTFITTER_PRICE_LOOKUP_KEYS.monthly,
+      nickname: 'Monthly',
+    })
+    byKey[OUTFITTER_PRICE_LOOKUP_KEYS.monthly] = monthly.id
+  }
+  if (!byKey[OUTFITTER_PRICE_LOOKUP_KEYS.yearly]) {
+    const yearly = await stripe.prices.create({
+      product: product.id,
+      unit_amount: 39000, // $390
+      currency: 'usd',
+      recurring: { interval: 'year', trial_period_days: OUTFITTER_TRIAL_DAYS },
+      lookup_key: OUTFITTER_PRICE_LOOKUP_KEYS.yearly,
+      nickname: 'Yearly',
+    })
+    byKey[OUTFITTER_PRICE_LOOKUP_KEYS.yearly] = yearly.id
+  }
+
+  return {
+    monthly: byKey[OUTFITTER_PRICE_LOOKUP_KEYS.monthly],
+    yearly: byKey[OUTFITTER_PRICE_LOOKUP_KEYS.yearly],
+  }
+}
+
+// v28.1.0a — runtime check whether a price id is in the outfitter
+// catalog. Used by the webhook handler to route customer.subscription
+// events to outfitter_orgs vs the legacy outfitter_subscriptions
+// (guide-tier) table. STRIPE_OUTFITTER_*_PRICE_ID env vars are the
+// fast path; the lookup-key fallback handles the case where env
+// vars haven't been deployed yet (e.g. first webhook arriving
+// before Vercel env propagation).
+export function isOutfitterPriceId(priceId: string | null | undefined): boolean {
+  if (!priceId) return false
+  const monthly = process.env.STRIPE_OUTFITTER_MONTHLY_PRICE_ID
+  const yearly = process.env.STRIPE_OUTFITTER_YEARLY_PRICE_ID
+  if (monthly && priceId === monthly) return true
+  if (yearly && priceId === yearly) return true
+  return false
 }

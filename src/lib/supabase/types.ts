@@ -1587,13 +1587,58 @@ export type Database = {
           },
         ]
       }
+      outfitter_orgs: {
+        Row: {
+          id: string
+          name: string
+          owner_profile_id: string
+          state: string | null
+          commercial_license_number: string | null
+          business_address: string | null
+          logo_url: string | null
+          subscription_status: string
+          stripe_subscription_id: string | null
+          stripe_customer_id: string | null
+          created_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_profile_id: string
+          state?: string | null
+          commercial_license_number?: string | null
+          business_address?: string | null
+          logo_url?: string | null
+          subscription_status?: string
+          stripe_subscription_id?: string | null
+          stripe_customer_id?: string | null
+          created_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_profile_id?: string
+          state?: string | null
+          commercial_license_number?: string | null
+          business_address?: string | null
+          logo_url?: string | null
+          subscription_status?: string
+          stripe_subscription_id?: string | null
+          stripe_customer_id?: string | null
+          created_at?: string
+          archived_at?: string | null
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
           city: string | null
           county: string | null
           created_at: string
           ends_at: string | null
-          guide_id: string
+          guide_id: string | null
           id: string
           kind: Database["public"]["Enums"]["harvest_kind"]
           location_lat: number | null

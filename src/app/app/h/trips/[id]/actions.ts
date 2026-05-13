@@ -34,6 +34,13 @@ export async function submitTripReviewAction(formData: FormData): Promise<Review
   }
   if (!trip) return { error: 'Trip not found.' }
   if (trip.status !== 'completed') return { error: 'You can only review completed trips.' }
+  // v28.0.0: outfitter-owned trips have guide_id null. Reviews of those
+  // need to target the outfitter org (review_type='outfitter') —
+  // implementation in Sprint 3.6. For now, reject the review submit
+  // with a clear error rather than crash on the FK constraint.
+  if (!trip.guide_id) {
+    return { error: 'Outfitter-trip review submission lands in Sprint 3.6.' }
+  }
 
   const { error } = await supabase
     .from('trip_reviews')
