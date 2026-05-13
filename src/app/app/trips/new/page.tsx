@@ -72,11 +72,15 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
         </p>
       </header>
 
-      {/* v27.3.3.1: Create trip + Use template on the same action row,
+      {/* v27.3.3.1: action row + Use template on the same action row,
           ABOVE the divider. Use template was below the divider in
           v27.3.3 — Flavio: "buttons should be above the divider."
-          Both submit-style actions live in this row. Create trip is
-          the primary copper CTA, Use template is the secondary. */}
+          Both submit-style actions live in this row.
+          v28.0.1: submit button copy switched from "Create trip" to
+          "Save" to disambiguate from the page-level /app/trips
+          "Create trip" navigation CTA that brought the user into
+          this form. Same button, clearer signal that it commits the
+          form rather than starting a new flow. */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="submit"
@@ -85,7 +89,7 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <Plus size={16} aria-hidden="true" />
-          Create trip
+          Save
         </button>
         {templates.length > 0 && (
           <UseTemplateButton

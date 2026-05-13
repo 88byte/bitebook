@@ -371,13 +371,14 @@ export default function NewTripForm({
 
       {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
 
-      {/* v27.3.3.1: bottom Create trip button removed — the top
-          Create trip CTA in the page header (form='new-trip-form'
-          attribute) is the single submit. Pending state on the top
-          button covers the in-flight UX. */}
+      {/* v27.3.3.1: bottom submit button removed — the top Save CTA
+          in the page header (form='new-trip-form' attribute) is the
+          single submit. Pending state on the top button covers the
+          in-flight UX. v28.0.1: copy refreshed to match the new
+          "Save" label. */}
       {pending && (
         <p className="bb-form-help" role="status" style={{ marginTop: '0.25rem' }}>
-          Creating trip…
+          Saving…
         </p>
       )}
 
