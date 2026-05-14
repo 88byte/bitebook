@@ -8,6 +8,8 @@ import SignatureDefaultsForm from './SignatureDefaultsForm'
 import BillingPanel from './BillingPanel'
 import OutfitterLogoUploader from './OutfitterLogoUploader'
 import OutfitterDefaultLogPicker from './OutfitterDefaultLogPicker'
+import OutfitterAdminTeam from './OutfitterAdminTeam'
+import { fetchOutfitterTeamSnapshot } from './team-actions'
 
 // v27.4.0 — Settings page reorganized into Profile + Billing tabs.
 // Server-rendered tabs driven by ?tab=profile|billing (default profile).
@@ -192,6 +194,12 @@ async function ProfileTab({
     orgSnapshot = data ?? null
   }
 
+  // v28.1.0c — Team snapshot for the Admin team section. Null when
+  // the user isn't on an outfitter org.
+  const teamSnapshot = (isOutfitterOwner || isOutfitterAdmin)
+    ? await fetchOutfitterTeamSnapshot()
+    : null
+
   return (
     <>
       {isSoloGuide && (
@@ -341,9 +349,17 @@ async function ProfileTab({
               </div>
             )}
 
-            {/* Admin team section lands in v28.1.0c (placeholder
-                position preserves Flavio's intended top-to-bottom
-                order: org info → logo → default log → admin team). */}
+            {/* v28.1.0c — Admin team section. Visible to owners +
+                admins. Mutations (invite, resend, revoke, remove)
+                are owner-only and the server actions enforce that
+                again — the team-actions module raises if a non-owner
+                tries to invoke them. */}
+            {teamSnapshot && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-card-divider)' }}>
+                <h3 className="bb-section-title" style={{ margin: '0 0 0.5rem' }}>Admin team</h3>
+                <OutfitterAdminTeam snapshot={teamSnapshot} />
+              </div>
+            )}
           </div>
         </section>
       )}

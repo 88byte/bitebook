@@ -286,6 +286,50 @@ export function buildWaiverResendEmail(opts: {
   return { subject, text, html }
 }
 
+// v28.1.0c — Outfitter admin invite email. Sent when an outfitter
+// owner adds a teammate as an admin on their org. CTA points to the
+// /accept-admin-invite token URL; copy explains the admin role and
+// 14-day expiry.
+export function buildOutfitterAdminInviteEmail(opts: {
+  ownerName: string
+  orgName: string
+  acceptUrl: string
+  origin: string
+}): { subject: string; text: string; html: string } {
+  const { ownerName, orgName, acceptUrl, origin } = opts
+  const subject = `${ownerName} invited you to manage ${orgName} on Bite Book`
+  const text = [
+    'Hi there,',
+    '',
+    `${ownerName} invited you to be an admin on ${orgName} in Bite Book.`,
+    '',
+    'Admins help run the outfit — they can manage trips, guide network, and hunters across the org.',
+    '',
+    `Accept the invite here: ${acceptUrl}`,
+    '',
+    'No subscription needed — admin access is free as part of the outfitter plan.',
+    'This invite expires in 14 days.',
+    '',
+    '— Bite Book',
+    'Questions? support@lastbite.pro',
+  ].join('\n')
+
+  const html = wrapBitebookEmailHTML({
+    origin,
+    preheader: `${ownerName} invited you to manage ${orgName} on Bite Book.`,
+    eyebrow: 'Admin invite',
+    headline: `${ownerName} invited you to manage ${orgName}`,
+    paragraphs: [
+      `${ownerName} invited you to be an admin on ${orgName} in Bite Book. Admins help run the outfit — they can manage trips, guide network, and hunters across the org.`,
+      'No subscription needed — admin access is free as part of the outfitter plan. This link expires in 14 days.',
+    ],
+    ctaLabel: 'Accept admin invite',
+    ctaUrl: acceptUrl,
+  })
+
+  return { subject, text, html }
+}
+
 export type EmailResult =
   | { sent: true; id?: string }
   | {

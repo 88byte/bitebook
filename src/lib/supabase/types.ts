@@ -1599,6 +1599,48 @@ export type Database = {
           },
         ]
       }
+      outfitter_admin_invites: {
+        Row: {
+          id: string
+          org_id: string
+          invited_email: string
+          invited_by_profile_id: string
+          token: string
+          status: string
+          created_at: string
+          expires_at: string
+          accepted_at: string | null
+          accepted_by_profile_id: string | null
+          last_sent_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          invited_email: string
+          invited_by_profile_id: string
+          token: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          last_sent_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          invited_email?: string
+          invited_by_profile_id?: string
+          token?: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          last_sent_at?: string
+        }
+        Relationships: []
+      }
       outfitter_guide_network: {
         Row: {
           id: string
