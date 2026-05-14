@@ -10,7 +10,38 @@ import {
   fetchTripGeneratedLogs,
 } from '../../../_lib/harvest-log-queries'
 import { loadGuideDefaultSignatureDataUrl } from '../../../_lib/guide-default-signature'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import HarvestLogEditor from './HarvestLogEditor'
+
+// v28.1.0b.6 — Resolve the user's preferred default log doc id for
+// the picker pre-select. Priority:
+//   1. outfitter_orgs.default_log_doc_id (if the guide belongs to an
+//      outfitter org — outfitter trips default to the org-wide pick).
+//   2. guide_profiles.default_log_doc_id (solo guides + outfitter
+//      guides who haven't been assigned an org default).
+//   3. null → existing sortedDocs[0] fallback.
+async function resolvePreferredDefaultDocId(
+  guideUserId: string,
+  outfitterOrgId: string | null,
+): Promise<string | null> {
+  const admin = createAdminClient()
+  if (outfitterOrgId) {
+    const { data } = await admin
+      .from('outfitter_orgs')
+      .select('default_log_doc_id')
+      .eq('id', outfitterOrgId)
+      .maybeSingle()
+    if (data?.default_log_doc_id) return data.default_log_doc_id
+  }
+  const sb = await createClient()
+  const { data: gp } = await sb
+    .from('guide_profiles')
+    .select('default_log_doc_id')
+    .eq('user_id', guideUserId)
+    .maybeSingle()
+  return gp?.default_log_doc_id ?? null
+}
 
 type Params = Promise<{ id: string }>
 
@@ -24,6 +55,7 @@ type Params = Promise<{ id: string }>
 export default async function TripHarvestLogPage({ params }: { params: Params }) {
   const { profile } = await requireGuide()
   const { id: tripId } = await params
+  const outfitterOrgId = profile.current_outfitter_org_id ?? null
 
   const detail = await fetchTripDetail(profile.id, tripId)
   if (!detail) notFound()
@@ -74,13 +106,16 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   // v27.3.7.1 item 3: also fetch the species pool so the per-hunter
   // species rows can use the same SpeciesField dropdown the trip
   // form uses (consistency + default to trip species).
-  const [mappedDocs, generatedLogs, speciesOptions, defaultSignatureDataUrl] = await Promise.all([
+  const [mappedDocs, generatedLogs, speciesOptions, defaultSignatureDataUrl, preferredDefaultDocId] = await Promise.all([
     fetchMappedLogDocs(profile.id),
     fetchTripGeneratedLogs(tripId),
     fetchSpecies(),
     // v27.4.0 — pre-fetch the guide's saved default signature so the
     // SignModal pre-fills with it when opened.
     loadGuideDefaultSignatureDataUrl(profile.id),
+    // v28.1.0b.6 — Prefer the user's org-level or guide-level default
+    // log doc over sortedDocs[0] when pre-selecting the picker.
+    resolvePreferredDefaultDocId(profile.id, outfitterOrgId),
   ])
 
   return (
@@ -117,6 +152,7 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         generatedLogs={generatedLogs}
         speciesOptions={speciesOptions}
         defaultSignatureDataUrl={defaultSignatureDataUrl}
+        preferredDefaultDocId={preferredDefaultDocId}
       />
     </main>
   )

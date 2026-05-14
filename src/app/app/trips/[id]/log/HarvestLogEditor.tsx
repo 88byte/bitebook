@@ -128,6 +128,7 @@ export default function HarvestLogEditor({
   generatedLogs,
   speciesOptions,
   defaultSignatureDataUrl = null,
+  preferredDefaultDocId = null,
 }: {
   tripId: string
   log: HarvestLogWithEntries
@@ -145,6 +146,10 @@ export default function HarvestLogEditor({
   // v27.4.0 — guide's saved default signature, base64 PNG data URL.
   // Threaded through to SignModal so the canvas pre-fills.
   defaultSignatureDataUrl?: string | null
+  // v28.1.0b.6 — Org/guide-level default log doc id. Used to pre-
+  // select the picker over sortedDocs[0]. Falls through when null
+  // or when the preferred doc isn't in the visible list.
+  preferredDefaultDocId?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -222,6 +227,7 @@ export default function HarvestLogEditor({
             guideId={guideId}
             reportName={reportName}
             setReportName={setReportName}
+            preferredDefaultDocId={preferredDefaultDocId}
           />
 
           {/* v27.3.7 item 9 — divider beneath Generate on mobile only.
@@ -1427,6 +1433,7 @@ function GeneratePdfsSection({
   guideId,
   reportName,
   setReportName,
+  preferredDefaultDocId = null,
 }: {
   logId: string
   mappedDocs: MappedLogDoc[]
@@ -1437,6 +1444,10 @@ function GeneratePdfsSection({
   // no longer owns the input.
   reportName: string
   setReportName: (s: string) => void
+  // v28.1.0b.6 — Org-level (outfitter) or guide-level default log doc
+  // id. Pre-selects the picker over sortedDocs[0] when the preferred
+  // doc is in the visible list.
+  preferredDefaultDocId?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -1483,20 +1494,35 @@ function GeneratePdfsSection({
 
   // Default-pick the first doc in the visible/sorted list. Auto-select
   // sticks when sortedDocs reduces to length 1.
-  const [docId, setDocId] = useState<string>(sortedDocs[0]?.id ?? '')
+  //
+  // v28.1.0b.6 — Prefer the user's org/guide-level default log doc id
+  // when it's present in the visible list. Falls through to
+  // sortedDocs[0] otherwise (existing behavior). Set lazily on first
+  // render so subsequent state-change effects don't keep re-resetting.
+  const [docId, setDocId] = useState<string>(() => {
+    if (preferredDefaultDocId && sortedDocs.some((d) => d.id === preferredDefaultDocId)) {
+      return preferredDefaultDocId
+    }
+    return sortedDocs[0]?.id ?? ''
+  })
   // v27.5.0.3: reportName lifted to parent (Trip-level details). The
   // input lives there; this section just consumes the value when
   // generating. v27.1.4.0.1: empty → engine auto-generates
   // `{trip.title} — {doc.label}`.
   // If the visible list changes (e.g. tripState arrives async), keep
-  // the selected doc valid.
+  // the selected doc valid. v28.1.0b.6 — when re-defaulting, prefer
+  // the org/guide preferred doc id if it's in the new list.
   useEffect(() => {
     if (sortedDocs.length === 0) return
     if (!sortedDocs.some((d) => d.id === docId)) {
-      setDocId(sortedDocs[0].id)
+      if (preferredDefaultDocId && sortedDocs.some((d) => d.id === preferredDefaultDocId)) {
+        setDocId(preferredDefaultDocId)
+      } else {
+        setDocId(sortedDocs[0].id)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedDocs.map((d) => d.id).join(',')])
+  }, [sortedDocs.map((d) => d.id).join(','), preferredDefaultDocId])
 
   function describeDoc(d: MappedLogDoc): string {
     const ownerTag = d.is_template

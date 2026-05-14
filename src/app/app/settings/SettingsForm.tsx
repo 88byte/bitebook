@@ -410,12 +410,35 @@ export default function SettingsForm({
             onChange={(e) => setLicenseExpires(e.target.value)}
           />
         </div>
+
+        {/* v28.1.0b.6 — Default state harvest log moved here from
+            "Account & defaults". Lives next to license fields because
+            it's a per-guide professional default and that's where a
+            guide expects to find it. Saves via main form submit. */}
+        <div className="bb-form-row" style={{ marginTop: '0.5rem' }}>
+          <label className="bb-form-label" htmlFor="default_log_doc_id">Default state harvest log</label>
+          <select
+            id="default_log_doc_id"
+            name="default_log_doc_id"
+            className="bb-input"
+            value={defaultLogDocId}
+            onChange={(e) => setDefaultLogDocId(e.target.value)}
+          >
+            <option value="">— Pick per trip —</option>
+            {logDocs.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}{d.state ? ` · ${d.state}` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="bb-form-help">
+            {logDocs.length === 0
+              ? 'Upload a harvest log doc on the Documents page first to set a default here.'
+              : 'Pre-fills on new trips. You can always override per trip.'}
+          </p>
+        </div>
         </fieldset>
       </details>
-
-      {/* v28.1.0b.4 — Defaults section eliminated. The single
-          default-harvest-log dropdown now lives inside Account &
-          defaults below to avoid a 1-input collapsible. */}
 
       {error && (
         <p role="alert" style={{ color: '#8C3C2A', fontSize: '0.85rem' }}>
@@ -447,37 +470,14 @@ export default function SettingsForm({
         </div>
       )}
 
-      {/* Account & defaults — email change has its own flow + the
-          default-harvest-log dropdown lives here (v28.1.0b.4 folded
-          the standalone "Defaults" section in to satisfy the
-          no-singleton-sections rule). */}
+      {/* v28.1.0b.6 — Default state harvest log moved out of Account
+          into Guide credentials section above (closer to license
+          fields, matches the "where you'd expect it as a guide" rule
+          Flavio called out). Section title also dropped "defaults"
+          since it's now strictly email. */}
       <details className="bb-accordion">
-        <summary className="bb-accordion-summary">Account &amp; defaults</summary>
+        <summary className="bb-accordion-summary">Account &amp; email</summary>
         <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
-
-        {/* Default state harvest log (was its own section pre-v28.1.0b.4). */}
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="default_log_doc_id">Default state harvest log</label>
-          <select
-            id="default_log_doc_id"
-            name="default_log_doc_id"
-            className="bb-input"
-            value={defaultLogDocId}
-            onChange={(e) => setDefaultLogDocId(e.target.value)}
-          >
-            <option value="">— Pick per trip —</option>
-            {logDocs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}{d.state ? ` · ${d.state}` : ''}
-              </option>
-            ))}
-          </select>
-          <p className="bb-form-help">
-            {logDocs.length === 0
-              ? 'Upload a harvest log doc on the Documents page first to set a default here.'
-              : 'Pre-fills on new trips. You can always override per trip.'}
-          </p>
-        </div>
 
         <div className="bb-form-row">
           <span className="bb-form-label">Current email</span>

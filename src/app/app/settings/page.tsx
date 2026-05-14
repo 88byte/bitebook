@@ -7,6 +7,7 @@ import SettingsForm from './SettingsForm'
 import SignatureDefaultsForm from './SignatureDefaultsForm'
 import BillingPanel from './BillingPanel'
 import OutfitterLogoUploader from './OutfitterLogoUploader'
+import OutfitterDefaultLogPicker from './OutfitterDefaultLogPicker'
 
 // v27.4.0 — Settings page reorganized into Profile + Billing tabs.
 // Server-rendered tabs driven by ?tab=profile|billing (default profile).
@@ -179,12 +180,13 @@ async function ProfileTab({
     business_address: string | null
     logo_url: string | null
     subscription_status: string | null
+    default_log_doc_id: string | null
   } | null = null
   if ((isOutfitterOwner || isOutfitterAdmin) && currentOrgId) {
     const admin = createAdminClient()
     const { data } = await admin
       .from('outfitter_orgs')
-      .select('name, state, outfitter_license_number, business_address, logo_url, subscription_status')
+      .select('name, state, outfitter_license_number, business_address, logo_url, subscription_status, default_log_doc_id')
       .eq('id', currentOrgId)
       .maybeSingle()
     orgSnapshot = data ?? null
@@ -324,6 +326,24 @@ async function ProfileTab({
                 <OutfitterLogoUploader currentLogoUrl={orgSnapshot.logo_url} />
               </div>
             )}
+
+            {/* v28.1.0b.6 — Org-wide default state hunt log. Moved out
+                of SettingsForm "Account & defaults" to live alongside
+                org-level metadata (per Flavio: org → logo → default
+                log → admin team). Save-on-change, no submit button. */}
+            {isOutfitterOwner && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-card-divider)' }}>
+                <h3 className="bb-section-title" style={{ margin: '0 0 0.5rem' }}>Default hunt log</h3>
+                <OutfitterDefaultLogPicker
+                  orgState={orgSnapshot.state}
+                  currentDocId={orgSnapshot.default_log_doc_id}
+                />
+              </div>
+            )}
+
+            {/* Admin team section lands in v28.1.0c (placeholder
+                position preserves Flavio's intended top-to-bottom
+                order: org info → logo → default log → admin team). */}
           </div>
         </section>
       )}
