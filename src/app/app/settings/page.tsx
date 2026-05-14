@@ -174,7 +174,7 @@ async function ProfileTab({
   let orgSnapshot: {
     name: string
     state: string | null
-    commercial_license_number: string | null
+    outfitter_license_number: string | null
     business_address: string | null
     logo_url: string | null
     subscription_status: string | null
@@ -183,7 +183,7 @@ async function ProfileTab({
     const admin = createAdminClient()
     const { data } = await admin
       .from('outfitter_orgs')
-      .select('name, state, commercial_license_number, business_address, logo_url, subscription_status')
+      .select('name, state, outfitter_license_number, business_address, logo_url, subscription_status')
       .eq('id', currentOrgId)
       .maybeSingle()
     orgSnapshot = data ?? null
@@ -284,7 +284,7 @@ async function ProfileTab({
                   <dt style={{ color: 'var(--color-ink-muted)' }}>State</dt>
                   <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.state || 'Not set'}</dd>
                   <dt style={{ color: 'var(--color-ink-muted)' }}>License</dt>
-                  <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.commercial_license_number || 'Not set'}</dd>
+                  <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.outfitter_license_number || 'Not set'}</dd>
                   <dt style={{ color: 'var(--color-ink-muted)' }}>Address</dt>
                   <dd style={{ margin: 0, color: 'var(--color-ink)' }}>{orgSnapshot.business_address || 'Not set'}</dd>
                   <dt style={{ color: 'var(--color-ink-muted)' }}>Subscription</dt>

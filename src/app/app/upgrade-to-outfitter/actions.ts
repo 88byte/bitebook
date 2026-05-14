@@ -95,7 +95,7 @@ export async function createOutfitterCheckoutAction(
   payload: {
     org_name: string
     state?: string | null
-    commercial_license_number?: string | null
+    outfitter_license_number?: string | null
     business_address?: string | null
     temp_logo_path?: string | null
     interval: 'month' | 'year'
@@ -144,7 +144,7 @@ export async function createOutfitterCheckoutAction(
       supabase_user_id: profile.id,
       org_name: orgName,
       state: (payload.state || '').toUpperCase().slice(0, 2),
-      commercial_license_number: (payload.commercial_license_number || '').slice(0, 120),
+      outfitter_license_number: (payload.outfitter_license_number || '').slice(0, 120),
       business_address: (payload.business_address || '').slice(0, 240),
       temp_logo_path: payload.temp_logo_path || '',
       keep_guide_sub: payload.keep_guide_sub ? 'true' : 'false',
@@ -213,7 +213,7 @@ export async function bypassOutfitterCheckoutForTesting(
   payload: {
     org_name: string
     state?: string | null
-    commercial_license_number?: string | null
+    outfitter_license_number?: string | null
     business_address?: string | null
     temp_logo_path?: string | null
   },
@@ -234,7 +234,7 @@ export async function bypassOutfitterCheckoutForTesting(
   if (orgName.length > 80) return { error: 'Org name must be 80 characters or fewer.' }
 
   const state = (payload.state || '').trim().toUpperCase().slice(0, 2) || null
-  const licenseNumber = (payload.commercial_license_number || '').trim().slice(0, 120) || null
+  const licenseNumber = (payload.outfitter_license_number || '').trim().slice(0, 120) || null
   const businessAddress = (payload.business_address || '').trim().slice(0, 240) || null
   const tempLogoPath = (payload.temp_logo_path || '').trim() || null
 
@@ -263,7 +263,7 @@ export async function bypassOutfitterCheckoutForTesting(
       name: orgName,
       owner_profile_id: profile.id,
       state,
-      commercial_license_number: licenseNumber,
+      outfitter_license_number: licenseNumber,
       business_address: businessAddress,
       logo_url: null,
       subscription_status: 'comp',

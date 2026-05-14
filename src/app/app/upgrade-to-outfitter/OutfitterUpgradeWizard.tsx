@@ -84,7 +84,7 @@ export default function OutfitterUpgradeWizard({
       const res = await createOutfitterCheckoutAction({
         org_name: orgName.trim(),
         state: state || null,
-        commercial_license_number: licenseNumber.trim() || null,
+        outfitter_license_number: licenseNumber.trim() || null,
         business_address: businessAddress.trim() || null,
         temp_logo_path: tempLogoPath,
         interval,
@@ -111,7 +111,7 @@ export default function OutfitterUpgradeWizard({
       const res = await bypassOutfitterCheckoutForTesting({
         org_name: orgName.trim(),
         state: state || null,
-        commercial_license_number: licenseNumber.trim() || null,
+        outfitter_license_number: licenseNumber.trim() || null,
         business_address: businessAddress.trim() || null,
         temp_logo_path: tempLogoPath,
       })
@@ -224,7 +224,7 @@ export default function OutfitterUpgradeWizard({
                 </select>
               </div>
               <div className="bb-form-row">
-                <label className="bb-form-label" htmlFor="license">Commercial license # <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                <label className="bb-form-label" htmlFor="license">Outfitter license # <span style={{ opacity: 0.6 }}>(optional)</span></label>
                 <input
                   id="license"
                   type="text"

@@ -1704,7 +1704,7 @@ export type Database = {
           name: string
           owner_profile_id: string
           state: string | null
-          commercial_license_number: string | null
+          outfitter_license_number: string | null
           business_address: string | null
           logo_url: string | null
           subscription_status: string
@@ -1719,7 +1719,7 @@ export type Database = {
           name: string
           owner_profile_id: string
           state?: string | null
-          commercial_license_number?: string | null
+          outfitter_license_number?: string | null
           business_address?: string | null
           logo_url?: string | null
           subscription_status?: string
@@ -1734,7 +1734,7 @@ export type Database = {
           name?: string
           owner_profile_id?: string
           state?: string | null
-          commercial_license_number?: string | null
+          outfitter_license_number?: string | null
           business_address?: string | null
           logo_url?: string | null
           subscription_status?: string

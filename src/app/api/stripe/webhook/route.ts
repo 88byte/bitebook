@@ -248,7 +248,14 @@ export async function completeOutfitterUpgrade(
     return
   }
   const state = (meta.state || '').trim().toUpperCase() || null
-  const licenseNumber = (meta.commercial_license_number || '').trim() || null
+  // v28.1.0b.2 — Stripe metadata key was renamed
+  // commercial_license_number → outfitter_license_number to match the
+  // DB column rename. Older Checkout sessions (none in production yet
+  // — v28.1.0b shipped today and no real outfitter rows exist) would
+  // be stamped with the old key, so we fall back to it defensively.
+  const licenseNumber = (
+    meta.outfitter_license_number || meta.commercial_license_number || ''
+  ).trim() || null
   const businessAddress = (meta.business_address || '').trim() || null
   const tempLogoPath = (meta.temp_logo_path || '').trim() || null
   const keepGuideSub = meta.keep_guide_sub !== 'false'
@@ -276,7 +283,7 @@ export async function completeOutfitterUpgrade(
         name: orgName,
         owner_profile_id: ownerProfileId,
         state,
-        commercial_license_number: licenseNumber,
+        outfitter_license_number: licenseNumber,
         business_address: businessAddress,
         logo_url: null,
         subscription_status: mappedStatus,
