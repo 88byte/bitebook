@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Building2, Upload, Check, X } from 'lucide-react'
 import { US_STATES } from '@/lib/us-states'
@@ -8,6 +8,8 @@ import {
   uploadOutfitterLogoAction,
   createOutfitterCheckoutAction,
   bypassOutfitterCheckoutForTesting,
+  listLogDocsForStateAction,
+  type LogDocOption,
 } from './actions'
 
 // v28.1.0b — 4-step outfitter upgrade wizard. All state lives in this
@@ -32,6 +34,36 @@ export default function OutfitterUpgradeWizard({
   const [state, setState] = useState('')
   const [licenseNumber, setLicenseNumber] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
+
+  // v28.1.0b.5 — Default state hunt log. Dropdown lives in Step 1
+  // next to State (since the catalog filters by state). Refetches
+  // whenever state changes. Empty state = "Pick per trip".
+  const [defaultLogDocId, setDefaultLogDocId] = useState('')
+  const [logDocs, setLogDocs] = useState<LogDocOption[]>([])
+  const [logDocsLoading, setLogDocsLoading] = useState(false)
+  useEffect(() => {
+    let active = true
+    setLogDocsLoading(true)
+    listLogDocsForStateAction(state || null)
+      .then((rows) => {
+        if (!active) return
+        setLogDocs(rows)
+        // If the previously selected doc isn't in the new state's list,
+        // clear it so the user re-picks.
+        if (defaultLogDocId && !rows.some((r) => r.id === defaultLogDocId)) {
+          setDefaultLogDocId('')
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        setLogDocs([])
+      })
+      .finally(() => {
+        if (active) setLogDocsLoading(false)
+      })
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state])
 
   // Step 2: logo
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -91,6 +123,7 @@ export default function OutfitterUpgradeWizard({
         outfitter_license_number: licenseNumber.trim() || null,
         business_address: businessAddress.trim() || null,
         temp_logo_path: tempLogoPath,
+        default_log_doc_id: defaultLogDocId || null,
         interval,
         keep_guide_sub: keepGuideSub,
       })
@@ -118,6 +151,7 @@ export default function OutfitterUpgradeWizard({
         outfitter_license_number: licenseNumber.trim() || null,
         business_address: businessAddress.trim() || null,
         temp_logo_path: tempLogoPath,
+        default_log_doc_id: defaultLogDocId || null,
       })
       if ('error' in res) {
         setError(res.error)
@@ -254,6 +288,37 @@ export default function OutfitterUpgradeWizard({
                 maxLength={240}
               />
             </div>
+
+            {/* v28.1.0b.5 — Default state hunt log. Filters by selected
+                state, refetches on state change. Optional — empty value
+                means "pick per trip." */}
+            <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
+              <label className="bb-form-label" htmlFor="default_log">
+                Default state hunt log <span style={{ opacity: 0.6 }}>(optional)</span>
+              </label>
+              <select
+                id="default_log"
+                className="bb-input"
+                value={defaultLogDocId}
+                onChange={(e) => setDefaultLogDocId(e.target.value)}
+                disabled={logDocsLoading}
+              >
+                <option value="">{logDocsLoading ? 'Loading…' : 'Pick per trip'}</option>
+                {logDocs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}{d.state ? ` · ${d.state}` : ''}{d.is_template ? ' · Bite Book template' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="bb-form-help">
+                {state
+                  ? logDocs.length === 0
+                    ? `No hunt log templates for ${state} yet. You can upload your own on /app/docs and set a default from Settings later.`
+                    : 'Pre-fills the log picker on new trips. You can override per trip.'
+                  : 'Pick a state above to see available hunt logs.'}
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2" style={{ marginTop: '1rem' }}>
               <button
                 type="button"

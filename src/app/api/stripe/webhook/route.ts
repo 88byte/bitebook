@@ -259,6 +259,8 @@ export async function completeOutfitterUpgrade(
   const businessAddress = (meta.business_address || '').trim() || null
   const tempLogoPath = (meta.temp_logo_path || '').trim() || null
   const keepGuideSub = meta.keep_guide_sub !== 'false'
+  // v28.1.0b.5 — Default state hunt log captured at wizard time.
+  const defaultLogDocId = (meta.default_log_doc_id || '').trim() || null
 
   const mappedStatus = mapStripeStatusToDb(sub.status)
 
@@ -289,6 +291,7 @@ export async function completeOutfitterUpgrade(
         subscription_status: mappedStatus,
         stripe_subscription_id: sub.id,
         stripe_customer_id: customerId,
+        default_log_doc_id: defaultLogDocId,
       })
       .select('id')
       .single()

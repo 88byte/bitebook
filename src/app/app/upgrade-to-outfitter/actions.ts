@@ -117,6 +117,8 @@ export async function createOutfitterCheckoutAction(
     outfitter_license_number?: string | null
     business_address?: string | null
     temp_logo_path?: string | null
+    /** v28.1.0b.5 — Wizard default state hunt log selection. */
+    default_log_doc_id?: string | null
     interval: 'month' | 'year'
     keep_guide_sub: boolean
   },
@@ -172,6 +174,7 @@ export async function createOutfitterCheckoutAction(
       business_address: (payload.business_address || '').slice(0, 240),
       temp_logo_path: payload.temp_logo_path || '',
       keep_guide_sub: payload.keep_guide_sub ? 'true' : 'false',
+      default_log_doc_id: payload.default_log_doc_id || '',
     },
     subscription_data: {
       // v28.1.0b.1 — Override the price-level trial. Existing live
@@ -240,6 +243,8 @@ export async function bypassOutfitterCheckoutForTesting(
     outfitter_license_number?: string | null
     business_address?: string | null
     temp_logo_path?: string | null
+    /** v28.1.0b.5 — Wizard default state hunt log selection. */
+    default_log_doc_id?: string | null
   },
 ): Promise<BypassOutfitterCheckoutResult> {
   const { user, profile } = await requireUser()
@@ -266,6 +271,7 @@ export async function bypassOutfitterCheckoutForTesting(
   const licenseNumber = licenseNumberRaw.slice(0, 120)
   const businessAddress = (payload.business_address || '').trim().slice(0, 240) || null
   const tempLogoPath = (payload.temp_logo_path || '').trim() || null
+  const defaultLogDocId = (payload.default_log_doc_id || '').trim() || null
 
   const admin = createAdminClient()
   // Idempotent: if a comp org already exists for this owner, return
@@ -299,6 +305,7 @@ export async function bypassOutfitterCheckoutForTesting(
       stripe_subscription_id: null,
       stripe_customer_id: null,
       is_test: true,
+      default_log_doc_id: defaultLogDocId,
     })
     .select('id')
     .single()
@@ -454,5 +461,85 @@ export async function setOutfitterLogoAction(fd: FormData): Promise<SetOutfitter
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[set-outfitter-logo] unhandled error', msg)
     return { error: `Logo upload failed: ${msg}` }
+  }
+}
+
+// v28.1.0b.5 — Fetch the candidate hunt-log docs for a given state.
+// Used by the wizard's "Default state hunt log" picker (filters as
+// the org's selected state changes) and by Settings → Outfitter
+// card. Returns user's own log docs + Bite Book templates for that
+// state. Falls back to all log docs if state is missing.
+export type LogDocOption = {
+  id: string
+  label: string
+  state: string | null
+  is_template: boolean
+}
+export async function listLogDocsForStateAction(state: string | null): Promise<LogDocOption[]> {
+  const { profile } = await requireUser()
+  const admin = createAdminClient()
+  const stateUpper = (state || '').toUpperCase().slice(0, 2)
+  let query = admin
+    .from('docs')
+    .select('id, label, state, is_template, guide_id')
+    .eq('kind', 'log')
+    .is('archived_at', null)
+    .order('is_template', { ascending: false })
+    .order('label', { ascending: true })
+  if (stateUpper) {
+    query = query.eq('state', stateUpper)
+  }
+  const { data } = await query
+  if (!data) return []
+  // Only surface templates + this user's own docs. We don't show
+  // other guides' private docs to outfitter owners.
+  return data
+    .filter((d) => d.is_template || d.guide_id === profile.id)
+    .map((d) => ({
+      id: d.id,
+      label: d.label,
+      state: d.state,
+      is_template: d.is_template,
+    }))
+}
+
+// v28.1.0b.5 — Owner-only mutate for the existing org's default log.
+// Used by Settings → Outfitter card. Mirror of the same pattern as
+// setOutfitterLogoAction. Validates owner via admin client.
+export type SetOutfitterDefaultLogResult =
+  | { ok: true }
+  | { error: string }
+
+export async function setOutfitterDefaultLogAction(
+  docId: string | null,
+): Promise<SetOutfitterDefaultLogResult> {
+  try {
+    const { profile } = await requireUser()
+    if (profile.account_tier !== 'outfitter_owner') {
+      return { error: 'Only the outfitter owner can change the default log.' }
+    }
+    if (!profile.current_outfitter_org_id) {
+      return { error: 'No active outfitter org on this account.' }
+    }
+    const orgId = profile.current_outfitter_org_id
+    const admin = createAdminClient()
+    const { data: org } = await admin
+      .from('outfitter_orgs')
+      .select('id, owner_profile_id')
+      .eq('id', orgId)
+      .maybeSingle()
+    if (!org || org.owner_profile_id !== profile.id) {
+      return { error: 'Not authorized for this org.' }
+    }
+    const { error } = await admin
+      .from('outfitter_orgs')
+      .update({ default_log_doc_id: docId || null })
+      .eq('id', orgId)
+    if (error) return { error: error.message }
+    revalidatePath('/app')
+    revalidatePath('/app/settings')
+    return { ok: true }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
   }
 }

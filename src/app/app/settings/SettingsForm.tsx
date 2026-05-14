@@ -78,6 +78,11 @@ export default function SettingsForm({
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  // v28.1.0b.5 — Track form dirtiness so the Save button only shows
+  // when there's something to save. Hook into the form's bubble-up
+  // onChange so we don't have to thread dirty=true through every
+  // individual setter. Cleared on successful save.
+  const [dirty, setDirty] = useState(false)
 
   // Change-email state
   const [emailOpen, setEmailOpen] = useState(false)
@@ -104,8 +109,12 @@ export default function SettingsForm({
     specs.forEach((s) => fd.append('specialties', s))
     startTransition(async () => {
       const res = await updateGuideProfileAction(fd)
-      if ('error' in res) setError(res.error)
-      else setSavedAt(Date.now())
+      if ('error' in res) {
+        setError(res.error)
+      } else {
+        setSavedAt(Date.now())
+        setDirty(false)
+      }
     })
   }
 
@@ -130,7 +139,17 @@ export default function SettingsForm({
   const showSaved = savedAt !== null && Date.now() - savedAt < 4000
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+    <form
+      onSubmit={onSubmit}
+      // v28.1.0b.5 — Mark dirty on any descendant change. The Save row
+      // below only renders when dirty=true so collapsed sections don't
+      // strand a Save button under empty space. (Recommendation was
+      // autosave; dirty-state hide ships faster + same visual outcome.
+      // Autosave can land in v28.1.0c when we have a 1-input upsert
+      // action per field.)
+      onChange={() => setDirty(true)}
+      className="flex flex-col gap-2"
+    >
       {/* v28.1.0b.3 — Sections reorganized into <details> accordions.
           First section (Identity) defaults open; others collapsed to
           keep the mobile view scannable. Single form submit at the
@@ -404,22 +423,29 @@ export default function SettingsForm({
         </p>
       )}
 
-      <div className="flex items-center gap-3">
-        <button type="submit" className="bb-cta-sm" disabled={isPending}>
-          {isPending ? 'Saving...' : 'Save changes'}
-        </button>
-        {showSaved && (
-          <span
-            className="bb-pill bb-pill-active"
-            role="status"
-            aria-live="polite"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-          >
-            <Check size={12} aria-hidden="true" />
-            Saved
-          </span>
-        )}
-      </div>
+      {/* v28.1.0b.5 — Save row only renders when the form is dirty
+          (or transiently right after a save to show the Saved pill).
+          Prevents the Save button hanging under collapsed sections. */}
+      {(dirty || isPending || showSaved) && (
+        <div className="flex items-center gap-3" style={{ marginTop: '1rem' }}>
+          {dirty || isPending ? (
+            <button type="submit" className="bb-cta-sm" disabled={isPending}>
+              {isPending ? 'Saving…' : 'Save changes'}
+            </button>
+          ) : null}
+          {showSaved && (
+            <span
+              className="bb-pill bb-pill-active"
+              role="status"
+              aria-live="polite"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+            >
+              <Check size={12} aria-hidden="true" />
+              Saved
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Account & defaults — email change has its own flow + the
           default-harvest-log dropdown lives here (v28.1.0b.4 folded

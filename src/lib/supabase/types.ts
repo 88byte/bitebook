@@ -1713,6 +1713,7 @@ export type Database = {
           created_at: string
           archived_at: string | null
           is_test: boolean
+          default_log_doc_id: string | null
         }
         Insert: {
           id?: string
@@ -1728,6 +1729,7 @@ export type Database = {
           created_at?: string
           archived_at?: string | null
           is_test?: boolean
+          default_log_doc_id?: string | null
         }
         Update: {
           id?: string
@@ -1743,6 +1745,7 @@ export type Database = {
           created_at?: string
           archived_at?: string | null
           is_test?: boolean
+          default_log_doc_id?: string | null
         }
         Relationships: []
       }
