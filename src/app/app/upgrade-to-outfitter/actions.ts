@@ -112,6 +112,11 @@ export async function createOutfitterCheckoutAction(
   if (orgName.length < 2) return { error: 'Org name must be at least 2 characters.' }
   if (orgName.length > 80) return { error: 'Org name must be 80 characters or fewer.' }
 
+  // v28.1.0b.3 — Outfitter license # required. Server-side enforcement
+  // backs up the wizard's client-side check.
+  const licenseNumber = (payload.outfitter_license_number || '').trim()
+  if (!licenseNumber) return { error: 'Outfitter license number is required to upgrade.' }
+
   const prices = await ensureBitebookOutfitterPrices()
   const priceId = payload.interval === 'year' ? prices.yearly : prices.monthly
 
@@ -144,7 +149,7 @@ export async function createOutfitterCheckoutAction(
       supabase_user_id: profile.id,
       org_name: orgName,
       state: (payload.state || '').toUpperCase().slice(0, 2),
-      outfitter_license_number: (payload.outfitter_license_number || '').slice(0, 120),
+      outfitter_license_number: licenseNumber.slice(0, 120),
       business_address: (payload.business_address || '').slice(0, 240),
       temp_logo_path: payload.temp_logo_path || '',
       keep_guide_sub: payload.keep_guide_sub ? 'true' : 'false',
@@ -233,8 +238,13 @@ export async function bypassOutfitterCheckoutForTesting(
   if (orgName.length < 2) return { error: 'Org name must be at least 2 characters.' }
   if (orgName.length > 80) return { error: 'Org name must be 80 characters or fewer.' }
 
+  // v28.1.0b.3 — Outfitter license # required in the bypass path too,
+  // so test orgs match the shape of real outfitter orgs.
+  const licenseNumberRaw = (payload.outfitter_license_number || '').trim()
+  if (!licenseNumberRaw) return { error: 'Outfitter license number is required to upgrade.' }
+
   const state = (payload.state || '').trim().toUpperCase().slice(0, 2) || null
-  const licenseNumber = (payload.outfitter_license_number || '').trim().slice(0, 120) || null
+  const licenseNumber = licenseNumberRaw.slice(0, 120)
   const businessAddress = (payload.business_address || '').trim().slice(0, 240) || null
   const tempLogoPath = (payload.temp_logo_path || '').trim() || null
 
@@ -322,4 +332,84 @@ export async function bypassOutfitterCheckoutForTesting(
 
   revalidatePath('/app')
   return { ok: true, org_id: orgId }
+}
+
+// v28.1.0b.3 — Self-serve logo change for existing outfitter owners.
+// Used by the Settings → Outfitter card so an owner whose wizard
+// upload didn't land (race during signup, mobile mime mismatch, etc.)
+// can fix their logo after the fact. Also useful for rebranding.
+//
+// Path: outfitter-logos/{org_id}/logo.{ext}. Uses upsert: true so a
+// re-upload replaces cleanly. Updates outfitter_orgs.logo_url with
+// the cache-busted public URL.
+export type SetOutfitterLogoResult =
+  | { ok: true; logo_url: string }
+  | { error: string }
+
+export async function setOutfitterLogoAction(fd: FormData): Promise<SetOutfitterLogoResult> {
+  const { profile } = await requireUser()
+  if (profile.account_tier !== 'outfitter_owner') {
+    return { error: 'Only the outfitter owner can change the logo.' }
+  }
+  if (!profile.current_outfitter_org_id) {
+    return { error: 'No active outfitter org on this account.' }
+  }
+  const orgId = profile.current_outfitter_org_id
+
+  const file = fd.get('file')
+  if (!(file instanceof File)) return { error: 'No file provided.' }
+  if (!ALLOWED_LOGO_MIME.has(file.type)) {
+    return { error: 'Logo must be PNG, JPEG, WebP, or SVG.' }
+  }
+  if (file.size > 2 * 1024 * 1024) return { error: 'Logo must be under 2 MB.' }
+
+  // Verify the caller actually owns this org via the admin client —
+  // defense in depth even though requireUser + tier gate already
+  // confirm it.
+  const admin = createAdminClient()
+  const { data: org } = await admin
+    .from('outfitter_orgs')
+    .select('id, owner_profile_id')
+    .eq('id', orgId)
+    .maybeSingle()
+  if (!org || org.owner_profile_id !== profile.id) {
+    return { error: 'Not authorized for this org.' }
+  }
+
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png'
+  const path = `${orgId}/logo.${ext}`
+
+  // Admin upload — bypasses RLS so we don't have to fight the
+  // owner-only update policy on storage.objects. Owner is verified
+  // above.
+  const fileBuffer = Buffer.from(await file.arrayBuffer())
+  const { error: upErr } = await admin.storage.from('outfitter-logos').upload(path, fileBuffer, {
+    contentType: file.type,
+    upsert: true,
+  })
+  if (upErr) {
+    console.warn('[set-outfitter-logo] upload failed', { code: (upErr as { statusCode?: number }).statusCode, message: upErr.message, orgId })
+    return { error: upErr.message || 'Logo upload failed.' }
+  }
+
+  // Cache-busted URL so the dashboard renders the new bytes immediately.
+  const { data: pub } = admin.storage.from('outfitter-logos').getPublicUrl(path)
+  const logoUrl = pub?.publicUrl ? `${pub.publicUrl}?v=${Date.now()}` : null
+  if (!logoUrl) {
+    console.warn('[set-outfitter-logo] no public URL returned', { orgId, path })
+    return { error: 'Storage did not return a public URL.' }
+  }
+
+  const { error: updErr } = await admin
+    .from('outfitter_orgs')
+    .update({ logo_url: logoUrl })
+    .eq('id', orgId)
+  if (updErr) {
+    console.warn('[set-outfitter-logo] db update failed', { message: updErr.message, orgId })
+    return { error: updErr.message }
+  }
+
+  revalidatePath('/app')
+  revalidatePath('/app/settings')
+  return { ok: true, logo_url: logoUrl }
 }

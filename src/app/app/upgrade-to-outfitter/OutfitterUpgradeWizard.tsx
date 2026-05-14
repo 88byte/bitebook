@@ -46,6 +46,10 @@ export default function OutfitterUpgradeWizard({
   function validateStep1(): string | null {
     if (orgName.trim().length < 2) return 'Org name must be at least 2 characters.'
     if (orgName.trim().length > 80) return 'Org name must be 80 characters or fewer.'
+    // v28.1.0b.3 — Outfitter license # is required (state agencies tie
+    // outfitter operations to a state-issued permit; a guide who has no
+    // commercial license isn't an outfitter).
+    if (licenseNumber.trim().length < 1) return 'Outfitter license number is required to upgrade.'
     return null
   }
 
@@ -224,7 +228,7 @@ export default function OutfitterUpgradeWizard({
                 </select>
               </div>
               <div className="bb-form-row">
-                <label className="bb-form-label" htmlFor="license">Outfitter license # <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                <label className="bb-form-label" htmlFor="license">Outfitter license # <span aria-hidden="true" style={{ color: 'var(--color-copper)' }}>*</span></label>
                 <input
                   id="license"
                   type="text"
@@ -496,11 +500,16 @@ export default function OutfitterUpgradeWizard({
                 type="button"
                 className="bb-cta-sm"
                 onClick={goToCheckout}
-                disabled={pending}
+                disabled={pending || logoUploading}
               >
-                {pending ? 'Loading Stripe…' : 'Start 7-day trial'}
+                {pending ? 'Loading Stripe…' : logoUploading ? 'Uploading logo…' : 'Start 7-day trial'}
               </button>
             </div>
+            {logoUploading && (
+              <p className="bb-form-help" style={{ marginTop: '0.5rem', color: 'var(--color-copper)' }}>
+                Finishing logo upload before checkout…
+              </p>
+            )}
 
             {/* v28.1.0b.1 — Admin test-bypass. Unobtrusive link under the
                 main CTA, only rendered for allowlisted users (Flavio +
@@ -510,7 +519,7 @@ export default function OutfitterUpgradeWizard({
                 <button
                   type="button"
                   onClick={runTestBypass}
-                  disabled={pending}
+                  disabled={pending || logoUploading}
                   className="bb-text-action"
                   style={{ display: 'inline', padding: 0, textDecoration: 'underline', color: 'var(--color-ink-muted)' }}
                 >

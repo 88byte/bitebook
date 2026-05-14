@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import SettingsForm from './SettingsForm'
 import SignatureDefaultsForm from './SignatureDefaultsForm'
 import BillingPanel from './BillingPanel'
+import OutfitterLogoUploader from './OutfitterLogoUploader'
 
 // v27.4.0 — Settings page reorganized into Profile + Billing tabs.
 // Server-rendered tabs driven by ?tab=profile|billing (default profile).
@@ -313,6 +314,16 @@ async function ProfileTab({
                 )}
               </div>
             </div>
+            {/* v28.1.0b.3 — Self-serve logo upload for outfitter owners.
+                Lets an owner fix or replace their org logo after the
+                wizard (handy when the wizard upload didn't land or for
+                rebranding). Hidden from admins — owner-only. */}
+            {isOutfitterOwner && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-card-divider)' }}>
+                <h3 className="bb-section-title" style={{ margin: '0 0 0.5rem' }}>Org logo</h3>
+                <OutfitterLogoUploader currentLogoUrl={orgSnapshot.logo_url} />
+              </div>
+            )}
           </div>
         </section>
       )}

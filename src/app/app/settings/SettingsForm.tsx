@@ -130,10 +130,15 @@ export default function SettingsForm({
   const showSaved = savedAt !== null && Date.now() - savedAt < 4000
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6">
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      {/* v28.1.0b.3 — Sections reorganized into <details> accordions.
+          First section (Identity) defaults open; others collapsed to
+          keep the mobile view scannable. Single form submit at the
+          bottom still saves everything across all sections. */}
       {/* Identity */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Identity</legend>
+      <details className="bb-accordion" open>
+        <summary className="bb-accordion-summary">Personal info</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="bb-form-row">
@@ -192,11 +197,13 @@ export default function SettingsForm({
             autoComplete="tel"
           />
         </div>
-      </fieldset>
+        </fieldset>
+      </details>
 
       {/* Address */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Address</legend>
+      <details className="bb-accordion">
+        <summary className="bb-accordion-summary">Address</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
 
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="address_street">Street (optional)</label>
@@ -276,7 +283,8 @@ export default function SettingsForm({
             placeholder="94101"
           />
         </div>
-      </fieldset>
+        </fieldset>
+      </details>
 
       {/* Guide credentials */}
       {/* v27.1.1.0.3e.5: Guide License # field removed. Guide license
@@ -284,8 +292,9 @@ export default function SettingsForm({
           fill engine reads ctx.guide_license from there. The
           guide_profiles.license_number column is kept for back-compat
           but no UI captures it. */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Guide credentials</legend>
+      <details className="bb-accordion">
+        <summary className="bb-accordion-summary">Guide credentials</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
 
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="max_party_size">Max party size</label>
@@ -334,14 +343,16 @@ export default function SettingsForm({
           />
           <p className="bb-form-help">{bioLeft} characters left</p>
         </div>
-      </fieldset>
+        </fieldset>
+      </details>
 
       {/* v27.4.0 — Guide license fieldset. State-issued outfitter /
           master-guide license, distinct from hunter wallet entries.
           All three fields optional — guides without a state license
           can leave blank. */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Guide license</legend>
+      <details className="bb-accordion">
+        <summary className="bb-accordion-summary">Guide license</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
         <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
           Your state-issued guide or outfitter license. Optional — leave blank if your state doesn&rsquo;t
           require one.
@@ -390,12 +401,14 @@ export default function SettingsForm({
             onChange={(e) => setLicenseExpires(e.target.value)}
           />
         </div>
-      </fieldset>
+        </fieldset>
+      </details>
 
       {/* v27.4.0 — Defaults fieldset. Currently hosts default state
           harvest log; expand here as more per-guide defaults land. */}
-      <fieldset className="flex flex-col gap-4" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Defaults</legend>
+      <details className="bb-accordion">
+        <summary className="bb-accordion-summary">Defaults</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
         <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
           Defaults that pre-fill on new trips. You can always override per trip.
         </p>
@@ -422,7 +435,8 @@ export default function SettingsForm({
             </p>
           )}
         </div>
-      </fieldset>
+        </fieldset>
+      </details>
 
       {error && (
         <p role="alert" style={{ color: '#8C3C2A', fontSize: '0.85rem' }}>
@@ -448,8 +462,9 @@ export default function SettingsForm({
       </div>
 
       {/* Account — sits outside the main save button so the email change is its own flow. */}
-      <fieldset className="flex flex-col gap-3" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <legend className="bb-section-title" style={{ marginBottom: '0.25rem' }}>Account</legend>
+      <details className="bb-accordion">
+        <summary className="bb-accordion-summary">Account &amp; email</summary>
+        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
 
         <div className="bb-form-row">
           <span className="bb-form-label">Current email</span>
@@ -543,7 +558,8 @@ export default function SettingsForm({
             </form>
           </div>
         )}
-      </fieldset>
+        </fieldset>
+      </details>
     </form>
   )
 }
