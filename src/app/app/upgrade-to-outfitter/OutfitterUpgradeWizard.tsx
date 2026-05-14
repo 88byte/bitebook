@@ -278,7 +278,7 @@ export default function OutfitterUpgradeWizard({
           <div className="bb-tile-body">
             <h2 className="bb-form-section-head">Logo (optional)</h2>
             <p className="bb-form-help" style={{ marginBottom: '0.6rem' }}>
-              PNG, JPEG, WebP, or SVG. Max 2 MB. You can add or change this later from settings.
+              PNG, JPEG, WebP, SVG, or HEIC. Max 5 MB. You can add or change this later from settings.
             </p>
             {logoPreview ? (
               <div
@@ -327,7 +327,7 @@ export default function OutfitterUpgradeWizard({
                 Pick a logo
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,image/heic,image/heif,.heic,.heif"
                   onChange={pickLogo}
                   style={{ display: 'none' }}
                 />

@@ -48,9 +48,17 @@ export async function isCurrentUserTestBypassAllowed(): Promise<boolean> {
   return isTestBypassAllowed(user.email)
 }
 
+// v28.1.0b.4 — Bucket-aligned. Bucket allows the same set + 5 MB cap.
+// HEIC/HEIF added because iOS share-sheet flows can leak the native
+// format through even though file-input usually transcodes to JPEG.
 const ALLOWED_LOGO_MIME = new Set([
   'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
+  'image/heic', 'image/heif',
 ])
+const LOGO_SIZE_LIMIT_BYTES = 5 * 1024 * 1024
+function describeAllowedMimes(): string {
+  return 'PNG, JPEG, WebP, SVG, HEIC, or HEIF'
+}
 
 export type UploadLogoResult =
   | { ok: true; temp_id: string; temp_path: string }
@@ -59,32 +67,43 @@ export type UploadLogoResult =
 // Client uploads via FormData (a File). We round-trip through the
 // authenticated Supabase client so RLS + bucket constraints enforce
 // type + size limits at the storage layer.
+//
+// v28.1.0b.4 — Wrapped in try/catch so any thrown error returns as
+// a friendly {error} string instead of bubbling up as an error page.
 export async function uploadOutfitterLogoAction(fd: FormData): Promise<UploadLogoResult> {
-  const { user } = await requireUser()
-  const file = fd.get('file')
-  if (!(file instanceof File)) return { error: 'No file provided.' }
-  if (!ALLOWED_LOGO_MIME.has(file.type)) {
-    return { error: 'Logo must be PNG, JPEG, WebP, or SVG.' }
-  }
-  if (file.size > 2 * 1024 * 1024) return { error: 'Logo must be under 2 MB.' }
+  try {
+    const { user } = await requireUser()
+    const file = fd.get('file')
+    if (!(file instanceof File)) return { error: 'No file provided.' }
+    if (!ALLOWED_LOGO_MIME.has(file.type)) {
+      return { error: `Logo must be ${describeAllowedMimes()}. Got "${file.type || 'unknown type'}".` }
+    }
+    if (file.size > LOGO_SIZE_LIMIT_BYTES) {
+      return { error: `Logo must be under 5 MB. This file is ${(file.size / 1024 / 1024).toFixed(1)} MB.` }
+    }
 
-  // Generate a temp id keyed by the user — webhook will move from
-  // {tempId}/ → {orgId}/ on checkout completion.
-  const tempId = randomUUID()
-  const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const filename = `logo.${ext || 'png'}`
-  const path = `${tempId}/${filename}`
+    // Generate a temp id keyed by the user — webhook will move from
+    // {tempId}/ → {orgId}/ on checkout completion.
+    const tempId = randomUUID()
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const filename = `logo.${ext || 'png'}`
+    const path = `${tempId}/${filename}`
 
-  const sb = await createClient()
-  const { error } = await sb.storage.from('outfitter-logos').upload(path, file, {
-    contentType: file.type,
-    upsert: false,
-  })
-  if (error) {
-    console.warn('[upload-outfitter-logo]', { code: (error as { statusCode?: number }).statusCode, message: error.message, user: user.id })
-    return { error: error.message || 'Logo upload failed.' }
+    const sb = await createClient()
+    const { error } = await sb.storage.from('outfitter-logos').upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    })
+    if (error) {
+      console.warn('[upload-outfitter-logo]', { code: (error as { statusCode?: number }).statusCode, message: error.message, user: user.id })
+      return { error: error.message || 'Logo upload failed.' }
+    }
+    return { ok: true, temp_id: tempId, temp_path: path }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[upload-outfitter-logo] unhandled error', msg)
+    return { error: `Logo upload failed: ${msg}` }
   }
-  return { ok: true, temp_id: tempId, temp_path: path }
 }
 
 export type CreateOutfitterCheckoutResult =
@@ -347,69 +366,93 @@ export type SetOutfitterLogoResult =
   | { error: string }
 
 export async function setOutfitterLogoAction(fd: FormData): Promise<SetOutfitterLogoResult> {
-  const { profile } = await requireUser()
-  if (profile.account_tier !== 'outfitter_owner') {
-    return { error: 'Only the outfitter owner can change the logo.' }
-  }
-  if (!profile.current_outfitter_org_id) {
-    return { error: 'No active outfitter org on this account.' }
-  }
-  const orgId = profile.current_outfitter_org_id
+  // v28.1.0b.4 — Whole action wrapped in try/catch so any thrown error
+  // (network blip on the admin client, OOM on Buffer.from, etc.) comes
+  // back as a friendly {error} string instead of bubbling up as a
+  // Next.js error PAGE. Flavio saw the page on his first attempt.
+  try {
+    const { profile } = await requireUser()
+    if (profile.account_tier !== 'outfitter_owner') {
+      return { error: 'Only the outfitter owner can change the logo.' }
+    }
+    if (!profile.current_outfitter_org_id) {
+      return { error: 'No active outfitter org on this account.' }
+    }
+    const orgId = profile.current_outfitter_org_id
 
-  const file = fd.get('file')
-  if (!(file instanceof File)) return { error: 'No file provided.' }
-  if (!ALLOWED_LOGO_MIME.has(file.type)) {
-    return { error: 'Logo must be PNG, JPEG, WebP, or SVG.' }
+    const file = fd.get('file')
+    if (!(file instanceof File)) return { error: 'No file provided.' }
+    if (!ALLOWED_LOGO_MIME.has(file.type)) {
+      return { error: `Logo must be ${describeAllowedMimes()}. Got "${file.type || 'unknown type'}".` }
+    }
+    if (file.size > LOGO_SIZE_LIMIT_BYTES) {
+      return { error: `Logo must be under 5 MB. This file is ${(file.size / 1024 / 1024).toFixed(1)} MB.` }
+    }
+
+    // Verify the caller actually owns this org via the admin client —
+    // defense in depth even though requireUser + tier gate already
+    // confirm it.
+    const admin = createAdminClient()
+    const { data: org } = await admin
+      .from('outfitter_orgs')
+      .select('id, owner_profile_id')
+      .eq('id', orgId)
+      .maybeSingle()
+    if (!org || org.owner_profile_id !== profile.id) {
+      return { error: 'Not authorized for this org.' }
+    }
+
+    // Derive a sane extension. file.name comes from the browser; iOS
+    // can hand us names without extensions (e.g. "image.heic" might
+    // appear as just "image"). Fall back to the mime-derived extension.
+    const mimeExtMap: Record<string, string> = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    }
+    const fileExt = (file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const ext = fileExt || mimeExtMap[file.type] || 'png'
+    const path = `${orgId}/logo.${ext}`
+
+    // Admin upload — bypasses RLS so we don't have to fight the
+    // owner-only update policy on storage.objects. Owner is verified
+    // above.
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const { error: upErr } = await admin.storage.from('outfitter-logos').upload(path, fileBuffer, {
+      contentType: file.type,
+      upsert: true,
+    })
+    if (upErr) {
+      console.warn('[set-outfitter-logo] upload failed', { code: (upErr as { statusCode?: number }).statusCode, message: upErr.message, orgId })
+      return { error: upErr.message || 'Logo upload failed.' }
+    }
+
+    // Cache-busted URL so the dashboard renders the new bytes immediately.
+    const { data: pub } = admin.storage.from('outfitter-logos').getPublicUrl(path)
+    const logoUrl = pub?.publicUrl ? `${pub.publicUrl}?v=${Date.now()}` : null
+    if (!logoUrl) {
+      console.warn('[set-outfitter-logo] no public URL returned', { orgId, path })
+      return { error: 'Storage did not return a public URL.' }
+    }
+
+    const { error: updErr } = await admin
+      .from('outfitter_orgs')
+      .update({ logo_url: logoUrl })
+      .eq('id', orgId)
+    if (updErr) {
+      console.warn('[set-outfitter-logo] db update failed', { message: updErr.message, orgId })
+      return { error: updErr.message }
+    }
+
+    revalidatePath('/app')
+    revalidatePath('/app/settings')
+    return { ok: true, logo_url: logoUrl }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[set-outfitter-logo] unhandled error', msg)
+    return { error: `Logo upload failed: ${msg}` }
   }
-  if (file.size > 2 * 1024 * 1024) return { error: 'Logo must be under 2 MB.' }
-
-  // Verify the caller actually owns this org via the admin client —
-  // defense in depth even though requireUser + tier gate already
-  // confirm it.
-  const admin = createAdminClient()
-  const { data: org } = await admin
-    .from('outfitter_orgs')
-    .select('id, owner_profile_id')
-    .eq('id', orgId)
-    .maybeSingle()
-  if (!org || org.owner_profile_id !== profile.id) {
-    return { error: 'Not authorized for this org.' }
-  }
-
-  const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png'
-  const path = `${orgId}/logo.${ext}`
-
-  // Admin upload — bypasses RLS so we don't have to fight the
-  // owner-only update policy on storage.objects. Owner is verified
-  // above.
-  const fileBuffer = Buffer.from(await file.arrayBuffer())
-  const { error: upErr } = await admin.storage.from('outfitter-logos').upload(path, fileBuffer, {
-    contentType: file.type,
-    upsert: true,
-  })
-  if (upErr) {
-    console.warn('[set-outfitter-logo] upload failed', { code: (upErr as { statusCode?: number }).statusCode, message: upErr.message, orgId })
-    return { error: upErr.message || 'Logo upload failed.' }
-  }
-
-  // Cache-busted URL so the dashboard renders the new bytes immediately.
-  const { data: pub } = admin.storage.from('outfitter-logos').getPublicUrl(path)
-  const logoUrl = pub?.publicUrl ? `${pub.publicUrl}?v=${Date.now()}` : null
-  if (!logoUrl) {
-    console.warn('[set-outfitter-logo] no public URL returned', { orgId, path })
-    return { error: 'Storage did not return a public URL.' }
-  }
-
-  const { error: updErr } = await admin
-    .from('outfitter_orgs')
-    .update({ logo_url: logoUrl })
-    .eq('id', orgId)
-  if (updErr) {
-    console.warn('[set-outfitter-logo] db update failed', { message: updErr.message, orgId })
-    return { error: updErr.message }
-  }
-
-  revalidatePath('/app')
-  revalidatePath('/app/settings')
-  return { ok: true, logo_url: logoUrl }
 }

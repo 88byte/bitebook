@@ -197,14 +197,9 @@ export default function SettingsForm({
             autoComplete="tel"
           />
         </div>
-        </fieldset>
-      </details>
 
-      {/* Address */}
-      <details className="bb-accordion">
-        <summary className="bb-accordion-summary">Address</summary>
-        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
-
+        {/* v28.1.0b.4 — Address fields merged into Personal info so
+            the user doesn't have to expand a second 1-purpose section. */}
         <div className="bb-form-row">
           <label className="bb-form-label" htmlFor="address_street">Street (optional)</label>
           <input
@@ -343,17 +338,12 @@ export default function SettingsForm({
           />
           <p className="bb-form-help">{bioLeft} characters left</p>
         </div>
-        </fieldset>
-      </details>
 
-      {/* v27.4.0 — Guide license fieldset. State-issued outfitter /
-          master-guide license, distinct from hunter wallet entries.
-          All three fields optional — guides without a state license
-          can leave blank. */}
-      <details className="bb-accordion">
-        <summary className="bb-accordion-summary">Guide license</summary>
-        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
+        {/* v28.1.0b.4 — Guide license fields merged into Guide
+            credentials. State-issued outfitter / master-guide license,
+            distinct from hunter wallet entries. All three fields
+            optional — guides without a state license can leave blank. */}
+        <p className="bb-form-help" style={{ marginTop: '0.5rem' }}>
           Your state-issued guide or outfitter license. Optional — leave blank if your state doesn&rsquo;t
           require one.
         </p>
@@ -404,39 +394,9 @@ export default function SettingsForm({
         </fieldset>
       </details>
 
-      {/* v27.4.0 — Defaults fieldset. Currently hosts default state
-          harvest log; expand here as more per-guide defaults land. */}
-      <details className="bb-accordion">
-        <summary className="bb-accordion-summary">Defaults</summary>
-        <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
-        <p className="bb-form-help" style={{ marginTop: '-0.25rem' }}>
-          Defaults that pre-fill on new trips. You can always override per trip.
-        </p>
-
-        <div className="bb-form-row">
-          <label className="bb-form-label" htmlFor="default_log_doc_id">Default state harvest log</label>
-          <select
-            id="default_log_doc_id"
-            name="default_log_doc_id"
-            className="bb-input"
-            value={defaultLogDocId}
-            onChange={(e) => setDefaultLogDocId(e.target.value)}
-          >
-            <option value="">— Pick per trip —</option>
-            {logDocs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}{d.state ? ` · ${d.state}` : ''}
-              </option>
-            ))}
-          </select>
-          {logDocs.length === 0 && (
-            <p className="bb-form-help">
-              Upload a harvest log doc on the Documents page first to set a default here.
-            </p>
-          )}
-        </div>
-        </fieldset>
-      </details>
+      {/* v28.1.0b.4 — Defaults section eliminated. The single
+          default-harvest-log dropdown now lives inside Account &
+          defaults below to avoid a 1-input collapsible. */}
 
       {error && (
         <p role="alert" style={{ color: '#8C3C2A', fontSize: '0.85rem' }}>
@@ -461,10 +421,37 @@ export default function SettingsForm({
         )}
       </div>
 
-      {/* Account — sits outside the main save button so the email change is its own flow. */}
+      {/* Account & defaults — email change has its own flow + the
+          default-harvest-log dropdown lives here (v28.1.0b.4 folded
+          the standalone "Defaults" section in to satisfy the
+          no-singleton-sections rule). */}
       <details className="bb-accordion">
-        <summary className="bb-accordion-summary">Account &amp; email</summary>
+        <summary className="bb-accordion-summary">Account &amp; defaults</summary>
         <fieldset className="bb-accordion-body" style={{ border: 'none', padding: 0, margin: 0 }}>
+
+        {/* Default state harvest log (was its own section pre-v28.1.0b.4). */}
+        <div className="bb-form-row">
+          <label className="bb-form-label" htmlFor="default_log_doc_id">Default state harvest log</label>
+          <select
+            id="default_log_doc_id"
+            name="default_log_doc_id"
+            className="bb-input"
+            value={defaultLogDocId}
+            onChange={(e) => setDefaultLogDocId(e.target.value)}
+          >
+            <option value="">— Pick per trip —</option>
+            {logDocs.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}{d.state ? ` · ${d.state}` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="bb-form-help">
+            {logDocs.length === 0
+              ? 'Upload a harvest log doc on the Documents page first to set a default here.'
+              : 'Pre-fills on new trips. You can always override per trip.'}
+          </p>
+        </div>
 
         <div className="bb-form-row">
           <span className="bb-form-label">Current email</span>

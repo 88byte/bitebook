@@ -11,6 +11,16 @@ import { setOutfitterLogoAction } from '../upgrade-to-outfitter/actions'
 // File picker is hidden — the visible "Change logo" button forwards
 // click to the file input. Mobile-friendly: 44x44 tap target, no
 // drag-drop required.
+//
+// v28.1.0b.4 — Pre-validate on the client so the user sees a friendly
+// inline error BEFORE the network round-trip. Allowed mimes + size
+// match the server action + bucket exactly.
+const CLIENT_ALLOWED_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
+  'image/heic', 'image/heif',
+])
+const CLIENT_SIZE_LIMIT_BYTES = 5 * 1024 * 1024
+
 export default function OutfitterLogoUploader({ currentLogoUrl }: { currentLogoUrl: string | null }) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [preview, setPreview] = useState<string | null>(currentLogoUrl)
@@ -23,18 +33,41 @@ export default function OutfitterLogoUploader({ currentLogoUrl }: { currentLogoU
     if (!f) return
     setError(null)
     setSavedAt(null)
+    // Client-side validation — surfaces problems instantly without a
+    // round-trip. Identical rules to the server action so the two
+    // can't disagree.
+    if (!CLIENT_ALLOWED_MIME.has(f.type)) {
+      setError(`That file isn't supported (${f.type || 'unknown type'}). Please pick a PNG, JPEG, WebP, SVG, HEIC, or HEIF image.`)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+    if (f.size > CLIENT_SIZE_LIMIT_BYTES) {
+      setError(`Logo must be under 5 MB. This file is ${(f.size / 1024 / 1024).toFixed(1)} MB. Try a smaller version or scale it down in Photos / Preview first.`)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     // Optimistic preview using object URL.
     setPreview(URL.createObjectURL(f))
     const fd = new FormData()
     fd.append('file', f)
     startTransition(async () => {
-      const res = await setOutfitterLogoAction(fd)
-      if ('error' in res) {
-        setError(res.error)
+      try {
+        const res = await setOutfitterLogoAction(fd)
+        if ('error' in res) {
+          setError(res.error)
+          setPreview(currentLogoUrl)
+        } else {
+          setPreview(res.logo_url)
+          setSavedAt(Date.now())
+        }
+      } catch (e) {
+        // Final safety net — server action already wraps in try/catch
+        // and returns {error}, but if something inside the transition
+        // throws (network blip, FormData serialization issue) we still
+        // surface inline instead of an error page.
+        const msg = e instanceof Error ? e.message : String(e)
+        setError(`Couldn't reach the server: ${msg}. Check your connection and try again.`)
         setPreview(currentLogoUrl)
-      } else {
-        setPreview(res.logo_url)
-        setSavedAt(Date.now())
       }
       if (fileRef.current) fileRef.current.value = ''
     })
@@ -71,7 +104,7 @@ export default function OutfitterLogoUploader({ currentLogoUrl }: { currentLogoU
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,image/heic,image/heif,.heic,.heif"
           onChange={onPick}
           disabled={pending}
           style={{ display: 'none' }}
@@ -97,7 +130,7 @@ export default function OutfitterLogoUploader({ currentLogoUrl }: { currentLogoU
           </p>
         )}
         <p className="bb-form-help" style={{ marginTop: '0.5rem' }}>
-          PNG / JPEG / WebP / SVG, up to 2 MB. Visible across your dashboard, network, and trips.
+          PNG, JPEG, WebP, SVG, or HEIC, up to 5 MB. Visible across your dashboard, network, and trips.
         </p>
       </div>
     </div>
