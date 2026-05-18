@@ -380,6 +380,140 @@ export async function acceptOutfitterAdminInviteAction(
   }
 }
 
+// ── Signup + accept (free path for fresh users) ─────────────────────
+
+// v28.1.0c.2 — Dedicated free signup path for admin invitees. Admin
+// seats are covered by the outfitter's subscription, NOT a guide sub.
+// This action creates the auth user + profile + org_member rows
+// directly via the admin client, so the invitee never sees Stripe.
+// Client side: after success, the form runs signInWithPassword and
+// redirects to /app.
+export type SignupAndAcceptResult =
+  | { ok: true; email: string; org_id: string }
+  | { error: string }
+
+export async function signupAndAcceptOutfitterAdminInviteAction(
+  formData: FormData,
+): Promise<SignupAndAcceptResult> {
+  try {
+    const token = String(formData.get('token') ?? '').trim()
+    const email = String(formData.get('email') ?? '').trim().toLowerCase()
+    const password = String(formData.get('password') ?? '')
+    const displayName = String(formData.get('display_name') ?? '').trim()
+
+    if (!token) return { error: 'Missing invite token.' }
+    if (!EMAIL_RE.test(email)) return { error: 'Enter a valid email address.' }
+    if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
+    if (displayName.length < 2) return { error: 'Enter your full name.' }
+    if (displayName.length > 120) return { error: 'Name must be 120 characters or fewer.' }
+
+    const admin = createAdminClient()
+    const { data: invite } = await admin
+      .from('outfitter_admin_invites')
+      .select('id, org_id, invited_email, invited_by_profile_id, status, expires_at')
+      .eq('token', token)
+      .maybeSingle()
+    if (!invite) return { error: 'This invite is invalid or has been revoked.' }
+    if (invite.status === 'revoked') return { error: 'This invite has been revoked.' }
+    if (invite.status === 'accepted') return { error: 'This invite has already been accepted.' }
+    if (new Date(invite.expires_at).getTime() < Date.now()) {
+      await admin.from('outfitter_admin_invites').update({ status: 'expired' }).eq('id', invite.id)
+      return { error: 'This invite has expired. Ask the org owner to send a new one.' }
+    }
+
+    // Don't strictly require email match — token is the auth — but warn
+    // in logs so we can spot fishy patterns.
+    if (email !== invite.invited_email.toLowerCase()) {
+      console.warn('[admin-invite-signup] signup email differs from invited', {
+        signup: email,
+        invited: invite.invited_email,
+      })
+    }
+
+    // Create the auth user. email_confirm:true so they can sign in
+    // immediately without clicking a verification link.
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { display_name: displayName, admin_invite_token: token },
+    })
+    if (createErr || !created.user) {
+      return { error: createErr?.message || 'Could not create account.' }
+    }
+    const userId = created.user.id
+
+    // Insert profile row. role='hunter' is the safe-default for new
+    // outfitter admins — they don't need to BE a guide. account_tier
+    // flips below after we successfully insert the member row.
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          display_name: displayName,
+          role: 'hunter',
+        },
+        { onConflict: 'id' },
+      )
+    if (profileErr) {
+      console.error('[admin-invite-signup] profile upsert failed', profileErr.message)
+      // Best-effort: clean up the auth user so a retry doesn't 409 on email.
+      try { await admin.auth.admin.deleteUser(userId) } catch {/* ignore */}
+      return { error: `Profile creation failed: ${profileErr.message}` }
+    }
+
+    // Insert into outfitter_org_members. The _enforce_outfitter_max_members
+    // trigger backs us up if the org filled while the invite was open.
+    const { error: memErr } = await admin
+      .from('outfitter_org_members')
+      .insert({
+        org_id: invite.org_id,
+        profile_id: userId,
+        role: 'admin',
+        invited_by: invite.invited_by_profile_id,
+        joined_at: new Date().toISOString(),
+      })
+    if (memErr) {
+      if (/3 active members/i.test(memErr.message)) {
+        // Roll back the auth user — the org is full, their signup is
+        // moot. Better than leaving an orphan.
+        try { await admin.auth.admin.deleteUser(userId) } catch {/* ignore */}
+        return {
+          error: 'This outfitter just filled their admin seats. Ask the org owner to free up a seat and resend the invite.',
+        }
+      }
+      console.error('[admin-invite-signup] org_member insert failed', memErr.message)
+      try { await admin.auth.admin.deleteUser(userId) } catch {/* ignore */}
+      return { error: memErr.message }
+    }
+
+    // Mark invite accepted.
+    await admin
+      .from('outfitter_admin_invites')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        accepted_by_profile_id: userId,
+      })
+      .eq('id', invite.id)
+
+    // Flip tier. account_tier='outfitter_admin' + current_outfitter_org_id.
+    await admin
+      .from('profiles')
+      .update({
+        account_tier: 'outfitter_admin',
+        current_outfitter_org_id: invite.org_id,
+      })
+      .eq('id', userId)
+
+    revalidatePath('/app')
+    return { ok: true, email, org_id: invite.org_id }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 // ── Remove admin ────────────────────────────────────────────────────
 
 export async function removeOutfitterAdminAction(

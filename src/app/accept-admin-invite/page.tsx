@@ -76,9 +76,15 @@ export default async function AcceptAdminInvitePage({ searchParams }: { searchPa
     <main className="bb-app-main">
       <div className="bb-form-narrow" style={{ marginTop: '1rem' }}>
         <header>
-          <p className="bb-page-eyebrow">Admin invite</p>
-          <h1 className="bb-page-title">{ownerName} invited you to manage {org.name}</h1>
-          <p className="bb-page-sub">
+          {/* v28.1.0c.2 — Force light copy. The /accept-admin-invite
+              route sits outside /app's layout, which means the default
+              ink-on-dark contrast wasn't applying — title was rendering
+              in dark ink against the dark page-bg. */}
+          <p className="bb-page-eyebrow" style={{ color: 'var(--color-copper)' }}>Admin invite</p>
+          <h1 className="bb-page-title" style={{ color: '#FAF7F2' }}>
+            {ownerName} invited you to manage {org.name}
+          </h1>
+          <p className="bb-page-sub" style={{ color: '#FAF7F2', opacity: 0.85 }}>
             Admins can manage trips, the guide network, and hunters across the org. No subscription required.
           </p>
         </header>
@@ -102,8 +108,13 @@ export default async function AcceptAdminInvitePage({ searchParams }: { searchPa
                   >
                     Sign in
                   </Link>
+                  {/* v28.1.0c.2 — Admin seats are free. The default /signup
+                      flow drops users into the paid guide-Stripe path, which
+                      is wrong here — admins are covered by the outfitter's
+                      sub. Route to a dedicated free-signup form that calls
+                      signupAndAcceptOutfitterAdminInviteAction. */}
                   <Link
-                    href={`/signup?next=${encodeURIComponent(`/accept-admin-invite?token=${token}`)}`}
+                    href={`/accept-admin-invite/signup?token=${encodeURIComponent(token)}`}
                     className="bb-btn-secondary"
                   >
                     Create account
