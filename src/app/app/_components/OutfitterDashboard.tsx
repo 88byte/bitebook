@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Building2, MapPin, Users, Calendar, Network, UserCog } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import DashboardHero from './DashboardHero'
 
 // v28.1.0b — Outfitter dashboard variant. Renders when the viewing
 // user's profile.account_tier is 'outfitter_owner' or 'outfitter_admin'
@@ -8,12 +9,17 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // member/network/hunter counts via the admin client (trust boundary is
 // the requireGuide gate in /app/page.tsx).
 //
-// Tile destinations:
-//   All Trips → /app/trips (existing; org-aware in 3.4)
-//   Network   → /app/network (placeholder for 3.3)
-//   Hunters   → /app/hunters (existing; org-aware in 3.4)
-//   Team      → /app/settings/team (lands in 3.2c)
-//   Calendar  → /app/calendar (existing; org-aware in 3.5)
+// v28.1.0c.1 — Tile destinations updated to land on real routes:
+//   All Trips → /app/trips
+//   Network   → /app/network (placeholder page, Sprint 3.3)
+//   Hunters   → /app/hunters
+//   Team      → /app/settings#outfitter-team (Admin team section)
+//   Calendar  → /app/trips (no dedicated calendar yet; trips list
+//                serves as the org-wide schedule until Sprint 3.5)
+//
+// Also adds a real DashboardHero banner above the org metadata card
+// (previously the metadata card was the only "hero" — Flavio expected
+// the same banner experience guides get).
 export default async function OutfitterDashboard({
   orgId,
   viewer,
@@ -65,17 +71,38 @@ export default async function OutfitterDashboard({
   type Tile = { href: string; label: string; Icon: typeof Calendar; subtitle: string }
   const tiles: Tile[] = [
     { href: '/app/trips', label: 'All Trips', Icon: Calendar, subtitle: 'Plan, assign, wrap' },
-    { href: '/app/network', label: 'Network', Icon: Network, subtitle: 'Guides on your team' },
+    { href: '/app/network', label: 'Network', Icon: Network, subtitle: 'Coming in 3.3' },
     { href: '/app/hunters', label: 'Hunters', Icon: Users, subtitle: 'Clients across the org' },
-    { href: '/app/settings/team', label: 'Team', Icon: UserCog, subtitle: 'Admin seats' },
-    { href: '/app/calendar', label: 'Calendar', Icon: Calendar, subtitle: 'Org-wide schedule' },
+    { href: '/app/settings#outfitter-team', label: 'Team', Icon: UserCog, subtitle: 'Admin seats' },
+    { href: '/app/trips', label: 'Calendar', Icon: Calendar, subtitle: 'Org-wide schedule' },
   ]
+
+  // v28.1.0c.1 — Hero subtitle stays informative even when counts are 0.
+  const heroSubtitle = [
+    `${memberCount} of 3 admin seat${memberCount === 1 ? '' : 's'} filled`,
+    guideCount === 0 ? 'No guides in network yet' : `${guideCount} network ${guideCount === 1 ? 'guide' : 'guides'}`,
+    hunterCount === 0 ? 'No hunters yet' : `${hunterCount} ${hunterCount === 1 ? 'hunter' : 'hunters'}`,
+  ].join(' · ')
 
   return (
     <main className="bb-app-main">
-      {/* Hero — org name + logo + subscription pill + stats */}
+      {/* v28.1.0c.1 — Real banner hero (parity with solo-guide /app).
+          Same dashboard-hero.png background, eyebrow + title + subtitle
+          flavored for the outfitter. Org metadata card sits below. */}
+      <DashboardHero
+        eyebrow="Outfitter"
+        title={org.name}
+        subtitle={heroSubtitle}
+        bgImage="/banners/dashboard-hero.png"
+        objectPosition="top"
+        showShield={false}
+      />
+
+      <div className="bb-page-divider mt-4" aria-hidden="true" />
+
+      {/* Org metadata card — name + logo + sub pill + counts */}
       <section
-        className="bb-tile"
+        className="bb-tile mt-4"
         style={{
           padding: '1rem 1.25rem',
           background: 'linear-gradient(135deg, rgba(168, 92, 50, 0.10), rgba(168, 92, 50, 0.02))',

@@ -355,7 +355,10 @@ async function ProfileTab({
                 again — the team-actions module raises if a non-owner
                 tries to invoke them. */}
             {teamSnapshot && (
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-card-divider)' }}>
+              <div
+                id="outfitter-team"
+                style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-card-divider)', scrollMarginTop: '5rem' }}
+              >
                 <h3 className="bb-section-title" style={{ margin: '0 0 0.5rem' }}>Admin team</h3>
                 <OutfitterAdminTeam snapshot={teamSnapshot} />
               </div>
