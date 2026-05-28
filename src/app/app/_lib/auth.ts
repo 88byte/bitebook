@@ -196,6 +196,11 @@ export async function requireGuideAllowOnboarding() {
 // v25.1: hunter-side gate. Mirrors requireGuide() but enforces 'hunter'.
 // Same loop-safety approach: redirect to "/" with ?error= rather than /login.
 // Guides who somehow hit /app/h get sent back to their own dashboard.
+//
+// v28.1.0d.1: outfitter owners + admins (whose profile.role may be
+// 'hunter' from the v28.1.0c.2 free-signup fork) get bounced to /app
+// instead of being allowed into the hunter shell. They are NOT hunters
+// of the platform; they're org administrators whose home is /app.
 export async function requireHunter() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -203,7 +208,7 @@ export async function requireHunter() {
 
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
-    .select('id, display_name, avatar_url, phone, role')
+    .select('id, display_name, avatar_url, phone, role, account_tier, current_outfitter_org_id')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -212,6 +217,16 @@ export async function requireHunter() {
     redirect('/?error=profile_unavailable')
   }
   if (!profile) redirect('/?error=no_profile')
+  // Outfitter members belong in /app, not /app/h, regardless of legacy
+  // profile.role. The admin signup flow creates the auth user with
+  // role='hunter' (it was forked off the hunter signup), but their
+  // identity is "org admin" — they should never see the hunter view.
+  if (
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    profile.current_outfitter_org_id
+  ) {
+    redirect('/app')
+  }
   if (profile.role === 'guide') redirect('/app')
   if (profile.role !== 'hunter') redirect('/?error=hunter_only')
 

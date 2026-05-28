@@ -29,14 +29,33 @@ import LockedInterstitial from './_components/LockedInterstitial'
 //
 // Hunters are never tier-gated here. Their access depends on the
 // inviting guide's tier, enforced separately in accept-invite/route.ts.
+//
+// v28.1.0d.1: outfitter members (owners + admins with an org_id) are
+// treated as the GUIDE shell regardless of profile.role. The admin
+// signup flow leaves profile.role='hunter' (admin seats are free
+// and were forked off the hunter signup form), so a vanilla
+// role==='hunter' check sent them into HunterSidebar + HunterAppHeader,
+// whose nav links all point at /app/h/*. That's why every click from
+// the outfitter dashboard bounced into hunter view. They also tripped
+// the guide-tier check (no outfitter_subscriptions row keyed on their
+// admin user id) and would have landed on LockedInterstitial. Both
+// are now bypassed for outfitter members. Org subscription state is
+// tracked separately on outfitter_orgs and is the owner's bill.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await requireUser()
-  const isHunter = profile.role === 'hunter'
+  const isOutfitterMember =
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    !!profile.current_outfitter_org_id
+  const isHunter = profile.role === 'hunter' && !isOutfitterMember
 
   let bannerReason: 'past_due' | 'canceled' | 'no_row' | null = null
   let lockedReason: 'incomplete' | 'no_row' | null = null
 
-  if (!isHunter) {
+  // Outfitter members skip the guide-tier check entirely — they don't
+  // have an outfitter_subscriptions row keyed on their user id (the
+  // org owner's row is the org's sub). Hunters skip too. Only pure
+  // guides get tier-gated here.
+  if (!isHunter && !isOutfitterMember) {
     const tier = await getGuideTier(profile.id)
     if (tier.tier === 'read_only') {
       bannerReason = tier.reason === 'past_due' || tier.reason === 'canceled'
