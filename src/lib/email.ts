@@ -330,6 +330,49 @@ export function buildOutfitterAdminInviteEmail(opts: {
   return { subject, text, html }
 }
 
+// v28.1.0e.0 — Outfitter guide network invite email. Sent when an
+// outfitter owner or admin invites a guide to join the org's guide
+// network. CTA points at /accept-guide-network-invite. Copy explains
+// what membership means (the outfitter's subscription covers them).
+export function buildOutfitterGuideNetworkInviteEmail(opts: {
+  inviterName: string
+  orgName: string
+  acceptUrl: string
+  origin: string
+}): { subject: string; text: string; html: string } {
+  const { inviterName, orgName, acceptUrl, origin } = opts
+  const subject = `${inviterName} invited you to guide for ${orgName} on Bite Book`
+  const text = [
+    'Hi there,',
+    '',
+    `${inviterName} invited you to join ${orgName}'s guide network on Bite Book.`,
+    '',
+    'When you accept, you can run trips, log harvests, and share documents under the outfitter. Your seat is covered by their subscription, so there is nothing to pay.',
+    '',
+    `Accept the invite here: ${acceptUrl}`,
+    '',
+    'This invite expires in 14 days.',
+    '',
+    'Bite Book',
+    'Questions? support@lastbite.pro',
+  ].join('\n')
+
+  const html = wrapBitebookEmailHTML({
+    origin,
+    preheader: `${inviterName} invited you to guide for ${orgName} on Bite Book.`,
+    eyebrow: 'Guide network invite',
+    headline: `${inviterName} invited you to guide for ${orgName}`,
+    paragraphs: [
+      `${inviterName} invited you to join ${orgName}'s guide network on Bite Book. You can run trips, log harvests, and share documents under the outfitter.`,
+      'No subscription needed. Your seat is covered by the outfitter. This link expires in 14 days.',
+    ],
+    ctaLabel: 'Accept invite',
+    ctaUrl: acceptUrl,
+  })
+
+  return { subject, text, html }
+}
+
 export type EmailResult =
   | { sent: true; id?: string }
   | {

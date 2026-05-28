@@ -61,6 +61,70 @@ function tierFromStatus(status: SubscriptionState['status']): { tier: GuideTier;
   }
 }
 
+// v28.1.0e.0 Sprint 3.3 — outfitter-aware tier resolution.
+// Checks whether `userId` is an owner/admin of an org, or an active
+// guide-network member, and resolves the tier from the org's
+// subscription (keyed on the org owner_profile_id) when so. Returns
+// null when no outfitter coverage applies. Cached for the request.
+async function resolveOutfitterCoverage(userId: string): Promise<TierResult | null> {
+  const admin = createAdminClient()
+
+  // 1) Owner or admin of an active org.
+  const { data: ownAdminRows } = await admin
+    .from('outfitter_org_members')
+    .select('org_id, role')
+    .eq('profile_id', userId)
+    .is('removed_at', null)
+    .in('role', ['owner', 'admin'])
+  // 2) Active guide-network membership.
+  const { data: netRows } = await admin
+    .from('outfitter_guide_network')
+    .select('org_id')
+    .eq('guide_profile_id', userId)
+    .eq('status', 'active')
+
+  const orgIds = Array.from(
+    new Set<string>([
+      ...((ownAdminRows ?? []).map((r) => r.org_id as string)),
+      ...((netRows ?? []).map((r) => r.org_id as string)),
+    ]),
+  )
+  if (orgIds.length === 0) return null
+
+  // For each org, resolve the org's billing subscription (keyed on
+  // owner_profile_id). If ANY org has a full-tier sub, the user is
+  // covered and we return full. Otherwise we surface a representative
+  // tier from the first org so callers can show a sensible banner.
+  let representative: TierResult | null = null
+  for (const orgId of orgIds) {
+    const { data: org } = await admin
+      .from('outfitter_orgs')
+      .select('owner_profile_id')
+      .eq('id', orgId)
+      .maybeSingle()
+    if (!org?.owner_profile_id) continue
+    const { data: orgSub } = await admin
+      .from('outfitter_subscriptions')
+      .select('status, current_period_end, trial_end, comp_until')
+      .eq('guide_id', org.owner_profile_id)
+      .maybeSingle<SubscriptionState>()
+    if (!orgSub) {
+      representative ??= { tier: 'locked', reason: 'no_row', subscription: null }
+      continue
+    }
+    if (orgSub.comp_until) {
+      const today = new Date().toISOString().slice(0, 10)
+      if (orgSub.comp_until >= today) {
+        return { tier: 'full', reason: 'comp', subscription: orgSub }
+      }
+    }
+    const { tier, reason } = tierFromStatus(orgSub.status)
+    if (tier === 'full') return { tier: 'full', reason, subscription: orgSub }
+    representative ??= { tier, reason, subscription: orgSub }
+  }
+  return representative
+}
+
 export const getGuideTier = cache(async (userId: string): Promise<TierResult> => {
   const admin = createAdminClient()
 
@@ -89,11 +153,16 @@ export const getGuideTier = cache(async (userId: string): Promise<TierResult> =>
     return { tier: 'full', reason: 'admin', subscription: subRow ?? null }
   }
 
+  // v28.1.0e.0 — Outfitter coverage. Owners + admins always look here
+  // (their personal subRow does not exist). Network guides look here
+  // when their personal sub is missing OR locked, so they can write
+  // under the outfitter's bill.
   if (!subRow) {
+    const covered = await resolveOutfitterCoverage(userId)
+    if (covered) return covered
     // Defensive: a guide row should exist post-checkout. If one
-    // doesn't, treat as locked so they can't write before billing
-    // is reconciled. The settings panel surfaces a contact-support
-    // message in this state.
+    // doesn't AND there's no outfitter coverage, treat as locked so
+    // they can't write before billing is reconciled.
     return { tier: 'locked', reason: 'no_row', subscription: null }
   }
 
@@ -112,6 +181,11 @@ export const getGuideTier = cache(async (userId: string): Promise<TierResult> =>
   }
 
   const { tier, reason } = tierFromStatus(subRow.status)
+  if (tier === 'full') return { tier, reason, subscription: subRow }
+  // Personal sub is not full. If they're an outfitter owner/admin or
+  // active network guide, let the org's coverage promote them.
+  const covered = await resolveOutfitterCoverage(userId)
+  if (covered && covered.tier === 'full') return covered
   return { tier, reason, subscription: subRow }
 })
 

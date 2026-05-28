@@ -1647,9 +1647,8 @@ export type Database = {
           org_id: string
           guide_profile_id: string
           status: string
-          invited_by: string | null
           invited_at: string
-          joined_at: string | null
+          accepted_at: string | null
           removed_at: string | null
         }
         Insert: {
@@ -1657,9 +1656,8 @@ export type Database = {
           org_id: string
           guide_profile_id: string
           status?: string
-          invited_by?: string | null
           invited_at?: string
-          joined_at?: string | null
+          accepted_at?: string | null
           removed_at?: string | null
         }
         Update: {
@@ -1667,10 +1665,51 @@ export type Database = {
           org_id?: string
           guide_profile_id?: string
           status?: string
-          invited_by?: string | null
           invited_at?: string
-          joined_at?: string | null
+          accepted_at?: string | null
           removed_at?: string | null
+        }
+        Relationships: []
+      }
+      outfitter_guide_network_invites: {
+        Row: {
+          id: string
+          org_id: string
+          invited_email: string
+          invited_by_profile_id: string
+          token: string
+          status: string
+          created_at: string
+          expires_at: string
+          accepted_at: string | null
+          accepted_by_profile_id: string | null
+          last_sent_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          invited_email: string
+          invited_by_profile_id: string
+          token: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          last_sent_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          invited_email?: string
+          invited_by_profile_id?: string
+          token?: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          last_sent_at?: string
         }
         Relationships: []
       }

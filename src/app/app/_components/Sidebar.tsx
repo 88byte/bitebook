@@ -3,13 +3,16 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy, Network } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS.
 // v27.0a: Wallet added between Hunters and Reviews.
-const NAV = [
+// v28.1.0e.0: Network item gated to outfitter members. Solo guides
+// don't see it. The page itself also self-gates with a friendly
+// "not active for you" message if a solo guide deep-links to it.
+const NAV_BASE = [
   { href: '/app',          label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/app' },
   { href: '/app/trips',    label: 'Trips',     icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
   { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
@@ -20,11 +23,26 @@ const NAV = [
   { href: '/app/support',  label: 'Help',      icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
 ] as const
 
+const NAV_NETWORK_ITEM = {
+  href: '/app/network',
+  label: 'Network',
+  icon: Network,
+  match: (p: string) => p.startsWith('/app/network'),
+} as const
+
 // v27.8.1 — ADMIN pill removed per Flavio. Email-match admin gate
 // stays in proxy.ts; admin emails reach Mission Control by typing
 // /admin directly. The pill was visual clutter on every render.
-export default function Sidebar() {
+export default function Sidebar({ isOutfitterMember = false }: { isOutfitterMember?: boolean }) {
   const pathname = usePathname() ?? ''
+  // Insert Network between Hunters and Wallet for outfitter members.
+  const NAV = isOutfitterMember
+    ? [
+        ...NAV_BASE.slice(0, 3),
+        NAV_NETWORK_ITEM,
+        ...NAV_BASE.slice(3),
+      ]
+    : NAV_BASE
   return (
     <aside className="bb-sidebar" aria-label="Primary navigation">
       <Link href="/app" className="bb-sidebar-brand" aria-label="Bite Book home">

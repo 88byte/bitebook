@@ -80,7 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="bb-app-bg bb-app-shell">
-      {isHunter ? <HunterSidebar /> : <Sidebar />}
+      {isHunter ? <HunterSidebar /> : <Sidebar isOutfitterMember={isOutfitterMember} />}
       <div className="bb-app-content">
         <div className="bb-app-mobile-header">
           {isHunter ? <HunterAppHeader /> : <AppHeader />}
