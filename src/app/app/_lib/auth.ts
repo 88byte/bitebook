@@ -50,6 +50,30 @@ export async function requireGuide() {
     redirect('/?error=profile_unavailable')
   }
   if (!profile) redirect('/?error=no_profile')
+
+  // v28.1.0c.3 — Outfitter owners + admins get into /app regardless of
+  // their legacy profiles.role (which may be 'hunter' for accept-flow
+  // admins who never had a guide identity, or 'guide' for owners who
+  // upgraded from a guide sub). The org-membership row + account_tier
+  // is the source of truth for outfitter access.
+  //
+  // Without this bypass, /app/page.tsx never reaches its outfitter
+  // branch — requireGuide would redirect role='hunter' admins to
+  // /app/h before the dashboard variant could render. We also skip
+  // the guide-onboarding wizard since outfitter admins don't need a
+  // guide_profiles row.
+  const isOutfitterMember =
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    !!profile.current_outfitter_org_id
+  if (isOutfitterMember) {
+    return {
+      supabase,
+      user,
+      profile,
+      guide: guideRes.data ?? null,
+    }
+  }
+
   // v25.1: route hunters to their own dashboard rather than dumping them on
   // the landing page with a guide_only error.
   if (profile.role === 'hunter') redirect('/app/h')
