@@ -28,7 +28,7 @@ const GUIDE_DRAWER_ITEMS = [
 //
 // v27.8.1 — ADMIN pill removed per Flavio. Email-match admin gate
 // stays in proxy.ts; admin emails reach /admin by direct URL.
-export default function AppHeader() {
+export default function AppHeader({ isOutfitterMember = false }: { isOutfitterMember?: boolean }) {
   return (
     <header className="bb-app-header">
       <div className="bb-app-header-inner">
@@ -51,7 +51,7 @@ export default function AppHeader() {
           </span>
         </Link>
 
-        <AppNav />
+        <AppNav isOutfitterMember={isOutfitterMember} />
 
         {/* v27.7.0 — small online/offline dot. Sits between AppNav and
             the drawer hamburger so it's visible without competing for

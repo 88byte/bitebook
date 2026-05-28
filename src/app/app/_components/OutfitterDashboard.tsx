@@ -71,8 +71,8 @@ export default async function OutfitterDashboard({
   type Tile = { href: string; label: string; Icon: typeof Calendar; subtitle: string }
   const tiles: Tile[] = [
     { href: '/app/trips', label: 'All Trips', Icon: Calendar, subtitle: 'Plan, assign, wrap' },
-    { href: '/app/network', label: 'Network', Icon: Network, subtitle: 'Coming in 3.3' },
-    { href: '/app/hunters', label: 'Hunters', Icon: Users, subtitle: 'Clients across the org' },
+    { href: '/app/network?tab=guides', label: 'Guide network', Icon: Network, subtitle: 'Invite and manage guides' },
+    { href: '/app/network?tab=hunters', label: 'Hunters', Icon: Users, subtitle: 'Clients across the org' },
     { href: '/app/settings#outfitter-team', label: 'Team', Icon: UserCog, subtitle: 'Admin seats' },
     { href: '/app/trips', label: 'Calendar', Icon: Calendar, subtitle: 'Org-wide schedule' },
   ]

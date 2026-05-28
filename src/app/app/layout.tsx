@@ -83,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {isHunter ? <HunterSidebar /> : <Sidebar isOutfitterMember={isOutfitterMember} />}
       <div className="bb-app-content">
         <div className="bb-app-mobile-header">
-          {isHunter ? <HunterAppHeader /> : <AppHeader />}
+          {isHunter ? <HunterAppHeader /> : <AppHeader isOutfitterMember={isOutfitterMember} />}
         </div>
         {bannerReason && <BillingTierBanner reason={bannerReason} />}
         {lockedReason ? <LockedInterstitial reason={lockedReason} /> : children}

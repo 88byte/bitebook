@@ -9,40 +9,38 @@ import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
 // Desktop-only sidebar. Hidden under 1024px via .bb-sidebar CSS.
 // v27.0a: Wallet added between Hunters and Reviews.
-// v28.1.0e.0: Network item gated to outfitter members. Solo guides
-// don't see it. The page itself also self-gates with a friendly
-// "not active for you" message if a solo guide deep-links to it.
-const NAV_BASE = [
-  { href: '/app',          label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/app' },
-  { href: '/app/trips',    label: 'Trips',     icon: Calendar,        match: (p: string) => p.startsWith('/app/trips') },
-  { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p: string) => p.startsWith('/app/hunters') },
-  { href: '/app/wallet',   label: 'Wallet',    icon: Wallet,          match: (p: string) => p.startsWith('/app/wallet') },
-  { href: '/app/reviews',  label: 'Reviews',   icon: Star,            match: (p: string) => p.startsWith('/app/reviews') },
-  { href: '/app/docs',     label: 'Documents', icon: FileText,        match: (p: string) => p.startsWith('/app/docs') },
-  { href: '/app/settings', label: 'Settings',  icon: Settings,        match: (p: string) => p.startsWith('/app/settings') },
-  { href: '/app/support',  label: 'Help',      icon: LifeBuoy,        match: (p: string) => p.startsWith('/app/support') },
-] as const
+// v28.1.0e.1: Outfitter members get a single "Network" item in place
+// of the standalone "Hunters" item. The Network page hosts both
+// Guides and Hunters tabs and is org-aware. Pure guides keep the
+// standalone Hunters item, which lists their own hunters.
 
-const NAV_NETWORK_ITEM = {
-  href: '/app/network',
-  label: 'Network',
-  icon: Network,
-  match: (p: string) => p.startsWith('/app/network'),
-} as const
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  match: (p: string) => boolean
+}
+
+const NAV_DASHBOARD: NavItem = { href: '/app',          label: 'Dashboard', icon: LayoutDashboard, match: (p) => p === '/app' }
+const NAV_TRIPS: NavItem     = { href: '/app/trips',    label: 'Trips',     icon: Calendar,        match: (p) => p.startsWith('/app/trips') }
+const NAV_HUNTERS: NavItem   = { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p) => p.startsWith('/app/hunters') }
+const NAV_NETWORK: NavItem   = { href: '/app/network',  label: 'Network',   icon: Network,         match: (p) => p.startsWith('/app/network') }
+const NAV_WALLET: NavItem    = { href: '/app/wallet',   label: 'Wallet',    icon: Wallet,          match: (p) => p.startsWith('/app/wallet') }
+const NAV_REVIEWS: NavItem   = { href: '/app/reviews',  label: 'Reviews',   icon: Star,            match: (p) => p.startsWith('/app/reviews') }
+const NAV_DOCS: NavItem      = { href: '/app/docs',     label: 'Documents', icon: FileText,        match: (p) => p.startsWith('/app/docs') }
+const NAV_SETTINGS: NavItem  = { href: '/app/settings', label: 'Settings',  icon: Settings,        match: (p) => p.startsWith('/app/settings') }
+const NAV_HELP: NavItem      = { href: '/app/support',  label: 'Help',      icon: LifeBuoy,        match: (p) => p.startsWith('/app/support') }
 
 // v27.8.1 — ADMIN pill removed per Flavio. Email-match admin gate
 // stays in proxy.ts; admin emails reach Mission Control by typing
 // /admin directly. The pill was visual clutter on every render.
 export default function Sidebar({ isOutfitterMember = false }: { isOutfitterMember?: boolean }) {
   const pathname = usePathname() ?? ''
-  // Insert Network between Hunters and Wallet for outfitter members.
-  const NAV = isOutfitterMember
-    ? [
-        ...NAV_BASE.slice(0, 3),
-        NAV_NETWORK_ITEM,
-        ...NAV_BASE.slice(3),
-      ]
-    : NAV_BASE
+  // Outfitter members: Network replaces standalone Hunters and lives
+  // in the same slot. Pure guides keep Hunters as their own item.
+  const NAV: ReadonlyArray<NavItem> = isOutfitterMember
+    ? [NAV_DASHBOARD, NAV_TRIPS, NAV_NETWORK, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
+    : [NAV_DASHBOARD, NAV_TRIPS, NAV_HUNTERS, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
   return (
     <aside className="bb-sidebar" aria-label="Primary navigation">
       <Link href="/app" className="bb-sidebar-brand" aria-label="Bite Book home">
