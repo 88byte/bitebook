@@ -46,9 +46,9 @@ type RouteParams = Promise<{ id: string }>
 // (/app/h/trips/[id]) keeps its existing read-only render.
 export default async function TripDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params
-  const { profile } = await requireGuide()
+  const { profile, contextGuideId } = await requireGuide()
 
-  const detail = await fetchTripDetail(profile.id, id)
+  const detail = await fetchTripDetail(contextGuideId, id)
   if (!detail) notFound()
 
   const { trip, participants } = detail
@@ -63,7 +63,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   const [harvestLogSummary, tripDocs, attachableDocs, speciesOptions, walletLinksByHunter, defaultSignatureDataUrl, hasGeneratedLog, waiverStatusByHunter] = await Promise.all([
     fetchHarvestLogSummary(trip.id),
     fetchTripDocsForGuide(trip.id),
-    fetchAttachableDocsForGuide(profile.id),
+    fetchAttachableDocsForGuide(contextGuideId),
     // v27.1.3.0.2: full species pool for the Hunt details Species picker
     // inside TripDetailEditor (replaces the plain text input).
     fetchSpecies(),
@@ -102,7 +102,7 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
   // the guide's accepted hunters (so the participants pane shows
   // everyone on the trip even if a previously-accepted invitation has
   // since flipped, plus everyone the guide can add).
-  const accepted = await fetchAcceptedHunters(profile.id)
+  const accepted = await fetchAcceptedHunters(contextGuideId)
   const candidatesById = new Map<string, { id: string; display_name: string }>()
   for (const a of accepted) candidatesById.set(a.id, a)
   for (const p of participants) {

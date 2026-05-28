@@ -24,13 +24,16 @@ function isReviewSort(s: string | undefined): s is ReviewSort {
 // distribution histogram, and a sorted list of every review on this guide's
 // trips. RLS guarantees we only see our own.
 export default async function ReviewsPage({ searchParams }: { searchParams: SearchParams }) {
-  const { profile } = await requireGuide()
+  const { contextGuideId } = await requireGuide()
   const sp = await searchParams
   const sort: ReviewSort = isReviewSort(sp.sort) ? sp.sort : 'recent'
 
+  // v28.1.0d.0 — reviews land on the guide who produced the trip (= owner
+  // for outfitter data). Admins should see the same review aggregate as
+  // the owner; pure guides see their own.
   const [reviews, stats] = await Promise.all([
-    fetchGuideReviews(profile.id, sort),
-    fetchGuideReviewStats(profile.id),
+    fetchGuideReviews(contextGuideId, sort),
+    fetchGuideReviewStats(contextGuideId),
   ])
 
   const isEmpty = stats.count === 0

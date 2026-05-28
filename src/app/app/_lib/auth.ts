@@ -66,11 +66,28 @@ export async function requireGuide() {
     (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
     !!profile.current_outfitter_org_id
   if (isOutfitterMember) {
+    // v28.1.0d.0 — Resolve the org-context guide id. For owners this
+    // equals profile.id (they ARE the guide producing trips). For
+    // admins this is the org's owner_profile_id — the only guide
+    // producing the org's data today. Sprint 3.3 will broaden this
+    // to a multi-id set when network guides land; for now a single
+    // id keeps every existing query (eq('guide_id', ...)) working
+    // unchanged for both owner + admin visibility.
+    let contextGuideId = profile.id
+    if (profile.account_tier === 'outfitter_admin' && profile.current_outfitter_org_id) {
+      const { data: org } = await supabase
+        .from('outfitter_orgs')
+        .select('owner_profile_id')
+        .eq('id', profile.current_outfitter_org_id)
+        .maybeSingle()
+      if (org?.owner_profile_id) contextGuideId = org.owner_profile_id
+    }
     return {
       supabase,
       user,
       profile,
       guide: guideRes.data ?? null,
+      contextGuideId,
     }
   }
 
@@ -92,6 +109,10 @@ export async function requireGuide() {
     user,
     profile,
     guide: guideRes.data ?? null,
+    // v28.1.0d.0 — Pure guides see only their own data. The field is
+    // present for callers so they can pass it uniformly without
+    // branching on tier.
+    contextGuideId: profile.id,
   }
 }
 

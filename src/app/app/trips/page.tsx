@@ -45,7 +45,7 @@ type SearchParams = Promise<{
 }>
 
 export default async function TripsListPage({ searchParams }: { searchParams: SearchParams }) {
-  const { profile } = await requireGuide()
+  const { profile, contextGuideId } = await requireGuide()
   const params = await searchParams
   const tab: TripsTab = isTripsTab(params.tab) ? params.tab : 'trips'
 
@@ -80,15 +80,19 @@ export default async function TripsListPage({ searchParams }: { searchParams: Se
 
   // Fetch all four in parallel. Templates list uses includeArchived
   // semantics — when toggle is on, the list shows ARCHIVED ONLY.
+  // v28.1.0d.0 — contextGuideId scopes the read to the org owner when
+  // viewer is an outfitter member (admin or owner). For pure guides it
+  // equals profile.id. Trip-template list also routes through the
+  // context id so admins see the org's templates.
   const [{ rows, total }, templates, allTemplates, calendarTrips] = await Promise.all([
-    fetchTripsPage(profile.id, { status, from, to }),
-    fetchGuideTripTemplates(profile.id, { includeArchived }),
+    fetchTripsPage(contextGuideId, { status, from, to }),
+    fetchGuideTripTemplates(contextGuideId, { includeArchived }),
     // active-only count for the tab header — independent of the archive
     // toggle so the tab label stays stable as the guide flips it.
-    fetchGuideTripTemplates(profile.id, { includeArchived: false }),
+    fetchGuideTripTemplates(contextGuideId, { includeArchived: false }),
     // v27.5.0.5 — trips overlapping the visible calendar month range,
     // status-filtered the same way the cards list is.
-    fetchTripsInRange(profile.id, calGridStart.toISOString(), calGridEnd.toISOString(), status),
+    fetchTripsInRange(contextGuideId, calGridStart.toISOString(), calGridEnd.toISOString(), status),
   ])
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))

@@ -44,15 +44,19 @@ export default async function HuntersPage({
 }: {
   searchParams: Promise<{ q?: string }>
 }) {
-  const { profile } = await requireGuide()
+  const { contextGuideId } = await requireGuide()
   const supabase = await createClient()
   const { q: rawQ } = await searchParams
   const query = (rawQ ?? '').trim()
 
+  // v28.1.0d.0 — invitations are issued by the guide who produces the
+  // org's data (= owner). Outfitter admins see the same hunter list as
+  // the owner by keying on contextGuideId (owner.id for admins,
+  // self.id for pure guides + owners).
   const { data: invites } = await supabase
     .from('invitations')
     .select('id, email, status, accepted_by, created_at, expires_at, last_sent_at, token, kind')
-    .eq('guide_id', profile.id)
+    .eq('guide_id', contextGuideId)
     .order('created_at', { ascending: false })
 
   const accepted: AcceptedRow[] = (invites ?? [])

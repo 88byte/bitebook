@@ -38,16 +38,18 @@ function isDocsTab(s: string | undefined): s is DocsTab {
 // kind chip, sees mapping status badges, and opens the doc detail to edit
 // label / state / kind. Mapping wizards land in v27.1.1+.
 export default async function DocsPage({ searchParams }: { searchParams: SearchParams }) {
-  const { profile } = await requireGuide()
+  const { contextGuideId } = await requireGuide()
   const sp = await searchParams
   const kind: DocKind | 'all' = isKindFilter(sp.kind) ? sp.kind : 'all'
   const includeArchived = sp.archived === '1'
   const tab: DocsTab = isDocsTab(sp.tab) ? sp.tab : 'my'
 
+  // v28.1.0d.0 — admins see the org owner's document library; pure
+  // guides see their own.
   const [docs, counts, templates] = await Promise.all([
-    fetchGuideDocs(profile.id, { kind, includeArchived }),
-    fetchGuideDocCounts(profile.id),
-    fetchBiteBookTemplates(profile.id),
+    fetchGuideDocs(contextGuideId, { kind, includeArchived }),
+    fetchGuideDocCounts(contextGuideId),
+    fetchBiteBookTemplates(contextGuideId),
   ])
 
   // Templates filtered by kind chip on the templates tab. The fetcher
