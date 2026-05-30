@@ -13,7 +13,7 @@ type Plan = 'monthly' | 'annual'
 //
 // Business name is now OPTIONAL — many guides operate solo without an
 // LLC. Stored as NULL on guide_profiles when blank.
-export default function SignupForm() {
+export default function SignupForm({ networkInviteToken = null }: { networkInviteToken?: string | null }) {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [businessName, setBusinessName] = useState('')
@@ -47,6 +47,11 @@ export default function SignupForm() {
         // it as NULL on guide_profiles when blank.
         businessName: businessName.trim(),
         plan,
+        // v28.1.0e.2 — when this signup is happening from a guide
+        // network invite link, forward the token so /api/checkout can
+        // stamp it on Stripe metadata. The webhook reads it back and
+        // auto-joins the user to the network once the sub is created.
+        networkInviteToken: networkInviteToken ?? null,
       }),
     })
 

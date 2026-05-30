@@ -147,6 +147,23 @@ async function upsertSubscription(
       },
       { onConflict: 'guide_id' }
     )
+
+  // v28.1.0e.2 — guide-network invite token may have been stamped on
+  // the Stripe subscription's metadata at /api/checkout. After we
+  // upsert the sub row (so hasActiveGuideSubscription returns true
+  // for downstream gates), accept the network invite.
+  const networkToken = sub.metadata?.guide_network_invite_token
+  if (networkToken) {
+    try {
+      const { acceptGuideNetworkInviteByToken } = await import('@/app/app/_lib/network-accept')
+      const res = await acceptGuideNetworkInviteByToken(userId, networkToken)
+      if (!res.ok) {
+        console.warn('[stripe-webhook:network-auto-accept] failed', { userId, error: res.error })
+      }
+    } catch (e) {
+      console.warn('[stripe-webhook:network-auto-accept] threw', (e as Error).message)
+    }
+  }
 }
 
 // v28.1.0a — outfitter org subscription sync. Looks the org up by

@@ -61,40 +61,37 @@ function tierFromStatus(status: SubscriptionState['status']): { tier: GuideTier;
   }
 }
 
-// v28.1.0e.0 Sprint 3.3 — outfitter-aware tier resolution.
-// Checks whether `userId` is an owner/admin of an org, or an active
-// guide-network member, and resolves the tier from the org's
-// subscription (keyed on the org owner_profile_id) when so. Returns
-// null when no outfitter coverage applies. Cached for the request.
+// v28.1.0e.2 Sprint 3.3 hotfix — outfitter coverage is OWNER+ADMIN only.
+//
+// Earlier v28.1.0e.0 promoted network guides to "covered" by the org's
+// $39/mo subscription. That contradicted the pricing model: the
+// outfitter sub covers admin tooling + the org itself + admin seats +
+// network management. It does NOT cover individual guide seats. Every
+// guide pays $9/mo for their own subscription, network member or not.
+//
+// This resolver now only returns coverage for outfitter_org_members
+// with role 'owner' or 'admin'. Network guides (rows in
+// outfitter_guide_network) get NO coverage here; they must have their
+// own active personal sub or be tier-gated like any other guide.
 async function resolveOutfitterCoverage(userId: string): Promise<TierResult | null> {
   const admin = createAdminClient()
 
-  // 1) Owner or admin of an active org.
   const { data: ownAdminRows } = await admin
     .from('outfitter_org_members')
     .select('org_id, role')
     .eq('profile_id', userId)
     .is('removed_at', null)
     .in('role', ['owner', 'admin'])
-  // 2) Active guide-network membership.
-  const { data: netRows } = await admin
-    .from('outfitter_guide_network')
-    .select('org_id')
-    .eq('guide_profile_id', userId)
-    .eq('status', 'active')
 
   const orgIds = Array.from(
-    new Set<string>([
-      ...((ownAdminRows ?? []).map((r) => r.org_id as string)),
-      ...((netRows ?? []).map((r) => r.org_id as string)),
-    ]),
+    new Set<string>((ownAdminRows ?? []).map((r) => r.org_id as string)),
   )
   if (orgIds.length === 0) return null
 
   // For each org, resolve the org's billing subscription (keyed on
-  // owner_profile_id). If ANY org has a full-tier sub, the user is
-  // covered and we return full. Otherwise we surface a representative
-  // tier from the first org so callers can show a sensible banner.
+  // owner_profile_id). If ANY org has a full-tier sub, the caller is
+  // covered. Otherwise we surface a representative tier from the
+  // first org so callers can show a sensible banner.
   let representative: TierResult | null = null
   for (const orgId of orgIds) {
     const { data: org } = await admin
@@ -123,6 +120,25 @@ async function resolveOutfitterCoverage(userId: string): Promise<TierResult | nu
     representative ??= { tier, reason, subscription: orgSub }
   }
   return representative
+}
+
+// v28.1.0e.2 — exported gate for the network accept flow. Returns true
+// when the caller has an active personal guide subscription (trialing,
+// active, comp). Network guides must pass this to join a network; the
+// org sub does NOT count.
+export async function hasActiveGuideSubscription(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data: subRow } = await admin
+    .from('outfitter_subscriptions')
+    .select('status, comp_until')
+    .eq('guide_id', userId)
+    .maybeSingle<{ status: string; comp_until: string | null }>()
+  if (!subRow) return false
+  if (subRow.comp_until) {
+    const today = new Date().toISOString().slice(0, 10)
+    if (subRow.comp_until >= today) return true
+  }
+  return subRow.status === 'trialing' || subRow.status === 'active'
 }
 
 export const getGuideTier = cache(async (userId: string): Promise<TierResult> => {

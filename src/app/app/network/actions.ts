@@ -22,6 +22,8 @@
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '../_lib/auth'
+import { hasActiveGuideSubscription } from '../_lib/billing-tier'
+import { acceptGuideNetworkInviteByToken } from '../_lib/network-accept'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   sendBitebookEmail,
@@ -293,215 +295,46 @@ export async function getOutfitterGuideInviteUrlAction(
 
 export type AcceptGuideInviteResult =
   | { ok: true; org_id: string }
-  | { error: string }
+  | { error: string; code?: 'subscription_required' }
 
 export async function acceptOutfitterGuideInviteAction(
   token: string,
 ): Promise<AcceptGuideInviteResult> {
   try {
     if (!token) return { error: 'Missing invite token.' }
-    const { user, profile } = await requireUser()
-    const admin = createAdminClient()
+    const { profile } = await requireUser()
 
-    const { data: invite } = await admin
-      .from('outfitter_guide_network_invites')
-      .select('id, org_id, invited_email, invited_by_profile_id, status, expires_at')
-      .eq('token', token)
-      .maybeSingle()
-    if (!invite) return { error: 'This invite is invalid or has been revoked.' }
-    if (invite.status === 'revoked') return { error: 'This invite has been revoked.' }
-    if (invite.status === 'accepted') return { error: 'This invite has already been accepted.' }
-    if (new Date(invite.expires_at).getTime() < Date.now()) {
-      await admin
-        .from('outfitter_guide_network_invites')
-        .update({ status: 'expired' })
-        .eq('id', invite.id)
-      return { error: 'This invite has expired. Ask the org owner to send a new one.' }
-    }
-
-    if (user.email?.toLowerCase() !== invite.invited_email.toLowerCase()) {
-      console.warn('[accept-guide-invite] signed-in email differs from invited', {
-        signedIn: user.email,
-        invited: invite.invited_email,
-      })
-    }
-
-    // Already a member of this network? Re-activate if removed,
-    // otherwise no-op.
-    const { data: existing } = await admin
-      .from('outfitter_guide_network')
-      .select('id, status')
-      .eq('org_id', invite.org_id)
-      .eq('guide_profile_id', profile.id)
-      .maybeSingle()
-    if (existing) {
-      if (existing.status === 'active') {
-        // Already active; just mark invite accepted and return.
-        await admin
-          .from('outfitter_guide_network_invites')
-          .update({
-            status: 'accepted',
-            accepted_at: new Date().toISOString(),
-            accepted_by_profile_id: profile.id,
-          })
-          .eq('id', invite.id)
-        revalidatePath('/app')
-        return { ok: true, org_id: invite.org_id }
+    // v28.1.0e.2 — every guide pays $9/mo. Network membership does NOT
+    // come with a free seat. Block accept if the caller has no active
+    // personal guide subscription. UI branches on `code` to route them
+    // to checkout / billing settings.
+    const subOk = await hasActiveGuideSubscription(profile.id)
+    if (!subOk) {
+      return {
+        error: 'A Bite Book Guide subscription ($9/mo, 7-day free trial) is required to join an outfitter network.',
+        code: 'subscription_required',
       }
-      // Removed or pending — flip to active.
-      const { error: upErr } = await admin
-        .from('outfitter_guide_network')
-        .update({
-          status: 'active',
-          accepted_at: new Date().toISOString(),
-          removed_at: null,
-        })
-        .eq('id', existing.id)
-      if (upErr) return { error: upErr.message }
-    } else {
-      // Fresh membership row.
-      const { error: insErr } = await admin
-        .from('outfitter_guide_network')
-        .insert({
-          org_id: invite.org_id,
-          guide_profile_id: profile.id,
-          status: 'active',
-          accepted_at: new Date().toISOString(),
-        })
-      if (insErr) return { error: insErr.message }
     }
 
-    // Make sure this user has role='guide' so their /app shell is the
-    // guide shell, even if they were a hunter before. We do NOT touch
-    // account_tier — network membership is orthogonal to it; the
-    // v28.1.0d.1 layout treats anyone with an active guide_network
-    // row as a guide via the org-aware shell logic.
-    if (profile.role !== 'guide') {
-      await admin.from('profiles').update({ role: 'guide' }).eq('id', profile.id)
-    }
-
-    await admin
-      .from('outfitter_guide_network_invites')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        accepted_by_profile_id: profile.id,
-      })
-      .eq('id', invite.id)
-
+    const res = await acceptGuideNetworkInviteByToken(profile.id, token)
+    if (!res.ok) return { error: res.error }
     revalidatePath('/app')
-    return { ok: true, org_id: invite.org_id }
+    return { ok: true, org_id: res.org_id }
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) }
   }
 }
 
-// ── Signup + accept (free path for fresh users) ─────────────────────
-
-export type SignupAndAcceptGuideResult =
-  | { ok: true; email: string; org_id: string }
-  | { error: string }
-
-export async function signupAndAcceptOutfitterGuideInviteAction(
-  formData: FormData,
-): Promise<SignupAndAcceptGuideResult> {
-  try {
-    const token = String(formData.get('token') ?? '').trim()
-    const email = String(formData.get('email') ?? '').trim().toLowerCase()
-    const password = String(formData.get('password') ?? '')
-    const displayName = String(formData.get('display_name') ?? '').trim()
-
-    if (!token) return { error: 'Missing invite token.' }
-    if (!EMAIL_RE.test(email)) return { error: 'Enter a valid email address.' }
-    if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
-    if (displayName.length < 2) return { error: 'Enter your full name.' }
-    if (displayName.length > 120) return { error: 'Name must be 120 characters or fewer.' }
-
-    const admin = createAdminClient()
-    const { data: invite } = await admin
-      .from('outfitter_guide_network_invites')
-      .select('id, org_id, invited_email, invited_by_profile_id, status, expires_at')
-      .eq('token', token)
-      .maybeSingle()
-    if (!invite) return { error: 'This invite is invalid or has been revoked.' }
-    if (invite.status === 'revoked') return { error: 'This invite has been revoked.' }
-    if (invite.status === 'accepted') return { error: 'This invite has already been accepted.' }
-    if (new Date(invite.expires_at).getTime() < Date.now()) {
-      await admin
-        .from('outfitter_guide_network_invites')
-        .update({ status: 'expired' })
-        .eq('id', invite.id)
-      return { error: 'This invite has expired. Ask the org owner to send a new one.' }
-    }
-
-    if (email !== invite.invited_email.toLowerCase()) {
-      console.warn('[guide-invite-signup] signup email differs from invited', {
-        signup: email,
-        invited: invite.invited_email,
-      })
-    }
-
-    // Create the auth user.
-    const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { display_name: displayName, guide_network_invite_token: token },
-    })
-    if (createErr || !created.user) {
-      return { error: createErr?.message || 'Could not create account.' }
-    }
-    const userId = created.user.id
-
-    // Insert profile row. role='guide' — they ARE a guide identity.
-    // account_tier stays null/default until they explicitly sub or get
-    // upgraded; network membership alone is enough to let them write.
-    const { error: profileErr } = await admin
-      .from('profiles')
-      .upsert(
-        {
-          id: userId,
-          display_name: displayName,
-          role: 'guide',
-        },
-        { onConflict: 'id' },
-      )
-    if (profileErr) {
-      console.error('[guide-invite-signup] profile upsert failed', profileErr.message)
-      try { await admin.auth.admin.deleteUser(userId) } catch {/* ignore */}
-      return { error: `Profile creation failed: ${profileErr.message}` }
-    }
-
-    // Insert network membership.
-    const { error: memErr } = await admin
-      .from('outfitter_guide_network')
-      .insert({
-        org_id: invite.org_id,
-        guide_profile_id: userId,
-        status: 'active',
-        accepted_at: new Date().toISOString(),
-      })
-    if (memErr) {
-      console.error('[guide-invite-signup] network insert failed', memErr.message)
-      try { await admin.auth.admin.deleteUser(userId) } catch {/* ignore */}
-      return { error: memErr.message }
-    }
-
-    await admin
-      .from('outfitter_guide_network_invites')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        accepted_by_profile_id: userId,
-      })
-      .eq('id', invite.id)
-
-    revalidatePath('/app')
-    return { ok: true, email, org_id: invite.org_id }
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) }
-  }
-}
+// v28.1.0e.2 — Removed signupAndAcceptOutfitterGuideInviteAction.
+// That action used to create a free guide account on accept, which
+// contradicted the pricing model (every guide pays $9/mo). New signups
+// flow through /signup with the invite token preserved on the auth
+// user's user_metadata, and the Stripe webhook (or a post-checkout
+// redirect) accepts the invite after the subscription is established.
+//
+// Anything still importing the old action will fail at TypeScript so
+// we know to update the call site rather than leaving a silent free
+// path.
 
 // ── Remove guide from network ───────────────────────────────────────
 

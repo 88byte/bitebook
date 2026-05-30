@@ -83,10 +83,14 @@ export default async function AcceptGuideNetworkInvitePage({ searchParams }: { s
               Invited email: <strong>{invite.invited_email}</strong>
             </p>
 
+            <p className="bb-form-help" style={{ margin: '0.5rem 0 0' }}>
+              Joining {org.name}&rsquo;s guide network requires an active Bite Book Guide subscription ($9/mo, 7-day free trial). The outfitter covers admin tooling, not your guide seat.
+            </p>
+
             {!user ? (
               <>
                 <p style={{ margin: '0.75rem 0' }}>
-                  Sign in or create a free Bite Book account to accept this invite. We will bring you right back here.
+                  Sign in if you already have a Bite Book Guide account, or start a free trial below.
                 </p>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                   <Link
@@ -96,10 +100,10 @@ export default async function AcceptGuideNetworkInvitePage({ searchParams }: { s
                     Sign in
                   </Link>
                   <Link
-                    href={`/accept-guide-network-invite/signup?token=${encodeURIComponent(token)}`}
+                    href={`/signup?network_invite_token=${encodeURIComponent(token)}`}
                     className="bb-btn-secondary"
                   >
-                    Create account
+                    Start free trial
                   </Link>
                 </div>
               </>

@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     displayName?: string
     businessName?: string
     plan?: Plan
+    networkInviteToken?: string | null
   }
   try {
     body = await request.json()
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { email, password, firstName, lastName, displayName, businessName, plan } = body
+  const { email, password, firstName, lastName, displayName, businessName, plan, networkInviteToken } = body
+  const cleanedNetworkToken = (networkInviteToken ?? '').trim() || null
   // businessName intentionally omitted from required-fields check — it's
   // optional per v27.8.3. firstName/lastName are required so we can stamp
   // them on profiles and skip onboarding step 1 name fields.
@@ -73,6 +75,11 @@ export async function POST(request: Request) {
       business_name: businessNameOrNull,
       plan,
       source: 'guide_signup',
+      // v28.1.0e.2 — preserved so the dashboard can fall back to it if
+      // the webhook auto-accept does not fire (rare, but defensive).
+      ...(cleanedNetworkToken
+        ? { pending_guide_network_invite_token: cleanedNetworkToken }
+        : {}),
     },
   })
   if (createErr || !created.user) {
@@ -153,9 +160,20 @@ export async function POST(request: Request) {
       trial_settings: {
         end_behavior: { missing_payment_method: 'pause' },
       },
-      metadata: { plan, supabase_user_id: userId },
+      metadata: {
+        plan,
+        supabase_user_id: userId,
+        // v28.1.0e.2 — token rides with the subscription so the
+        // sub.created webhook can auto-accept the network invite
+        // after the sub row exists.
+        ...(cleanedNetworkToken ? { guide_network_invite_token: cleanedNetworkToken } : {}),
+      },
     },
-    metadata: { supabase_user_id: userId, plan },
+    metadata: {
+      supabase_user_id: userId,
+      plan,
+      ...(cleanedNetworkToken ? { guide_network_invite_token: cleanedNetworkToken } : {}),
+    },
     success_url: `${origin}/app/onboarding?welcome=1`,
     cancel_url: `${origin}/signup?canceled=1`,
     allow_promotion_codes: true,
