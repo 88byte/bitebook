@@ -1308,6 +1308,34 @@ export type Database = {
           },
         ]
       }
+      // v28.1.0f.0 — Sprint 3.4a trip_guides (hand-edited)
+      trip_guides: {
+        Row: {
+          id: string
+          trip_id: string
+          guide_profile_id: string
+          role: string
+          assigned_at: string
+          assigned_by: string | null
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          guide_profile_id: string
+          role?: string
+          assigned_at?: string
+          assigned_by?: string | null
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          guide_profile_id?: string
+          role?: string
+          assigned_at?: string
+          assigned_by?: string | null
+        }
+        Relationships: []
+      }
       // v27.1.0 — Documents Module (hand-edited)
       trip_doc_hunter_actions: {
         Row: {
