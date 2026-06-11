@@ -13,7 +13,7 @@
 // portal action stays in actions.ts as the fallback.
 
 import Link from 'next/link'
-import { AlertCircle, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowRight, Sparkles } from 'lucide-react'
 import {
   loadGuideBillingDetail,
   loadGuideInvoices,
@@ -23,6 +23,16 @@ import PaymentMethodCard from './PaymentMethodCard'
 import InvoicesList from './InvoicesList'
 import PlanSwitcher from './PlanSwitcher'
 import CancelControls from './CancelControls'
+import StartCheckoutButton from './StartCheckoutButton'
+
+// v28.1.0e.3 — sanitize return_to to same-origin absolute paths so we
+// never bounce the visitor to an arbitrary external host.
+function safeReturnPath(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const v = raw.trim()
+  if (!v.startsWith('/')) return null
+  return v
+}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -102,10 +112,17 @@ function billingErrorMessage(code: string | null): string | null {
 export default async function BillingPanel({
   guideId,
   billingError = null,
+  returnTo = null,
+  networkToken = null,
+  checkoutStatus = null,
 }: {
   guideId: string
   billingError?: string | null
+  returnTo?: string | null
+  networkToken?: string | null
+  checkoutStatus?: 'success' | 'canceled' | null
 }) {
+  const safeReturn = safeReturnPath(returnTo)
   // Pull both reads in parallel — billing detail (sub row + live PM)
   // and invoices (live Stripe call). Failures inside each helper are
   // swallowed and return empty / null, so the panel renders even if
@@ -116,36 +133,65 @@ export default async function BillingPanel({
   ])
 
   if (!detail) {
+    // v28.1.0e.3 — was a dead end ("email support") for any signed-in
+    // user without a sub row. Hunters who clicked "Add subscription"
+    // from a guide-network invite landed here. Now we surface a real
+    // Start your subscription CTA that creates a Stripe Checkout
+    // session for the existing user (no new account needed). After
+    // checkout the success_url returns them to return_to (the invite
+    // link) so they finish accepting in one tap.
     return (
       <section className="bb-tile bb-form-section">
         <div className="bb-tile-body">
           <h2 className="bb-form-section-head" style={{ marginTop: 0 }}>Billing</h2>
-          <p
-            className="bb-form-help"
-            role="status"
-            style={{
-              margin: 0,
-              padding: '0.75rem 1rem',
-              background: 'rgba(163, 61, 61, 0.08)',
-              borderRadius: 8,
-              color: '#A33D3D',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-            }}
-          >
-            <AlertCircle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
-            <span>
-              We can&rsquo;t find a subscription for this account. Email{' '}
-              <a
-                href="mailto:support@lastbite.pro"
-                className="bb-text-action bb-text-action-copper"
-                style={{ display: 'inline', padding: 0 }}
-              >
-                support@lastbite.pro
-              </a>{' '}
-              and we&rsquo;ll get you set up.
-            </span>
+
+          {safeReturn && (
+            <p
+              className="bb-form-help"
+              role="status"
+              style={{
+                marginTop: '0.25rem',
+                padding: '0.6rem 0.8rem',
+                background: 'rgba(168, 92, 50, 0.10)',
+                border: '1px solid rgba(168, 92, 50, 0.25)',
+                borderRadius: 8,
+                color: 'var(--color-ink)',
+              }}
+            >
+              Start your Bite Book Guide subscription to accept your guide-network invite. We will bring you back to the invite as soon as your trial begins.
+            </p>
+          )}
+
+          <p className="bb-form-help" style={{ marginTop: '0.6rem' }}>
+            $9 a month or $90 a year, 7-day free trial, no card required to start. Cancel anytime from this page.
+          </p>
+
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <StartCheckoutButton
+              plan="annual"
+              returnTo={safeReturn}
+              networkToken={networkToken ?? null}
+              label="Start annual trial ($90 / yr)"
+            />
+            <StartCheckoutButton
+              plan="monthly"
+              returnTo={safeReturn}
+              networkToken={networkToken ?? null}
+              variant="secondary"
+              label="Start monthly trial ($9 / mo)"
+            />
+          </div>
+
+          <p className="bb-form-help" style={{ marginTop: '0.75rem', color: 'var(--color-ink-muted)' }}>
+            Trouble starting your subscription? Email{' '}
+            <a
+              href="mailto:support@lastbite.pro"
+              className="bb-text-action bb-text-action-copper"
+              style={{ display: 'inline', padding: 0 }}
+            >
+              support@lastbite.pro
+            </a>
+            .
           </p>
         </div>
       </section>
@@ -169,6 +215,56 @@ export default async function BillingPanel({
     <section className="bb-tile bb-form-section">
       <div className="bb-tile-body">
         <h2 className="bb-form-section-head" style={{ marginTop: 0 }}>Billing</h2>
+
+        {/* v28.1.0e.3 — When the user lands here from a guide-network
+            invite (return_to set) AND they now have an active sub,
+            surface a Continue banner so they can finish accepting in
+            one tap. This covers the "they just completed checkout"
+            case (checkout=success) and the "they were already active
+            but clicked into billing" case in one path. */}
+        {safeReturn && (detail.status === 'active' || detail.status === 'trialing') && (
+          <Link
+            href={safeReturn}
+            className="bb-tile"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.75rem 0.9rem',
+              marginTop: '0.5rem',
+              textDecoration: 'none',
+              background: 'rgba(63, 107, 58, 0.10)',
+              borderColor: 'rgba(63, 107, 58, 0.30)',
+              color: 'var(--color-ink)',
+            }}
+          >
+            <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <strong style={{ display: 'block' }}>
+                {checkoutStatus === 'success' ? 'Subscription started.' : 'You are subscribed.'} Continue to your invite.
+              </strong>
+              <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+                Finish accepting your guide-network invite in one tap.
+              </span>
+            </span>
+            <ArrowRight size={16} aria-hidden="true" style={{ flexShrink: 0, color: '#2F5A2A' }} />
+          </Link>
+        )}
+
+        {checkoutStatus === 'canceled' && (
+          <p
+            className="bb-form-help"
+            role="status"
+            style={{
+              marginTop: '0.5rem',
+              padding: '0.6rem 0.8rem',
+              background: 'rgba(168, 92, 50, 0.08)',
+              borderRadius: 8,
+              color: 'var(--color-ink)',
+            }}
+          >
+            Checkout was canceled. You can start a trial again any time below.
+          </p>
+        )}
 
         {billingErrorMessage(billingError) && (
           <p

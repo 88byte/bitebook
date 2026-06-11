@@ -27,7 +27,6 @@ export default async function AcceptGuideNetworkInvitePage({ searchParams }: { s
     .maybeSingle()
   if (!invite) return <InvalidView reason="not_found" />
   if (invite.status === 'revoked') return <InvalidView reason="revoked" />
-  if (invite.status === 'accepted') return <InvalidView reason="accepted" />
   if (new Date(invite.expires_at).getTime() < Date.now()) {
     return <InvalidView reason="expired" />
   }
@@ -38,6 +37,32 @@ export default async function AcceptGuideNetworkInvitePage({ searchParams }: { s
     .eq('id', invite.org_id)
     .maybeSingle()
   if (!org) return <InvalidView reason="not_found" />
+
+  // v28.1.0e.3 — If the signed-in user is already an active member of
+  // this org's guide network, redirect to /app instead of showing the
+  // "invite already accepted" InvalidView. This is the common case
+  // after the Stripe webhook auto-accept: the user finishes checkout,
+  // success_url returns them here, and at this point their membership
+  // row already exists. Without this redirect they would see a
+  // confusing "invite already accepted" page and have to navigate to
+  // /app manually.
+  {
+    const sb0 = await createClient()
+    const { data: { user: maybeUser } } = await sb0.auth.getUser()
+    if (maybeUser) {
+      const { data: existing } = await admin
+        .from('outfitter_guide_network')
+        .select('id, status')
+        .eq('org_id', org.id)
+        .eq('guide_profile_id', maybeUser.id)
+        .maybeSingle()
+      if (existing?.status === 'active') redirect('/app')
+    }
+  }
+
+  // Only after the active-membership check do we surface the "already
+  // accepted by someone else" terminal state.
+  if (invite.status === 'accepted') return <InvalidView reason="accepted" />
 
   let inviterName = 'The outfitter'
   try {

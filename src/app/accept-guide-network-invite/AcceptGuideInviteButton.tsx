@@ -35,7 +35,11 @@ export default function AcceptGuideInviteButton({ token }: { token: string }) {
   }
 
   const returnUrl = `/accept-guide-network-invite?token=${encodeURIComponent(token)}`
-  const billingHref = `/app/settings?tab=billing&return_to=${encodeURIComponent(returnUrl)}`
+  // v28.1.0e.3 — also forward the network_token so the
+  // /api/start-existing-user-checkout endpoint can stamp it on Stripe
+  // metadata for webhook auto-accept. The return_to ensures success
+  // lands them back here in one tap.
+  const billingHref = `/app/settings?tab=billing&return_to=${encodeURIComponent(returnUrl)}&network_token=${encodeURIComponent(token)}`
 
   return (
     <div>

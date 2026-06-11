@@ -22,7 +22,13 @@ import { fetchOutfitterTeamSnapshot } from './team-actions'
 // link. Outfitter admins (joining members) see a read-only org info
 // snapshot. Downgrade lands in v28.1.0d.
 
-type SearchParams = Promise<{ tab?: string; billing_error?: string }>
+type SearchParams = Promise<{
+  tab?: string
+  billing_error?: string
+  return_to?: string
+  network_token?: string
+  checkout?: string
+}>
 
 export default async function SettingsPage({
   searchParams,
@@ -33,6 +39,17 @@ export default async function SettingsPage({
   const sp = await searchParams
   const tab: 'profile' | 'billing' = sp.tab === 'billing' ? 'billing' : 'profile'
   const billingError = typeof sp.billing_error === 'string' ? sp.billing_error : null
+  // v28.1.0e.3 — return_to + network_token come from the
+  // /accept-guide-network-invite "Subscription needed" callout. They
+  // are sanitized in BillingPanel (return_to must be same-origin) and
+  // forwarded to the existing-user-checkout endpoint so the success_url
+  // sends the visitor back to the invite link to finish accepting.
+  const returnTo = typeof sp.return_to === 'string' ? sp.return_to : null
+  const networkToken = typeof sp.network_token === 'string' ? sp.network_token : null
+  const checkoutStatus =
+    sp.checkout === 'success' ? 'success' :
+    sp.checkout === 'canceled' ? 'canceled' :
+    null
 
   return (
     <main className="bb-app-main">
@@ -68,7 +85,13 @@ export default async function SettingsPage({
             currentOrgId={profile.current_outfitter_org_id}
           />
         ) : (
-          <BillingPanel guideId={user.id} billingError={billingError} />
+          <BillingPanel
+            guideId={user.id}
+            billingError={billingError}
+            returnTo={returnTo}
+            networkToken={networkToken}
+            checkoutStatus={checkoutStatus}
+          />
         )}
 
         {/* v25.9: 1-tap support link for mobile users (sidebar is hidden <1024px). */}
