@@ -7,7 +7,10 @@ import { assertWriteAllowed } from '../_lib/billing-tier'
 import { insertTrip, insertTripParticipants, closeTrip } from '../_lib/queries'
 import { ensureHarvestLog } from '../_lib/harvest-log-queries'
 import { markStepDone } from '../_lib/onboarding'
+import { setTripGuides } from '../_lib/trip-guides-write'
+import { findGuideTripConflicts } from '../_lib/trip-conflicts'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/types'
 import { isValidMethod } from '@/lib/methods'
 
@@ -39,6 +42,13 @@ export async function createTripAction(formData: FormData) {
   const notesInput = String(formData.get('notes') ?? '').trim()
   const hunterIds = formData.getAll('hunter_ids').map((v) => String(v)).filter(Boolean)
 
+  // v28.1.0f.1 Sprint 3.4b — guide assignment pickers. Optional for
+  // pure guides (the creator is the lead by default). Outfitter
+  // members get a real picker; the form posts the selected ids.
+  const leadGuideIdRaw = String(formData.get('lead_guide_id') ?? '').trim()
+  const assistGuideIds = formData.getAll('assist_guide_ids').map((v) => String(v)).filter(Boolean)
+  const leadGuideId = leadGuideIdRaw || profile.id
+
   if (!title) throw new Error('Trip title is required.')
   if (!startsAt) throw new Error('Trip start date is required.')
   if (kind !== 'hunting' && kind !== 'fishing') throw new Error('Invalid trip kind.')
@@ -62,6 +72,43 @@ export async function createTripAction(formData: FormData) {
     notes,
   })
   if ('error' in insertResult) throw new Error(insertResult.error)
+
+  // v28.1.0f.1 — when an outfitter owner or admin creates a trip,
+  // tag it with their current org id so it lands on the org
+  // calendar. The AFTER INSERT trigger already mirrored profile.id
+  // into trip_guides; setTripGuides below replaces that with the
+  // real lead + assists picked on the form.
+  const isOutfitterMember =
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    !!profile.current_outfitter_org_id
+  if (isOutfitterMember && profile.current_outfitter_org_id) {
+    const admin = createAdminClient()
+    await admin
+      .from('trips')
+      .update({ outfitter_org_id: profile.current_outfitter_org_id })
+      .eq('id', insertResult.id)
+  }
+
+  // Persist the lead + assist set even when the form did not post
+  // any (the trigger backed us up with the creator as lead, but
+  // setTripGuides() is idempotent so re-running is safe).
+  await setTripGuides({
+    trip_id: insertResult.id,
+    lead_guide_id: leadGuideId,
+    assist_guide_ids: assistGuideIds,
+    assigned_by: profile.id,
+  })
+
+  // Conflict warning, warn-only. Collect for ALL assigned guides
+  // (lead + assists). Encoded into the redirect query so the trip
+  // detail page can flash a callout.
+  const conflictGuideIds = [leadGuideId, ...assistGuideIds].filter((v, i, a) => a.indexOf(v) === i)
+  const conflicts = await findGuideTripConflicts({
+    guide_ids: conflictGuideIds,
+    starts_at: new Date(startsAt).toISOString(),
+    ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+    exclude_trip_id: insertResult.id,
+  })
 
   if (hunterIds.length > 0) {
     const partResult = await insertTripParticipants(profile.id, insertResult.id, hunterIds)
@@ -127,11 +174,15 @@ export async function createTripAction(formData: FormData) {
 
   revalidatePath('/app')
   revalidatePath('/app/trips')
+  revalidatePath('/app/calendar')
   // v27.0b.4.3: hunter-side dashboard + trips list bust so participating
   // hunters see the new trip on next load without a hard refresh.
   revalidatePath('/app/h')
   revalidatePath('/app/h/trips')
-  redirect(`/app/trips/${insertResult.id}`)
+  // v28.1.0f.1 — pass conflict count as a flash param so the detail
+  // page can warn without blocking. Warn-only per Flavio's decision.
+  const conflictsParam = conflicts.length > 0 ? `?conflicts=${conflicts.length}` : ''
+  redirect(`/app/trips/${insertResult.id}${conflictsParam}`)
 }
 
 export async function closeTripAction(formData: FormData) {

@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Calendar, Users, Wallet, Star, FileText, Settings, LifeBuoy, Network } from 'lucide-react'
+import { LayoutDashboard, Calendar, CalendarDays, Users, Wallet, Star, FileText, Settings, LifeBuoy, Network } from 'lucide-react'
 import SignOutButton from './SignOutButton'
 import ConnectivityDot from '@/app/_components/ConnectivityDot'
 
@@ -23,6 +23,7 @@ type NavItem = {
 
 const NAV_DASHBOARD: NavItem = { href: '/app',          label: 'Dashboard', icon: LayoutDashboard, match: (p) => p === '/app' }
 const NAV_TRIPS: NavItem     = { href: '/app/trips',    label: 'Trips',     icon: Calendar,        match: (p) => p.startsWith('/app/trips') }
+const NAV_CALENDAR: NavItem  = { href: '/app/calendar', label: 'Calendar',  icon: CalendarDays,    match: (p) => p.startsWith('/app/calendar') }
 const NAV_HUNTERS: NavItem   = { href: '/app/hunters',  label: 'Hunters',   icon: Users,           match: (p) => p.startsWith('/app/hunters') }
 const NAV_NETWORK: NavItem   = { href: '/app/network',  label: 'Network',   icon: Network,         match: (p) => p.startsWith('/app/network') }
 const NAV_WALLET: NavItem    = { href: '/app/wallet',   label: 'Wallet',    icon: Wallet,          match: (p) => p.startsWith('/app/wallet') }
@@ -39,8 +40,8 @@ export default function Sidebar({ isOutfitterMember = false }: { isOutfitterMemb
   // Outfitter members: Network replaces standalone Hunters and lives
   // in the same slot. Pure guides keep Hunters as their own item.
   const NAV: ReadonlyArray<NavItem> = isOutfitterMember
-    ? [NAV_DASHBOARD, NAV_TRIPS, NAV_NETWORK, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
-    : [NAV_DASHBOARD, NAV_TRIPS, NAV_HUNTERS, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
+    ? [NAV_DASHBOARD, NAV_TRIPS, NAV_CALENDAR, NAV_NETWORK, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
+    : [NAV_DASHBOARD, NAV_TRIPS, NAV_CALENDAR, NAV_HUNTERS, NAV_WALLET, NAV_REVIEWS, NAV_DOCS, NAV_SETTINGS, NAV_HELP]
   return (
     <aside className="bb-sidebar" aria-label="Primary navigation">
       <Link href="/app" className="bb-sidebar-brand" aria-label="Bite Book home">

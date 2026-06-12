@@ -1872,6 +1872,7 @@ export type Database = {
           location_name: string | null
           method: string | null
           notes: string | null
+          outfitter_org_id: string | null
           signed_manifest: Json | null
           species_targeted: string | null
           starts_at: string
@@ -1894,6 +1895,7 @@ export type Database = {
           location_name?: string | null
           method?: string | null
           notes?: string | null
+          outfitter_org_id?: string | null
           signed_manifest?: Json | null
           species_targeted?: string | null
           starts_at: string
@@ -1916,6 +1918,7 @@ export type Database = {
           location_name?: string | null
           method?: string | null
           notes?: string | null
+          outfitter_org_id?: string | null
           signed_manifest?: Json | null
           species_targeted?: string | null
           starts_at?: string

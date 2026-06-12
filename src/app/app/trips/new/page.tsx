@@ -9,6 +9,8 @@ import {
 } from '../../_lib/trip-template-queries'
 import NewTripForm, { type NewTripInitial } from './NewTripForm'
 import UseTemplateButton from './UseTemplateButton'
+import LeadAssistPicker from './LeadAssistPicker'
+import { fetchOrgGuideRoster } from '../../_lib/calendar-queries'
 
 // v26.4: structured-section layout — the form renders its own per-section
 // .bb-tile wrappers, so this page no longer wraps the form in a single tile.
@@ -23,7 +25,11 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
   const sp = await searchParams
   const templateId = typeof sp.template === 'string' && sp.template.length > 0 ? sp.template : null
 
-  const [hunters, templates, templateData, speciesOptions, attachableDocs] = await Promise.all([
+  const isOutfitterMember =
+    (profile.account_tier === 'outfitter_owner' || profile.account_tier === 'outfitter_admin') &&
+    !!profile.current_outfitter_org_id
+
+  const [hunters, templates, templateData, speciesOptions, attachableDocs, roster] = await Promise.all([
     fetchAcceptedHunters(profile.id),
     fetchGuideTripTemplates(profile.id, { includeArchived: false }),
     templateId
@@ -33,6 +39,9 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
     // v27.6.2.1 — pre-creation docs picker pulls from the same source
     // as /app/trips/[id]'s post-creation TripDocsCard.
     fetchAttachableDocsForGuide(profile.id),
+    isOutfitterMember && profile.current_outfitter_org_id
+      ? fetchOrgGuideRoster(profile.current_outfitter_org_id)
+      : Promise.resolve([]),
   ])
 
   // Build the initial values payload from the template (if present + active).
@@ -153,6 +162,12 @@ export default async function NewTripPage({ searchParams }: { searchParams: Sear
           speciesOptions={speciesOptions}
           attachableDocs={attachableDocs}
         />
+        {isOutfitterMember && roster.length > 0 && (
+          <LeadAssistPicker
+            roster={roster}
+            defaultLeadId={profile.id}
+          />
+        )}
       </div>
     </main>
   )

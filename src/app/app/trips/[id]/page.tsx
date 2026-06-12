@@ -36,6 +36,7 @@ import HuntersOnTripPanel, {
 } from './HuntersOnTripPanel'
 
 type RouteParams = Promise<{ id: string }>
+type RouteSearch = Promise<{ conflicts?: string }>
 
 // v27.1.1.0.3e.6: trip detail IS the edit surface. Read-only DetailCells
 // have been replaced with the inline TripDetailEditor (same Trip Overview
@@ -44,8 +45,16 @@ type RouteParams = Promise<{ id: string }>
 //
 // The /edit route now redirects here for back-compat. The hunter side
 // (/app/h/trips/[id]) keeps its existing read-only render.
-export default async function TripDetailPage({ params }: { params: RouteParams }) {
+export default async function TripDetailPage({
+  params,
+  searchParams,
+}: {
+  params: RouteParams
+  searchParams: RouteSearch
+}) {
   const { id } = await params
+  const sp = await searchParams
+  const conflictCount = Number(sp.conflicts ?? 0) || 0
   const { profile, contextGuideId } = await requireGuide()
 
   const detail = await fetchTripDetail(contextGuideId, id)
@@ -140,6 +149,27 @@ export default async function TripDetailPage({ params }: { params: RouteParams }
         <ArrowLeft size={16} aria-hidden="true" />
         All trips
       </Link>
+
+      {conflictCount > 0 && (
+        <div
+          role="status"
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.75rem 1rem',
+            background: 'rgba(213, 94, 0, 0.10)',
+            border: '1px solid rgba(213, 94, 0, 0.30)',
+            borderRadius: 8,
+            color: 'var(--color-ink)',
+          }}
+        >
+          <strong style={{ display: 'block' }}>
+            Heads up: schedule conflict for {conflictCount} other {conflictCount === 1 ? 'trip' : 'trips'}.
+          </strong>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-ink-soft)' }}>
+            One or more assigned guides are also booked during this window. Adjust the dates or reassign if needed.
+          </span>
+        </div>
+      )}
 
       {/* v27.5.0.2 — status pill flush next to the title (Flavio: "the
           icons in the view and manage trip details... should be placed
