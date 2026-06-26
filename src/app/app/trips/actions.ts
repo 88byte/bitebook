@@ -91,13 +91,23 @@ export async function createTripAction(formData: FormData) {
 
   // Persist the lead + assist set even when the form did not post
   // any (the trigger backed us up with the creator as lead, but
-  // setTripGuides() is idempotent so re-running is safe).
-  await setTripGuides({
+  // setTripGuides() is idempotent so re-running is safe). v28.1.0f.2
+  // — log on failure instead of silently swallowing so any future
+  // regression shows up in Vercel runtime_errors immediately.
+  const guidesResult = await setTripGuides({
     trip_id: insertResult.id,
     lead_guide_id: leadGuideId,
     assist_guide_ids: assistGuideIds,
     assigned_by: profile.id,
   })
+  if ('error' in guidesResult) {
+    console.error('[createTripAction:setTripGuides]', {
+      trip_id: insertResult.id,
+      lead_guide_id: leadGuideId,
+      assist_count: assistGuideIds.length,
+      error: guidesResult.error,
+    })
+  }
 
   // Conflict warning, warn-only. Collect for ALL assigned guides
   // (lead + assists). Encoded into the redirect query so the trip

@@ -25,9 +25,14 @@ export async function setTripGuides(input: SetTripGuidesInput): Promise<{ ok: tr
     .eq('id', input.trip_id)
   if (tripErr) return { error: tripErr.message }
 
-  // Replace strategy: delete everyone, insert lead + assists. This
-  // keeps the path single-statement-simple and the UNIQUE
-  // (trip_id, guide_profile_id) check matches naturally on insert.
+  // v28.1.0f.2 — replace strategy is still delete-then-insert as the
+  // canonical reset, but the insert path is now an UPSERT with
+  // onConflict on (trip_id, guide_profile_id) so a concurrent or
+  // out-of-order trigger row cannot collide with our explicit set.
+  // The AFTER INSERT trigger on trips was promoted to SECURITY
+  // DEFINER in migration v28_1_0f_2_trips_lead_guide_trigger_security_definer
+  // so it no longer hits RLS; this upsert is belt-and-braces against
+  // any future trigger row showing up between our delete and insert.
   await admin.from('trip_guides').delete().eq('trip_id', input.trip_id)
 
   const rows: Array<{
@@ -52,7 +57,9 @@ export async function setTripGuides(input: SetTripGuidesInput): Promise<{ ok: tr
       })),
   ]
 
-  const { error: insErr } = await admin.from('trip_guides').insert(rows)
+  const { error: insErr } = await admin
+    .from('trip_guides')
+    .upsert(rows, { onConflict: 'trip_id,guide_profile_id' })
   if (insErr) return { error: insErr.message }
   return { ok: true }
 }
