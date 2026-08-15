@@ -300,6 +300,44 @@ export function staticDateRangeValue(path: string): { start: string; end: string
   return { start: start ?? '', end: end ?? '' }
 }
 
+// v28.1.0g — log-time override support. A mapped field is overrideable
+// when it's a string-valued source the fill engine resolves from data
+// (trip / guide / hunter / license / tag records). The guide can type
+// over the auto-filled value on the harvest log editor; the typed value
+// wins for that log only (stored in harvest_log_entry_user_inputs /
+// harvest_log_user_inputs, same tables as "Filled at log time").
+// Excluded:
+//   - special sentinels (user_input, static:*, e_signature, skip, ...)
+//     which either already ARE guide input or must stay engine-controlled
+//   - 'harvest' category (species rows / hours / notes have their own
+//     structured inputs on the entry accordion)
+//   - boolean sources (checkbox override is out of scope for v28.1.0g)
+const OVERRIDABLE_SOURCE_PATHS = new Set(
+  DATA_SOURCES.filter(
+    (s) => s.valueType === 'string' && s.category !== 'special' && s.category !== 'harvest'
+  ).map((s) => s.value)
+)
+
+export function isOverridableSourcePath(path: string): boolean {
+  if (OVERRIDABLE_SOURCE_PATHS.has(path)) return true
+  // Legacy guide_wallet.* aliases (renamed guide_license.* in
+  // v27.1.1.0.3c) — the fill engine still resolves them.
+  if (path.startsWith('guide_wallet.')) {
+    return OVERRIDABLE_SOURCE_PATHS.has(path.replace('guide_wallet.', 'guide_license.'))
+  }
+  return false
+}
+
+// v28.1.0g — plain-English label for an overrideable path, used by the
+// harvest log editor's "Auto-filled fields" rows. Falls back to the raw
+// path for anything not in the catalog (shouldn't happen for
+// overrideable paths).
+const SOURCE_LABEL_BY_PATH = new Map(DATA_SOURCES.map((s) => [s.value, s.label]))
+
+export function sourceLabelForPath(path: string): string {
+  return SOURCE_LABEL_BY_PATH.get(path) ?? SOURCE_LABEL_BY_PATH.get(path.replace('guide_wallet.', 'guide_license.')) ?? path
+}
+
 export function valueTypeForFieldType(
   fieldType: 'text' | 'checkbox' | 'radio' | 'dropdown' | 'optionList' | 'button' | 'signature' | 'unknown'
 ): ValueType {

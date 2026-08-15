@@ -10,6 +10,7 @@ import {
   fetchTripGeneratedLogs,
 } from '../../../_lib/harvest-log-queries'
 import { loadGuideDefaultSignatureDataUrl } from '../../../_lib/guide-default-signature'
+import { previewAutoFillValuesAction } from '../../../_lib/harvest-log-fill'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import HarvestLogEditor from './HarvestLogEditor'
@@ -106,7 +107,7 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
   // v27.3.7.1 item 3: also fetch the species pool so the per-hunter
   // species rows can use the same SpeciesField dropdown the trip
   // form uses (consistency + default to trip species).
-  const [mappedDocs, generatedLogs, speciesOptions, defaultSignatureDataUrl, preferredDefaultDocId] = await Promise.all([
+  const [mappedDocs, generatedLogs, speciesOptions, defaultSignatureDataUrl, preferredDefaultDocId, autoFillPreview] = await Promise.all([
     fetchMappedLogDocs(profile.id),
     fetchTripGeneratedLogs(tripId),
     fetchSpecies(),
@@ -116,7 +117,16 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
     // v28.1.0b.6 — Prefer the user's org-level or guide-level default
     // log doc over sortedDocs[0] when pre-selecting the picker.
     resolvePreferredDefaultDocId(profile.id, outfitterOrgId),
+    // v28.1.0g — resolve current values for every overrideable
+    // auto-filled mapping so the editor's "Auto-filled fields" inputs
+    // pre-fill with what the PDF would print. Errors degrade to empty
+    // maps (inputs render blank, override still works).
+    previewAutoFillValuesAction(log.id),
   ])
+  const autoFillValues =
+    'error' in autoFillPreview
+      ? { trip_level: {}, per_entry: {} }
+      : { trip_level: autoFillPreview.trip_level, per_entry: autoFillPreview.per_entry }
 
   return (
     <main className="bb-app-main">
@@ -153,6 +163,7 @@ export default async function TripHarvestLogPage({ params }: { params: Params })
         speciesOptions={speciesOptions}
         defaultSignatureDataUrl={defaultSignatureDataUrl}
         preferredDefaultDocId={preferredDefaultDocId}
+        autoFillValues={autoFillValues}
       />
     </main>
   )

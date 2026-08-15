@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Database, TablesInsert } from '@/lib/supabase/types'
 import { parseFieldName } from './harvest-log-fill-types'
+import { isOverridableSourcePath, sourceLabelForPath } from './doc-data-sources'
 
 // v27.1.1.0.3a — read paths for the harvest_logs / harvest_log_entries /
 // harvest_log_entry_species pivot. The fill engine (v27.1.1.0.3b) consumes
@@ -42,11 +43,30 @@ export type LogTimeMapping = {
   effective_slot: number
 }
 
+// v28.1.0g — an auto-filled (data-mapped) field the guide may type over
+// at log time. Same shape as LogTimeMapping plus the mapped source path
+// and its plain-English label. One entry per (doc, field_name).
+export type AutoFillMapping = {
+  doc_id: string
+  doc_label: string
+  field_name: string
+  /** Plain-English label of the mapped source, e.g. "License number". */
+  label: string
+  data_source_path: string
+  hunter_slot: number
+  /** hunter_slot if > 0 else parseFieldName.slot. 0 = trip-level. */
+  effective_slot: number
+}
+
 export type HarvestLogWithEntries = HarvestLogRow & {
   entries: HarvestLogEntryWithRelations[]
   // v27.3.9: aggregated across every log doc the guide can generate.
   // Editor merges these into per-entry "Custom fields" inputs.
   log_time_mappings: LogTimeMapping[]
+  // v28.1.0g — data-mapped fields the guide can override for this log.
+  // Editor renders them as editable pre-filled inputs ("Auto-filled
+  // fields") on the entry accordions (per-hunter) and trip-level card.
+  auto_fill_mappings: AutoFillMapping[]
   // v27.5.0.4.4 — trip-level "Filled at log time" values keyed by
   // mapping_field_name. Mirror of the per-entry user_inputs map but
   // log-scoped. Populated by fetchHarvestLog.
@@ -139,6 +159,10 @@ export async function fetchHarvestLog(
   // captures inputs once even if the guide later switches templates.
   const logTimeMappings = await fetchLogTimeMappingsForGuide(sb)
 
+  // v28.1.0g — overrideable data-mapped fields, same doc scope as the
+  // log-time mappings above.
+  const autoFillMappings = await fetchAutoFillMappingsForGuide(sb)
+
   // v27.5.0.4.4 — trip-level user_input.log_time values, keyed on this
   // log's id. Mirror of the per-entry user_inputs fetch above.
   const { data: logUiRows } = await sb
@@ -154,8 +178,53 @@ export async function fetchHarvestLog(
     ...log,
     entries: entriesWithRelations,
     log_time_mappings: logTimeMappings,
+    auto_fill_mappings: autoFillMappings,
     user_inputs: logUserInputs,
   }
+}
+
+// v28.1.0g — pull every overrideable data-mapped field across the log
+// docs the guide can generate against (their own + Bite Book
+// templates; RLS scopes the rows). Mirror of
+// fetchLogTimeMappingsForGuide but for auto-resolved sources the guide
+// may type over at log time. The overrideable filter runs client-side
+// (isOverridableSourcePath) since it's a catalog predicate, not a
+// column value.
+export async function fetchAutoFillMappingsForGuide(
+  sb: Awaited<ReturnType<typeof createClient>>
+): Promise<AutoFillMapping[]> {
+  const { data, error } = await sb
+    .from('doc_field_mappings')
+    .select('doc_id, field_name, data_source_path, hunter_slot, docs!inner(id, label, kind)')
+    .eq('mapping_kind', 'field')
+  if (error) {
+    console.warn('[harvest-log.fetchAutoFillMappings]', { code: error.code, message: error.message })
+    return []
+  }
+  type Row = {
+    doc_id: string
+    field_name: string
+    data_source_path: string | null
+    hunter_slot: number
+    docs: { id: string; label: string; kind: string } | null
+  }
+  const out: AutoFillMapping[] = []
+  for (const r of (data ?? []) as unknown as Row[]) {
+    if (!r.docs || r.docs.kind !== 'log') continue
+    if (!r.data_source_path || !isOverridableSourcePath(r.data_source_path)) continue
+    const manual = r.hunter_slot ?? 0
+    const detected = parseFieldName(r.field_name).slot
+    out.push({
+      doc_id: r.doc_id,
+      doc_label: r.docs.label,
+      field_name: r.field_name,
+      label: sourceLabelForPath(r.data_source_path),
+      data_source_path: r.data_source_path,
+      hunter_slot: manual,
+      effective_slot: manual > 0 ? manual : detected,
+    })
+  }
+  return out
 }
 
 // v27.3.9: pull every "Filled at log time" mapping the guide owns

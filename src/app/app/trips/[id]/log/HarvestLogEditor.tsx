@@ -34,6 +34,7 @@ import type {
   HarvestLogEntryWithRelations,
   HarvestLogEntrySpeciesRow,
   LogTimeMapping,
+  AutoFillMapping,
   MappedLogDoc,
   TripGeneratedLog,
 } from '../../../_lib/harvest-log-queries'
@@ -129,6 +130,7 @@ export default function HarvestLogEditor({
   speciesOptions,
   defaultSignatureDataUrl = null,
   preferredDefaultDocId = null,
+  autoFillValues = { trip_level: {}, per_entry: {} },
 }: {
   tripId: string
   log: HarvestLogWithEntries
@@ -150,6 +152,14 @@ export default function HarvestLogEditor({
   // select the picker over sortedDocs[0]. Falls through when null
   // or when the preferred doc isn't in the visible list.
   preferredDefaultDocId?: string | null
+  // v28.1.0g — resolved values for every overrideable auto-filled
+  // mapping, computed server-side by previewAutoFillValuesAction.
+  // trip_level keyed by field_name; per_entry keyed by entry id then
+  // field_name. The "Auto-filled fields" inputs pre-fill from these.
+  autoFillValues?: {
+    trip_level: Record<string, string>
+    per_entry: Record<string, Record<string, string>>
+  }
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -364,6 +374,18 @@ export default function HarvestLogEditor({
               logTimeMappings={log.log_time_mappings}
               initialValues={log.user_inputs}
             />
+
+            {/* v28.1.0g — trip-level auto-filled mapped fields, shown as
+                editable inputs pre-filled with the value the PDF would
+                print. Typing over one stores a this-log-only override;
+                clearing it lets the mapping reassert. */}
+            <AutoFilledFieldsSection
+              scope="trip"
+              targetId={log.id}
+              mappings={log.auto_fill_mappings.filter((m) => m.effective_slot === 0)}
+              resolvedValues={autoFillValues.trip_level}
+              savedValues={log.user_inputs}
+            />
           </div>
         </section>
 
@@ -413,6 +435,8 @@ export default function HarvestLogEditor({
                   tripSpecies={tripSpecies}
                   speciesOptions={speciesOptions}
                   logTimeMappings={log.log_time_mappings}
+                  autoFillMappings={log.auto_fill_mappings}
+                  autoFillResolved={autoFillValues.per_entry[e.id] ?? {}}
                 />
               ))
             )}
@@ -437,6 +461,8 @@ function EntryAccordion({
   tripSpecies,
   speciesOptions,
   logTimeMappings,
+  autoFillMappings,
+  autoFillResolved,
 }: {
   entry: HarvestLogEntryWithRelations
   slot: number | null
@@ -448,6 +474,10 @@ function EntryAccordion({
   // log doc the guide could generate against this trip. Each entry's
   // accordion filters by hunter_slot to render its own subset.
   logTimeMappings: LogTimeMapping[]
+  // v28.1.0g — overrideable data-mapped fields (same doc scope as
+  // logTimeMappings) + this entry's resolved values.
+  autoFillMappings: AutoFillMapping[]
+  autoFillResolved: Record<string, string>
 }) {
   const router = useRouter()
   // v27.8.1 — accordion default-open. Was useState(false) which forced
@@ -703,6 +733,19 @@ function EntryAccordion({
             slot={slot}
             logTimeMappings={logTimeMappings}
             initialValues={entry.user_inputs}
+          />
+
+          {/* v28.1.0g — per-hunter auto-filled mapped fields (license,
+              name, address, tag details...) rendered as editable inputs
+              pre-filled with what the PDF would print. Typing over one
+              stores a this-log-only override in the same per-entry
+              user-input table; clearing it restores the mapped value. */}
+          <AutoFilledFieldsSection
+            scope="entry"
+            targetId={entry.id}
+            mappings={autoFillMappings.filter((m) => m.effective_slot === (slot ?? 1))}
+            resolvedValues={autoFillResolved}
+            savedValues={entry.user_inputs}
           />
 
           <div className="bb-form-row" style={{ marginTop: '0.75rem' }}>
@@ -1201,6 +1244,239 @@ function CustomLogFieldRow({
         {mapping.user_label}
       </label>
       <input
+        id={fieldId}
+        type="text"
+        className="bb-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        maxLength={500}
+        disabled={pending}
+      />
+      <div style={{ minHeight: '1rem', marginTop: '0.2rem' }}>
+        <StatusPill status={status} />
+      </div>
+    </div>
+  )
+}
+
+// v28.1.0g — "Auto-filled fields": every data-mapped field the doc
+// mappings resolve automatically (license #, hunter name, address, tag
+// details...), rendered as normal editable inputs pre-filled with the
+// value the generated PDF would print. Typing over one stores a
+// this-log-only override (same user-input tables as "Filled at log
+// time"); clearing the input, retyping the mapped value, or tapping
+// Reset removes the override so the mapping reasserts on the next
+// generate. Collapsed by default so the accordion stays tight.
+// De-duplicates by field_name across docs, same as
+// CustomLogFieldsSection.
+function AutoFilledFieldsSection({
+  scope,
+  targetId,
+  mappings,
+  resolvedValues,
+  savedValues,
+}: {
+  scope: 'trip' | 'entry'
+  targetId: string
+  mappings: AutoFillMapping[]
+  resolvedValues: Record<string, string>
+  savedValues: Record<string, string>
+}) {
+  const [open, setOpen] = useState(false)
+  const deduped = useMemo(() => {
+    const out = new Map<string, AutoFillMapping>()
+    for (const m of mappings) {
+      if (!out.has(m.field_name)) out.set(m.field_name, m)
+    }
+    return Array.from(out.values())
+  }, [mappings])
+
+  const editedCount = useMemo(
+    () => deduped.filter((m) => (savedValues[m.field_name] ?? '').trim() !== '').length,
+    [deduped, savedValues]
+  )
+
+  if (deduped.length === 0) return null
+
+  return (
+    <section style={{ marginTop: '0.75rem' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          padding: 0,
+          background: 'transparent',
+          border: 0,
+          cursor: 'pointer',
+          color: 'var(--color-ink)',
+        }}
+      >
+        {open ? (
+          <ChevronDown size={14} aria-hidden="true" />
+        ) : (
+          <ChevronRight size={14} aria-hidden="true" />
+        )}
+        <span className="bb-form-label" style={{ marginBottom: 0 }}>
+          Auto-filled fields{' '}
+          <span style={{ opacity: 0.6, fontWeight: 400 }}>({deduped.length})</span>
+        </span>
+        {editedCount > 0 && (
+          <span
+            style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              padding: '0.15rem 0.45rem',
+              borderRadius: 999,
+              background: 'rgba(168, 92, 50, 0.12)',
+              color: 'var(--color-copper)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {editedCount} edited
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <p className="bb-form-help" style={{ margin: '0.35rem 0 0.5rem 0' }}>
+            Pulled from your records. Type over any value to change it on this
+            report only. Clear a field to bring the auto-filled value back.
+          </p>
+          <div className="flex flex-col gap-2">
+            {deduped.map((m) => (
+              <AutoFilledFieldRow
+                key={`${m.doc_id}:${m.field_name}`}
+                scope={scope}
+                targetId={targetId}
+                mapping={m}
+                resolvedValue={resolvedValues[m.field_name] ?? ''}
+                savedValue={savedValues[m.field_name] ?? ''}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+function AutoFilledFieldRow({
+  scope,
+  targetId,
+  mapping,
+  resolvedValue,
+  savedValue,
+}: {
+  scope: 'trip' | 'entry'
+  targetId: string
+  mapping: AutoFillMapping
+  resolvedValue: string
+  savedValue: string
+}) {
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const hasSavedOverride = savedValue.trim() !== ''
+  const [value, setValue] = useState(hasSavedOverride ? savedValue : resolvedValue)
+  const [overrideActive, setOverrideActive] = useState(hasSavedOverride)
+  const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useFadingSavedStatus()
+
+  // Keep un-overridden inputs tracking the freshest mapped value across
+  // router.refresh() cycles (e.g. the guide links a license mid-edit).
+  // Skipped while the input is focused so a refresh triggered by a
+  // sibling field's blur-save can't clobber in-progress typing.
+  useEffect(() => {
+    if (!overrideActive && document.activeElement !== inputRef.current) {
+      setValue(resolvedValue)
+    }
+  }, [resolvedValue, overrideActive])
+
+  function persist(next: string) {
+    setStatus({ kind: 'saving' })
+    startTransition(async () => {
+      const res =
+        scope === 'entry'
+          ? await setEntryUserInputAction(targetId, mapping.field_name, next)
+          : await setLogUserInputAction(targetId, mapping.field_name, next)
+      if ('error' in res) {
+        setStatus({ kind: 'error', message: res.error })
+        return
+      }
+      setStatus({ kind: 'saved', at: Date.now() })
+      router.refresh()
+    })
+  }
+
+  function commit() {
+    const trimmed = value.trim()
+    if (trimmed === '' || trimmed === resolvedValue.trim()) {
+      // Matches the mapped value (or cleared) — drop the override so
+      // the mapping reasserts and keeps tracking record changes.
+      setValue(resolvedValue)
+      if (overrideActive) {
+        setOverrideActive(false)
+        persist('')
+      }
+      return
+    }
+    if (value === savedValue) return
+    setOverrideActive(true)
+    persist(value)
+  }
+
+  function reset() {
+    setValue(resolvedValue)
+    setOverrideActive(false)
+    persist('')
+  }
+
+  const fieldId = `autofill_${targetId}_${mapping.field_name.replace(/\W+/g, '_')}`
+  return (
+    <div className="bb-form-row" style={{ marginBottom: 0 }}>
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: '0.5rem',
+        }}
+      >
+        <label className="bb-form-label" htmlFor={fieldId} style={{ marginBottom: '0.25rem' }}>
+          {mapping.label}
+        </label>
+        {overrideActive ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'baseline',
+              gap: '0.5rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-copper)', fontWeight: 600 }}>
+              Edited for this log
+            </span>
+            <button
+              type="button"
+              className="bb-text-action"
+              onClick={reset}
+              disabled={pending}
+              style={{ fontSize: '0.72rem' }}
+            >
+              Reset
+            </button>
+          </span>
+        ) : (
+          <span style={{ fontSize: '0.72rem', color: 'var(--color-ink-soft)' }}>Auto-filled</span>
+        )}
+      </span>
+      <input
+        ref={inputRef}
         id={fieldId}
         type="text"
         className="bb-input"

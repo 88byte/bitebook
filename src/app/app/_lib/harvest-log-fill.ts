@@ -30,7 +30,9 @@ import {
   staticDateValue,
   isStaticDateRange,
   staticDateRangeValue,
+  isOverridableSourcePath,
 } from './doc-data-sources'
+import { fetchAutoFillMappingsForGuide } from './harvest-log-queries'
 import { parseFieldName } from './harvest-log-fill-types'
 import type { FilledPdfArtifact, GenerateFilledLogResult } from './harvest-log-fill-types'
 // v27.5.0.1: regen ALWAYS auto-signs using the guide's saved default
@@ -430,57 +432,21 @@ function resolveSource(
   return null
 }
 
-// ── Action ────────────────────────────────────────────────────────────
+// ── Shared context build ──────────────────────────────────────────────
 
-export async function generateFilledHarvestLogPDFsAction(
-  logId: string,
-  docId: string,
-  customName?: string,
-  overwriteId?: string,
-  // v27.3.9.1: when true, skip the "Filled at log time" blank-check
-  // and proceed with whatever values exist. Set by the client after
-  // the guide confirms in the soft-warning modal.
-  acknowledgeBlanks?: boolean
-): Promise<GenerateFilledLogResult> {
-  const { profile } = await requireGuide()
-  const gate = await assertWriteAllowed(profile.id)
-  if ('error' in gate) return { error: gate.error }
-  if (!logId || !docId) return { error: 'Missing log or doc id.' }
-  // v27.1.4.0.1: optional guide-supplied report name. Empty/undefined →
-  // fall through to the auto-generated `{trip.title} — {doc.label}`
-  // pattern below. Capped at 120 chars defensively.
-  const cleanCustomName = (customName ?? '').trim().slice(0, 120)
-  // v27.1.3.0.3: optional overwrite target. When set, the engine
-  // upserts the storage object at the EXISTING file_path of this row
-  // (no new row inserted) and bumps the row's updated_at. Multi-pass
-  // overflow forms aren't supported via overwrite — rejected if the
-  // generation would create more than 1 pass.
-  const cleanOverwriteId = (overwriteId ?? '').trim() || null
+// v28.1.0g — extracted from generateFilledHarvestLogPDFsAction so the
+// auto-fill preview action below can resolve the exact values the fill
+// engine would print, without duplicating the snapshot/linkage logic.
+// Doc-independent: loads the log + trip (owner-gated) + included
+// entries + live wallet linkage + guide profile and assembles the
+// LogContext the resolver consumes. Code moved verbatim; only
+// profile.id → profileId.
 
-  const sb = await createClient()
-
-  // v27.9.6 — was `.eq('guide_id', profile.id)`. Real-prod regression
-  // Flavio reported: guides who picked one of his admin-published Bite
-  // Book templates from the Generate-Filled-Log dropdown got "Doc not
-  // found" because the template's owner is Flavio, not them. Fix: allow
-  // either OWNER docs OR is_template docs. RLS already gates this
-  // correctly via docs_template_select (any authenticated user can
-  // SELECT where is_template=true) + docs_guide_self_all (owner full
-  // access). Both `bb-private` storage and `doc_field_mappings` have
-  // matching template-permissive policies, so the rest of the fill
-  // pipeline (download bytes + read mappings) works cross-tenant.
-  const { data: doc } = await sb
-    .from('docs')
-    .select('id, guide_id, kind, file_path, label, mapping_status, is_template')
-    .eq('id', docId)
-    .or(`guide_id.eq.${profile.id},is_template.eq.true`)
-    .maybeSingle()
-  if (!doc) return { error: 'Doc not found.' }
-  if (doc.kind !== 'log') return { error: 'Only log docs can be filled.' }
-  if (doc.mapping_status !== 'complete' && doc.mapping_status !== 'partial') {
-    return { error: 'Set up mapping on this log doc first.' }
-  }
-
+async function buildLogFillData(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  profileId: string,
+  logId: string
+) {
   const { data: log } = await sb
     .from('harvest_logs')
     .select('id, trip_id, log_date, trip_purpose')
@@ -492,59 +458,9 @@ export async function generateFilledHarvestLogPDFsAction(
     .from('trips')
     .select('id, title, city, state, zone, county, starts_at, ends_at, species_targeted, method, status, guide_id')
     .eq('id', log.trip_id)
-    .eq('guide_id', profile.id)
+    .eq('guide_id', profileId)
     .maybeSingle()
   if (!trip) return { error: 'Trip not found.' }
-
-  // Mappings. v27.1.1.0.3c.1: hunter_slot column lets the wizard
-  // override the regex-detected slot per field.
-  // v27.1.1.0.3e.5: optional fallback_path — engine evaluates primary
-  // first, falls through if the result is null/empty.
-  const { data: mappings } = await sb
-    .from('doc_field_mappings')
-    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, user_label')
-    .eq('doc_id', docId)
-    .eq('mapping_kind', 'field')
-  type MappingEntry = {
-    path: string
-    fallbackPath: string | null
-    manualSlot: number
-    userLabel: string | null
-  }
-  const mappingByField = new Map<string, MappingEntry>()
-  for (const m of mappings ?? []) {
-    if (m.field_name && m.data_source_path) {
-      const fb = (m as { fallback_path?: string | null }).fallback_path ?? null
-      const ul = (m as { user_label?: string | null }).user_label ?? null
-      mappingByField.set(m.field_name, {
-        path: m.data_source_path,
-        fallbackPath: fb && typeof fb === 'string' && fb.trim() ? fb.trim() : null,
-        manualSlot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
-        userLabel: ul && typeof ul === 'string' && ul.trim() ? ul.trim() : null,
-      })
-    }
-  }
-  if (mappingByField.size === 0) {
-    return { error: 'No field mappings saved on this doc yet.' }
-  }
-
-  // v27.3.9: catalog every (field_name, hunter_slot) pair the doc has
-  // mapped to user_input.log_time. The pre-generate gate below checks
-  // that EVERY required slot has a saved value before fill runs.
-  const userInputMappings: Array<{
-    fieldName: string
-    label: string
-    manualSlot: number
-  }> = []
-  for (const [fieldName, m] of mappingByField) {
-    if (m.path === 'user_input.log_time') {
-      userInputMappings.push({
-        fieldName,
-        label: m.userLabel ?? fieldName,
-        manualSlot: m.manualSlot,
-      })
-    }
-  }
 
   // Entries (only included), preserving insertion / participant order.
   const { data: entryRows } = await sb
@@ -685,13 +601,13 @@ export async function generateFilledHarvestLogPDFsAction(
     sb
       .from('profiles')
       .select('display_name, phone, address_street, address_street2, address_city, address_state, address_zip')
-      .eq('id', profile.id)
+      .eq('id', profileId)
       .maybeSingle(),
-    sb.from('guide_profiles').select('business_name').eq('user_id', profile.id).maybeSingle(),
+    sb.from('guide_profiles').select('business_name').eq('user_id', profileId).maybeSingle(),
     sb
       .from('wallet_items')
       .select('identifier, state, valid_to')
-      .eq('user_id', profile.id)
+      .eq('user_id', profileId)
       .eq('type', 'guide_license')
       .is('archived_at', null)
       .order('valid_to', { ascending: false })
@@ -730,57 +646,6 @@ export async function generateFilledHarvestLogPDFsAction(
   const logUserInputs: Record<string, string> = {}
   for (const r of (logUserInputsRes ?? []) as Array<{ mapping_field_name: string; value: string | null }>) {
     logUserInputs[r.mapping_field_name] = r.value ?? ''
-  }
-
-  // v27.3.9 / v27.3.9.1: pre-generate "Filled at log time" check.
-  // SOFT confirmation, not a block: when at least one included entry
-  // is missing a required input AND the caller did not pass
-  // acknowledgeBlanks=true, return a structured `blanks_warning` so
-  // the client can render a confirmation modal. After the guide
-  // confirms, the client retries with acknowledgeBlanks=true and
-  // generation proceeds with empty values for the missing fields.
-  if (!acknowledgeBlanks && userInputMappings.length > 0) {
-    const missing: Array<{
-      hunter: string
-      label: string
-      field_name: string
-      hunter_slot: number
-    }> = []
-    for (const um of userInputMappings) {
-      // v27.5.0.4.4: trip-level (manualSlot < 1) checked against
-      // logUserInputs. Per-hunter (manualSlot >= 1) unchanged.
-      if (um.manualSlot < 1) {
-        const value = logUserInputs[um.fieldName]
-        if (!value || !value.trim()) {
-          missing.push({
-            hunter: 'Trip-level',
-            label: um.label,
-            field_name: um.fieldName,
-            hunter_slot: 0,
-          })
-        }
-        continue
-      }
-      const idx = um.manualSlot - 1
-      const e = includedEntries[idx]
-      if (!e) continue
-      const value = userInputsByEntry[e.id]?.[um.fieldName]
-      if (!value || !value.trim()) {
-        const hunterName =
-          (hunterRes.data ?? []).find((h) => h.id === e.hunter_id)?.display_name ??
-          e.guest_name ??
-          `Hunter ${um.manualSlot}`
-        missing.push({
-          hunter: hunterName,
-          label: um.label,
-          field_name: um.fieldName,
-          hunter_slot: um.manualSlot,
-        })
-      }
-    }
-    if (missing.length > 0) {
-      return { blanks_warning: missing }
-    }
   }
 
   const entries: EntrySnapshot[] = includedEntries.map((e) => {
@@ -905,6 +770,185 @@ export async function generateFilledHarvestLogPDFsAction(
       user_inputs: logUserInputs,
     },
     entries,
+  }
+
+  const hunterNameById = new Map<string, string>(
+    (hunterRes.data ?? []).map((h) => [h.id, h.display_name])
+  )
+
+  return {
+    data: {
+      log,
+      trip,
+      includedEntries,
+      hunterNameById,
+      userInputsByEntry,
+      logUserInputs,
+      entries,
+      baseCtx,
+    },
+  }
+}
+
+// ── Action ────────────────────────────────────────────────────────────
+
+export async function generateFilledHarvestLogPDFsAction(
+  logId: string,
+  docId: string,
+  customName?: string,
+  overwriteId?: string,
+  // v27.3.9.1: when true, skip the "Filled at log time" blank-check
+  // and proceed with whatever values exist. Set by the client after
+  // the guide confirms in the soft-warning modal.
+  acknowledgeBlanks?: boolean
+): Promise<GenerateFilledLogResult> {
+  const { profile } = await requireGuide()
+  const gate = await assertWriteAllowed(profile.id)
+  if ('error' in gate) return { error: gate.error }
+  if (!logId || !docId) return { error: 'Missing log or doc id.' }
+  // v27.1.4.0.1: optional guide-supplied report name. Empty/undefined →
+  // fall through to the auto-generated `{trip.title} — {doc.label}`
+  // pattern below. Capped at 120 chars defensively.
+  const cleanCustomName = (customName ?? '').trim().slice(0, 120)
+  // v27.1.3.0.3: optional overwrite target. When set, the engine
+  // upserts the storage object at the EXISTING file_path of this row
+  // (no new row inserted) and bumps the row's updated_at. Multi-pass
+  // overflow forms aren't supported via overwrite — rejected if the
+  // generation would create more than 1 pass.
+  const cleanOverwriteId = (overwriteId ?? '').trim() || null
+
+  const sb = await createClient()
+
+  // v27.9.6 — was `.eq('guide_id', profile.id)`. Real-prod regression
+  // Flavio reported: guides who picked one of his admin-published Bite
+  // Book templates from the Generate-Filled-Log dropdown got "Doc not
+  // found" because the template's owner is Flavio, not them. Fix: allow
+  // either OWNER docs OR is_template docs. RLS already gates this
+  // correctly via docs_template_select (any authenticated user can
+  // SELECT where is_template=true) + docs_guide_self_all (owner full
+  // access). Both `bb-private` storage and `doc_field_mappings` have
+  // matching template-permissive policies, so the rest of the fill
+  // pipeline (download bytes + read mappings) works cross-tenant.
+  const { data: doc } = await sb
+    .from('docs')
+    .select('id, guide_id, kind, file_path, label, mapping_status, is_template')
+    .eq('id', docId)
+    .or(`guide_id.eq.${profile.id},is_template.eq.true`)
+    .maybeSingle()
+  if (!doc) return { error: 'Doc not found.' }
+  if (doc.kind !== 'log') return { error: 'Only log docs can be filled.' }
+  if (doc.mapping_status !== 'complete' && doc.mapping_status !== 'partial') {
+    return { error: 'Set up mapping on this log doc first.' }
+  }
+
+  // Mappings. v27.1.1.0.3c.1: hunter_slot column lets the wizard
+  // override the regex-detected slot per field.
+  // v27.1.1.0.3e.5: optional fallback_path — engine evaluates primary
+  // first, falls through if the result is null/empty.
+  const { data: mappings } = await sb
+    .from('doc_field_mappings')
+    .select('field_name, data_source_path, fallback_path, mapping_kind, hunter_slot, user_label')
+    .eq('doc_id', docId)
+    .eq('mapping_kind', 'field')
+  type MappingEntry = {
+    path: string
+    fallbackPath: string | null
+    manualSlot: number
+    userLabel: string | null
+  }
+  const mappingByField = new Map<string, MappingEntry>()
+  for (const m of mappings ?? []) {
+    if (m.field_name && m.data_source_path) {
+      const fb = (m as { fallback_path?: string | null }).fallback_path ?? null
+      const ul = (m as { user_label?: string | null }).user_label ?? null
+      mappingByField.set(m.field_name, {
+        path: m.data_source_path,
+        fallbackPath: fb && typeof fb === 'string' && fb.trim() ? fb.trim() : null,
+        manualSlot: typeof m.hunter_slot === 'number' ? m.hunter_slot : 0,
+        userLabel: ul && typeof ul === 'string' && ul.trim() ? ul.trim() : null,
+      })
+    }
+  }
+  if (mappingByField.size === 0) {
+    return { error: 'No field mappings saved on this doc yet.' }
+  }
+
+  // v27.3.9: catalog every (field_name, hunter_slot) pair the doc has
+  // mapped to user_input.log_time. The pre-generate gate below checks
+  // that EVERY required slot has a saved value before fill runs.
+  const userInputMappings: Array<{
+    fieldName: string
+    label: string
+    manualSlot: number
+  }> = []
+  for (const [fieldName, m] of mappingByField) {
+    if (m.path === 'user_input.log_time') {
+      userInputMappings.push({
+        fieldName,
+        label: m.userLabel ?? fieldName,
+        manualSlot: m.manualSlot,
+      })
+    }
+  }
+
+  // v28.1.0g — shared context build (log + trip + included entries +
+  // live wallet linkage + guide profile), extracted to
+  // buildLogFillData so previewAutoFillValuesAction resolves the same
+  // values this fill prints.
+  const built = await buildLogFillData(sb, profile.id, logId)
+  if ('error' in built) return { error: built.error ?? 'Could not load report data.' }
+  const { log, trip, includedEntries, hunterNameById, userInputsByEntry, logUserInputs, entries, baseCtx } =
+    built.data
+
+  // v27.3.9 / v27.3.9.1: pre-generate "Filled at log time" check.
+  // SOFT confirmation, not a block: when at least one included entry
+  // is missing a required input AND the caller did not pass
+  // acknowledgeBlanks=true, return a structured `blanks_warning` so
+  // the client can render a confirmation modal. After the guide
+  // confirms, the client retries with acknowledgeBlanks=true and
+  // generation proceeds with empty values for the missing fields.
+  if (!acknowledgeBlanks && userInputMappings.length > 0) {
+    const missing: Array<{
+      hunter: string
+      label: string
+      field_name: string
+      hunter_slot: number
+    }> = []
+    for (const um of userInputMappings) {
+      // v27.5.0.4.4: trip-level (manualSlot < 1) checked against
+      // logUserInputs. Per-hunter (manualSlot >= 1) unchanged.
+      if (um.manualSlot < 1) {
+        const value = logUserInputs[um.fieldName]
+        if (!value || !value.trim()) {
+          missing.push({
+            hunter: 'Trip-level',
+            label: um.label,
+            field_name: um.fieldName,
+            hunter_slot: 0,
+          })
+        }
+        continue
+      }
+      const idx = um.manualSlot - 1
+      const e = includedEntries[idx]
+      if (!e) continue
+      const value = userInputsByEntry[e.id]?.[um.fieldName]
+      if (!value || !value.trim()) {
+        const hunterName =
+          (e.hunter_id ? hunterNameById.get(e.hunter_id) : null) ??
+          e.guest_name ??
+          `Hunter ${um.manualSlot}`
+        missing.push({
+          hunter: hunterName,
+          label: um.label,
+          field_name: um.fieldName,
+          hunter_slot: um.manualSlot,
+        })
+      }
+    }
+    if (missing.length > 0) {
+      return { blanks_warning: missing }
+    }
   }
 
   // Download the original PDF.
@@ -1114,11 +1158,30 @@ export async function generateFilledHarvestLogPDFsAction(
       // (when set) if primary returns null/'' (empty string or falsy
       // boolean still passes through; only "really nothing" triggers
       // the fallback). Lets a single PDF field accept either-or sources.
-      let value = resolveSource(path, passCtx, effectiveSlot, name)
+      //
+      // v28.1.0g — log-time override: a non-empty guide-typed value for
+      // this field (saved from the editor's "Auto-filled fields"
+      // inputs into the same user-input tables) supersedes the mapped
+      // source for this log only. Empty/absent override = mapped value
+      // fills exactly as before. Gated on isOverridableSourcePath so
+      // sentinel paths (e_signature.*, signature_date.now,
+      // user_input.log_time itself) can never be hijacked by a stray
+      // same-named row.
+      let value: ResolvedValue = null
+      const overrideValue = isOverridableSourcePath(path)
+        ? effectiveSlot >= 1
+          ? passEntries[effectiveSlot - 1]?.user_inputs[name]
+          : passCtx.log.user_inputs[name]
+        : undefined
       const isEmpty = (v: ResolvedValue): boolean => v === null || v === ''
-      if (isEmpty(value) && mapping.fallbackPath) {
-        const fbVal = resolveSource(mapping.fallbackPath, passCtx, effectiveSlot, name)
-        if (!isEmpty(fbVal)) value = fbVal
+      if (overrideValue && overrideValue.trim() !== '') {
+        value = overrideValue
+      } else {
+        value = resolveSource(path, passCtx, effectiveSlot, name)
+        if (isEmpty(value) && mapping.fallbackPath) {
+          const fbVal = resolveSource(mapping.fallbackPath, passCtx, effectiveSlot, name)
+          if (!isEmpty(fbVal)) value = fbVal
+        }
       }
       try {
         if (field instanceof PDFTextField) {
@@ -1441,4 +1504,56 @@ export async function deleteTripGeneratedLogAction(
   revalidatePath(`/app/trips/${row.trip_id}`)
   revalidatePath(`/app/trips/${row.trip_id}/log`)
   return { ok: true }
+}
+
+// v28.1.0g — resolve the CURRENT value of every overrideable
+// auto-filled mapping for this log, so the editor's "Auto-filled
+// fields" inputs pre-fill with exactly what the PDF would print.
+// Read-only; no write gate. Editor slots are sequential over included
+// entries (slotByEntryId in HarvestLogEditor), and baseCtx.entries
+// preserves that order, so resolveSource(path, baseCtx, slot, name)
+// hits the right entry for slot >= 1 and the trip-level context for
+// slot 0.
+export type AutoFillPreview = {
+  ok: true
+  trip_level: Record<string, string>
+  per_entry: Record<string, Record<string, string>>
+}
+
+export async function previewAutoFillValuesAction(
+  logId: string
+): Promise<AutoFillPreview | { error: string }> {
+  const { profile } = await requireGuide()
+  if (!logId) return { error: 'Missing log id.' }
+  const sb = await createClient()
+
+  const built = await buildLogFillData(sb, profile.id, logId)
+  if ('error' in built) return { error: built.error ?? 'Could not load report data.' }
+  const { includedEntries, baseCtx } = built.data
+
+  const mappings = await fetchAutoFillMappingsForGuide(sb)
+
+  const asText = (v: ResolvedValue): string => (typeof v === 'string' ? v : '')
+  const tripLevel: Record<string, string> = {}
+  const perEntry: Record<string, Record<string, string>> = {}
+  for (const m of mappings) {
+    if (m.effective_slot === 0) {
+      if (!(m.field_name in tripLevel)) {
+        tripLevel[m.field_name] = asText(
+          resolveSource(m.data_source_path, baseCtx, 0, m.field_name)
+        )
+      }
+      continue
+    }
+    const entryRow = includedEntries[m.effective_slot - 1]
+    if (!entryRow) continue
+    const bucket = perEntry[entryRow.id] ?? (perEntry[entryRow.id] = {})
+    if (!(m.field_name in bucket)) {
+      bucket[m.field_name] = asText(
+        resolveSource(m.data_source_path, baseCtx, m.effective_slot, m.field_name)
+      )
+    }
+  }
+
+  return { ok: true, trip_level: tripLevel, per_entry: perEntry }
 }
