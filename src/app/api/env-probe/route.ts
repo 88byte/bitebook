@@ -23,11 +23,26 @@ function fingerprint(name: string) {
 }
 
 export async function GET() {
+  // Live probe: call GoTrue's health endpoint with the runtime anon key
+  // exactly as the app's server code would. Separates "runtime env is
+  // wrong" from "network path mangles the request."
+  let health: { status: number; body: string } | { error: string }
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`,
+      { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! }, cache: 'no-store' }
+    )
+    health = { status: res.status, body: (await res.text()).slice(0, 140) }
+  } catch (e) {
+    health = { error: String(e).slice(0, 200) }
+  }
+
   return NextResponse.json({
     runtime: process.version,
     vercelEnv: process.env.VERCEL_ENV ?? null,
     url: fingerprint('NEXT_PUBLIC_SUPABASE_URL'),
     anon: fingerprint('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     service: fingerprint('SUPABASE_SERVICE_ROLE_KEY'),
+    health,
   })
 }
